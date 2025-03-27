@@ -5,7 +5,7 @@ import cors from 'cors'
 import { db } from './config/db';
 import budgetRouter from './routes/budgetRouter'
 import paisRouter from './routes/paisRouter'
-
+import estadoRouter from './routes/estadoRouter'
 async function connectDB() {
     try {
         await db.authenticate()
@@ -26,6 +26,7 @@ app.use(express.json())
 
 app.use('/api/budgets', budgetRouter)
 app.use('/api/pais', paisRouter)
+app.use('/api/estado', estadoRouter)
 
 
 
