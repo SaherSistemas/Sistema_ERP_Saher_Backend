@@ -1,5 +1,6 @@
-import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo } from "sequelize-typescript";
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
 import Estado from "./Estado";
+import Proveedor from "./Proveedor";
 
 @Table({
     tableName: 'ciudad'
@@ -33,6 +34,10 @@ class Ciudad extends Model {
 
     @BelongsTo(() => Estado)
     estado: Estado
+
+    // Relación: Una ciudad tiene muchos proveedores
+    @HasMany(() => Proveedor)
+    proveedores: Proveedor[];
 }
 
 export default Ciudad

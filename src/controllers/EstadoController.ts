@@ -96,7 +96,8 @@ export class EstadoController {
 
             res.json('Se cambio el estatus del estado correctamente.')
         } catch (error) {
-
+            //console.error(error);
+            res.status(500).json({ message: "Error al modificar el estado." });
         }
     }
 

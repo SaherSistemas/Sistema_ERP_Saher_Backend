@@ -73,17 +73,18 @@ export class CiudadController {
     static cambiarStatus = async (req: Request, res: Response) => {
         try {
             const { id_ciuda } = req.params;
-
             const ciudad = await Ciudad.findByPk(id_ciuda);
-
             if (!ciudad) {
                 res.status(404).json({ error: 'Ciudad no encontrada.' });
                 return;
             }
             const statusContrario = !ciudad.activo_ciuda;
             await ciudad.update({ activo_ciuda: statusContrario })
-        } catch (error) {
 
+            res.status(201).json({ mensaje: "La ciudad se actualizo correctamente." })
+        } catch (error) {
+            //console.error(error);
+            res.status(500).json({ message: "Error no se pudo cambiar el estado de la ciudad." });
         }
     }
 }
