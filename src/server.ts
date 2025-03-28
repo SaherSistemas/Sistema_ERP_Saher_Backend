@@ -3,7 +3,6 @@ import colors from 'colors'
 import morgan from 'morgan'
 import cors from 'cors'
 import { db } from './config/db';
-import budgetRouter from './routes/budgetRouter'
 import paisRouter from './routes/paisRouter'
 import estadoRouter from './routes/estadoRouter'
 async function connectDB() {
@@ -24,7 +23,6 @@ app.use(morgan('dev'))
 
 app.use(express.json())
 
-app.use('/api/budgets', budgetRouter)
 app.use('/api/pais', paisRouter)
 app.use('/api/estado', estadoRouter)
 

@@ -1,4 +1,5 @@
-import { Table, Column, DataType, Model, PrimaryKey } from "sequelize-typescript";
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo } from "sequelize-typescript";
+import Estado from "./Estado";
 
 @Table({
     tableName: 'ciudad'
@@ -9,17 +10,29 @@ class Ciudad extends Model {
     @Column({
         type: DataType.SMALLINT
     })
-    id_ciuda: number
+    declare id_ciuda: number
 
+    @ForeignKey(() => Estado)
     @Column({
         type: DataType.SMALLINT
     })
-    id_esta_ciuda: number
+    declare id_esta_ciuda: number
 
+    @Unique
     @Column({
         type: DataType.STRING()
     })
-    nom_ciuda: string
+    declare nom_ciuda: string
+
+    @Column({
+        type: DataType.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+    })
+    declare activo_ciuda: boolean
+
+    @BelongsTo(() => Estado)
+    estado: Estado
 }
 
 export default Ciudad

@@ -5,7 +5,11 @@ const router = Router()
 router.get('/', PaisController.getAll)
 
 router.post('/', PaisController.create)
-router.get('/:id', PaisController.getById)
+router.get('/:id_pais', PaisController.getById)
+
+router.put('/:id_pais', PaisController.updateByID)
+
+router.put('/estadopais/:id_pais', PaisController.cambiarEstatus)
 
 
 export default router

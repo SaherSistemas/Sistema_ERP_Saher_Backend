@@ -1,4 +1,5 @@
-import { Column, Model, DataType, Table, PrimaryKey } from "sequelize-typescript";
+import { Column, Model, DataType, Table, PrimaryKey, HasMany, Unique } from "sequelize-typescript";
+import Estado from "./Estado";
 
 @Table({
     tableName: "pais"
@@ -10,19 +11,30 @@ class Pais extends Model {
         type: DataType.SMALLINT,
         allowNull: false,
     })
-    id_pais: number;
+    declare id_pais: number;
 
+    @Unique
     @Column({
         type: DataType.STRING(50),
         allowNull: false,
     })
-    nom_pais: string;
+    declare nom_pais: string;
 
     @Column({
         type: DataType.STRING(3),
         allowNull: false,
     })
-    cod_iso: string;
+    declare cod_iso: string;
+
+    @Column({
+        type: DataType.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+    })
+    declare activo_pais: boolean
+
+    @HasMany(() => Estado)
+    estados: Estado[];
 }
 
 export default Pais;
