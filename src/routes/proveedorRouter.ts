@@ -3,5 +3,5 @@ import { ProveedorController } from "../controllers/ProveedorController"
 const router = Router()
 
 router.get('/', ProveedorController.getAllProveedores)
-router.post('/', ProveedorController.crearCiudad)
+router.post('/', ProveedorController.crearProveedor)
 export default router;

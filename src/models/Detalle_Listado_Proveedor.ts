@@ -7,7 +7,7 @@ import Listados_Proveedor from './Listados_Proveedor'
 })
 
 
-class Listado_Proveedor extends Model {
+class Detalle_Listado_Proveedor extends Model {
     @PrimaryKey
     @Column({
         type: DataType.UUID,
@@ -44,6 +44,10 @@ class Listado_Proveedor extends Model {
         allowNull: false
     })
     declare preio_pro_detlist: string
+
+    // Relación: Un estado pertenece a un país
+    @BelongsTo(() => Listados_Proveedor)
+    listado_proveedor: Listados_Proveedor;
 }
 
-export default Listado_Proveedor;
+export default Detalle_Listado_Proveedor;

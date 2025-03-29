@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { Listado_ProveedorController } from "../controllers/Listado_ProveedorController"
-const router = Router()
+import multer from "multer";
 
-router.get('/', Listado_ProveedorController.cargarListadosProveedor)
+const router = Router()
+const upload = multer({ dest: "uploads/" })
+
+router.post('/upload', upload.single("archivo"), Listado_ProveedorController.cargarListadosProveedor)
 
 export default router;

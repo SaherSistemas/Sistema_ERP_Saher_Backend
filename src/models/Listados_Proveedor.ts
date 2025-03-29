@@ -21,6 +21,10 @@ class Listado_Proveedor extends Model {
         allowNull: false
     })
     declare id_prove_listprove: string
+
+    // Relación: Un estado pertenece a un país
+    @BelongsTo(() => Proveedor)
+    proveedor: Proveedor;
 }
 
 export default Listado_Proveedor;

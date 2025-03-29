@@ -13,7 +13,7 @@ export class ProveedorController {
         }
     }
 
-    static crearCiudad = async (req: Request, res: Response) => {
+    static crearProveedor = async (req: Request, res: Response) => {
         try {
             const { nomcort_prove, razsoc_prove, rfc_prove, calle_prove, id_ciud_prove, cp_prove, telef_prove,
                 corr_prove, diascre_prove, limicre_prove, plazoentrega_prove, ctabanca_prove, condpago_prove

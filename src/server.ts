@@ -7,6 +7,7 @@ import paisRouter from './routes/paisRouter'
 import estadoRouter from './routes/estadoRouter'
 import ciudadRouter from './routes/ciudadRouter'
 import proveedorRouter from './routes/proveedorRouter'
+import listados_proveedorRouter from './routes/listados_proveedorRouter'
 async function connectDB() {
     try {
         await db.authenticate()
@@ -29,6 +30,7 @@ app.use('/api/pais', paisRouter)
 app.use('/api/estado', estadoRouter)
 app.use('/api/ciudad', ciudadRouter)
 app.use('/api/proveedor', proveedorRouter)
+app.use('/api/listadosproveedor', listados_proveedorRouter)
 
 
 
