@@ -1,13 +1,11 @@
 import type { Request, Response } from "express"
-import Pais from "../models/Pais"
+import { PaisService } from "../services/pais.service"
 export class PaisController {
     static getAll = async (req: Request, res: Response) => {
         try {
-            const todosPaises = await Pais.findAll()
-
+            const todosPaises = await PaisService.getAllPaises();
             res.status(201).json({ mensaje: todosPaises })
         } catch (error) {
-
             //console.error(error);
             res.status(500).json({ message: "Error al obtener todos los paises." });
         }
@@ -15,21 +13,8 @@ export class PaisController {
     }
     static create = async (req: Request, res: Response) => {
         try {
-
             const { nom_pais, cod_iso } = req.body;
-
-            const ultimoPais = await Pais.findOne({
-                order: [["id_pais", "DESC"]]
-            });
-            const nuevoId = ultimoPais ? ultimoPais.dataValues.id_pais + 1 : 1; // Si no hay registros, empieza en 1
-
-
-            // Crear el nuevo país con el ID generado
-            const nuevoPais = await Pais.create({
-                id_pais: nuevoId,
-                nom_pais,
-                cod_iso
-            });
+            const newPais = await PaisService.createPais(nom_pais, cod_iso)
             res.status(201).json('Pais creado correctamente')
         } catch (error) {
             //console.error(error);
@@ -40,34 +25,26 @@ export class PaisController {
         try {
             const { id_pais } = req.params
 
-            const pais = await Pais.findByPk(id_pais)
-
-            if (!pais) {
-                res.status(404).json({ error: "País no encontrado." });
-                return;
-            }
+            const idPaisNumber = parseInt(id_pais)
+            const pais = await PaisService.getPaisById(idPaisNumber)
             res.json(pais)
         } catch (error) {
             //console.log(error)
-            res.status(500).json({ mensaje: "Error al encontrar el estado." })
+            res.status(500).json({ mensaje: "Error al encontrar el pais." })
         }
 
     }
     static updateByID = async (req: Request, res: Response) => {
         try {
             const { id_pais } = req.params
+            const { nom_pais, cod_iso } = req.body;
 
-            const pais = await Pais.findByPk(id_pais)
+            const IdNumber = parseInt(id_pais)
+            const updatedPais = await PaisService.updatePais(IdNumber, nom_pais, cod_iso)
 
-            if (!pais) {
-                res.status(404).json({ error: "País no encontrado" });
-                return;
-            }
-
-            await pais.update(req.body)
             res.json('Pais actualizado correctamente.')
         } catch (error) {
-            //console.log(error)
+            console.log(error)
             res.status(500).json({ mensaje: "Error al modificar el pais." })
         }
 
@@ -76,17 +53,11 @@ export class PaisController {
     static cambiarEstatus = async (req: Request, res: Response) => {
         try {
             const { id_pais } = req.params
+            const IdNumber = parseInt(id_pais)
 
-            const pais = await Pais.findByPk(id_pais)
+            const updateStatusPais = await PaisService.cambiarStatus(IdNumber)
 
-            if (!pais) {
-                res.status(404).json({ error: "Pais no encontrado" })
-                return;
-            }
-
-            const estadoContrario = !pais.activo_pais
-            await pais.update({ activo_pais: estadoContrario })
-
+            console.log(updateStatusPais)
             res.json('Se cambio el estatus del pais correctamente.')
         } catch (error) {
             //console.log(error)

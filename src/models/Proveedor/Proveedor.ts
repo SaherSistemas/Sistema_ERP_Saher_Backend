@@ -1,6 +1,6 @@
-import { Column, Model, DataType, Table, PrimaryKey, Unique, ForeignKey, BelongsTo } from 'sequelize-typescript'
-import Ciudad from './Ciudad'
-
+import { Column, Model, DataType, Table, PrimaryKey, Unique, ForeignKey, BelongsTo, BelongsToMany, HasMany } from 'sequelize-typescript'
+import Ciudad from '../Ubicacion/Ciudad'
+import Compra from '../Compra/Compra'
 @Table({
     tableName: "proveedor"
 })
@@ -106,6 +106,9 @@ class Proveedor extends Model {
 
     @BelongsTo(() => Ciudad)
     ciudad: Ciudad
+
+    @HasMany(() => Compra)
+    compras: Compra[];
 }
 
 export default Proveedor

@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { v4 as uuidv4 } from 'uuid'
-import Proveedor from "../models/Proveedor";
+import Proveedor from "../models/Proveedor/Proveedor";
 
 export class ProveedorController {
     static getAllProveedores = async (req: Request, res: Response) => {

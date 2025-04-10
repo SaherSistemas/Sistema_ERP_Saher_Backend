@@ -37,13 +37,13 @@ class Detalle_Listado_Proveedor extends Model {
     @Column({
         type: DataType.INTEGER,
     })
-    declare exist_pro_detlist: string
+    declare exist_pro_detlist: number
 
     @Column({
         type: DataType.DECIMAL(12, 2),
         allowNull: false
     })
-    declare preio_pro_detlist: string
+    declare preio_pro_detlist: number
 
     // Relación: Un estado pertenece a un país
     @BelongsTo(() => Listados_Proveedor)

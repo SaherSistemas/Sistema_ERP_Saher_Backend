@@ -1,5 +1,5 @@
 import { Column, Model, DataType, Table, PrimaryKey, Unique, ForeignKey, BelongsTo } from 'sequelize-typescript'
-import Proveedor from './Proveedor'
+import Proveedor from '../Proveedor/Proveedor'
 
 
 @Table({

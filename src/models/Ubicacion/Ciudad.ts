@@ -1,6 +1,6 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
 import Estado from "./Estado";
-import Proveedor from "./Proveedor";
+import Proveedor from "../Proveedor/Proveedor";
 
 @Table({
     tableName: 'ciudad'

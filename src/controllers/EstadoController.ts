@@ -1,6 +1,6 @@
 import { request, type Request, type Response } from "express";
-import Estado from "../models/Estado"
-import Pais from "../models/Pais";
+import Estado from "../models/Ubicacion/Estado"
+import Pais from "../models/Ubicacion/Pais";
 
 export class EstadoController {
     static getAllEstados = async (req: Request, res: Response) => {

@@ -3,8 +3,8 @@ import * as XLSX from 'xlsx';
 import { v4 as uuidv4 } from 'uuid'
 import path from "path";
 import fs from "fs";
-import Listado_Proveedor from "../models/Listados_Proveedor";
-import Detalle_Listado_Proveedor from "../models/Detalle_Listado_Proveedor"
+import Listado_Proveedor from "../models/Proveedor/Listados_Proveedor";
+import Detalle_Listado_Proveedor from "../models/Proveedor/Detalle_Listado_Proveedor"
 
 export class Listado_ProveedorController {
     static getAllProveedores = async (req: Request, res: Response) => {
