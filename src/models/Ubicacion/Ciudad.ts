@@ -1,6 +1,7 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
 import Estado from "./Estado";
 import Proveedor from "../Proveedor/Proveedor";
+import Empleado from "../Usuarios/Empleado";
 
 @Table({
     tableName: 'ciudad'
@@ -38,6 +39,10 @@ class Ciudad extends Model {
     // Relación: Una ciudad tiene muchos proveedores
     @HasMany(() => Proveedor)
     proveedores: Proveedor[];
+
+    //RELACION UNA CIUDAD TIENE MUCHOS EMPLEADOS
+    @HasMany(() => Empleado)
+    empleados: Empleado[];
 }
 
 export default Ciudad

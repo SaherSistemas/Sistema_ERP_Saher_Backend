@@ -1,5 +1,6 @@
-import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo } from "sequelize-typescript";
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
 import Proveedor from "../Proveedor/Proveedor";
+import Detalle_Compra_Solicitado from "./Detalle_Compra_Solicitado";
 
 @Table({
     tableName: 'compra'
@@ -29,6 +30,9 @@ class Compra extends Model {
 
     @BelongsTo(() => Proveedor)
     proveedor: Proveedor;
+
+    @HasMany(() => Detalle_Compra_Solicitado)
+    declare detallesCompra: Detalle_Compra_Solicitado[];
 }
 
 export default Compra;

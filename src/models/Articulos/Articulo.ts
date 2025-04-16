@@ -1,7 +1,8 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey } from "sequelize-typescript";
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, HasMany, Unique } from "sequelize-typescript";
 import UnidadMedida from "./UnidadMedida";
 import Clasificacion from "./Clasificacion";
 import Temporabilidad from "./Temporabilidad";
+import Detalle_Compra_Solicitado from "../Compra/Detalle_Compra_Solicitado";
 
 @Table({
     tableName: "articulo",
@@ -14,12 +15,14 @@ class Articulo extends Model {
     })
     declare id_artic: string;
 
+    @Unique
     @Column({
         type: DataType.SMALLINT,
         allowNull: false
     })
     declare cod_int_artic: number;
 
+    @Unique
     @Column({
         type: DataType.STRING(15),
         allowNull: false
@@ -88,6 +91,12 @@ class Articulo extends Model {
         allowNull: false
     })
     declare satclave_artic: string;
+
+
+    @HasMany(() => Detalle_Compra_Solicitado)
+    declare detallesCompraSolicitado: Detalle_Compra_Solicitado[];
+
+
 }
 
 export default Articulo;

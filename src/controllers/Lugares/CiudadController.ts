@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import Ciudad from "../models/Ubicacion/Ciudad"
+import Ciudad from "../../models/Ubicacion/Ciudad"
 export class CiudadController {
     static getAllCiudades = async (req: Request, res: Response) => {
         try {

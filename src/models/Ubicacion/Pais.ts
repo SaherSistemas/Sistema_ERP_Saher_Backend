@@ -20,6 +20,7 @@ class Pais extends Model {
     })
     declare nom_pais: string;
 
+    @Unique
     @Column({
         type: DataType.STRING(3),
         allowNull: false,
@@ -33,6 +34,7 @@ class Pais extends Model {
     })
     declare activo_pais: boolean
 
+    //UN PAIS TIENE MUCHOS ESTADOS 
     @HasMany(() => Estado)
     estados: Estado[];
 }

@@ -26,6 +26,12 @@ class Estado extends Model {
     })
     declare nom_esta: string
 
+    @Unique
+    @Column({
+        type: DataType.STRING(5)
+    })
+    declare clave_ent_fed_estado: string
+
     @Column({
         type: DataType.BOOLEAN,
         allowNull: false,

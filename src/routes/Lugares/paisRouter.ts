@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { PaisController } from "../controllers/PaisController";
+import { PaisController } from "../../controllers/Lugares/PaisController";
 const router = Router()
 
 router.get('/', PaisController.getAll)

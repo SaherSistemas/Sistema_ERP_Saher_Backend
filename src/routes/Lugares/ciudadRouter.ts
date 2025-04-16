@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { CiudadController } from "../controllers/CiudadController";
+import { CiudadController } from "../../controllers/Lugares/CiudadController";
 const router = Router()
 
 router.get('/', CiudadController.getAllCiudades)
