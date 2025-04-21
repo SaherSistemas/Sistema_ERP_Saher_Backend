@@ -6,9 +6,13 @@ export const CiudadRepository = {
     getAll: async (): Promise<ICiudad[]> => {
         return await Ciudad.findAll();
     },
+    getById: async (id_ciuda: number) => {
+        return await Ciudad.findByPk(id_ciuda)
+    },
     getCiudadesEstados: async (id_esta_ciuda: number): Promise<ICiudad[]> => {
         return await Ciudad.findAll({ where: { id_esta_ciuda } })
     },
+
     ultimoId: async () => {
         return await Ciudad.findOne({
             order: [["id_ciuda", "DESC"]]
@@ -19,10 +23,6 @@ export const CiudadRepository = {
             id_ciuda: nuevoID,
             ...data
         })
-    },
-
-    getById: async (id_ciuda: number) => {
-        return await Ciudad.findByPk(id_ciuda)
     },
 
     update: async (id_ciuda: number, data: IUpdatedCiudad) => {

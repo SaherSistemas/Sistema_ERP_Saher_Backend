@@ -45,7 +45,7 @@ export class PaisController {
 
             res.status(201).json('Pais actualizado correctamente.')
         } catch (error) {
-            console.log(error)
+            //console.log(error)
             res.status(500).json({ mensaje: "Error al modificar el pais." })
         }
 

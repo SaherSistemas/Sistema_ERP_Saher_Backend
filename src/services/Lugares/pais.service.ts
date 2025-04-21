@@ -7,7 +7,15 @@ export const PaisService = {
 
     createPais: async (data: ICreatePais) => {
         //VALIDAR SI ESTAN VACIOS 
-
+        if (
+            !data ||
+            typeof data.nom_pais !== 'string' ||
+            !data.nom_pais.trim() ||
+            typeof data.cod_iso !== 'string' ||
+            !data.cod_iso.trim()
+        ) {
+            throw new Error("Datos inválidos");
+        }
         const ultimoID = await PaisRepository.ultimoID();
         const nuevoID = ultimoID ? ultimoID.id_pais + 1 : 1;
 

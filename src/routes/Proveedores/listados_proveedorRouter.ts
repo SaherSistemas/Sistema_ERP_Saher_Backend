@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Listado_ProveedorController } from "../controllers/Listado_ProveedorController"
+import { Listado_ProveedorController } from "../../controllers/Listado_ProveedorController"
 import multer from "multer";
 
 const router = Router()

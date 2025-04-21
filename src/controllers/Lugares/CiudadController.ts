@@ -1,10 +1,12 @@
 import type { Request, Response } from "express";
 import Ciudad from "../../models/Ubicacion/Ciudad"
+import { CiudadService } from "../../services/Lugares/ciudad.service";
+import { ICreateCiudad, IUpdatedCiudad } from "../../interface/Lugares/Ciudades.interface";
 export class CiudadController {
     static getAllCiudades = async (req: Request, res: Response) => {
         try {
-            const ciudades = await Ciudad.findAll();
-            res.status(201).json({ mensaje: ciudades })
+            const todasCiudades = await CiudadService.getAllCiudad();
+            res.status(201).json({ mensaje: todasCiudades })
         } catch (error) {
             //console.error(error);
             res.status(500).json({ message: "Error al obtener todos las ciudades." });
@@ -13,39 +15,29 @@ export class CiudadController {
     static getCiudadById = async (req: Request, res: Response) => {
         try {
             const { id_ciuda } = req.params;
-
-            const ciudad = await Ciudad.findByPk(id_ciuda);
-
-            if (!ciudad) {
-                res.status(404).json({ error: "Ciudad no encontrada." })
-                return;
-            }
-            res.json(ciudad)
+            const idCiudadNumber = parseInt(id_ciuda)
+            const ciudad = await CiudadService.getCiudadByID(idCiudadNumber)
+            res.status(201).json(ciudad)
         } catch (error) {
             //console.error(error);
             res.status(500).json({ message: "No se encontro la ciudad." });
         }
     }
-
-    static crearCiudad = async (req: Request, res: Response) => {
+    static ciudadesConEstado = async (req: Request, res: Response) => {
         try {
-            const { id_esta_ciuda, nom_ciuda } = req.body;
-
-            const ultimaCiudad = await Ciudad.findOne({
-                order: [["id_ciuda", "DESC"]]
-            });
-
-            const SigId = ultimaCiudad ? ultimaCiudad.dataValues.id_ciuda + 1 : 1;
-
-            const nuevaCiudad = await Ciudad.create({
-                id_ciuda: SigId,
-                id_esta_ciuda: id_esta_ciuda,
-                nom_ciuda: nom_ciuda
-            })
-
-            res.status(201).json({
-                mensaje: 'Ciudad creada correctamente', nuevaCiudad
-            })
+            const { id_esta_ciuda } = req.body;
+            const ciudadesPorEstado = await CiudadService.getCiudadesPorEstado(id_esta_ciuda)
+            res.status(201).json(ciudadesPorEstado)
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al obtener las ciudades del estado." });
+        }
+    }
+    static crearCiudad = async (req: Request<ICreateCiudad>, res: Response) => {
+        try {
+            const data = req.body
+            const newCiudad = await CiudadService.createCiudad(data)
+            res.status(201).json('Ciudad creada correctamente.')
         } catch (error) {
             //console.error(error);
             res.status(500).json({ message: "Error al crear la ciudad." });
@@ -55,7 +47,11 @@ export class CiudadController {
     static updateByID = async (req: Request, res: Response) => {
         try {
             const { id_ciuda } = req.params
+            const data: IUpdatedCiudad = req.body
 
+            const IdNumber = parseInt(id_ciuda)
+            const updatedCiudad = await CiudadService.updatedCiudad(IdNumber, data)
+            res
             const ciudad = await Ciudad.findByPk(id_ciuda);
 
             if (!ciudad) {
@@ -84,7 +80,9 @@ export class CiudadController {
             res.status(201).json({ mensaje: "La ciudad se actualizo correctamente." })
         } catch (error) {
             //console.error(error);
-            res.status(500).json({ message: "Error no se pudo cambiar el estado de la ciudad." });
+            res.status(500).json({ message: "Error no se pudo cambiar el estatus de la ciudad." });
         }
     }
+
+
 }

@@ -10,7 +10,16 @@ export const EstadoService = {
     },
     createEstado: async (data: ICreateEstado) => {
         //VALIDAR SI ESTAN VACIOS
-
+        if (
+            !data ||
+            typeof data.nom_esta !== 'string' ||
+            !data.nom_esta.trim() ||
+            typeof data.clave_ent_fed_estado !== 'string' ||
+            !data.clave_ent_fed_estado.trim() ||
+            typeof data.id_pais_esta !== 'number'
+        ) {
+            throw new Error("Datos inválidos");
+        }
         const ultimoID = await EstadoRepository.ultimoID();
         const nuevoID = ultimoID ? ultimoID.id_esta + 1 : 1;
         return await EstadoRepository.create({ ...data }, nuevoID)
