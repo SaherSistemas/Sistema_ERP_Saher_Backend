@@ -14,6 +14,7 @@ export const dbLocal = new Sequelize({
     models: [path.join(__dirname, '/../models/**/*.ts')],  // Corrige la ruta con path.join
     logging: false,
 });
+
 //export const dbRemota = new Sequelize({
 //  dialect: 'postgres',
 // host: 'localhost',

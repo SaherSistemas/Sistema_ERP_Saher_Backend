@@ -1,6 +1,6 @@
 import { Table, Column, Model, PrimaryKey, DataType } from 'sequelize-typescript';
 
-@Table({ tableName: 'cat_tipo_contrato', timestamps: false })
+@Table({ tableName: 'cat_tipo_contrato' })
 class Cat_Tipo_Contrato extends Model {
     @PrimaryKey
     @Column(DataType.STRING(2))

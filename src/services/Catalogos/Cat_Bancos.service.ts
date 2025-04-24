@@ -5,7 +5,7 @@ export const Cat_BancoService = {
 
     getById: async (id: string) => {
         const result = await Cat_BancosRepository.getById(id);
-        if (!result) throw new Error("Tipo de contrato no encontrado");
+        if (!result) throw new Error("Banco no encontrado");
         return result;
     },
 

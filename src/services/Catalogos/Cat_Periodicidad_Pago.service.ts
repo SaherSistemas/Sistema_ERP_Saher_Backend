@@ -7,7 +7,7 @@ export const Cat_Periodicidad_Pago = {
     },
     getById: async (id: string) => {
         const result = await Cat_Periodicidad_PagoRepository.getById(id);
-        if (!result) throw new Error("Tipo de contrato no encontrado");
+        if (!result) throw new Error("Tipo de periocidad de pago no encontrado");
         return result;
     },
 

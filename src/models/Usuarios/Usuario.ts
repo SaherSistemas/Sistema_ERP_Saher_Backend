@@ -5,7 +5,7 @@ import Empleado from './Empleado';
     tableName: 'usuario',
     timestamps: false,
 })
-export class Usuario extends Model {
+class Usuario extends Model {
     @PrimaryKey
     @Column({
         type: DataType.STRING(10),
@@ -40,3 +40,5 @@ export class Usuario extends Model {
     @BelongsTo(() => Empleado)
     declare empleado: Empleado;
 }
+
+export default Usuario

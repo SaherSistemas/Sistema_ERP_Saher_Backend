@@ -1,11 +1,11 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
-import Ciudad from "./Ubicacion/Ciudad";
+import Ciudad from "../Ubicacion/Ciudad";
 
 @Table({
-    tableName: 'empresa'
+    tableName: 'empresa_sucursal'
 })
 
-class Empresa extends Model {
+class Empresa_Sucursal extends Model {
     @PrimaryKey
     @Column({
         type: DataType.UUID
@@ -56,11 +56,10 @@ class Empresa extends Model {
     })
     declare tele_empre: string
 
-
     // Relación: Un estado pertenece a un país
     @BelongsTo(() => Ciudad)
     ciudad: Ciudad;
 
 }
 
-export default Empresa
+export default Empresa_Sucursal

@@ -9,7 +9,7 @@ export const Cat_Tipo_JorandaService = {
 
     getById: async (id: string) => {
         const result = await Cat_Tipo_JornadaRepository.getById(id);
-        if (!result) throw new Error("Tipo de contrato no encontrado");
+        if (!result) throw new Error("Tipo de jornada no encontrado");
         return result;
     },
 

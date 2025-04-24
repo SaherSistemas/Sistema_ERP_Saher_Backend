@@ -6,7 +6,7 @@ export const Cat_Riesgo_PuestoService = {
 
     getById: async (id: string) => {
         const result = await Cat_Riesgo_PuestoRepository.getById(id);
-        if (!result) throw new Error("Tipo de contrato no encontrado");
+        if (!result) throw new Error("Riesgo de puesto no encontrado");
         return result;
     },
 

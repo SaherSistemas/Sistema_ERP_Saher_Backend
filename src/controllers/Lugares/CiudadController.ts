@@ -51,7 +51,7 @@ export class CiudadController {
 
             const IdNumber = parseInt(id_ciuda)
             const updatedCiudad = await CiudadService.updatedCiudad(IdNumber, data)
-            res
+
             const ciudad = await Ciudad.findByPk(id_ciuda);
 
             if (!ciudad) {
