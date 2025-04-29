@@ -42,10 +42,10 @@ class Proveedor extends Model {
 
     @ForeignKey(() => Ciudad)
     @Column({
-        type: DataType.SMALLINT,
+        type: DataType.UUID,
         allowNull: false
     })
-    declare id_ciud_prove: number
+    declare id_ciud_prove: string
 
     @Column({
         type: DataType.STRING(5),

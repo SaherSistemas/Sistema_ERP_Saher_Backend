@@ -1,39 +1,35 @@
-import express from 'express'
-import colors from 'colors'
-import morgan from 'morgan'
-import cors from 'cors'
-import { dbLocal, /*dbRemota */ } from './config/db';
+import express from 'express';
+import colors from 'colors';
+import morgan from 'morgan';
+import cors from 'cors';
+import { dbLocal,/* dbRemota */ } from './config/db'; // Ambas conexiones
 import router from './routes';
 
-async function connectDBLocal() {
+async function connectDatabases() {
     try {
-        await dbLocal.authenticate()
-        dbLocal.sync()
-        console.log(colors.blue.bold('Conexion Exitosa Local'))
+        await dbLocal.authenticate();
+        // await dbRemota.authenticate();
+
+        console.log(colors.blue.bold('Conexión exitosa a base LOCAL'));
+        console.log(colors.green.bold('Conexión exitosa a base REMOTA'));
+
+        await dbLocal.sync();    // Sincroniza modelos si es necesario
+        //await dbRemota.sync();   // Solo si quieres sincronizar también la remota
     } catch (error) {
-        console.log(error)
+        console.error(colors.red.bold('Error al conectar a las bases de datos:'));
+        console.error(error);
+        process.exit(1);
     }
 }
-/*
-async function connectDBRemota() {
-    try {
-        await dbRemota.authenticate()
-        dbRemota.sync()
-        console.log(colors.blue.bold('Conexion Exitosa REMOTA'))
-    } catch (error) {
-        console.log(error)
-    }
-}*/
 
-connectDBLocal();
-//connectDBRemota();
-const app = express()
+connectDatabases(); // ⬅ Aquí las conecta ambas
 
-app.use(cors())
-app.use(morgan('dev'))
+const app = express();
 
-app.use(express.json())
+app.use(cors());
+app.use(morgan('dev'));
+app.use(express.json());
 
-app.use('/api', router)
+app.use('/api', router);
 
-export default app
+export default app;

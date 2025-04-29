@@ -1,4 +1,4 @@
-import { Column, Model, DataType, Table, PrimaryKey, HasMany, Unique } from "sequelize-typescript";
+import { Column, Model, DataType, Table, PrimaryKey, HasMany, Unique, Default } from "sequelize-typescript";
 import Estado from "./Estado";
 
 @Table({
@@ -7,11 +7,18 @@ import Estado from "./Estado";
 class Pais extends Model {
 
     @PrimaryKey
+    @Default(DataType.UUIDV4)
     @Column({
-        type: DataType.SMALLINT,
+        type: DataType.UUID
+    })
+    declare id_pais: string;
+
+    @Unique
+    @Column({
+        type: DataType.INTEGER,
         allowNull: false,
     })
-    declare id_pais: number;
+    declare id_intpais: number;
 
     @Unique
     @Column({
@@ -32,9 +39,8 @@ class Pais extends Model {
         allowNull: false,
         defaultValue: true,
     })
-    declare activo_pais: boolean
+    declare activo_pais: boolean;
 
-    //UN PAIS TIENE MUCHOS ESTADOS 
     @HasMany(() => Estado)
     estados: Estado[];
 }

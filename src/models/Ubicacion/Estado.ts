@@ -1,4 +1,4 @@
-import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, BelongsTo, Unique, HasMany } from 'sequelize-typescript'
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, BelongsTo, Unique, HasMany, Default } from 'sequelize-typescript'
 import Pais from './Pais'
 import Ciudad from './Ciudad'
 
@@ -8,17 +8,24 @@ import Ciudad from './Ciudad'
 
 class Estado extends Model {
     @PrimaryKey
+    @Default(DataType.UUIDV4)
+    @Column({
+        type: DataType.UUID
+    })
+    declare id_esta: string;
+
+    @Unique
     @Column({
         type: DataType.SMALLINT
     })
-    declare id_esta: number
+    declare id_intesta: number
 
     //LLAVE DE LA TABLA PAIS
     @ForeignKey(() => Pais)
     @Column({
-        type: DataType.SMALLINT
+        type: DataType.UUID
     })
-    declare id_pais_esta: number
+    declare id_pais_esta: string
 
     @Unique
     @Column({

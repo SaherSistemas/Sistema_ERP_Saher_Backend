@@ -1,12 +1,12 @@
 import { ICreatePais, IPais, IUpdatePais } from "../../interface/Lugares/Pais.interface";
 import { PaisRepository } from "../../repository/Lugares/Pais.repository";
+
 export const PaisService = {
     getAllPaises: async (): Promise<IPais[]> => {
         return await PaisRepository.getAll();
     },
 
     createPais: async (data: ICreatePais) => {
-        //VALIDAR SI ESTAN VACIOS 
         if (
             !data ||
             typeof data.nom_pais !== 'string' ||
@@ -16,30 +16,36 @@ export const PaisService = {
         ) {
             throw new Error("Datos inválidos");
         }
-        const ultimoID = await PaisRepository.ultimoID();
-        const nuevoID = ultimoID ? ultimoID.id_pais + 1 : 1;
-
-        return await PaisRepository.create({ ...data }, nuevoID)
+        return await PaisRepository.create(data);
     },
 
-    getPaisById: async (id_pais: number) => {
-        const pais = await PaisRepository.getById(id_pais)
-        if (!pais) throw new Error("Pais no encontrado")
-        return pais
+    getPaisById: async (id_pais: string) => {
+        const pais = await PaisRepository.findByIdFlexible(id_pais);
+        if (!pais) throw new Error("País no encontrado");
+        return pais;
     },
 
-    updatePais: async (id_pais: number, data: IUpdatePais) => {
-        const updatedPais = await PaisRepository.update(id_pais, data)
-        if (!updatedPais) throw new Error("No se pudo actualizar el país")
-        return updatedPais
+    updatePais: async (id_pais: string, data: IUpdatePais) => {
+        const actualizarPais = await PaisRepository.findByIdFlexible(id_pais)
+
+        if (!actualizarPais) throw new Error("No se encontro el pais a actualizar.")
+
+        return await actualizarPais.update(data)
     },
 
-    cambiarStatus: async (id_pais: number) => {
-        const statusActual = await PaisRepository.statusPais(id_pais)
+    cambiarStatus: async (id_pais: string) => {
+        const pais = await PaisRepository.findByIdFlexible(id_pais);
+        if (!pais) throw new Error("Pais no encontrado para cambiar estatus.");
 
-        const nuevoStatus = !statusActual
-        const updateStatusPais = await PaisRepository.cambiarStatus(id_pais, nuevoStatus);
-        if (!updateStatusPais) throw new Error("No se pudo actualizar el pais");
-        return updateStatusPais
+        const nuevoStatus = !pais.activo_pais;
+        console.log(nuevoStatus)
+        if (!nuevoStatus) {
+            const tieneEstadosActivos = await PaisRepository.existeEstadoActivo(id_pais);
+            if (tieneEstadosActivos) {
+                throw new Error("No se puede desactivar el país porque tiene estados activos");
+            }
+        }
+
+        return await pais.update({ activo_pais: nuevoStatus })
     }
 }

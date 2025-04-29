@@ -5,7 +5,7 @@ export interface IEmpresaSucursal {
     tipo_empre: string;            // 'M' = Matriz, 'S' = Sucursal
     cp_empre: string;
     calle_empre: string;
-    id_ciudad_empre: number;
+    id_ciudad_empre: string;
     correo_empre: string;
     tele_empre: string;
 }
@@ -15,7 +15,7 @@ export interface ICrearEmpresaSucursal {
     tipo_empre: string;            // 'M' o 'S'
     cp_empre: string;
     calle_empre: string;
-    id_ciudad_empre: number;
+    id_ciudad_empre: string;
     correo_empre: string;
     tele_empre: string;
 }
@@ -25,7 +25,7 @@ export interface IUpdateEmpresaSucursal {
     tipo_empre?: string;
     cp_empre?: string;
     calle_empre?: string;
-    id_ciudad_empre?: number;
+    id_ciudad_empre?: string;
     correo_empre?: string;
     tele_empre?: string;
 }

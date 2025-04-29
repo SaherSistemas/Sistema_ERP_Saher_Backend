@@ -9,7 +9,7 @@ router.get('/:id_pais', PaisController.getById)
 
 router.put('/:id_pais', PaisController.updateByID)
 
-router.put('/estadopais/:id_pais', PaisController.cambiarEstatus)
+router.delete('/estadopais/:id_pais', PaisController.cambiarEstatus)
 
 
 export default router

@@ -42,9 +42,9 @@ class Empresa_Sucursal extends Model {
 
     @ForeignKey(() => Ciudad)
     @Column({
-        type: DataType.SMALLINT
+        type: DataType.UUID
     })
-    declare id_ciudad_empre: number
+    declare id_ciudad_empre: string
 
     @Column({
         type: DataType.STRING(100)

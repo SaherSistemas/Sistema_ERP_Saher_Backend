@@ -70,8 +70,8 @@ class Empleado extends Model {
     declare correo_empleado: string;
 
     @ForeignKey(() => Ciudad)
-    @Column(DataType.SMALLINT)
-    declare id_ciudad_empleado: number;
+    @Column(DataType.UUID)
+    declare id_ciudad_empleado: string;
     @BelongsTo(() => Ciudad)
     declare ciudad?: Ciudad;
 

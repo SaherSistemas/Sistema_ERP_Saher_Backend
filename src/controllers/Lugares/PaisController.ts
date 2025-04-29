@@ -1,68 +1,57 @@
-import type { Request, Response } from "express"
-import { PaisService } from "../../services/Lugares/pais.service"
+import type { Request, Response } from "express";
+import { PaisService } from "../../services/Lugares/pais.service";
 import { ICreatePais, IUpdatePais } from "../../interface/Lugares/Pais.interface";
+
 export class PaisController {
+
     static getAll = async (req: Request, res: Response) => {
         try {
             const todosPaises = await PaisService.getAllPaises();
-            res.status(201).json({ mensaje: todosPaises })
+            res.status(200).json({ mensaje: todosPaises });
         } catch (error) {
-            //console.error(error);
-            res.status(500).json({ message: "Error al obtener todos los paises." });
+            res.status(500).json({ message: "Error al obtener todos los países." });
         }
-
     }
-    static create = async (req: Request<ICreatePais>, res: Response) => {
+
+    static create = async (req: Request<{}, {}, ICreatePais>, res: Response) => {
         try {
-            const data = req.body
-            const newPais = await PaisService.createPais(data)
-            res.status(201).json('Pais creado correctamente')
+            const data = req.body;
+            const newPais = await PaisService.createPais(data);
+            res.status(201).json({ mensaje: 'País creado correctamente', pais: newPais });
         } catch (error) {
-            //console.error(error);
             res.status(500).json({ message: "Error al crear el país." });
         }
     }
+
     static getById = async (req: Request, res: Response) => {
         try {
-            const { id_pais } = req.params
-
-            const idPaisNumber = parseInt(id_pais)
-            const pais = await PaisService.getPaisById(idPaisNumber)
-            res.status(201).json(pais)
+            const { id_pais } = req.params;
+            const pais = await PaisService.getPaisById(id_pais); // Ya es string
+            res.status(200).json(pais);
         } catch (error) {
-            //console.log(error)
-            res.status(500).json({ mensaje: "Error al encontrar el pais." })
+            res.status(500).json({ mensaje: "Error al encontrar el país." });
         }
-
     }
+
     static updateByID = async (req: Request, res: Response) => {
         try {
-            const { id_pais } = req.params
-            const data: IUpdatePais = req.body
-
-            const IdNumber = parseInt(id_pais)
-            const updatedPais = await PaisService.updatePais(IdNumber, data)
-
-            res.status(201).json('Pais actualizado correctamente.')
+            const { id_pais } = req.params;
+            const data: IUpdatePais = req.body;
+            const updatedPais = await PaisService.updatePais(id_pais, data); // Ya es string
+            res.status(200).json({ mensaje: 'País actualizado correctamente.', pais: updatedPais });
         } catch (error) {
-            //console.log(error)
-            res.status(500).json({ mensaje: "Error al modificar el pais." })
+            console.log(error)
+            res.status(500).json({ mensaje: "Error al modificar el país." });
         }
-
     }
 
     static cambiarEstatus = async (req: Request, res: Response) => {
         try {
-            const { id_pais } = req.params
-            const IdNumber = parseInt(id_pais)
-
-            const updateStatusPais = await PaisService.cambiarStatus(IdNumber)
-
-            res.status(201).json('Se cambio el estatus del pais correctamente.')
+            const { id_pais } = req.params;
+            const updateStatusPais = await PaisService.cambiarStatus(id_pais); // Ya es string
+            res.status(200).json({ mensaje: 'Se cambió el estatus del país correctamente.', pais: updateStatusPais });
         } catch (error) {
-            //console.log(error)
-            res.status(500).json({ mensaje: "Error al cambiar el estado del pais." })
+            res.status(500).json({ mensaje: error.message });
         }
-
     }
 }

@@ -10,7 +10,7 @@ export interface IEmpleado {
     nss_empleado: string;
     regimen_fiscal_empleado: string;
     correo_empleado: string;
-    id_ciudad_empleado: number;
+    id_ciudad_empleado: string;
     fechanacimiento_empleado: Date;
     tipocontrato_empleado: string;
     tipojornada_empleado: string;
@@ -35,7 +35,7 @@ export interface ICrearEmpleado {
     nss_empleado: string;
     regimen_fiscal_empleado: string;
     correo_empleado: string;
-    id_ciudad_empleado: number;
+    id_ciudad_empleado: string;
     fechanacimiento_empleado: Date;
     tipocontrato_empleado: string;
     tipojornada_empleado: string;
@@ -47,5 +47,5 @@ export interface ICrearEmpleado {
     clabe_interbancaria: string;
     salario_base_cot_apor: number;
     salario_diario_integrado: number;
-    estatus_empleado?: boolean; // opcional, por si quieres que sea true por default
+    estatus_empleado?: boolean;
 }

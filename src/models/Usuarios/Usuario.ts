@@ -1,5 +1,6 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, BelongsTo } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, BelongsTo, Unique } from 'sequelize-typescript';
 import Empleado from './Empleado';
+import Rol from './Rol';
 
 @Table({
     tableName: 'usuario',
@@ -8,9 +9,15 @@ import Empleado from './Empleado';
 class Usuario extends Model {
     @PrimaryKey
     @Column({
+        type: DataType.UUID
+    })
+    declare id_usuario: string;
+
+    @Unique
+    @Column({
         type: DataType.STRING(10),
     })
-    declare userName: string;
+    declare username: string;
 
     @Column({
         type: DataType.STRING(30),
@@ -31,14 +38,18 @@ class Usuario extends Model {
     })
     declare status_user: boolean;
 
+    @ForeignKey(() => Rol)
     @Column({
-        type: DataType.DATE,
+        type: DataType.UUID,
         allowNull: true,
     })
-    declare fechaCaducCont_user: Date;
+    declare idrol_user: string;
 
     @BelongsTo(() => Empleado)
     declare empleado: Empleado;
+
+    @BelongsTo(() => Rol)
+    declare rol: Rol;
 }
 
 export default Usuario
