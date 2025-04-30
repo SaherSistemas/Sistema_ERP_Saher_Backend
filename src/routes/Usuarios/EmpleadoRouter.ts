@@ -3,5 +3,8 @@ import { EmpleadoController } from "../../controllers/Usuarios/EmpleadoControlle
 
 const router = Router();
 router.get('/', EmpleadoController.getAllEmpleados)
+router.get('/:id_empleado', EmpleadoController.getEmpleadoByID)
 router.post('/', EmpleadoController.createEmpleado)
+router.put('/:id_empleado', EmpleadoController.updateEmpleado)
+router.delete('/cambiarStatus/:id_empleado', EmpleadoController.cambiarStatus)
 export default router;

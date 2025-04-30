@@ -37,8 +37,6 @@ export const CiudadService = {
         return ciudad
     },
     updateCiudad: async (id: string, data: IUpdateCiudad) => {
-        const ciudadAActualizar = await CiudadRepository.findByIdFlexible(id)
-        if (!ciudadAActualizar) throw new Error("No se encontro la ciudad a actualizar.")
         if (data.id_esta_ciuda) {
             if (!isUUID(data.id_esta_ciuda) && !isNaN(Number(data.id_esta_ciuda))) {
                 const estado = await EstadoRepository.findByIdFlexible(data.id_esta_ciuda)
@@ -46,7 +44,7 @@ export const CiudadService = {
                 data.id_esta_ciuda = estado.id_esta
             }
         }
-        return await ciudadAActualizar.update(data)
+        return await CiudadRepository.updateCiudad(id, data)
     },
     cambiarStatus: async (id: string) => {
         const statusActual = await CiudadRepository.statusActualCiudad(id)

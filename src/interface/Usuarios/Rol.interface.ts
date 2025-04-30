@@ -4,5 +4,5 @@ export interface IRol {
 }
 
 export interface ICreateOrUpdateRol {
-    nom_rol: string
+    nom_rol?: string
 }

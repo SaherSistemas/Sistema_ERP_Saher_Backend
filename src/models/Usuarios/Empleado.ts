@@ -121,9 +121,6 @@ class Empleado extends Model {
     declare clabe_interbancaria: string;
 
     @Column(DataType.DECIMAL(10, 2))
-    declare salario_base_cot_apor: number;
-
-    @Column(DataType.DECIMAL(10, 2))
     declare salario_diario_integrado: number;
 
     @Default(true)

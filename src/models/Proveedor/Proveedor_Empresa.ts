@@ -1,5 +1,5 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, BelongsTo } from "sequelize-typescript";
-import Proveedor from "../Proveedor/Proveedor";
+import Proveedor from "./Proveedor";
 import Empresa from "../Empresa_Sucursal/Empresa_Sucursal";
 
 @Table({

@@ -56,6 +56,12 @@ class Empresa_Sucursal extends Model {
     })
     declare tele_empre: string
 
+    @Column({
+        type: DataType.BOOLEAN
+    })
+    declare status_empre: boolean
+
+
     // Relación: Un estado pertenece a un país
     @BelongsTo(() => Ciudad)
     ciudad: Ciudad;

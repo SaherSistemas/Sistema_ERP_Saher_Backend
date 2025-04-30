@@ -1,35 +1,55 @@
-import { ICrearEmpleado, IEmpleado } from "../../interface/Usuarios/Empleado.interface";
+import { ICrearEmpleado, IEmpleado, IUpdateEmpleado } from "../../interface/Usuarios/Empleado.interface";
 import Empleado from "../../models/Usuarios/Empleado";
-
+import { isUUID } from "../../utils/validaciones";
+import { UniqueConstraintError } from "sequelize";
+import { v4 as uuidv4 } from 'uuid';
 export const EmpleadoRepository = {
     getAll: async (): Promise<IEmpleado[]> => {
         return Empleado.findAll();
-    },
-    getById: async (id: string | number) => {
-        const isUUID = typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(id);
-
-        const whereClause = isUUID
-            ? { id_empleado: id }
-            : { idinterno_empleado: id };
-
-        const empleado = await Empleado.findOne({ where: whereClause });
-
-        if (!empleado) {
-            throw new Error("Empleado no encontrado");
-        }
-
-        return empleado;
     },
     ultimoId: async () => {
         return await Empleado.findOne({
             order: [["idinterno_empleado", "DESC"]]
         })
     },
-    crearEmpleadoNuevo: async (data: ICrearEmpleado, numcontint_empleado: number, uuid_empleado: string) => {
-        return await Empleado.create({
-            idinterno_empleado: numcontint_empleado,
-            id_empleado: uuid_empleado,
-            ...data
-        })
+    getByIdFlexible: async (id: string): Promise<Empleado | null> => {
+        if (isUUID(id)) {
+            return await Empleado.findByPk(id)
+        } else if (!isNaN(Number(id))) {
+            return await Empleado.findOne({ where: { idinterno_empleado: Number(id) } })
+        }
+        return null
     },
+    crearEmpleadoNuevo: async (data: ICrearEmpleado) => {
+        const nuevoUUID = uuidv4();
+        const ultimoID = await EmpleadoRepository.ultimoId();
+        const nuevoID = ultimoID ? ultimoID.idinterno_empleado + 1 : 1;
+        try {
+            return await Empleado.create({
+                id_empleado: nuevoUUID,
+                idinterno_empleado: nuevoID,
+                ...data
+            })
+        } catch (error: any) {
+            if (error instanceof UniqueConstraintError) {
+                throw new Error("Error: algún campo con restricción única ya existe.");
+            }
+            throw error; // Otro error desconocido
+        }
+    },
+    updateEmpleado: async (id: string, data: IUpdateEmpleado) => {
+        const empleado = await EmpleadoRepository.getByIdFlexible(id)
+        if (!empleado) return null;
+        return await empleado.update(data)
+    },
+    statusActualEmpleado: async (id: string) => {
+        const empleado = await EmpleadoRepository.getByIdFlexible(id);
+        if (!empleado) return null;
+        return empleado.estatus_empleado
+    },
+    cambiarStatus: async (id: string, statusContrario: boolean) => {
+        const empleado = await EmpleadoRepository.getByIdFlexible(id);
+        if (!empleado) return null;
+        return await empleado.update({ estatus_empleado: statusContrario })
+    }
 }

@@ -27,7 +27,7 @@ export const CiudadRepository = {
 
     ultimoID: async () => {
         return await Ciudad.findOne({
-            order: [["id_inteciuda", "DESC"]]
+            order: [["id_intciuda", "DESC"]]
         });
     },
 
@@ -35,7 +35,7 @@ export const CiudadRepository = {
         if (isUUID(id)) {
             return await Ciudad.findByPk(id);
         } else if (!isNaN(Number(id))) {
-            return await Ciudad.findOne({ where: { id_inteciuda: Number(id) } });
+            return await Ciudad.findOne({ where: { id_intciuda: Number(id) } });
         }
         return null;
     },
@@ -47,7 +47,7 @@ export const CiudadRepository = {
         try {
             return await Ciudad.create({
                 id_ciuda: nuevoUUID,
-                id_inteciuda: nuevoIntID,
+                id_intciuda: nuevoIntID,
                 ...data
             });
         } catch (error: any) {
@@ -59,7 +59,7 @@ export const CiudadRepository = {
 
     },
 
-    update: async (id: string, data: IUpdateCiudad) => {
+    updateCiudad: async (id: string, data: IUpdateCiudad) => {
         const ciudad = await CiudadRepository.findByIdFlexible(id);
         if (!ciudad) return null;
         return await ciudad.update(data);

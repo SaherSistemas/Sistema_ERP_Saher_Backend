@@ -8,6 +8,7 @@ export interface IEmpresaSucursal {
     id_ciudad_empre: string;
     correo_empre: string;
     tele_empre: string;
+    status_empre: boolean;
 }
 export interface ICrearEmpresaSucursal {
     nom_empre: string;
@@ -18,6 +19,7 @@ export interface ICrearEmpresaSucursal {
     id_ciudad_empre: string;
     correo_empre: string;
     tele_empre: string;
+    status_empre: boolean;
 }
 export interface IUpdateEmpresaSucursal {
     nom_empre?: string;
@@ -28,4 +30,5 @@ export interface IUpdateEmpresaSucursal {
     id_ciudad_empre?: string;
     correo_empre?: string;
     tele_empre?: string;
+    status_empre?: boolean
 }

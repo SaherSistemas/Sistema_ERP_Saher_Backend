@@ -1,4 +1,4 @@
-import { Table, Column, Model, PrimaryKey, DataType, ForeignKey, BelongsTo, HasMany } from "sequelize-typescript";
+import { Table, Column, Model, PrimaryKey, DataType, ForeignKey, BelongsTo, HasMany, Unique } from "sequelize-typescript";
 
 @Table({
     tableName: 'rol'
@@ -10,6 +10,11 @@ class Rol extends Model {
     })
     declare id_rol: string;
 
+    @Unique
+    @Column({
+        type: DataType.SMALLINT
+    })
+    declare id_introl: number
     @Column({
         type: DataType.STRING(50)
     })

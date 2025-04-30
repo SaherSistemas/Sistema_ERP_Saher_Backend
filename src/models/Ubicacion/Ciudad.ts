@@ -23,8 +23,7 @@ class Ciudad extends Model {
 
     @ForeignKey(() => Estado)
     @Column({
-        type: DataType.UUID,
-        field: "id_esta_ciuda" // Asegúrate que en la base esté así
+        type: DataType.UUID
     })
     declare id_esta_ciuda: string;
 

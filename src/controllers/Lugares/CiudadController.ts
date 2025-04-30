@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import Ciudad from "../../models/Ubicacion/Ciudad"
 import { CiudadService } from "../../services/Lugares/ciudad.service";
 import { ICreateCiudad, IUpdateCiudad } from "../../interface/Lugares/Ciudades.interface";
 export class CiudadController {
