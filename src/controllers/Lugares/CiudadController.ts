@@ -11,13 +11,12 @@ export class CiudadController {
             res.status(500).json({ message: "Error al obtener todos las ciudades." });
         }
     }
-    static ciudadesConEstado = async (req: Request, res: Response) => {
+    static ciudadesActivas = async (req: Request, res: Response) => {
         try {
-            const { id_esta_ciuda } = req.params;
-            const ciudadesPorEstado = await CiudadService.getCiudadesPorEstado(id_esta_ciuda)
-            res.status(201).json(ciudadesPorEstado)
+            const ciudadesActivas = await CiudadService.getCiudadesActivas()
+            res.status(201).json(ciudadesActivas)
         } catch (error) {
-            // console.error(error);
+            console.error(error);
             res.status(500).json({ message: "Error al obtener las ciudades del estado." });
         }
     }
@@ -36,9 +35,9 @@ export class CiudadController {
         try {
             const data = req.body
             const newCiudad = await CiudadService.createCiudad(data)
-            res.status(201).json({ mensaje: "Ciudad creada correctamente.", estado: newCiudad });
+            res.status(201).json({ mensaje: "Ciudad creada correctamente.", ciudad: newCiudad });
         } catch (error) {
-            console.error(error);
+            //  console.error(error);
             res.status(500).json({ message: "Error al crear la ciudad." });
         }
     }
@@ -48,7 +47,7 @@ export class CiudadController {
             const { id_ciuda } = req.params
             const data: IUpdateCiudad = req.body
             const updatedCiudad = await CiudadService.updateCiudad(id_ciuda, data)
-            res.status(200).json({ mensaje: "Ciudad actualizada correctamente.", estado: updatedCiudad });
+            res.status(201).json({ mensaje: "Ciudad actualizada correctamente.", ciudad: updatedCiudad });
         } catch (error) {
             //console.error(error);
             res.status(500).json({ message: "Error al modificar la ciudad." });
@@ -59,7 +58,7 @@ export class CiudadController {
         try {
             const { id_ciuda } = req.params;
             const updatestatusCiudad = await CiudadService.cambiarStatus(id_ciuda)
-            res.status(200).json({ mensaje: "Se cambió el estatus de la ciudad correctamente.", estado: updatestatusCiudad });
+            res.status(201).json({ mensaje: "Se cambió el estatus de la ciudad correctamente.", ciudad: updatestatusCiudad });
         } catch (error) {
             //console.error(error);
             res.status(500).json({ message: "Error no se pudo cambiar el estatus de la ciudad." });

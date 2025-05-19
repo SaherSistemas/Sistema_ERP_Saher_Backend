@@ -37,7 +37,7 @@ export class EmpleadoController {
             const { id_empleado } = req.params;
             const data: IUpdateEmpleado = req.body;
             const updateEmpleado = await EmpleadoService.updateEmpleado(id_empleado, data)
-            res.status(200).json({ mensaje: "Empleado actualizado correctamente", empleado: updateEmpleado })
+            res.status(201).json({ mensaje: "Empleado actualizado correctamente", empleado: updateEmpleado })
         } catch (error) {
             //console.error(error)
             res.status(500).json({ message: "Error al actualizar el empleado " })
@@ -47,7 +47,7 @@ export class EmpleadoController {
         try {
             const { id_empleado } = req.params
             const updateStatusEmpleado = await EmpleadoService.cambiarStatus(id_empleado)
-            res.status(200).json({ mesaje: "Se cambio el estatus del empleado", empleado: updateStatusEmpleado })
+            res.status(201).json({ mesaje: "Se cambio el estatus del empleado", empleado: updateStatusEmpleado })
         } catch (error) {
             //console.error(error);
             res.status(500).json({ message: "Error no se pudo cambiar el estatus del empleado." })

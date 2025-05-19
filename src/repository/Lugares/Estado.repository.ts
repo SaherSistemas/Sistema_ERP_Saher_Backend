@@ -8,12 +8,43 @@ import Ciudad from "../../models/Ubicacion/Ciudad";
 
 export const EstadoRepository = {
     getAll: async (): Promise<IEstado[]> => {
-        return await Estado.findAll();
+        return await Estado.findAll({
+            include: [{ model: Pais, attributes: ['id_pais', 'nom_pais'] }]
+        });
+    },
+    getAllActivos: async (): Promise<IEstado[]> => {
+        return await Estado.findAll({
+            where: { activo_estado: true }
+        })
+    },
+    existeEstadoActivo: async (id: string): Promise<boolean> => {
+        let paisUUID: string;
+
+        if (isUUID(id)) {
+            paisUUID = id;
+        } else if (!isNaN(Number(id))) {
+            const pais = await Pais.findOne({
+                where: { id_intpais: Number(id) }
+            });
+            if (!pais) return false;
+            paisUUID = pais.id_pais;
+        } else {
+            throw new Error("ID inválido: no es UUID ni número.");
+        }
+
+        const estadoActivo = await Estado.findOne({
+            where: {
+                id_pais_esta: paisUUID,
+                activo_estado: true
+            }
+        });
+
+        return !!estadoActivo;
     },
 
     getEstadosPorPais: async (id_pais: string): Promise<IEstado[]> => {
         const isIdUUID = isUUID(id_pais);
-
+        console.log(isIdUUID)
         let paisUUID = id_pais;
         if (!isIdUUID) {
             const pais = await Pais.findOne({ where: { id_intpais: Number(id_pais) } });
@@ -51,10 +82,13 @@ export const EstadoRepository = {
 
     findByIdFlexible: async (id: string) => {
         if (isUUID(id)) {
-            return await Estado.findByPk(id);
+            return await Estado.findByPk(id, {
+                include: [{ model: Pais, attributes: ['id_pais', 'nom_pais'] }]
+            });
         } else if (!isNaN(Number(id))) {
             return await Estado.findOne({
-                where: { id_intesta: Number(id) }
+                where: { id_intesta: Number(id) },
+                include: [{ model: Pais, attributes: ['id_pais', 'nom_pais'] }]
             });
         }
         return null;
@@ -78,15 +112,15 @@ export const EstadoRepository = {
         return estado.activo_estado;
     },
 
-    existeCiudadActiva: async (id_estado: string): Promise<boolean> => {
+    existeCiudadActiva: async (id: string): Promise<boolean> => {
         let estadoUUID: string;
 
-        if (isUUID(id_estado)) {
-            estadoUUID = id_estado;
-        } else if (!isNaN(Number(id_estado))) {
+        if (isUUID(id)) {
+            estadoUUID = id;
+        } else if (!isNaN(Number(id))) {
             // Buscar el estado usando id_intesta
             const estado = await Estado.findOne({
-                where: { id_intesta: Number(id_estado) }
+                where: { id_intesta: Number(id) }
             });
             if (!estado) return false;
             estadoUUID = estado.id_esta;
@@ -96,10 +130,12 @@ export const EstadoRepository = {
 
         const ciudadActiva = await Ciudad.findOne({
             where: {
-                id_estado_ciudad: estadoUUID,
-                activo_ciudad: true
+                id_esta_ciuda: estadoUUID,
+                activo_ciuda: true
             }
         });
+
+
 
         return !!ciudadActiva;
     }

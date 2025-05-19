@@ -4,24 +4,18 @@ import { ICreateCiudad, ICiudad, IUpdateCiudad } from "../../interface/Lugares/C
 import { UniqueConstraintError } from "sequelize";
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from 'uuid';
+import Colonia from "../../models/Ubicacion/Colonia";
 
 export const CiudadRepository = {
     getAll: async (): Promise<ICiudad[]> => {
-        return await Ciudad.findAll();
+        return await Ciudad.findAll({
+            include: [{ model: Estado, attributes: ['id_esta', 'nom_esta'] }]
+        });
     },
 
-    getCiudadesPorEstado: async (id_estado: string): Promise<ICiudad[]> => {
-        const isIdUUID = isUUID(id_estado)
-
-        let estadoUUID = id_estado;
-        if (!isIdUUID) {
-            const estado = await Estado.findOne({ where: { id_intesta: Number(id_estado) } })
-            if (!estado) return []
-            estadoUUID = estado.id_esta;
-        }
-
+    getCiudadesActivas: async (): Promise<ICiudad[]> => {
         return await Ciudad.findAll({
-            where: { id_esta_ciuda: estadoUUID }
+            where: { activo_ciuda: true }
         });
     },
 
@@ -33,9 +27,14 @@ export const CiudadRepository = {
 
     findByIdFlexible: async (id: string): Promise<Ciudad | null> => {
         if (isUUID(id)) {
-            return await Ciudad.findByPk(id);
+            return await Ciudad.findByPk(id, {
+                include: [{ model: Estado, attributes: ['id_esta', 'nom_esta'] }]
+            });
         } else if (!isNaN(Number(id))) {
-            return await Ciudad.findOne({ where: { id_intciuda: Number(id) } });
+            return await Ciudad.findOne({
+                where: { id_intciuda: Number(id) },
+                include: [{ model: Estado, attributes: ['id_esta', 'nom_esta'] }]
+            });
         }
         return null;
     },
@@ -76,5 +75,29 @@ export const CiudadRepository = {
         if (!ciudad) return null;
         return ciudad.activo_ciuda;
     },
+
+    existeColoniaActiva: async (id: string): Promise<boolean> => {
+        let ciudadUUID: string;
+        if (isUUID(id)) {
+            ciudadUUID = id;
+        } else if (!isNaN(Number(id))) {
+            const ciudad = await Ciudad.findOne({
+                where: { id_intciuda: Number(id) }
+            })
+            if (!ciudad) return false;
+            ciudadUUID = ciudad.id_ciuda
+        } else {
+            throw new Error("ID Invalido")
+        }
+
+        const coloniaActiva = await Colonia.findOne({
+            where: {
+                id_ciuda_colonia: ciudadUUID,
+                activa_colonia: true
+            }
+        })
+
+        return !!coloniaActiva
+    }
 
 };

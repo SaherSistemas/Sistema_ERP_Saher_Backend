@@ -21,5 +21,15 @@ export const RolService = {
             throw new Error("Datos invalidos.")
         }
         return await RolRepository.create(data)
+    },
+    updateRol: async (id: string, data: ICreateOrUpdateRol) => {
+        if (!data ||
+            (typeof data.nom_rol !== 'string' ||
+                !data.nom_rol.trim()
+            )
+        ) {
+            throw new Error("Datos invalidos.")
+        }
+        return await RolRepository.updateRol(data, id)
     }
 }

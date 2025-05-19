@@ -2,13 +2,15 @@ import { ICreatePais, IPais, IUpdatePais } from '../../interface/Lugares/Pais.in
 import Estado from '../../models/Ubicacion/Estado';
 import Pais from '../../models/Ubicacion/Pais';
 import { v4 as uuidv4 } from 'uuid';
-import { isUUID } from '../../utils/validaciones'; // ✅ Importar aquí
+import { isUUID } from '../../utils/validaciones';
 
 export const PaisRepository = {
     getAll: async (): Promise<IPais[]> => {
         return await Pais.findAll();
     },
-
+    getAllActivos: async (): Promise<IPais[]> => {
+        return await Pais.findAll({ where: { activo_pais: true } })
+    },
     ultimoID: async () => {
         return await Pais.findOne({
             order: [["id_intpais", "DESC"]]
@@ -47,16 +49,11 @@ export const PaisRepository = {
         return await pais.update(data);
     },
 
+
     cambiarStatus: async (id: string, statusContrario: boolean) => {
         const pais = await PaisRepository.findByIdFlexible(id);
         if (!pais) return null;
         return await pais.update({ activo_pais: statusContrario });
-    },
-
-    statusPais: async (id: string) => {
-        const pais = await PaisRepository.findByIdFlexible(id);
-        if (!pais) return null;
-        return pais.activo_pais;
     },
 
     existeEstadoActivo: async (id: string): Promise<boolean> => {

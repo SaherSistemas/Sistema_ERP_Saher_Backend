@@ -2,6 +2,7 @@ import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, Belongs
 import Estado from "./Estado";
 import Proveedor from "../Proveedor/Proveedor";
 import Empleado from "../Usuarios/Empleado";
+import Colonia from "./Colonia";
 
 @Table({
     tableName: 'ciudad'
@@ -48,6 +49,9 @@ class Ciudad extends Model {
 
     @HasMany(() => Empleado)
     empleados: Empleado[];
+
+    @HasMany(() => Colonia)
+    colonias: Colonia[];
 }
 
 export default Ciudad;

@@ -5,6 +5,9 @@ export const PaisService = {
     getAllPaises: async (): Promise<IPais[]> => {
         return await PaisRepository.getAll();
     },
+    getAllPaisesActivos: async (): Promise<IPais[]> => {
+        return await PaisRepository.getAllActivos();
+    },
 
     createPais: async (data: ICreatePais) => {
         if (
@@ -38,7 +41,7 @@ export const PaisService = {
         if (!pais) throw new Error("Pais no encontrado para cambiar estatus.");
 
         const nuevoStatus = !pais.activo_pais;
-        console.log(nuevoStatus)
+
         if (!nuevoStatus) {
             const tieneEstadosActivos = await PaisRepository.existeEstadoActivo(id_pais);
             if (tieneEstadosActivos) {
@@ -46,6 +49,9 @@ export const PaisService = {
             }
         }
 
-        return await pais.update({ activo_pais: nuevoStatus })
+        const updatedStatusPais = await PaisRepository.cambiarStatus(id_pais, nuevoStatus);
+        if (!updatedStatusPais) throw new Error("No se pudo actualizar el estado.");
+
+        return updatedStatusPais
     }
 }

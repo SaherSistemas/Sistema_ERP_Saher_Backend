@@ -19,5 +19,11 @@ class Rol extends Model {
         type: DataType.STRING(50)
     })
     declare nom_rol: string;
+
+    @Column({
+        type: DataType.SMALLINT
+    })
+    declare prioridad: number
+
 }
 export default Rol;

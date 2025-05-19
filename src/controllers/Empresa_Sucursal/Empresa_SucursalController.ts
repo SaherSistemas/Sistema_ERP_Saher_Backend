@@ -37,7 +37,7 @@ export class Empresa_SucursalController {
             const { id_empresaSucursal } = req.params;
             const data: IUpdateEmpresaSucursal = req.body;
             const updateSucursal = await Empresa_SucursalService.updateEmpresaSucursal(id_empresaSucursal, data);
-            res.status(200).json({ mensaje: "Sucursal actualizada correctamente.", empresa: updateSucursal })
+            res.status(201).json({ mensaje: "Sucursal actualizada correctamente.", empresa: updateSucursal })
         } catch (error) {
 
         }
@@ -48,7 +48,7 @@ export class Empresa_SucursalController {
         try {
             const { id_empresaSucursal } = req.params;
             const updateStatusEmpresa = await Empresa_SucursalService.cambiarStatus(id_empresaSucursal)
-            res.status(200).json({ mensaje: "Se cambio el estatus de la empresa correctamente.", empresa: updateStatusEmpresa })
+            res.status(201).json({ mensaje: "Se cambio el estatus de la empresa correctamente.", empresa: updateStatusEmpresa })
         } catch (error) {
             //console.error(error)
             res.status(500).json({ message: "Error no se pudo cambiar el estatus de la empresa." })

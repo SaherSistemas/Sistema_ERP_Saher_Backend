@@ -1,4 +1,3 @@
-import { ICrearEmpleado } from "../../interface/Usuarios/Empleado.interface";
 import { IRol, ICreateOrUpdateRol } from "../../interface/Usuarios/Rol.interface";
 import Rol from "../../models/Usuarios/Rol";
 import { v4 as uuidv4 } from 'uuid';
@@ -42,11 +41,11 @@ export const RolRepository = {
         }
         return null
     },
-    updateRol: async (data: ICrearEmpleado, uuid_rol: string) => {
-        const rol = await Rol.findByPk(uuid_rol)
+    updateRol: async (data: ICreateOrUpdateRol, uuid_rol: string) => {
+        const rol = await RolRepository.getByIdFlexible(uuid_rol)
 
         if (!rol) return null;
-        const updateRol = await rol.update(data)
+        return await rol.update(data)
     },
 
 

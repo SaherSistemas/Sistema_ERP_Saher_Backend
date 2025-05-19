@@ -2,6 +2,7 @@ import { Router } from "express";
 import paisRouter from '../routes/Lugares/paisRouter'
 import estadoRouter from '../routes/Lugares/estadoRouter'
 import ciudadRouter from '../routes/Lugares/ciudadRouter'
+import coloniaRouter from '../routes/Lugares/coloniaRouter'
 import proveedorRouter from './Proveedores/proveedorRouter'
 import listados_proveedorRouter from './Proveedores/listados_proveedorRouter'
 import unidad_medidaRouter from '../routes/Articulos/UnidadMedidaRouter'
@@ -10,6 +11,8 @@ import unidad_medidaRouter from '../routes/Articulos/UnidadMedidaRouter'
 
 import empleadoRouter from './Usuarios/EmpleadoRouter'
 import rolRouter from './Usuarios/RolRouter'
+import usuarioRouter from './Usuarios/UsuarioRouter'
+
 
 import cat_Regimen_fiscalRouter from './Catalogos/Cat_Regimen_FiscalRouter'
 import cat_Tipo_ContratoRouter from './Catalogos/Cat_Tipo_ContratoRouter'
@@ -27,6 +30,9 @@ const router = Router();
 router.use('/pais', paisRouter)
 router.use('/estado', estadoRouter)
 router.use('/ciudad', ciudadRouter)
+router.use('/colonia', coloniaRouter)
+
+
 router.use('/proveedor', proveedorRouter)
 router.use('/listadosproveedor', listados_proveedorRouter)
 router.use('/unidadmedida', unidad_medidaRouter)
@@ -42,6 +48,7 @@ router.use('/cat_bancos', cat_BancoRouter)
 
 router.use('/empleado', empleadoRouter)
 router.use('/rol', rolRouter)
+router.use('/usuario', usuarioRouter)
 
 
 

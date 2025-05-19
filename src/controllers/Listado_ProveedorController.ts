@@ -17,9 +17,9 @@ export class Listado_ProveedorController {
                 res.status(404).json({ mensaje: "No se envio ningun archivo." })
                 return
             }
-            const { id_proveedor, codigo_barras, descripcion, existencia, precio, fila_inicio } = req.body;
+            const { id_proveedor, columna_codBarras, columna_Descripcion, columna_Existencia, columna_Precio, columna_FilaInicio } = req.body;
 
-            if (!codigo_barras || !descripcion || !existencia || !precio || !id_proveedor) {
+            if (!columna_codBarras || !columna_Descripcion || !columna_Existencia || !columna_Precio || !id_proveedor) {
                 res.status(400).json({ message: "Faltan columnas en el body" });
                 return
             }
@@ -37,17 +37,17 @@ export class Listado_ProveedorController {
 
             const data = XLSX.utils.sheet_to_json<{ [key: string]: any }>(sheet, { header: "A" });
 
-            const filaInicio = Number(fila_inicio - 1) || 0;
-            const dataFiltrada = data.slice(filaInicio); // Excluye encabezados si fila_inicio es mayor que 0
+            const filaInicio = Number(columna_FilaInicio - 1) || 0;
+            const dataFiltrada = data.slice(filaInicio); // Excluye encabezados si columna_FilaInicio es mayor que 0
 
 
             const listadoDetalle = dataFiltrada.map((row) => ({
                 id_detlist: uuidv4(),
                 id_list_detlist: id_listado,
-                cod_barra_pro_detlist: String(row[codigo_barras]).trim(),
-                descrip_pro_detlis: String(row[descripcion]).trim(),
-                exist_pro_detlist: Number(row[existencia]) || 0,
-                preio_pro_detlist: parseFloat(row[precio]) || 0.0,
+                cod_barra_pro_detlist: String(row[columna_codBarras]).trim(),
+                descrip_pro_detlis: String(row[columna_Descripcion]).trim(),
+                exist_pro_detlist: Number(row[columna_Existencia]) || 0,
+                preio_pro_detlist: parseFloat(row[columna_Precio]) || 0.0,
             }))
 
             const nuevoListado = await Listado_Proveedor.create({

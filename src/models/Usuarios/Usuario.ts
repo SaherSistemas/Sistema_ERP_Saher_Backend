@@ -4,33 +4,31 @@ import Rol from './Rol';
 
 @Table({
     tableName: 'usuario',
-    timestamps: false,
 })
 class Usuario extends Model {
     @PrimaryKey
     @Column({
         type: DataType.UUID
     })
-    declare id_usuario: string;
+    declare id_user: string;
+
+    @ForeignKey(() => Empleado)
+    @Column({
+        type: DataType.UUID
+    })
+    declare id_empleado_user: string
 
     @Unique
     @Column({
-        type: DataType.STRING(10),
+        type: DataType.STRING(20),
     })
     declare username: string;
 
     @Column({
-        type: DataType.STRING(30),
+        type: DataType.STRING(150),
         allowNull: false,
     })
     declare password_user: string;
-
-    @ForeignKey(() => Empleado)
-    @Column({
-        type: DataType.UUID,
-        allowNull: false,
-    })
-    declare idEmpleado_user: string;
 
     @Column({
         type: DataType.BOOLEAN,
@@ -41,7 +39,6 @@ class Usuario extends Model {
     @ForeignKey(() => Rol)
     @Column({
         type: DataType.UUID,
-        allowNull: true,
     })
     declare idrol_user: string;
 

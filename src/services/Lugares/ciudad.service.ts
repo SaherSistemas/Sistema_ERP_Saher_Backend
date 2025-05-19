@@ -9,8 +9,8 @@ export const CiudadService = {
         return await CiudadRepository.getAll();
     },
 
-    getCiudadesPorEstado: async (id_esta_ciuda: string): Promise<ICiudad[]> => {
-        return await CiudadRepository.getCiudadesPorEstado(id_esta_ciuda)
+    getCiudadesActivas: async (): Promise<ICiudad[]> => {
+        return await CiudadRepository.getCiudadesActivas()
     },
 
     createCiudad: async (data: ICreateCiudad) => {
@@ -47,10 +47,17 @@ export const CiudadService = {
         return await CiudadRepository.updateCiudad(id, data)
     },
     cambiarStatus: async (id: string) => {
-        const statusActual = await CiudadRepository.statusActualCiudad(id)
-        if (statusActual === null) throw new Error("Estado no encontrado");
+        const ciudad = await CiudadRepository.findByIdFlexible(id);
+        if (!ciudad) throw new Error("Ciudad no encontrada")
+        const nuevoStatus = !ciudad.activo_ciuda
 
-        const nuevoStatus = !statusActual;
+        if (!nuevoStatus) {
+            const tieneColoniasActivas = await CiudadRepository.existeColoniaActiva(id);
+
+            if (tieneColoniasActivas) {
+                throw new Error("No se puede desactivar la ciudad porque tiene colonias activas")
+            }
+        }
         const updatedStatusCiudad = await CiudadRepository.cambiarStatus(id, nuevoStatus);
         if (!updatedStatusCiudad) throw new Error("No se pudo actualizar la ciudad.");
 

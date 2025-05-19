@@ -7,6 +7,9 @@ export const EstadoService = {
     getAllEstados: async (): Promise<IEstado[]> => {
         return await EstadoRepository.getAll();
     },
+    getAllEstadoActivo: async (): Promise<IEstado[]> => {
+        return await EstadoRepository.getAllActivos();
+    },
 
     getEstadosPorPais: async (id_pais: string): Promise<IEstado[]> => {
         return await EstadoRepository.getEstadosPorPais(id_pais);
@@ -54,10 +57,18 @@ export const EstadoService = {
     },
 
     cambiarStatus: async (id: string) => {
-        const statusActual = await EstadoRepository.statusActualEstado(id);
-        if (statusActual === null) throw new Error("Estado no encontrado");
+        const estado = await EstadoRepository.findByIdFlexible(id)
+        if (!estado) throw new Error("Estado no encontrado")
 
-        const nuevoStatus = !statusActual;
+        const nuevoStatus = !estado.activo_estado
+
+        if (!nuevoStatus) {
+            const tieneCiudadActivas = await EstadoRepository.existeCiudadActiva(id);
+
+            if (tieneCiudadActivas) {
+                throw new Error("No se puede desactivar el estado porque tiene ciudades activas");
+            }
+        }
         const updatedStatusEstado = await EstadoRepository.cambiarStatus(id, nuevoStatus);
         if (!updatedStatusEstado) throw new Error("No se pudo actualizar el estado.");
 

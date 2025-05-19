@@ -8,7 +8,7 @@ export class RolController {
             const todosRoles = await RolService.getAllRol();
             res.status(201).json({ mensaje: todosRoles })
         } catch (error) {
-            //console.error(error)
+            console.error(error)
             res.status(500).json({ message: "Error al obtener todos los roles" })
         }
     }
@@ -32,6 +32,17 @@ export class RolController {
         } catch (error) {
             //console.error(error)
             res.status(500).json({ message: "Error no se pudo crear el rol." })
+        }
+    }
+    static updateRol = async (req: Request, res: Response) => {
+        try {
+            const { id_rol } = req.params;
+            const data: ICreateOrUpdateRol = req.body;
+            const updateRol = await RolService.updateRol(id_rol, data)
+            res.status(201).json({ mensaje: "Rol actualizado correctamente", rol: updateRol })
+        } catch (error) {
+            //console.error(error)
+            res.status(500).json({ mensaje: "Error no se pudo actualizar el rol." })
         }
     }
 
