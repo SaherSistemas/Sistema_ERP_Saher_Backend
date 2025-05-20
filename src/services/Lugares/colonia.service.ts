@@ -8,8 +8,8 @@ export const ColoniaService = {
     getAllCiudad: async (): Promise<IColonia[]> => {
         return await ColoniaRepository.getAll();
     },
-    getColoniasPorCiudad: async (id_ciuda_colonia: string): Promise<IColonia[]> => {
-        return await ColoniaRepository.getColoniasPorCiudad(id_ciuda_colonia)
+    getColoniasActivas: async (): Promise<IColonia[]> => {
+        return await ColoniaRepository.getColoniasActivas()
     },
     createColonia: async (data: ICreateColonia) => {
         if (!isUUID(data.id_ciuda_colonia) && !isNaN(Number(data.id_ciuda_colonia))) {

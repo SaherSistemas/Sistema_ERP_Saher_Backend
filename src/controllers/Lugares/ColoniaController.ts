@@ -14,10 +14,9 @@ export class ColoniaController {
             res.status(500).json({ message: "Error al obtener las colonias" })
         }
     }
-    static coloniasConCiudad = async (req: Request, res: Response) => {
+    static coloniasActivas = async (req: Request, res: Response) => {
         try {
-            const { id_ciuda_colonia } = req.params;
-            const coloniasPorCiudad = await ColoniaService.getColoniasPorCiudad(id_ciuda_colonia);
+            const coloniasPorCiudad = await ColoniaService.getColoniasActivas();
             res.status(201).json(coloniasPorCiudad)
         } catch (error) {
             //console.error(error);

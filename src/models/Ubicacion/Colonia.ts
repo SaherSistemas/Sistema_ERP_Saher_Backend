@@ -1,5 +1,6 @@
 import { Column, Model, DataType, Table, PrimaryKey, HasMany, Unique, Default, ForeignKey, BelongsTo } from "sequelize-typescript";
 import Ciudad from "./Ciudad";
+import Proveedor from "../Proveedor/Proveedor";
 
 @Table({
     tableName: "colonia"
@@ -47,6 +48,9 @@ class Colonia extends Model {
 
     @BelongsTo(() => Ciudad)
     ciudad: Ciudad;
+
+    @HasMany(() => Proveedor)
+    proveedores: Proveedor[];
 }
 
 export default Colonia

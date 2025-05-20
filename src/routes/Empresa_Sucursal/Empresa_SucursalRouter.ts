@@ -6,5 +6,5 @@ router.get('/', Empresa_SucursalController.getAllEmpresas)
 router.get('/:id_empresaSucursal', Empresa_SucursalController.getEmpresaSucursalByID)
 router.post('/', Empresa_SucursalController.crearEmpresaSucursal)
 router.put('/:id_empresaSucursal', Empresa_SucursalController.actualizarSucursal)
-router.delete('/:id_empresaSucursal', Empresa_SucursalController.cambiarStatus)
+router.delete('/cambiarStatus/:id_empresaSucursal', Empresa_SucursalController.cambiarStatus)
 export default router;

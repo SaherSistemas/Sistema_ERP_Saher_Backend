@@ -11,18 +11,9 @@ export const ColoniaRepository = {
             include: [{ model: Ciudad, attributes: ['id_ciuda', 'nom_ciuda'] }]
         })
     },
-    getColoniasPorCiudad: async (id_ciudad: string): Promise<IColonia[]> => {
-        const isIdUUID = isUUID(id_ciudad)
-
-        let ciudadUUID = id_ciudad;
-        if (!isIdUUID) {
-            const ciudad = await Ciudad.findOne({ where: { id_intciuda: Number(id_ciudad) } })
-            if (!ciudad) return []
-            ciudadUUID = ciudad.id_ciuda
-        }
-
+    getColoniasActivas: async (): Promise<IColonia[]> => {
         return await Colonia.findAll({
-            where: { id_ciuda_colonia: ciudadUUID }
+            where: { activa_colonia: true }
         })
     },
     ultimoID: async () => {

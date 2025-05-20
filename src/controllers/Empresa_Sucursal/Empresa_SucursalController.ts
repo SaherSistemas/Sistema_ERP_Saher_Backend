@@ -18,7 +18,7 @@ export class Empresa_SucursalController {
             const empresa_sucursal = await Empresa_SucursalService.getEmpresaSucursalByID(id_empresaSucursal);
             res.status(201).json(empresa_sucursal)
         } catch (error) {
-            //console.error(error);
+            //   console.error(error);
             res.status(500).json({ message: "No se encontro la empresa" });
         }
     }
@@ -45,12 +45,13 @@ export class Empresa_SucursalController {
 
 
     static cambiarStatus = async (req: Request, res: Response) => {
+
         try {
             const { id_empresaSucursal } = req.params;
             const updateStatusEmpresa = await Empresa_SucursalService.cambiarStatus(id_empresaSucursal)
-            res.status(201).json({ mensaje: "Se cambio el estatus de la empresa correctamente.", empresa: updateStatusEmpresa })
+            res.status(200).json({ mensaje: "Se cambio el estatus de la empresa correctamente.", empresa: updateStatusEmpresa })
         } catch (error) {
-            //console.error(error)
+            console.error(error)
             res.status(500).json({ message: "Error no se pudo cambiar el estatus de la empresa." })
         }
     }

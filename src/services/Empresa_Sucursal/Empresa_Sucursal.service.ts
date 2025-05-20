@@ -1,6 +1,7 @@
 import { ICrearEmpresaSucursal, IEmpresaSucursal, IUpdateEmpresaSucursal } from "../../interface/Empresa_Sucursal/Empresa_Sucursal.interface";
 import { Empresa_SucursalRepository } from "../../repository/Empresa_Sucursal/Empresa_Sucursal.repository";
 import { CiudadRepository } from "../../repository/Lugares/Ciudad.repository";
+import { ColoniaRepository } from "../../repository/Lugares/Colonia.respository";
 import { isUUID } from "../../utils/validaciones";
 
 export const Empresa_SucursalService = {
@@ -13,13 +14,12 @@ export const Empresa_SucursalService = {
             typeof data.nom_empre !== 'string' || !data.nom_empre.trim() ||
             typeof data.rfc_empre !== 'string' || !data.rfc_empre.trim() ||
             typeof data.tipo_empre !== 'string' || !['M', 'S'].includes(data.tipo_empre) ||
-            typeof data.cp_empre !== 'string' || !data.cp_empre.trim() ||
             typeof data.calle_empre !== 'string' || !data.calle_empre.trim() ||
             (
-                typeof data.id_ciudad_empre !== 'string' && typeof data.id_ciudad_empre !== 'number'
+                typeof data.id_colonia_empre !== 'string' && typeof data.id_colonia_empre !== 'number'
             ) ||
             (
-                typeof data.id_ciudad_empre === 'string' && !data.id_ciudad_empre.trim()
+                typeof data.id_colonia_empre === 'string' && !data.id_colonia_empre.trim()
             ) ||
             typeof data.correo_empre !== 'string' || !data.correo_empre.trim() ||
             typeof data.tele_empre !== 'string' || !data.tele_empre.trim()
@@ -27,10 +27,10 @@ export const Empresa_SucursalService = {
             throw new Error("Datos inválidos");
         }
 
-        if (!isUUID(data.id_ciudad_empre) && !isNaN(Number(data.id_ciudad_empre))) {
-            const ciudad = await CiudadRepository.findByIdFlexible(data.id_ciudad_empre)
-            if (!ciudad) throw new Error("La ciudad proporcionada no existe");
-            data.id_ciudad_empre = ciudad.id_ciuda
+        if (!isUUID(data.id_colonia_empre) && !isNaN(Number(data.id_colonia_empre))) {
+            const colonia = await ColoniaRepository.findByIdFlexible(data.id_colonia_empre)
+            if (!colonia) throw new Error("La ciudad proporcionada no existe");
+            data.id_colonia_empre = colonia.id_colonia
         }
         return await Empresa_SucursalRepository.crearNuevaSucursalEmpresa(data);
     },
@@ -40,11 +40,11 @@ export const Empresa_SucursalService = {
         return empresaSucursal
     },
     updateEmpresaSucursal: async (id: string, data: IUpdateEmpresaSucursal) => {
-        if (data.id_ciudad_empre) {
-            if (!isUUID(data.id_ciudad_empre) && !isNaN(Number(data.id_ciudad_empre))) {
-                const estado = await CiudadRepository.findByIdFlexible(data.id_ciudad_empre)
-                if (!estado) throw new Error("La ciudad proporcionada no existe.")
-                data.id_ciudad_empre = estado.id_ciuda
+        if (data.id_colonia_empre) {
+            if (!isUUID(data.id_colonia_empre) && !isNaN(Number(data.id_colonia_empre))) {
+                const colonia = await ColoniaRepository.findByIdFlexible(data.id_colonia_empre)
+                if (!colonia) throw new Error("La ciudad proporcionada no existe");
+                data.id_colonia_empre = colonia.id_colonia
             }
         }
         return await Empresa_SucursalRepository.updatedSucursal(id, data)

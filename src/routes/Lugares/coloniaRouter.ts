@@ -3,7 +3,7 @@ import { ColoniaController } from "../../controllers/Lugares/ColoniaController";
 const router = Router()
 
 router.get('/', ColoniaController.getAllColonias)
-router.get('/coloniaCiudad/:id_ciuda_colonia', ColoniaController.coloniasConCiudad)
+router.get('/coloniasActivas', ColoniaController.coloniasActivas)
 router.get('/:id_colonia', ColoniaController.getColoniaById);
 router.post('/', ColoniaController.crearColonia)
 router.put('/:id_colonia', ColoniaController.updateByID)

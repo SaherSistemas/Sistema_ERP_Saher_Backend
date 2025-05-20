@@ -1,6 +1,6 @@
 import { Column, Model, DataType, Table, PrimaryKey, Unique, ForeignKey, BelongsTo, BelongsToMany, HasMany } from 'sequelize-typescript'
-import Ciudad from '../Ubicacion/Ciudad'
 import Compra from '../Compra/Compra'
+import Colonia from '../Ubicacion/Colonia'
 @Table({
     tableName: "proveedor"
 })
@@ -40,12 +40,12 @@ class Proveedor extends Model {
     })
     declare calle_prove: string
 
-    @ForeignKey(() => Ciudad)
+    @ForeignKey(() => Colonia)
     @Column({
         type: DataType.UUID,
         allowNull: false
     })
-    declare id_ciud_prove: string
+    declare id_colonia_prove: string
 
     @Column({
         type: DataType.STRING(5),
@@ -104,8 +104,8 @@ class Proveedor extends Model {
     declare condpago_prove: string
 
 
-    @BelongsTo(() => Ciudad)
-    ciudad: Ciudad
+    @BelongsTo(() => Colonia)
+    colonia: Colonia
 
     @HasMany(() => Compra)
     compras: Compra[];

@@ -1,12 +1,64 @@
 import { ICrearEmpresaSucursal, IEmpresaSucursal, IUpdateEmpresaSucursal } from "../../interface/Empresa_Sucursal/Empresa_Sucursal.interface";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 import { v4 as uuidv4 } from 'uuid';
+import Colonia from "../../models/Ubicacion/Colonia";
+import Ciudad from "../../models/Ubicacion/Ciudad";
+import Estado from "../../models/Ubicacion/Estado";
+import Pais from "../../models/Ubicacion/Pais";
 export const Empresa_SucursalRepository = {
     getAll: async (): Promise<IEmpresaSucursal[]> => {
-        return await Empresa_Sucursal.findAll();
+        return await Empresa_Sucursal.findAll({
+            include: [
+                {
+                    model: Colonia,
+                    attributes: ['id_colonia', 'nom_colonia'],
+                    include: [
+                        {
+                            model: Ciudad,
+                            attributes: ['id_ciuda', 'nom_ciuda'],
+                            include: [
+                                {
+                                    model: Estado,
+                                    attributes: ['id_esta', 'nom_esta'],
+                                    include: [{
+                                        model: Pais,
+                                        attributes: ['id_pais', 'nom_pais']
+                                    }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
     },
     getByID: async (id: string): Promise<IEmpresaSucursal | null> => {
-        return await Empresa_Sucursal.findByPk(id)
+        return await Empresa_Sucursal.findByPk(id, {
+            include: [
+                {
+                    model: Colonia,
+                    attributes: ['id_colonia', 'nom_colonia'],
+                    include: [
+                        {
+                            model: Ciudad,
+                            attributes: ['id_ciuda', 'nom_ciuda'],
+                            include: [
+                                {
+                                    model: Estado,
+                                    attributes: ['id_esta', 'nom_esta'],
+                                    include: [{
+                                        model: Pais,
+                                        attributes: ['id_pais', 'nom_pais']
+                                    }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
     },
     crearNuevaSucursalEmpresa: async (data: ICrearEmpresaSucursal) => {
 
@@ -28,6 +80,8 @@ export const Empresa_SucursalRepository = {
     },
     cambiarStatus: async (id: string, statusContrario: boolean) => {
         const empresa = await Empresa_Sucursal.findByPk(id)
+        console.log(empresa)
+        console.log(statusContrario)
         if (!empresa) return null;
         return await empresa.update({ status_empre: statusContrario })
     }

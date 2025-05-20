@@ -1,5 +1,5 @@
-import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
-import Ciudad from "../Ubicacion/Ciudad";
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, Default } from "sequelize-typescript";
+import Colonia from "../Ubicacion/Colonia";
 
 @Table({
     tableName: 'empresa_sucursal'
@@ -30,21 +30,15 @@ class Empresa_Sucursal extends Model {
     declare tipo_empre: string
 
     @Column({
-        type: DataType.CHAR(5),
-        allowNull: false
-    })
-    declare cp_empre: string
-
-    @Column({
         type: DataType.STRING(50)
     })
     declare calle_empre: string
 
-    @ForeignKey(() => Ciudad)
+    @ForeignKey(() => Colonia)
     @Column({
         type: DataType.UUID
     })
-    declare id_ciudad_empre: string
+    declare id_colonia_empre: string
 
     @Column({
         type: DataType.STRING(100)
@@ -56,15 +50,14 @@ class Empresa_Sucursal extends Model {
     })
     declare tele_empre: string
 
+    @Default(true)
     @Column({
         type: DataType.BOOLEAN
     })
     declare status_empre: boolean
 
-
-    // Relación: Un estado pertenece a un país
-    @BelongsTo(() => Ciudad)
-    ciudad: Ciudad;
+    @BelongsTo(() => Colonia)
+    colonia: Colonia;
 
 }
 
