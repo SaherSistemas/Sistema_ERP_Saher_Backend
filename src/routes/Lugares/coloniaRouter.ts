@@ -5,6 +5,7 @@ const router = Router()
 router.get('/', ColoniaController.getAllColonias)
 router.get('/coloniasActivas', ColoniaController.coloniasActivas)
 router.get('/:id_colonia', ColoniaController.getColoniaById);
+router.get('/coloniasCiudad/:id_ciuda_colonia', ColoniaController.getColoniasCiudad)
 router.post('/', ColoniaController.crearColonia)
 router.put('/:id_colonia', ColoniaController.updateByID)
 router.delete('/cambiarStatus/:id_colonia', ColoniaController.cambiarStatus)

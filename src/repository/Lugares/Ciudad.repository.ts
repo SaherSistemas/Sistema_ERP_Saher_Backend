@@ -5,6 +5,7 @@ import { UniqueConstraintError } from "sequelize";
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from 'uuid';
 import Colonia from "../../models/Ubicacion/Colonia";
+import { EstadoRepository } from "./Estado.repository";
 
 export const CiudadRepository = {
     getAll: async (): Promise<ICiudad[]> => {
@@ -17,6 +18,11 @@ export const CiudadRepository = {
         return await Ciudad.findAll({
             where: { activo_ciuda: true }
         });
+    },
+    getCiudadesPorEstado: async (id_esta: string): Promise<ICiudad[]> => {
+        const estado = await EstadoRepository.findByIdFlexible(id_esta)
+        if (!estado) return []
+        return await Ciudad.findAll({ where: { id_esta_ciuda: estado.id_esta } })
     },
 
     ultimoID: async () => {

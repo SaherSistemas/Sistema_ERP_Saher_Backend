@@ -8,7 +8,7 @@ export class ColoniaController {
     static getAllColonias = async (req: Request, res: Response) => {
         try {
             const todasColonias = await ColoniaService.getAllCiudad();
-            res.status(201).json({ mensaje: todasColonias })
+            res.status(200).json({ mensaje: todasColonias })
         } catch (error) {
             //    console.error(error)
             res.status(500).json({ message: "Error al obtener las colonias" })
@@ -17,9 +17,19 @@ export class ColoniaController {
     static coloniasActivas = async (req: Request, res: Response) => {
         try {
             const coloniasPorCiudad = await ColoniaService.getColoniasActivas();
-            res.status(201).json(coloniasPorCiudad)
+            res.status(200).json(coloniasPorCiudad)
         } catch (error) {
             //console.error(error);
+            res.status(500).json({ message: "Error al obtener las colonias de la ciudad." })
+        }
+    }
+    static getColoniasCiudad = async (req: Request, res: Response) => {
+        try {
+            const { id_ciuda_colonia } = req.params;
+            const coloniasPorCiudad = await ColoniaService.getColoniasPorCiudad(id_ciuda_colonia);
+            res.status(200).json(coloniasPorCiudad)
+        } catch (error) {
+            //  console.error(error);
             res.status(500).json({ message: "Error al obtener las colonias de la ciudad." })
         }
     }
@@ -28,7 +38,7 @@ export class ColoniaController {
         try {
             const { id_colonia } = req.params;
             const colonia = await ColoniaService.getColoniaByID(id_colonia);
-            res.status(201).json(colonia)
+            res.status(200).json(colonia)
         } catch (error) {
             //console.error(error)
             res.status(500).json({ message: "No se encontro la ciudad." })
@@ -41,7 +51,7 @@ export class ColoniaController {
             const newColonia = await ColoniaService.createColonia(data)
             res.status(201).json({ mensaje: "Colonia creada correctamente.", colonia: newColonia })
         } catch (error) {
-            console.error(error)
+            //console.error(error)
             res.status(500).json({ message: "Error al crear la colonia." })
         }
     }
@@ -62,7 +72,7 @@ export class ColoniaController {
         try {
             const { id_colonia } = req.params;
             const updateStatusColonia = await ColoniaService.cambiarStatus(id_colonia);
-            res.status(201).json({ mensaje: "Se cambio el estatus de la colonia correctamente", colonia: updateStatusColonia })
+            res.status(200).json({ mensaje: "Se cambio el estatus de la colonia correctamente", colonia: updateStatusColonia })
         } catch (error) {
             //console.error(error)
             res.status(500).json({ message: "Error no se pudo cambiar el estatus de la colonia" })

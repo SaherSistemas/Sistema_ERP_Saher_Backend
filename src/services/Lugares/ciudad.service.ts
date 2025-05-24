@@ -13,6 +13,10 @@ export const CiudadService = {
         return await CiudadRepository.getCiudadesActivas()
     },
 
+    getCiudadesPorEstado: async (id_esta: string): Promise<ICiudad[]> => {
+        return await CiudadRepository.getCiudadesPorEstado(id_esta);
+    },
+
     createCiudad: async (data: ICreateCiudad) => {
         if (
             !data ||

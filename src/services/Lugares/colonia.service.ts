@@ -11,6 +11,9 @@ export const ColoniaService = {
     getColoniasActivas: async (): Promise<IColonia[]> => {
         return await ColoniaRepository.getColoniasActivas()
     },
+    getColoniasPorCiudad: async (id_ciuda: string): Promise<IColonia[]> => {
+        return await ColoniaRepository.getColoniasPorCiudad(id_ciuda)
+    },
     createColonia: async (data: ICreateColonia) => {
         if (!isUUID(data.id_ciuda_colonia) && !isNaN(Number(data.id_ciuda_colonia))) {
             const ciudad = await CiudadRepository.findByIdFlexible(data.id_ciuda_colonia)

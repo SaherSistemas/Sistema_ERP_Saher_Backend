@@ -6,7 +6,6 @@ export interface IProveedor {
     rfc_prove: string;
     calle_prove: string;
     id_colonia_prove: string;
-    cp_prove: string;
     telef_prove: string;
     corr_prove: string;
     diascre_prove: number;
@@ -25,7 +24,6 @@ export interface ICreateProveedor {
     rfc_prove: string;
     calle_prove: string;
     id_colonia_prove: string;
-    cp_prove: string;
     telef_prove: string;
     corr_prove: string;
     diascre_prove: number;
@@ -34,6 +32,17 @@ export interface ICreateProveedor {
     plazoentrega_prove: number;
     ctabanca_prove: string;
     condpago_prove: string;
-    createdAt?: Date;
-    updatedAt?: Date;
+}
+
+
+export interface IProveedorUpdateBody {
+    nomcort_prove: string;
+    razsoc_prove: string;
+    rfc_prove: string;
+    calle_prove: string;
+    corr_prove: string;
+    ctabanca_prove: string;
+    condpago_prove: string;
+    id_colonia_prove: string;
+    empresas: string[]; // ← IDs de empresas nuevas
 }

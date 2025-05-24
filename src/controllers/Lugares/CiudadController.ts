@@ -5,7 +5,7 @@ export class CiudadController {
     static getAllCiudades = async (req: Request, res: Response) => {
         try {
             const todasCiudades = await CiudadService.getAllCiudad();
-            res.status(201).json({ mensaje: todasCiudades })
+            res.status(200).json({ mensaje: todasCiudades })
         } catch (error) {
             //console.error(error);
             res.status(500).json({ message: "Error al obtener todos las ciudades." });
@@ -16,15 +16,25 @@ export class CiudadController {
             const ciudadesActivas = await CiudadService.getCiudadesActivas()
             res.status(201).json(ciudadesActivas)
         } catch (error) {
-            console.error(error);
-            res.status(500).json({ message: "Error al obtener las ciudades del estado." });
+            // console.error(error);
+            res.status(500).json({ message: "Error al obtener las ciudades activas." });
+        }
+    }
+    static getCiudadesPorEstado = async (req: Request, res: Response) => {
+        try {
+            const { id_esta_ciuda } = req.params;
+            const ciudadesPorEstado = await CiudadService.getCiudadesPorEstado(id_esta_ciuda);
+            res.status(200).json(ciudadesPorEstado)
+        } catch (error) {
+            //console.error(error)
+            res.status(500).json({ message: "Error al obtener las ciudades por estado." })
         }
     }
     static getCiudadById = async (req: Request, res: Response) => {
         try {
             const { id_ciuda } = req.params;
             const ciudad = await CiudadService.getCiudadByID(id_ciuda)
-            res.status(201).json(ciudad)
+            res.status(200).json(ciudad)
         } catch (error) {
             //console.error(error);
             res.status(500).json({ message: "No se encontro la ciudad." });

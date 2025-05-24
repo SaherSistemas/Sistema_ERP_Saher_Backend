@@ -3,7 +3,12 @@ import paisRouter from '../routes/Lugares/paisRouter'
 import estadoRouter from '../routes/Lugares/estadoRouter'
 import ciudadRouter from '../routes/Lugares/ciudadRouter'
 import coloniaRouter from '../routes/Lugares/coloniaRouter'
+
+
 import proveedorRouter from './Proveedores/proveedorRouter'
+import proveedor_empresaRouter from './Proveedores/proveedor_empresaRouter'
+
+
 import listados_proveedorRouter from './Proveedores/listados_proveedorRouter'
 import unidad_medidaRouter from '../routes/Articulos/UnidadMedidaRouter'
 
@@ -34,6 +39,8 @@ router.use('/colonia', coloniaRouter)
 
 
 router.use('/proveedor', proveedorRouter)
+router.use('/proveedor_empresa', proveedor_empresaRouter)
+
 router.use('/listadosproveedor', listados_proveedorRouter)
 router.use('/unidadmedida', unidad_medidaRouter)
 

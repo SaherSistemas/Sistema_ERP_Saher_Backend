@@ -1,6 +1,7 @@
-import { Column, Model, DataType, Table, PrimaryKey, Unique, ForeignKey, BelongsTo, BelongsToMany, HasMany } from 'sequelize-typescript'
+import { Column, Model, DataType, Table, PrimaryKey, Unique, ForeignKey, BelongsTo, BelongsToMany, HasMany, HasOne } from 'sequelize-typescript'
 import Compra from '../Compra/Compra'
 import Colonia from '../Ubicacion/Colonia'
+import Listado_Proveedor from './Listados_Proveedor'
 @Table({
     tableName: "proveedor"
 })
@@ -47,11 +48,6 @@ class Proveedor extends Model {
     })
     declare id_colonia_prove: string
 
-    @Column({
-        type: DataType.STRING(5),
-        allowNull: false
-    })
-    declare cp_prove: string
 
     @Column({
         type: DataType.STRING(15),
@@ -98,7 +94,7 @@ class Proveedor extends Model {
     declare ctabanca_prove: string
 
     @Column({
-        type: DataType.STRING(50),
+        type: DataType.STRING(255),
         allowNull: false
     })
     declare condpago_prove: string
@@ -109,6 +105,9 @@ class Proveedor extends Model {
 
     @HasMany(() => Compra)
     compras: Compra[];
+
+    @HasOne(() => Listado_Proveedor)
+    listado_proveedor: Listado_Proveedor;
 }
 
 export default Proveedor

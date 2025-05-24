@@ -4,6 +4,7 @@ import { ICreateColonia, IColonia, IUpdateColonia } from "../../interface/Lugare
 import { v4 as uuidv4 } from 'uuid';
 import { UniqueConstraintError } from "sequelize";
 import { isUUID } from "../../utils/validaciones";
+import { CiudadRepository } from "./Ciudad.repository";
 
 export const ColoniaRepository = {
     getAll: async (): Promise<IColonia[]> => {
@@ -16,12 +17,14 @@ export const ColoniaRepository = {
             where: { activa_colonia: true }
         })
     },
-    ultimoID: async () => {
-        return await Colonia.findOne({
-            order: [["id_intcolonia", "DESC"]]
-        });
-    },
 
+    getColoniasPorCiudad: async (id_ciuda: string): Promise<IColonia[]> => {
+        const ciudad = await CiudadRepository.findByIdFlexible(id_ciuda)
+
+        if (!ciudad) return []
+
+        return await Colonia.findAll({ where: { id_ciuda_colonia: ciudad.id_ciuda } })
+    },
     findByIdFlexible: async (id: string): Promise<Colonia | null> => {
         if (isUUID(id)) {
             return await Colonia.findByPk(id, {
@@ -35,6 +38,14 @@ export const ColoniaRepository = {
         }
         return null;
     },
+
+    ultimoID: async () => {
+        return await Colonia.findOne({
+            order: [["id_intcolonia", "DESC"]]
+        });
+    },
+
+
 
     create: async (data: ICreateColonia) => {
         const nuevoUUID = uuidv4();
