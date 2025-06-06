@@ -1,6 +1,5 @@
 import { ICrearEmpresaSucursal, IEmpresaSucursal, IUpdateEmpresaSucursal } from "../../interface/Empresa_Sucursal/Empresa_Sucursal.interface";
 import { Empresa_SucursalRepository } from "../../repository/Empresa_Sucursal/Empresa_Sucursal.repository";
-import { CiudadRepository } from "../../repository/Lugares/Ciudad.repository";
 import { ColoniaRepository } from "../../repository/Lugares/Colonia.respository";
 import { isUUID } from "../../utils/validaciones";
 
@@ -9,11 +8,12 @@ export const Empresa_SucursalService = {
         return await Empresa_SucursalRepository.getAll();
     },
     createEmpresaSucursal: async (data: ICrearEmpresaSucursal) => {
+        console.log(data)
         if (
             !data ||
             typeof data.nom_empre !== 'string' || !data.nom_empre.trim() ||
             typeof data.rfc_empre !== 'string' || !data.rfc_empre.trim() ||
-            typeof data.tipo_empre !== 'string' || !['M', 'S'].includes(data.tipo_empre) ||
+            typeof data.tipo_empre !== 'string' || !['S', 'B'].includes(data.tipo_empre) ||
             typeof data.calle_empre !== 'string' || !data.calle_empre.trim() ||
             (
                 typeof data.id_colonia_empre !== 'string' && typeof data.id_colonia_empre !== 'number'

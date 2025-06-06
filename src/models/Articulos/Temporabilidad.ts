@@ -1,4 +1,4 @@
-import { Table, Column, DataType, PrimaryKey, Model } from 'sequelize-typescript'
+import { Table, Column, DataType, PrimaryKey, Model, Unique } from 'sequelize-typescript'
 
 @Table({
     tableName: 'temporabilidad'
@@ -10,20 +10,29 @@ class Temporabilidad extends Model {
     })
     declare id_tempo: number
 
+    @Unique
     @Column({
         type: DataType.STRING(30)
     })
     declare descrip_tempo: string
 
     @Column({
-        type: DataType.SMALLINT
+        type: DataType.SMALLINT,
+        validate: {
+            min: 1,
+            max: 12
+        }
     })
-    declare mesinicio_tempo: number
+    declare mesinicio_tempo: number;
 
     @Column({
-        type: DataType.SMALLINT
+        type: DataType.SMALLINT,
+        validate: {
+            min: 1,
+            max: 12
+        }
     })
-    declare mesfin_tempo: number
+    declare mesfin_tempo: number;
 }
 
 export default Temporabilidad

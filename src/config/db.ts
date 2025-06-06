@@ -10,7 +10,7 @@ export const dbLocal = new Sequelize({
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: 5433,
+    port: 5432,
     models: [path.join(__dirname, '/../models/**/*.ts')],  // Corrige la ruta con path.join
     logging: false,
 });

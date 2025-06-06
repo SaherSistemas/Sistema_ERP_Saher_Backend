@@ -29,7 +29,7 @@ export const PaisRepository = {
         });
     },
 
-    findByIdFlexible: async (id: string): Promise<Pais | null> => {
+    findByIdFlexible: async (id: string) => {
         if (isUUID(id)) {
             return await Pais.findByPk(id);
         } else if (!isNaN(Number(id))) {
@@ -50,9 +50,7 @@ export const PaisRepository = {
     },
 
 
-    cambiarStatus: async (id: string, statusContrario: boolean) => {
-        const pais = await PaisRepository.findByIdFlexible(id);
-        if (!pais) return null;
+    cambiarStatus: async (pais: Pais, statusContrario: boolean) => {
         return await pais.update({ activo_pais: statusContrario });
     },
 

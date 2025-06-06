@@ -1,8 +1,7 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey } from "sequelize-typescript";
 
 @Table({
-    tableName: "unidadmedida",
-    timestamps: false, // Si no manejas created_at y updated_at
+    tableName: "unidadmedida"
 })
 class UnidadMedida extends Model {
     @PrimaryKey

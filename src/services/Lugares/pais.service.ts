@@ -29,11 +29,7 @@ export const PaisService = {
     },
 
     updatePais: async (id_pais: string, data: IUpdatePais) => {
-        const actualizarPais = await PaisRepository.findByIdFlexible(id_pais)
-
-        if (!actualizarPais) throw new Error("No se encontro el pais a actualizar.")
-
-        return await actualizarPais.update(data)
+        return await PaisRepository.update(id_pais, data)
     },
 
     cambiarStatus: async (id_pais: string) => {
@@ -49,7 +45,7 @@ export const PaisService = {
             }
         }
 
-        const updatedStatusPais = await PaisRepository.cambiarStatus(id_pais, nuevoStatus);
+        const updatedStatusPais = await PaisRepository.cambiarStatus(pais, nuevoStatus);
         if (!updatedStatusPais) throw new Error("No se pudo actualizar el estado.");
 
         return updatedStatusPais

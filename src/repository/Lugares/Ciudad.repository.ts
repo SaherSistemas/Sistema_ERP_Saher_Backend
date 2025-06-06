@@ -8,18 +8,18 @@ import Colonia from "../../models/Ubicacion/Colonia";
 import { EstadoRepository } from "./Estado.repository";
 
 export const CiudadRepository = {
-    getAll: async (): Promise<ICiudad[]> => {
+    getAll: async () => {
         return await Ciudad.findAll({
             include: [{ model: Estado, attributes: ['id_esta', 'nom_esta'] }]
         });
     },
 
-    getCiudadesActivas: async (): Promise<ICiudad[]> => {
+    getCiudadesActivas: async () => {
         return await Ciudad.findAll({
             where: { activo_ciuda: true }
         });
     },
-    getCiudadesPorEstado: async (id_esta: string): Promise<ICiudad[]> => {
+    getCiudadesPorEstado: async (id_esta: string) => {
         const estado = await EstadoRepository.findByIdFlexible(id_esta)
         if (!estado) return []
         return await Ciudad.findAll({ where: { id_esta_ciuda: estado.id_esta } })
@@ -31,7 +31,7 @@ export const CiudadRepository = {
         });
     },
 
-    findByIdFlexible: async (id: string): Promise<Ciudad | null> => {
+    findByIdFlexible: async (id: string) => {
         if (isUUID(id)) {
             return await Ciudad.findByPk(id, {
                 include: [{ model: Estado, attributes: ['id_esta', 'nom_esta'] }]

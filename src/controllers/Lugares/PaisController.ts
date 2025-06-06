@@ -36,8 +36,9 @@ export class PaisController {
         try {
             const { id_pais } = req.params;
             const pais = await PaisService.getPaisById(id_pais); // Ya es string
-            res.status(201).json(pais);
+            res.status(200).json(pais);
         } catch (error) {
+            // console.error('Error al crear país:', error);
             res.status(500).json({ mensaje: "Error al encontrar el país." });
         }
     }

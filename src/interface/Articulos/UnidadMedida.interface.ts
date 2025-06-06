@@ -3,7 +3,8 @@ export interface IUnidadMedida {
     descrip_medida: string;
     sat_medida: string;
 }
-export interface ICrearUnidadMedida {
-    descrip_medida: string,
-    sat_medida: string
+
+export interface ICreateOrUpdateUnidadMedida {
+    descrip_medida?: string;
+    sat_medida?: string;
 }

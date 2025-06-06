@@ -17,6 +17,7 @@ export const Listado_ProveedorRepository = {
     getProductoPorProveedorEnListas: async (cod_barra_pro_detlist: string) => {
         return await Detalle_Listado_Proveedor.findAll({
             where: { cod_barra_pro_detlist },
+            order: [["preio_pro_detlist", "ASC"]],
             attributes: ['cod_barra_pro_detlist', 'descrip_pro_detlis', 'exist_pro_detlist', 'preio_pro_detlist'],
             include: [{
                 model: Listado_Proveedor,

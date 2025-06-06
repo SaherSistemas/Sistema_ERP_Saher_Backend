@@ -11,8 +11,13 @@ import proveedor_empresaRouter from './Proveedores/proveedor_empresaRouter'
 
 import listados_proveedorRouter from './Proveedores/listados_proveedorRouter'
 import unidad_medidaRouter from '../routes/Articulos/UnidadMedidaRouter'
+import temporabilidadRouter from '../routes/Articulos/TemporabilidadRouter'
+import tipoArticuloRouter from '../routes/Articulos/Tipo_ArticuloRouter'
+import categori_ArticuloRouter from '../routes/Articulos/Categoria_ArticuloRouter'
+import subcategoriaRouter from '../routes/Articulos/SubCategoria_ArticuloRouter'
 
-
+import articuloRouter from '../routes/Articulos/ArticuloRouter'
+import tipo_ArticuloRouter from '../routes/Articulos/Prioridad_ArticuloRouter'
 
 import empleadoRouter from './Usuarios/EmpleadoRouter'
 import rolRouter from './Usuarios/RolRouter'
@@ -26,7 +31,7 @@ import cat_Periodicidad_PagoRouter from './Catalogos/Cat_Periodicidad_PagoRouter
 import cat_BancoRouter from './Catalogos/Cat_BancoRouter'
 import cat_RiesgoPuestoRouter from './Catalogos/Cat_Riesgo_Puesto'
 
-
+import tipoIVARouter from './Articulos/Tipo_IVARouter'
 
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
 const router = Router();
@@ -42,7 +47,7 @@ router.use('/proveedor', proveedorRouter)
 router.use('/proveedor_empresa', proveedor_empresaRouter)
 
 router.use('/listadosproveedor', listados_proveedorRouter)
-router.use('/unidadmedida', unidad_medidaRouter)
+
 
 
 router.use('/cat_regimen_fiscal', cat_Regimen_fiscalRouter)
@@ -57,7 +62,14 @@ router.use('/empleado', empleadoRouter)
 router.use('/rol', rolRouter)
 router.use('/usuario', usuarioRouter)
 
-
+router.use('/tipo_iva', tipoIVARouter)
+router.use('/unidadmedida', unidad_medidaRouter)
+router.use('/temporabilidad', temporabilidadRouter)
+router.use('/tipo_articulo', tipoArticuloRouter)
+router.use('/categoria_articulo', categori_ArticuloRouter)
+router.use('/presentacion_articulo', subcategoriaRouter)
+router.use('/articulo', articuloRouter)
+router.use('/prioridades_articulo', tipo_ArticuloRouter)
 
 
 router.use('/empresas_sucursal', empresa_SucursalRouter)

@@ -15,7 +15,7 @@ export const Cat_BancosRepository = {
     },
 
     update: async (id: string, data: IUpdateCat_Bancos) => {
-        const record = await Cat_Bancos.findByPk(id);
+        const record = await Cat_BancosRepository.getById(id);
         if (!record) return null;
         return await record.update(data);
     }

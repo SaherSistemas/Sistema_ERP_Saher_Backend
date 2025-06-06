@@ -1,69 +1,89 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, HasMany, Unique } from "sequelize-typescript";
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
 import UnidadMedida from "./UnidadMedida";
-import Clasificacion from "./Clasificacion";
 import Temporabilidad from "./Temporabilidad";
-import Detalle_Compra_Solicitado from "../Compra/Detalle_Compra_Solicitado";
+import Tipo_IVA from "./Tipo_IVA";
+import Prioridad_Articulo from "./Prioridad_Articulo";
+import Categoria_Articulo from "./Categoria_Articulo";
+import Presentacion_Articulo from "./Presentacion_Articulo";
 
 @Table({
-    tableName: "articulo",
+    tableName: "articulo"
 })
 class Articulo extends Model {
     @PrimaryKey
     @Column({
         type: DataType.UUID,
-        allowNull: false
     })
     declare id_artic: string;
 
     @Unique
     @Column({
         type: DataType.SMALLINT,
-        allowNull: false
     })
     declare cod_int_artic: number;
 
     @Unique
     @Column({
         type: DataType.STRING(15),
-        allowNull: false
     })
     declare cod_barr_artic: string;
 
     @Column({
         type: DataType.STRING(70),
-        allowNull: false
     })
     declare des_artic: string;
 
     @Column({
         type: DataType.STRING(70),
-        allowNull: false
     })
     declare des_gener_artic: string;
 
-    @ForeignKey(() => UnidadMedida)
     @Column({
-        type: DataType.CHAR(1),
-        allowNull: false
+        type: DataType.TEXT
     })
-    declare unidmedi_artic: string;
+    declare desc_detallada_artic: string;
+
+    @ForeignKey(() => Tipo_IVA)
+    @Column({
+        type: DataType.SMALLINT,
+    })
+    declare tipo_de_iva: number;
 
     @Column({
+        type: DataType.CHAR(1),
+    })
+    declare import_cadylote: string;
+
+    @ForeignKey(() => UnidadMedida)
+    @Column({
+        type: DataType.SMALLINT,
+    })
+    declare unidmedi_artic: number;
+
+    @Default(true)
+    @Column({
         type: DataType.BOOLEAN,
-        allowNull: false,
-        defaultValue: true
     })
     declare status_artic: boolean;
 
-    @ForeignKey(() => Clasificacion)
+
+    @ForeignKey(() => Presentacion_Articulo)
     @Column({
-        type: DataType.CHAR(1),
+        type: DataType.UUID,
         allowNull: false
     })
-    declare classif_artic: string;
+    declare id_presentacion: string;
+
+    @ForeignKey(() => Categoria_Articulo)
+    @Column({
+        type: DataType.UUID,
+        allowNull: false
+    })
+    declare id_categoria: string;
 
     @Column({
         type: DataType.STRING(50),
+        allowNull: true
     })
     declare fabri_artic: string;
 
@@ -73,29 +93,41 @@ class Articulo extends Model {
     })
     declare imagen_artic: string;
 
-    @Column({
-        type: DataType.CHAR(1),
-        allowNull: false
-    })
-    declare caduc_artic: string;
-
     @ForeignKey(() => Temporabilidad)
     @Column({
         type: DataType.SMALLINT,
-        allowNull: false
     })
     declare tempora_artic: number;
 
     @Column({
         type: DataType.STRING(20),
-        allowNull: false
     })
     declare satclave_artic: string;
 
+    @ForeignKey(() => Prioridad_Articulo)
+    @Column({
+        type: DataType.SMALLINT
+    })
+    declare prioridad_artic: number
+    //RELACIONES 
+    @BelongsTo(() => UnidadMedida)
+    unidadMedida: UnidadMedida;
 
-    @HasMany(() => Detalle_Compra_Solicitado)
-    declare detallesCompraSolicitado: Detalle_Compra_Solicitado[];
 
+    @BelongsTo(() => Presentacion_Articulo)
+    presentacion: Presentacion_Articulo;
+
+    @BelongsTo(() => Temporabilidad)
+    temporabilidad: Temporabilidad;
+
+    @BelongsTo(() => Tipo_IVA)
+    tipo_iva: Tipo_IVA;
+
+    @BelongsTo(() => Prioridad_Articulo)
+    prioridad_articulo: Prioridad_Articulo;
+
+    @BelongsTo(() => Categoria_Articulo)
+    categoria: Categoria_Articulo
 
 }
 
