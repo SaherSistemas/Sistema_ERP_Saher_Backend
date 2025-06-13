@@ -10,12 +10,29 @@ import Categoria_Articulo from '../../models/Articulos/Categoria_Articulo';
 import Presentacion_Articulo from '../../models/Articulos/Presentacion_Articulo';
 import UnidadMedida from '../../models/Articulos/UnidadMedida';
 import Tipo_IVA from '../../models/Articulos/Tipo_IVA';
+import ArticuloExcluidoCompra from '../../models/Compra/ArticuloExcluidoCompra';
+import CategoriaExcluidaCompra from '../../models/Compra/CategoriaExcluidaCompra';
 export const ArticuloRepository = {
-    getAllPag: async (page: number, limit: number) => {
+    getAllPag: async (page: number, limit: number, query: string) => {
         const offset = (page - 1) * limit;
-        const mesActual = new Date().getMonth() + 1;
+
+        const whereClause = query
+            ? {
+                [Op.or]: [
+                    { des_artic: { [Op.iLike]: `%${query}%` } },
+                    { des_artic: { [Op.iLike]: `%${query}%` } },
+                    Sequelize.where(Sequelize.cast(Sequelize.col('cod_barr_artic'), 'TEXT'), {
+                        [Op.iLike]: `%${query}%`
+                    }),
+                    Sequelize.where(Sequelize.cast(Sequelize.col('cod_int_artic'), 'TEXT'), {
+                        [Op.iLike]: `%${query}%`
+                    })
+                ]
+            }
+            : {};
 
         const { rows, count } = await Articulo.findAndCountAll({
+            where: whereClause,
             offset,
             limit,
             include: [
@@ -34,8 +51,7 @@ export const ArticuloRepository = {
                 },
                 {
                     model: Presentacion_Articulo,
-                    attributes: ['id_presentacion', 'nom_presentacion'],
-
+                    attributes: ['id_presentacion', 'nom_presentacion']
                 },
                 {
                     model: Categoria_Articulo,
@@ -47,35 +63,51 @@ export const ArticuloRepository = {
                         }
                     ]
                 },
-
                 {
                     model: Prioridad_Articulo,
                     attributes: ['id_prioridad', 'descrip_prioridad']
                 }
-            ],
-            order: [
-                [
-                    Sequelize.literal(`
-                    CASE
-                        WHEN "temporabilidad"."mesinicio_tempo" <= ${mesActual}
-                         AND "temporabilidad"."mesfin_tempo" >= ${mesActual}
-                        THEN 0
-                        WHEN "temporabilidad"."mesinicio_tempo" IS NOT NULL
-                         AND "temporabilidad"."mesfin_tempo" IS NOT NULL
-                        THEN 1
-                        ELSE 2
-                    END
-                `),
-                    'ASC'
-                ],
-                [Sequelize.literal(`COALESCE("Articulo"."prioridad_artic", 999)`), 'ASC'],
-                ['cod_int_artic', 'ASC']
             ]
         });
 
         return {
             data: rows,
             total: count,
+            page,
+            totalPages: Math.ceil(count / limit)
+        };
+    },
+
+    getAllPagProductosParaCompra: async (page: number, limit: number, id_parametro_comp: string) => {
+        const offset = (page - 1) * limit;
+
+        // 1. Obtener IDs de artículos excluidos
+        const articulosExcluidos = await ArticuloExcluidoCompra.findAll({
+            where: { id_parametro_comp },
+            attributes: ['id_articulo']
+        });
+        const idsArticulosExcluidos = articulosExcluidos.map(e => e.id_articulo);
+
+        // 2. Obtener IDs de categorías excluidas
+        const categoriasExcluidas = await CategoriaExcluidaCompra.findAll({
+            where: { id_parametro_comp },
+            attributes: ['id_categoria_art']
+        });
+        const idsCategoriasExcluidas = categoriasExcluidas.map(c => c.id_categoria_art);
+
+        // 3. Traer artículos que NO estén en los excluidos ni en categorías excluidas
+        const { count, rows } = await Articulo.findAndCountAll({
+            where: {
+                id_artic: { [Op.notIn]: idsArticulosExcluidos },
+                id_categoria: { [Op.notIn]: idsCategoriasExcluidas }
+            },
+            offset,
+            limit
+        });
+
+        return {
+            total: count,
+            articulos: rows,
             page,
             totalPages: Math.ceil(count / limit)
         };

@@ -6,8 +6,22 @@ export class ArticuloController {
         try {
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 20;
-            const todosLosArticulos = await ArticuloService.getAllPaginado(page, limit);
-            res.status(200).json(todosLosArticulos)
+            const query = (req.query.query as string) || '';
+
+            const TodosArticulosParaCompra = await ArticuloService.getAllPaginado(page, limit, query);
+            res.status(200).json(TodosArticulosParaCompra);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al obtener los artículos." });
+        }
+    }
+    static getAllParaCompra = async (req: Request, res: Response) => {
+        try {
+            const { id_parametro_comp } = req.params;
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 20;
+            const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(page, limit, id_parametro_comp);
+            res.status(200).json(TodosArticulosParaCompra)
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: "Error al obtener todos los articulo." })

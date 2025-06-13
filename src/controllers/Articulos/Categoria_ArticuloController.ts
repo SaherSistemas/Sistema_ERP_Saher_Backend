@@ -4,13 +4,14 @@ import { Categoria_ArticuloService } from "../../services/Articulos/categoria_Ar
 export class Categoria_ArticuloController {
     static getAll = async (req: Request, res: Response) => {
         try {
-            const todosLasCategorias = await Categoria_ArticuloService.getAllCategoria();
-            res.status(200).json({ mensaje: todosLasCategorias })
+            const { query } = req.query;
+            const todasLasCategorias = await Categoria_ArticuloService.getAllCategoria(query as string);
+            res.status(200).json({ mensaje: todasLasCategorias });
         } catch (error) {
-            //console.log(error)
-            res.status(500).json({ message: "Error al obtener las categorias." })
+            res.status(500).json({ message: "Error al obtener las categorías." });
         }
     }
+
     static getByID = async (req: Request, res: Response) => {
         try {
             const { id_categoria } = req.params;

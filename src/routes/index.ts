@@ -34,6 +34,9 @@ import cat_RiesgoPuestoRouter from './Catalogos/Cat_Riesgo_Puesto'
 import tipoIVARouter from './Articulos/Tipo_IVARouter'
 
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
+
+
+import parametos_CompraRouter from './Compras/Parametros_CompraRouter'
 const router = Router();
 
 
@@ -73,5 +76,8 @@ router.use('/prioridades_articulo', tipo_ArticuloRouter)
 
 
 router.use('/empresas_sucursal', empresa_SucursalRouter)
+
+
+router.use('/parametros_compra', parametos_CompraRouter)
 
 export default router

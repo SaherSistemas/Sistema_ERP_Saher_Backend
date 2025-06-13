@@ -4,6 +4,7 @@ const router = Router();
 
 router.post('/', ArticuloController.create);
 router.get('/', ArticuloController.getAll);
+router.get('/paraCompra/:id_parametro_comp', ArticuloController.getAllParaCompra);
 router.get('/:id_articulo', ArticuloController.getByID)
 router.put('/:id_articulo', ArticuloController.actualizarByID)
 

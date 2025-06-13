@@ -1,10 +1,17 @@
-import { Table, Column, Model, PrimaryKey, DataType, Default, ForeignKey, HasMany } from 'sequelize-typescript';
+import {
+    Table, Column, Model, PrimaryKey, DataType, Default, ForeignKey,
+    BelongsTo,
+    HasMany
+} from 'sequelize-typescript';
 import Empresa_Sucursal from '../Empresa_Sucursal/Empresa_Sucursal';
-import ArticulosExcluidosCompra from './ArticulosExcluidosCompra';
-import CategoriasExcluidasCompras from './CategoriaExcluidasCompra';
+import CategoriaExcluidaCompra from './CategoriaExcluidaCompra';
+import ArticuloExcluidoCompra from './ArticuloExcluidoCompra';
 
-@Table({ tableName: 'parametros_compra' })
-class ParametrosCompra extends Model {
+@Table({
+    tableName: 'parametros_compra',
+    timestamps: true
+})
+class Parametros_Compra extends Model {
     @PrimaryKey
     @Default(DataType.UUIDV4)
     @Column(DataType.UUID)
@@ -14,12 +21,6 @@ class ParametrosCompra extends Model {
     @Column(DataType.UUID)
     declare id_empresa: string;
 
-    @HasMany(() => CategoriasExcluidasCompras)
-    declare subcategorias_excluidas: CategoriasExcluidasCompras[];
-
-    @HasMany(() => ArticulosExcluidosCompra)
-    declare articulos_excluidos: ArticulosExcluidosCompra[];
-
     @Column(DataType.BOOLEAN)
     declare considerar_temporabilidad: boolean;
 
@@ -28,6 +29,16 @@ class ParametrosCompra extends Model {
 
     @Column(DataType.SMALLINT)
     declare dias_a_comprar: number;
+
+
+    @BelongsTo(() => Empresa_Sucursal)
+    declare empresa_sucursal?: Empresa_Sucursal;
+
+    @HasMany(() => CategoriaExcluidaCompra)
+    declare categorias_excluidas?: CategoriaExcluidaCompra[];
+
+    @HasMany(() => ArticuloExcluidoCompra)
+    declare articulos_excluidos?: ArticuloExcluidoCompra[];
 }
 
-export default ParametrosCompra;
+export default Parametros_Compra;

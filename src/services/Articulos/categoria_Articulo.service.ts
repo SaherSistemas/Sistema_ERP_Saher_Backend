@@ -2,9 +2,10 @@ import { ICreateOrUpdateCategoria_Articulo } from "../../interface/Articulos/Cat
 import { Categoria_ArticuloRepository } from "../../repository/Articulos/Categoria_Articulo.repository";
 
 export const Categoria_ArticuloService = {
-    getAllCategoria: async () => {
-        return await Categoria_ArticuloRepository.getAll();
-    },
+    getAllCategoria: async (query?: string) => {
+        return await Categoria_ArticuloRepository.getAll(query);
+    }
+    ,
     getByID: async (id: string) => {
         return await Categoria_ArticuloRepository.getById(id)
     },
