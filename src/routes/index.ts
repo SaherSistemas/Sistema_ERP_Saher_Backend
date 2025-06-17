@@ -37,6 +37,7 @@ import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
 
 
 import parametos_CompraRouter from './Compras/Parametros_CompraRouter'
+import comprasRouter from './Compras/ComprasRouter'
 const router = Router();
 
 
@@ -79,5 +80,6 @@ router.use('/empresas_sucursal', empresa_SucursalRouter)
 
 
 router.use('/parametros_compra', parametos_CompraRouter)
+router.use('/compras', comprasRouter)
 
 export default router

@@ -12,6 +12,7 @@ import UnidadMedida from '../../models/Articulos/UnidadMedida';
 import Tipo_IVA from '../../models/Articulos/Tipo_IVA';
 import ArticuloExcluidoCompra from '../../models/Compra/ArticuloExcluidoCompra';
 import CategoriaExcluidaCompra from '../../models/Compra/CategoriaExcluidaCompra';
+import Parametros_Compra from '../../models/Compra/Parametros_Compra';
 export const ArticuloRepository = {
     getAllPag: async (page: number, limit: number, query: string) => {
         const offset = (page - 1) * limit;
@@ -78,9 +79,15 @@ export const ArticuloRepository = {
         };
     },
 
-    getAllPagProductosParaCompra: async (page: number, limit: number, id_parametro_comp: string) => {
+    getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string) => {
         const offset = (page - 1) * limit;
 
+        const parametro = await Parametros_Compra.findOne({
+            where: { id_empresa: id_empresasucursal },
+            attributes: ['id_parametro_comp']
+        })
+
+        const id_parametro_comp = parametro.id_parametro_comp
         // 1. Obtener IDs de artículos excluidos
         const articulosExcluidos = await ArticuloExcluidoCompra.findAll({
             where: { id_parametro_comp },

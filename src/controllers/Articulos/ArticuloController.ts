@@ -17,10 +17,11 @@ export class ArticuloController {
     }
     static getAllParaCompra = async (req: Request, res: Response) => {
         try {
-            const { id_parametro_comp } = req.params;
+            const { id_empresasucursal } = req.params;
+
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 20;
-            const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(page, limit, id_parametro_comp);
+            const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(page, limit, id_empresasucursal);
             res.status(200).json(TodosArticulosParaCompra)
         } catch (error) {
             console.error(error);

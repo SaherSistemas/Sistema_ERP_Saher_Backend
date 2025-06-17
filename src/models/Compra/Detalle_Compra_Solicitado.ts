@@ -1,5 +1,5 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
-import Compra from './Compra'
+import Compra from './Compra_Proveedor'
 import Articulo from "../Articulos/Articulo";
 
 @Table({
@@ -35,11 +35,6 @@ class Detalle_Compra_Solicitado extends Model {
         type: DataType.DECIMAL(12, 2)
     })
     declare precio_detcompsol: number
-
-    @Column({
-        type: DataType.DECIMAL(12, 2)
-    })
-    declare subtot_detcompsol: number
 
     @BelongsTo(() => Compra)
     declare compra: Compra;

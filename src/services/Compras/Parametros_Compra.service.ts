@@ -13,6 +13,9 @@ export const Parametros_CompraService = {
     getByID: async (id: string) => {
         return await Parametros_CompraRepository.getByID(id)
     },
+    getByIDEmpresa: async (idEmpresa: string) => {
+        return await Parametros_CompraRepository.getByIDEmpresa(idEmpresa)
+    },
     updateParametro: async (id: string, data: ICreateOrUpdateParametros_Compra) => {
         return await Parametros_CompraRepository.updateParametroCompra(id, data)
     },

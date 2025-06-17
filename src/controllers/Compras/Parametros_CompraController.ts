@@ -24,6 +24,18 @@ export class Parametros_CompraController {
         }
     }
 
+    static getByIdEmpresa = async (req: Request, res: Response) => {
+        try {
+            const { id_empresa } = req.params;
+            const parametro_compra = await Parametros_CompraService.getByIDEmpresa(id_empresa)
+            res.status(200).json(parametro_compra)
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "No se encontro la parametro compra." });
+        }
+    }
+
+
     static crearParametro = async (req: Request<ICreateOrUpdateParametros_Compra>, res: Response) => {
         try {
             const data = req.body
@@ -37,7 +49,6 @@ export class Parametros_CompraController {
 
     static updateByID = async (req: Request, res: Response) => {
         try {
-            console.log("LLEGO AL PUT")
             const { id_parametro_comp } = req.params
             const data: ICreateOrUpdateParametros_Compra = req.body
             const updateParametroCompra = await Parametros_CompraService.updateParametro(id_parametro_comp, data)

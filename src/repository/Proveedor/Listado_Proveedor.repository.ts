@@ -14,6 +14,9 @@ export const Listado_ProveedorRepository = {
             order: [['nomcort_prove', 'ASC']]
         });
     },
+    getByID: async (id: string) => {
+        return await Listado_Proveedor.findByPk(id)
+    },
     getProductoPorProveedorEnListas: async (cod_barra_pro_detlist: string) => {
         return await Detalle_Listado_Proveedor.findAll({
             where: { cod_barra_pro_detlist },

@@ -61,6 +61,45 @@ export const Parametros_CompraRepository = {
                 ]
         });
     },
+    getByIDEmpresa: async (idEmpresa: string) => {
+        console.log(idEmpresa)
+
+        const parametro = await Parametros_Compra.findOne({
+            where: { id_empresa: idEmpresa }
+        })
+
+        const id_parametro_comp = parametro.id_parametro_comp
+        return await Parametros_Compra.findByPk(id_parametro_comp, {
+            include:
+                [
+                    {
+                        model: Empresa_Sucursal,
+                        attributes: ['id_empre', 'nom_empre']
+                    },
+                    {
+
+                        model: CategoriaExcluidaCompra,
+                        attributes: ['id_categoria_art'],
+                        include: [
+                            {
+                                model: Categoria_Articulo,
+                                attributes: ['id_categoria', 'nom_categoria']
+                            }
+                        ]
+                    },
+                    {
+                        model: ArticuloExcluidoCompra,
+                        attributes: ['id_articulo'],
+                        include: [
+                            {
+                                model: Articulo,
+                                attributes: ['id_artic', 'des_artic', 'cod_barr_artic']
+                            }
+                        ]
+                    }
+                ]
+        });
+    },
 
     createParametroCompra: async (data: ICreateOrUpdateParametros_Compra) => {
         // 1. Crear Parametro principal

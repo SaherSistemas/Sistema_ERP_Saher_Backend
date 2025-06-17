@@ -4,8 +4,8 @@ export const ArticuloService = {
     getAllPaginado: async (page: number = 1, limit: number = 100, query: string = '') => {
         return await ArticuloRepository.getAllPag(page, limit, query);
     },
-    getAllPagProductosParaCompra: async (page: number = 1, limit: number = 100, id_parametro_comp: string) => {
-        return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_parametro_comp);
+    getAllPagProductosParaCompra: async (page: number = 1, limit: number = 100, id_empresasucursal: string) => {
+        return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_empresasucursal);
     },
     getByID: async (id: string) => {
         return await ArticuloRepository.getByIDFlexible(id);

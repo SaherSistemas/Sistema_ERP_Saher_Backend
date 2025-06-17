@@ -11,6 +11,10 @@ export const dbLocal = new Sequelize({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     port: 5432,
+    timezone: '+00:00', // ⬅️ esto fuerza UTC
+    dialectOptions: {
+        useUTC: true, // ⬅️ importante para PostgreSQL
+    },
     models: [path.join(__dirname, '/../models/**/*.ts')],  // Corrige la ruta con path.join
     logging: false,
 });

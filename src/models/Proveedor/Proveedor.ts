@@ -1,5 +1,5 @@
 import { Column, Model, DataType, Table, PrimaryKey, Unique, ForeignKey, BelongsTo, BelongsToMany, HasMany, HasOne } from 'sequelize-typescript'
-import Compra from '../Compra/Compra'
+import Compra from '../Compra/Compra_Proveedor'
 import Colonia from '../Ubicacion/Colonia'
 import Listado_Proveedor from './Listados_Proveedor'
 @Table({

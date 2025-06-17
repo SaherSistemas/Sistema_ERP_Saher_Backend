@@ -12,23 +12,6 @@ export const Empresa_SucursalRepository = {
                 {
                     model: Colonia,
                     attributes: ['id_colonia', 'nom_colonia'],
-                    include: [
-                        {
-                            model: Ciudad,
-                            attributes: ['id_ciuda', 'nom_ciuda'],
-                            include: [
-                                {
-                                    model: Estado,
-                                    attributes: ['id_esta', 'nom_esta'],
-                                    include: [{
-                                        model: Pais,
-                                        attributes: ['id_pais', 'nom_pais']
-                                    }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
                 }
             ]
         });
