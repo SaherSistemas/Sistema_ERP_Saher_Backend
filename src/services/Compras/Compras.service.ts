@@ -24,8 +24,7 @@ export const CompraService = {
 
         let compraGeneral = await CompraRepository.getAllCompra_General(id_empresa)
         let compraGeneralActiva = compraGeneral.find(cg => cg.estado_comp === 'C')
-        console.log("GENERAL: ", compraGeneral)
-        console.log("GENERAL ACTIVA: ", compraGeneralActiva)
+
         if (!compraGeneralActiva) {
             compraGeneralActiva = await CompraRepository.createCompra_General({
                 fecha_inicio: new Date(),
