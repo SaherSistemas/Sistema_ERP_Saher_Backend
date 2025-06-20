@@ -3,7 +3,9 @@ import Compra_Proveedor from "../../models/Compra/Compra_Proveedor"
 import { v4 as uuidv4 } from 'uuid';
 import Detalle_Compra_Solicitado from "../../models/Compra/Detalle_Compra_Solicitado";
 import Compra_General from "../../models/Compra/Compra_General";
-import { ICreateCompra_General } from "../../interface/Compras/Compra_General.interface";
+import { ICompra_General, ICreateCompra_General } from "../../interface/Compras/Compra_General.interface";
+import Proveedor from "../../models/Proveedor/Proveedor";
+import Articulo from "../../models/Articulos/Articulo";
 /*
        Código	      Estado	                             Descripción
        C	        CAPTURANDO	                             La compra está en proceso, aún sin finalizar.
@@ -22,13 +24,21 @@ export const CompraRepository = {
             where: { id_empresa_sucursal: id_empresa },
         });
     },
+    getCompraEnCaptura: async (id_empresa: string) => {
+        return await Compra_General.findOne({
+            where: {
+                id_empresa_sucursal: id_empresa,
+                estado_comp: 'C'
+            }
+        })
+    },
 
     createCompra_General: async (data: ICreateCompra_General) => {
         const { fecha_inicio, id_empre, ultimo_articulo_guardado } = data
 
         return await Compra_General.create({
             id_compra_general: uuidv4(),
-            estado_compra: 'C',
+            estado_comp: 'C',
             fecha_inicio,
             id_empresa_sucursal: id_empre,
             ultimo_articulo_guardado
@@ -38,16 +48,48 @@ export const CompraRepository = {
     findByPK_Compra_General: async (id_compra_general: string) => {
         return await Compra_General.findByPk(id_compra_general)
     },
+    compraGeneralEmpresa: async (id_empresa_sucursal: string) => {
+        const compra = await CompraRepository.getCompraEnCaptura(id_empresa_sucursal)
+        return compra
+    },
+    actualizarEstadoCompras: async (id_empresa_sucursal: string) => {
+        const compra = await CompraRepository.compraGeneralEmpresa(id_empresa_sucursal)
+        // Obtener las compras por proveedor relacionadas
+        const comprasProveedor = await Compra_Proveedor.findAll({
+            where: { id_compra_general: compra.id_compra_general }
+        });
+        for (const compprov of comprasProveedor) {
+            await compprov.update({
+                estado_comp: 'A',
+            });
+        }
+
+        await compra.update({
+            estado_comp: 'A',
+            fecha_fin: new Date()
+        });
+        return compra
+    },
 
 
 
 
 
 
+    /*
+     * ************************************************************
+     * ************************cOMPRA_PROVEEDOR*******************
+     * ***********************************************************
+     */
 
     getAllCompra_ProveedorPorIdCompGener: async (id_compra_general: string) => {
         return await Compra_Proveedor.findAll({
             where: { id_compra_general: id_compra_general },
+            include: [
+                {
+                    model: Proveedor
+                }
+            ]
         });
     },
 
@@ -59,6 +101,14 @@ export const CompraRepository = {
             idprove_comp: idprove_comp,
             id_compra_general: id_compra_general,
             inicio_de_compra_proveedor: new Date(),
+        })
+    },
+    actualizarArticuloGuardadoUltimo: async (id_compra_general: string, id_artic: string) => {
+
+        const compraGeneral = await Compra_General.findByPk(id_compra_general)
+
+        return await compraGeneral.update({
+            ultimo_articulo_guardado: id_artic
         })
     },
 
@@ -78,6 +128,24 @@ export const CompraRepository = {
             ]
         });
     },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     addDetallesCompraSolicitado: async (id_compra: string, detalles: any[]) => {
         const detallesProcesados = await Promise.all(
@@ -107,6 +175,42 @@ export const CompraRepository = {
         );
 
         return detallesProcesados;
+    },
+
+
+
+
+
+
+
+
+
+
+    articulosDetalleCompraProveedor: async (id_comp: string) => {
+        const compraProveedor = await Compra_Proveedor.findOne({
+            where: { id_comp },
+            attributes: ['id_comp'],
+            include: [
+                {
+                    model: Detalle_Compra_Solicitado,
+                    attributes: ['cantidad_detcompsol', 'precio_detcompsol'],
+                    include: [
+                        {
+                            model: Articulo,
+                            attributes: ['cod_int_artic', 'cod_barr_artic', 'des_artic'],
+                        }
+                    ],
+                    required: false // evita LEFT JOIN innecesarios si no hay productos
+                },
+                {
+                    model: Proveedor,
+                    attributes: ['nomcort_prove', 'razsoc_prove', 'rfc_prove', 'telef_prove', 'corr_prove'],
+                    required: false
+                }
+            ],
+        });
+
+        return compraProveedor.get({ plain: true })
     }
 
 }

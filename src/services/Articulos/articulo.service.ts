@@ -1,11 +1,24 @@
 import { ICreateOrUpdateArticulo } from "../../interface/Articulos/Articulo.interface";
 import { ArticuloRepository } from "../../repository/Articulos/Articulo.repository";
 export const ArticuloService = {
-    getAllPaginado: async (page: number = 1, limit: number = 100, query: string = '') => {
+    getAllPaginado: async (page: number = 1, limit: number, query: string = '') => {
         return await ArticuloRepository.getAllPag(page, limit, query);
     },
-    getAllPagProductosParaCompra: async (page: number = 1, limit: number = 100, id_empresasucursal: string) => {
+    getAllPagProductosParaCompra: async (page: number = 1, limit: number, id_empresasucursal: string) => {
         return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_empresasucursal);
+    },
+    obtenerPaginaDeArticulo: async (id_artic: string, limit: number) => {
+        const codigos = await ArticuloRepository.getAll(); // retorna [{ id_artic: '...' }, ...]
+        const ids = codigos.map(art => art.id_artic);
+        const index = ids.findIndex(codigo => codigo === id_artic);
+        console.log(index)
+        if (index === -1) {
+            throw new Error('Artículo no encontrado');
+        }
+        const pagina = Math.floor(index / limit) + 1;
+
+
+        return pagina;
     },
     getByID: async (id: string) => {
         return await ArticuloRepository.getByIDFlexible(id);

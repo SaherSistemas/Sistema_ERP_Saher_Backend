@@ -1,14 +1,17 @@
-import { ICreateCompra_General } from "../../interface/Compras/Compra_General.interface";
 import { ICreateCompraProveedorYDetalleCompraSolicitado } from "../../interface/Compras/Compra_Proveedor.interface";
-import { IDetalle_Compra_Solicitado } from "../../interface/Compras/Detalle_Compra_Solicitado.interface";
 import { ArticuloRepository } from "../../repository/Articulos/Articulo.repository";
 import { CompraRepository } from "../../repository/Compras/Compra.repository";
 import { Listado_ProveedorRepository } from "../../repository/Proveedor/Listado_Proveedor.repository";
+import PDFDocument from 'pdfkit';
+import dayjs from 'dayjs';
 
 
 export const CompraService = {
     getAll: async (id_empresa: string) => {
         return await CompraRepository.getAllCompra_General(id_empresa);
+    },
+    getEnCaptura: async (id_empresa: string) => {
+        return await CompraRepository.getCompraEnCaptura(id_empresa)
     },
     createCompra: async (data: ICreateCompraProveedorYDetalleCompraSolicitado) => {
         const { id_empresa, id_listproveedor, detalle } = data
@@ -32,6 +35,8 @@ export const CompraService = {
                 estado_comp: 'C',
                 ultimo_articulo_guardado: uuidArticulo
             })
+        } else {
+            await CompraRepository.actualizarArticuloGuardadoUltimo(compraGeneralActiva.id_compra_general, uuidArticulo)
         }
 
         // buscar o crear compra proveedor 
@@ -64,6 +69,112 @@ export const CompraService = {
         }
 
     },
+
+    finalizarCompras: async (id_empresa_sucursal: string) => {
+        return await CompraRepository.actualizarEstadoCompras(id_empresa_sucursal)
+    },
+
+
+    getCompraProveedorPorIdGeneral: async (id_compra_general: string) => {
+        return await CompraRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
+    },
+    articulosDetalleCompraProveedor: async (id_comp: string) => {
+        return await CompraRepository.articulosDetalleCompraProveedor(id_comp);
+    },
+
+    generarPDFListado: async (id_comp: string): Promise<Buffer> => {
+        const compraProveedor = await CompraService.articulosDetalleCompraProveedor(id_comp);
+        const { proveedor, detallesCompra } = compraProveedor;
+
+        const doc = new PDFDocument({ margin: 30, size: 'letter' });
+        const buffers: Buffer[] = [];
+
+        doc.on('data', buffers.push.bind(buffers));
+
+        const drawEncabezadoTabla = () => {
+            const y = doc.y;
+            doc.rect(30, y, 550, 20).fill('#E0E0E0');
+            doc.fillColor('black').font('Helvetica-Bold').fontSize(10);
+            doc.text('Código', 32, y + 5);
+            doc.text('Descripción', 130, y + 5);
+            doc.text('Cantidad', 300, y + 5);
+            doc.text('Precio', 380, y + 5);
+            doc.text('Importe', 460, y + 5);
+            doc.moveDown(1.5);
+            doc.font('Helvetica');
+        };
+
+        // 🟦 ENCABEZADO
+        doc.rect(0, 0, 612, 60).fill('#3C8DBC');
+        doc.fillColor('white').fontSize(20).text('FARMACIA SAHER', 40, 20);
+        doc.fillColor('black');
+        doc.moveDown(2);
+        doc.fontSize(14).text('Orden de Compra a Proveedor', { underline: true });
+        doc.moveDown();
+        doc.fontSize(11);
+        doc.text(`Proveedor: ${proveedor.nomcort_prove}`);
+        doc.text(`Razón Social: ${proveedor.razsoc_prove}`);
+        doc.text(`RFC: ${proveedor.rfc_prove}`);
+        doc.text(`Correo: ${proveedor.corr_prove}`);
+        doc.text(`Teléfono: ${proveedor.telef_prove}`);
+        doc.text(`Fecha: ${dayjs().format('DD/MM/YYYY')}`);
+        doc.moveDown().moveTo(30, doc.y).lineTo(580, doc.y).strokeColor('#CCCCCC').stroke();
+        doc.moveDown();
+
+        drawEncabezadoTabla();
+
+        let subtotal = 0;
+
+        for (const item of detallesCompra) {
+            const cantidad = Number(item.cantidad_detcompsol);
+            const precio = Number(item.precio_detcompsol);
+            const importe = cantidad * precio;
+            subtotal += importe;
+
+            const articulo = item.articulo;
+
+            // 🔎 Verificar espacio restante antes de escribir
+            const espacioNecesario = 40;
+            if (doc.y + espacioNecesario > doc.page.height - doc.page.margins.bottom) {
+                doc.addPage();
+                drawEncabezadoTabla();
+            }
+
+            const startY = doc.y;
+            doc.text(articulo.cod_barr_artic, 30, startY);
+            doc.text(articulo.des_artic, 130, startY, { width: 160, lineGap: 1 });
+
+            const yFinal = doc.y;
+            doc.text(`${cantidad}`, 300, startY);
+            doc.text(`$${precio.toFixed(2)}`, 380, startY);
+            doc.text(`$${importe.toFixed(2)}`, 460, startY);
+
+            doc.y = Math.max(yFinal, startY) + 5;
+        }
+
+        const iva = subtotal * 0.16;
+        const total = subtotal + iva;
+
+        // 🧮 TOTALES
+        if (doc.y + 60 > doc.page.height - doc.page.margins.bottom) {
+            doc.addPage();
+        }
+
+        doc.moveDown(1);
+        const totalBoxY = doc.y;
+        doc.rect(400, totalBoxY, 170, 45).fill('#F5F5F5');
+        doc.fillColor('black').fontSize(11);
+        doc.text(`Subtotal: $${subtotal.toFixed(2)}`, 410, totalBoxY + 5);
+
+        doc.end();
+
+        return new Promise((resolve) => {
+            doc.on('end', () => {
+                const pdfBuffer = Buffer.concat(buffers);
+                resolve(pdfBuffer);
+            });
+        });
+    }
 
 
 }

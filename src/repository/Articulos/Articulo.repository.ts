@@ -13,7 +13,20 @@ import Tipo_IVA from '../../models/Articulos/Tipo_IVA';
 import ArticuloExcluidoCompra from '../../models/Compra/ArticuloExcluidoCompra';
 import CategoriaExcluidaCompra from '../../models/Compra/CategoriaExcluidaCompra';
 import Parametros_Compra from '../../models/Compra/Parametros_Compra';
+import Compra_General from '../../models/Compra/Compra_General';
+import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
+import Detalle_Compra_Solicitado from '../../models/Compra/Detalle_Compra_Solicitado';
+
+
+type DetalleConTotal = {
+    id_articulo_detcompsol: string;
+    total: number;
+};
 export const ArticuloRepository = {
+
+    getAll: async () => {
+        return await Articulo.findAll({ attributes: ['id_artic'], raw: true })
+    },
     getAllPag: async (page: number, limit: number, query: string) => {
         const offset = (page - 1) * limit;
 
@@ -85,40 +98,90 @@ export const ArticuloRepository = {
         const parametro = await Parametros_Compra.findOne({
             where: { id_empresa: id_empresasucursal },
             attributes: ['id_parametro_comp']
-        })
+        });
 
-        const id_parametro_comp = parametro.id_parametro_comp
-        // 1. Obtener IDs de artículos excluidos
+        if (!parametro) {
+            throw new Error('No se encontraron parámetros de compra configurados.');
+        }
+
+        const id_parametro_comp = parametro.id_parametro_comp;
+
         const articulosExcluidos = await ArticuloExcluidoCompra.findAll({
             where: { id_parametro_comp },
             attributes: ['id_articulo']
         });
         const idsArticulosExcluidos = articulosExcluidos.map(e => e.id_articulo);
 
-        // 2. Obtener IDs de categorías excluidas
         const categoriasExcluidas = await CategoriaExcluidaCompra.findAll({
             where: { id_parametro_comp },
             attributes: ['id_categoria_art']
         });
         const idsCategoriasExcluidas = categoriasExcluidas.map(c => c.id_categoria_art);
 
-        // 3. Traer artículos que NO estén en los excluidos ni en categorías excluidas
         const { count, rows } = await Articulo.findAndCountAll({
             where: {
                 id_artic: { [Op.notIn]: idsArticulosExcluidos },
-                id_categoria: { [Op.notIn]: idsCategoriasExcluidas }
+                id_categoria: { [Op.notIn]: idsCategoriasExcluidas },
+                status_artic: true
             },
             offset,
             limit
+        });
+
+        const compraGeneral = await Compra_General.findOne({
+            where: {
+                id_empresa_sucursal: id_empresasucursal,
+                estado_comp: 'C',
+            },
+        });
+
+        const cantidadesPorArticulo: Record<string, number> = {};
+
+        if (compraGeneral) {
+            const compras = await Compra_Proveedor.findAll({
+                where: {
+                    id_compra_general: compraGeneral.id_compra_general
+                },
+                attributes: ['id_comp']
+            });
+
+            const idsCompras = compras.map(c => c.id_comp);
+
+            if (idsCompras.length > 0) {
+                const detalles = await Detalle_Compra_Solicitado.findAll({
+                    where: {
+                        idcompr_detcompsol: { [Op.in]: idsCompras }
+                    },
+                    attributes: [
+                        'idarticulo_detcompsol',
+                        [Sequelize.fn('SUM', Sequelize.col('cantidad_detcompsol')), 'total']
+                    ],
+                    group: ['idarticulo_detcompsol'],
+                    raw: true
+                });
+
+                detalles.forEach((d) => {
+                    const idArticulo = d['idarticulo_detcompsol'];
+                    const total = Number(d['total'] ?? 0);
+                    cantidadesPorArticulo[idArticulo] = total;
+                });
+            }
+        }
+
+        rows.forEach((articulo) => {
+            const total = cantidadesPorArticulo[articulo.id_artic] || 0;
+            articulo.setDataValue('totalSolicitado', total);
         });
 
         return {
             total: count,
             articulos: rows,
             page,
-            totalPages: Math.ceil(count / limit)
+            totalPages: Math.ceil(count / limit),
+            ultimoGuardado: compraGeneral?.ultimo_articulo_guardado ?? null
         };
     },
+
 
     getByIDFlexible: async (id: string) => {
         if (isUUID(id)) {

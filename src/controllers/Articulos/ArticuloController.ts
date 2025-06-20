@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { ArticuloService } from '../../services/Articulos/articulo.service'
 
 export class ArticuloController {
-    static getAll = async (req: Request, res: Response) => {
+    static getAllPaginados = async (req: Request, res: Response) => {
         try {
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 20;
@@ -15,17 +15,32 @@ export class ArticuloController {
             res.status(500).json({ message: "Error al obtener los artículos." });
         }
     }
+
     static getAllParaCompra = async (req: Request, res: Response) => {
         try {
             const { id_empresasucursal } = req.params;
-
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 20;
+
             const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(page, limit, id_empresasucursal);
             res.status(200).json(TodosArticulosParaCompra)
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: "Error al obtener todos los articulo." })
+        }
+    }
+
+
+    static getPaginaArticuloParaContinuarCompra = async (req: Request, res: Response) => {
+        try {
+            const { id_artic } = req.params;
+            const limit = parseInt(req.query.limit as string) || 1;
+
+            const pagina = await ArticuloService.obtenerPaginaDeArticulo(id_artic, limit);
+            res.json({ pagina });
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ mensaje: error.message || 'Error al calcular la página del artículo' });
         }
     }
     static getByID = async (req: Request, res: Response) => {

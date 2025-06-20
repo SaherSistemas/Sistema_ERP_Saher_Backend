@@ -4,6 +4,7 @@ export interface IDetalle_Compra_Solicitado {
     idarticulo_detcompsol: string
     cantidad_detcompsol: number
     precio_detcompsol: number
+    total?: number; // <-- AGREGADO
 }
 
 export interface ICreateOrUpdateDetalleCompraSolicitado {
