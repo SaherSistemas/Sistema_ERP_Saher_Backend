@@ -1,4 +1,4 @@
-import { iParametros_Compra, ICreateOrUpdateParametros_Compra } from "../../interface/Compras/Parametros_Compra.interface";
+import { iParametros_Compra, ICreateOrUpdateParametros_Compra } from "../../interface/Compras/Parametros_Compra/Parametros_Compra.interface";
 import { Parametros_CompraRepository } from "../../repository/Compras/Parametros_Compra.repository";
 
 

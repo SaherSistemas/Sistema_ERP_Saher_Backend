@@ -3,28 +3,28 @@ import {
     BelongsTo
 } from 'sequelize-typescript';
 import Parametros_Compra from './Parametros_Compra';
-import Categoria_Articulo from '../Articulos/Categoria_Articulo';
+import Articulo from '../../Articulos/Articulo';
 
-@Table({ tableName: 'categoria_excluida_compra' })
-class CategoriaExcluidaCompra extends Model {
+@Table({ tableName: 'articulo_excluido_compra' })
+class ArticuloExcluidoCompra extends Model {
     @PrimaryKey
     @Default(DataType.UUIDV4)
     @Column(DataType.UUID)
-    declare id_categoria_excluida: string;
+    declare id_articulo_excluido: string;
 
     @ForeignKey(() => Parametros_Compra)
     @Column(DataType.UUID)
     declare id_parametro_comp: string;
 
-    @ForeignKey(() => Categoria_Articulo)
+    @ForeignKey(() => Articulo)
     @Column(DataType.UUID)
-    declare id_categoria_art: string;
+    declare id_articulo: string;
 
     @BelongsTo(() => Parametros_Compra)
     declare parametro_compra?: Parametros_Compra;
 
-    @BelongsTo(() => Categoria_Articulo)
-    declare categoria?: Categoria_Articulo;
+    @BelongsTo(() => Articulo)
+    declare articulo?: Articulo;
 }
 
-export default CategoriaExcluidaCompra;
+export default ArticuloExcluidoCompra;

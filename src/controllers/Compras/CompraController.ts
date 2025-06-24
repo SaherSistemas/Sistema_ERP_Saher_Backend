@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 
 import { CompraService } from "../../services/Compras/Compras.service";
-import { ICreateCompraProveedorYDetalleCompraSolicitado } from "../../interface/Compras/Compra_Proveedor.interface";
+import { IEsctructuraCompra } from "../../interface/Compras/Compra_Proveedor.interface";
 
 export class ComprasController {
     static getAll = async (req: Request, res: Response) => {
@@ -26,11 +26,11 @@ export class ComprasController {
     }
     static createCompra = async (req: Request, res: Response) => {
         try {
-            const data: ICreateCompraProveedorYDetalleCompraSolicitado = req.body
+            const data: IEsctructuraCompra = req.body
             const newCompra = await CompraService.createCompra(data)
             res.status(201).json({ mensaje: "Compra creada correctamente.", compra: newCompra })
         } catch (error) {
-            //console.error(error);
+            console.error(error);
             res.status(500).json({ message: "Error al crear la compra" })
         }
     }

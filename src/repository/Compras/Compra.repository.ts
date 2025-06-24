@@ -1,4 +1,4 @@
-import { ICreateCompra_Proveedor, ICreateCompraProveedorYDetalleCompraSolicitado } from "../../interface/Compras/Compra_Proveedor.interface"
+import { ICreateCompra_Proveedor, IEsctructuraCompra } from "../../interface/Compras/Compra_Proveedor.interface"
 import Compra_Proveedor from "../../models/Compra/Compra_Proveedor"
 import { v4 as uuidv4 } from 'uuid';
 import Detalle_Compra_Solicitado from "../../models/Compra/Detalle_Compra_Solicitado";
@@ -6,6 +6,7 @@ import Compra_General from "../../models/Compra/Compra_General";
 import { ICompra_General, ICreateCompra_General } from "../../interface/Compras/Compra_General.interface";
 import Proveedor from "../../models/Proveedor/Proveedor";
 import Articulo from "../../models/Articulos/Articulo";
+import { Empresa_SucursalRepository } from "../Empresa_Sucursal/Empresa_Sucursal.repository";
 /*
        Código	      Estado	                             Descripción
        C	        CAPTURANDO	                             La compra está en proceso, aún sin finalizar.
@@ -34,14 +35,28 @@ export const CompraRepository = {
     },
 
     createCompra_General: async (data: ICreateCompra_General) => {
-        const { fecha_inicio, id_empre, ultimo_articulo_guardado } = data
+        const { fecha_inicio, id_empre, ultimo_articulo_guardado, tipo_compra } = data
 
+        const empresa = await Empresa_SucursalRepository.getByID(id_empre)
+        const nomCortEmpre = empresa.nom_empre;
+        const empresaLimpiada = nomCortEmpre
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, '') // elimina acentos
+            .replace(/\s+/g, '')            // elimina espacios
+            .toUpperCase();
+
+        const fechaFormateada = fecha_inicio.toISOString().slice(0, 10).replace(/-/g, '');
+        const idCorto = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+        const identificadorInterno = `${empresaLimpiada}_${fechaFormateada}_${idCorto}`;
         return await Compra_General.create({
             id_compra_general: uuidv4(),
+            id_interno_compra_gen: identificadorInterno,
             estado_comp: 'C',
             fecha_inicio,
             id_empresa_sucursal: id_empre,
-            ultimo_articulo_guardado
+            ultimo_articulo_guardado,
+            tipo_compra: tipo_compra
         })
     },
 
@@ -128,6 +143,23 @@ export const CompraRepository = {
             ]
         });
     },
+    actualizarFechaEnviadaProveedor: async (id_comp: string) => {
+        const compraProveedor = await Compra_Proveedor.findByPk(id_comp);
+
+        if (!compraProveedor) {
+            throw new Error('Compra del proveedor no encontrada');
+        }
+
+        if (compraProveedor.fecha_enviada_proveedor == null) {
+            return await compraProveedor.update({
+                fecha_enviada_proveedor: new Date()
+            });
+        }
+
+        // Si ya tenía fecha, simplemente retorna el objeto sin modificar
+        return compraProveedor;
+    },
+
 
 
 

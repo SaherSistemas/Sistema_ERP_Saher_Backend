@@ -1,8 +1,7 @@
-import { ICreateOrUpdateParametros_Compra } from "../../interface/Compras/Parametros_Compra.interface";
-import ArticuloExcluidoCompra from "../../models/Compra/ArticuloExcluidoCompra";
-import CategoriaExcluidaCompra from "../../models/Compra/CategoriaExcluidaCompra";
-import CategoriaExcluidasCompra from "../../models/Compra/CategoriaExcluidaCompra";
-import Parametros_Compra from "../../models/Compra/Parametros_Compra";
+import { ICreateOrUpdateParametros_Compra } from "../../interface/Compras/Parametros_Compra/Parametros_Compra.interface";
+import ArticuloExcluidoCompra from "../../models/Compra/Parametros_Compra/ArticuloExcluidoCompra";
+import CategoriaExcluidaCompra from "../../models/Compra/Parametros_Compra/CategoriaExcluidaCompra";
+import Parametros_Compra from "../../models/Compra/Parametros_Compra/Parametros_Compra";
 import { v4 as uuidv4 } from 'uuid';
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 import Categoria_Articulo from "../../models/Articulos/Categoria_Articulo";
@@ -62,8 +61,6 @@ export const Parametros_CompraRepository = {
         });
     },
     getByIDEmpresa: async (idEmpresa: string) => {
-        console.log(idEmpresa)
-
         const parametro = await Parametros_Compra.findOne({
             where: { id_empresa: idEmpresa }
         })

@@ -1,5 +1,4 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
-import Proveedor from "../Proveedor/Proveedor";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 import Compra_Proveedor from "./Compra_Proveedor";
 
@@ -13,6 +12,12 @@ class Compra_General extends Model {
         type: DataType.UUID
     })
     declare id_compra_general: string
+
+    @Unique
+    @Column({
+        type: DataType.STRING(100)
+    })
+    declare id_interno_compra_gen: string
 
     @Column({
         type: DataType.DATE
@@ -42,6 +47,9 @@ class Compra_General extends Model {
         type: DataType.STRING(50)
     })
     declare ultimo_articulo_guardado: string
+
+    @Column(DataType.STRING(25))
+    declare tipo_compra: string
 
 
 

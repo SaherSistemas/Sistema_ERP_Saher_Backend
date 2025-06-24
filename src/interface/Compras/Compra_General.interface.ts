@@ -3,6 +3,7 @@ import { IEmpresaSucursal } from "../Empresa_Sucursal/Empresa_Sucursal.interface
 
 export interface ICompra_General {
     id_compra_general: string
+    id_interno_compra_gen: string
     fecha_inicio: string
     fecha_fin: string
     estado_com: string
@@ -14,6 +15,7 @@ export interface ICompra_General {
 
 export interface ICreateCompra_General {
     fecha_inicio: Date
+    tipo_compra: string
     id_empre: string
     estado_comp: string
     ultimo_articulo_guardado?: string

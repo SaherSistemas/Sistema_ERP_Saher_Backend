@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { Parametros_CompraService } from "../../services/Compras/Parametros_Compra.service";
-import { ICreateOrUpdateParametros_Compra } from "../../interface/Compras/Parametros_Compra.interface";
+import { ICreateOrUpdateParametros_Compra } from "../../interface/Compras/Parametros_Compra/Parametros_Compra.interface";
 
 export class Parametros_CompraController {
     static getAll = async (req: Request, res: Response) => {

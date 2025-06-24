@@ -1,4 +1,4 @@
-import { ICreateCompraProveedorYDetalleCompraSolicitado } from "../../interface/Compras/Compra_Proveedor.interface";
+import { IEsctructuraCompra } from "../../interface/Compras/Compra_Proveedor.interface";
 import { ArticuloRepository } from "../../repository/Articulos/Articulo.repository";
 import { CompraRepository } from "../../repository/Compras/Compra.repository";
 import { Listado_ProveedorRepository } from "../../repository/Proveedor/Listado_Proveedor.repository";
@@ -13,8 +13,8 @@ export const CompraService = {
     getEnCaptura: async (id_empresa: string) => {
         return await CompraRepository.getCompraEnCaptura(id_empresa)
     },
-    createCompra: async (data: ICreateCompraProveedorYDetalleCompraSolicitado) => {
-        const { id_empresa, id_listproveedor, detalle } = data
+    createCompra: async (data: IEsctructuraCompra) => {
+        const { id_empresa, id_listproveedor, detalle, tipo_compra } = data
 
         const listado = await Listado_ProveedorRepository.getByID(id_listproveedor)
 
@@ -30,6 +30,7 @@ export const CompraService = {
 
         if (!compraGeneralActiva) {
             compraGeneralActiva = await CompraRepository.createCompra_General({
+                tipo_compra: tipo_compra,
                 fecha_inicio: new Date(),
                 id_empre: id_empresa,
                 estado_comp: 'C',
@@ -133,7 +134,6 @@ export const CompraService = {
 
             const articulo = item.articulo;
 
-            // 🔎 Verificar espacio restante antes de escribir
             const espacioNecesario = 40;
             if (doc.y + espacioNecesario > doc.page.height - doc.page.margins.bottom) {
                 doc.addPage();
@@ -155,7 +155,6 @@ export const CompraService = {
         const iva = subtotal * 0.16;
         const total = subtotal + iva;
 
-        // 🧮 TOTALES
         if (doc.y + 60 > doc.page.height - doc.page.margins.bottom) {
             doc.addPage();
         }
@@ -169,12 +168,16 @@ export const CompraService = {
         doc.end();
 
         return new Promise((resolve) => {
-            doc.on('end', () => {
+            doc.on('end', async () => {
+                // ✅ ACTUALIZA LA FECHA SI ES NULL
+                await CompraRepository.actualizarFechaEnviadaProveedor(id_comp)
+
                 const pdfBuffer = Buffer.concat(buffers);
                 resolve(pdfBuffer);
             });
         });
     }
+
 
 
 }

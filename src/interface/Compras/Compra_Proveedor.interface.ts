@@ -22,9 +22,10 @@ export interface ICreateCompra_Proveedor {
     idprove_comp: string
     id_compra_general: string
 }
-export interface ICreateCompraProveedorYDetalleCompraSolicitado {
+export interface IEsctructuraCompra {
     id_empresa: string;
     id_listproveedor: string
+    tipo_compra: string
     detalle: {
         id_articulo_detcompsol: string
         cantidad_detcompsol: number

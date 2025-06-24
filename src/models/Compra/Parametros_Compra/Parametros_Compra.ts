@@ -3,7 +3,7 @@ import {
     BelongsTo,
     HasMany
 } from 'sequelize-typescript';
-import Empresa_Sucursal from '../Empresa_Sucursal/Empresa_Sucursal';
+import Empresa_Sucursal from '../../Empresa_Sucursal/Empresa_Sucursal';
 import CategoriaExcluidaCompra from './CategoriaExcluidaCompra';
 import ArticuloExcluidoCompra from './ArticuloExcluidoCompra';
 
