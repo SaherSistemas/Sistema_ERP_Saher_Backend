@@ -11,7 +11,6 @@ export const ArticuloService = {
         const codigos = await ArticuloRepository.getAll(); // retorna [{ id_artic: '...' }, ...]
         const ids = codigos.map(art => art.id_artic);
         const index = ids.findIndex(codigo => codigo === id_artic);
-        console.log(index)
         if (index === -1) {
             throw new Error('Artículo no encontrado');
         }
