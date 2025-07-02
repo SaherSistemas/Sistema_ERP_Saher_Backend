@@ -24,4 +24,25 @@ export class ClienteController {
                     res.status(500).json({ mensaje: "Error al crear el cliente." });
                 }
             }
+        static actualizarByID = async (req: Request, res: Response) => {
+                try {
+                    const { id_cliente } = req.params;
+                    const data = req.body;
+                    const clienteActualizado = await ClienteService.updateCliente(id_cliente, data);
+                    res.status(200).json(clienteActualizado);
+                } catch (error) {
+                    console.error(error);
+                    res.status(500).json({ mensaje: "Error al actualizar el cliente." });
+                }
+            }
+        static actualizarStatusByID = async (req: Request, res: Response) => {
+                try {
+                    const { id_cliente } = req.params;
+                    const clienteActualizado = await ClienteService.updateStatusCliente(id_cliente);
+                    res.status(200).json(clienteActualizado);
+                } catch (error) {
+                    console.error(error);
+                    res.status(500).json({ mensaje: "Error al actualizar el estado del cliente." });
+                }
+            }
     }

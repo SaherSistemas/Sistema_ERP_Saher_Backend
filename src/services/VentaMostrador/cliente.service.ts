@@ -18,5 +18,9 @@ export const ClienteService = {
 
     updateCliente: async(id_cliente_o_telefono: string, data: ICreateUpdateCliente) => {
         return await ClienteRepository.updateCliente(id_cliente_o_telefono, data);
+    },
+    updateStatusCliente: async(id_cliente: string) => {
+        return await ClienteRepository.updateStatusCliente(id_cliente);
     }
+
 }

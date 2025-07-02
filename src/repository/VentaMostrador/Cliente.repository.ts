@@ -33,6 +33,16 @@ export const ClienteRepository = {
         });
     },
 
+    updateStatusCliente: async(id_cliente: string) => {
+       const cliente = await ClienteRepository.getByIDFlexible(id_cliente);
+       let statusActualCliente = cliente?.status_cliente;
+        statusActualCliente =! statusActualCliente;
+        console.log(statusActualCliente)
+        return await cliente.update({
+            status_cliente:statusActualCliente
+        })
+    }
+
 
 
 }
