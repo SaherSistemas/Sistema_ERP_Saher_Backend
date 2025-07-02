@@ -43,6 +43,11 @@ export const Empresa_SucursalRepository = {
             ]
         });
     },
+    getByIDHeader: async (id: string): Promise<IEmpresaSucursal | null> => {
+        return await Empresa_Sucursal.findByPk(id, {
+            attributes: ['id_empre', 'nom_empre']
+        });
+    },
     crearNuevaSucursalEmpresa: async (data: ICrearEmpresaSucursal) => {
 
         const nuevoUUID = uuidv4();

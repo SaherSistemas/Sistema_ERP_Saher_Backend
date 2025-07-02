@@ -39,6 +39,9 @@ import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
 import parametos_CompraRouter from './Compras/Parametros_CompraRouter'
 import comprasRouter from './Compras/ComprasRouter'
 import detalleCompraRouter from './Compras/Detalle_CompraRouter'
+
+
+import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
 const router = Router();
 
 
@@ -84,4 +87,6 @@ router.use('/parametros_compra', parametos_CompraRouter)
 router.use('/compras', comprasRouter)
 router.use('/compras/detalle_compra', detalleCompraRouter)
 
+
+router.use('/lotes_solicitados', lotesSolicitadoRouter)
 export default router

@@ -11,14 +11,14 @@ class Lotes_Solicitado_Compra extends Model {
     @Column(DataType.UUID)
     declare id_detallecompr_solicitado: string;
 
-    @Column(DataType.UUID)
+    @Column(DataType.STRING)
     declare numerolote_lote: string;
 
-    @Column(DataType.UUID)
+    @Column(DataType.DATEONLY)
     declare fechavencimiento_lote: Date;
 
-    @Column(DataType.UUID)
-    declare cantidad_lote: Date;
+    @Column(DataType.INTEGER)
+    declare cantidad_solicitada: number;
 }
 
 export default Lotes_Solicitado_Compra;

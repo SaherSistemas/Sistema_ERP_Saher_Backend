@@ -27,7 +27,12 @@ class Compra_General extends Model {
     @Column({
         type: DataType.DATE
     })
-    declare fecha_fin: Date
+    declare fecha_fin_captura: Date
+
+    @Column({
+        type: DataType.DATE
+    })
+    declare fecha_completa_fin: Date
 
     @Column({
         type: DataType.CHAR(1)
