@@ -3,7 +3,7 @@ import Compra_Proveedor from "../../models/Compra/Compra_Proveedor"
 import { v4 as uuidv4 } from 'uuid';
 import Detalle_Compra_Solicitado from "../../models/Compra/Detalle_Compra_Solicitado";
 import Compra_General from "../../models/Compra/Compra_General";
-import { ICompra_General, ICreateCompra_General } from "../../interface/Compras/Compra_General.interface";
+import { ICreateCompra_General } from "../../interface/Compras/Compra_General.interface";
 import Proveedor from "../../models/Proveedor/Proveedor";
 import Articulo from "../../models/Articulos/Articulo";
 import { Empresa_SucursalRepository } from "../Empresa_Sucursal/Empresa_Sucursal.repository";
@@ -11,26 +11,32 @@ import { Empresa_SucursalRepository } from "../Empresa_Sucursal/Empresa_Sucursal
        Código	      Estado	                             Descripción
        C	        CAPTURANDO	                             La compra está en proceso, aún sin finalizar.
        A            CAPTURADA                                La captura ha sido completada pero aun no se ha enviado al proveedor.
-       E	        ENVIADA	                                 La orden ha sido enviada al proveedor.
-       L            CAPTURANDO LOTES                         La compra se estan capturando los lotes.
-       R	        RECIBIDA	                             Todos los productos han sido recibidos correctamente.(ESPERANDO CHEQUEO Y CONTEO)
        F	        COMPLETADA	                             Fue recibido y se cerró la compra.
        D            COMPLETADA PERO CON DEVOLUCION           La compra fue completada pero tiene devolucion.    
 */
 
 
+
+
+
 export const CompraRepository = {
-    getAllCompra_General: async (id_empresa: string) => {
-        return await Compra_General.findAll({
+    getAllCompra_General: async (id_empresa: string, page: number, limit: number) => {
+        const offset = (page - 1) * limit;
+        const { count, rows } = await Compra_General.findAndCountAll({
             where: { id_empresa_sucursal: id_empresa },
+            order: [['fecha_inicio', 'DESC']],
+            limit,
+            offset
         });
+        return { total: count, compras: rows };
     },
     getCompraEnCaptura: async (id_empresa: string) => {
         return await Compra_General.findOne({
             where: {
                 id_empresa_sucursal: id_empresa,
                 estado_comp: 'C'
-            }
+            },
+            order: [['fecha_inicio', 'DESC']]
         })
     },
 
@@ -81,7 +87,7 @@ export const CompraRepository = {
 
         await compra.update({
             estado_comp: 'A',
-            fecha_fin: new Date()
+            fecha_fin_captura: new Date()
         });
         return compra
     },
@@ -90,10 +96,19 @@ export const CompraRepository = {
 
 
 
-
+    /*
+           Código	      Estado	                             Descripción
+           C	        CAPTURANDO	                             La compra está en proceso, aún sin finalizar.
+           A            CAPTURADA                                La captura ha sido completada pero aun no se ha enviado al proveedor.
+           E	        ENVIADA	                                 La orden ha sido enviada al proveedor.
+           L            CAPTURANDO LOTES                         La compra se estan capturando los lotes.
+           R	        RECIBIDA	                             Todos los productos han sido recibidos correctamente.(ESPERANDO CHEQUEO Y CONTEO)
+           F	        COMPLETADA	                             Fue recibido y se cerró la compra.
+           D            COMPLETADA PERO CON DEVOLUCION           La compra fue completada pero tiene devolucion.    
+    */
     /*
      * ************************************************************
-     * ************************cOMPRA_PROVEEDOR*******************
+     * ************************COMPRA_PROVEEDOR*******************
      * ***********************************************************
      */
 
@@ -108,6 +123,29 @@ export const CompraRepository = {
         });
     },
 
+    getByID_CompraProvedor: async (id_comp: string) => {
+        return await Compra_Proveedor.findByPk(id_comp)
+    },
+
+    actualizarEstadoAlGuardarLotes: async (id_comp: string) => {
+        const compraProveedor = await CompraRepository.getByID_CompraProvedor(id_comp)
+        compraProveedor.update({
+            fin_de_registro_lotes: new Date(),
+            estado_comp: 'K'
+        })
+    },
+
+    guardarFolioEIniciarCapturaLotes: async (id_comp: string, folio_factura_compra: string) => {
+        console.log(folio_factura_compra)
+        const compra = await CompraRepository.getByID_CompraProvedor(id_comp)
+        compra.update({
+            folio_factura_compra: folio_factura_compra,
+            inicio_de_registro_lotes: new Date(),
+            estado_comp: 'L'
+        })
+    },
+
+
     createCompraProveedor: async (data: ICreateCompra_Proveedor) => {
         const { idprove_comp, id_compra_general } = data
         return await Compra_Proveedor.create({
@@ -118,6 +156,7 @@ export const CompraRepository = {
             inicio_de_compra_proveedor: new Date(),
         })
     },
+
     actualizarArticuloGuardadoUltimo: async (id_compra_general: string, id_artic: string) => {
 
         const compraGeneral = await Compra_General.findByPk(id_compra_general)
@@ -143,6 +182,7 @@ export const CompraRepository = {
             ]
         });
     },
+
     actualizarFechaEnviadaProveedor: async (id_comp: string) => {
         const compraProveedor = await Compra_Proveedor.findByPk(id_comp);
 
@@ -152,7 +192,8 @@ export const CompraRepository = {
 
         if (compraProveedor.fecha_enviada_proveedor == null) {
             return await compraProveedor.update({
-                fecha_enviada_proveedor: new Date()
+                fecha_enviada_proveedor: new Date(),
+                estado_comp: 'E'
             });
         }
 

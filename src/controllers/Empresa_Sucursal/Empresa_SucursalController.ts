@@ -18,7 +18,17 @@ export class Empresa_SucursalController {
             const empresa_sucursal = await Empresa_SucursalService.getEmpresaSucursalByID(id_empresaSucursal);
             res.status(201).json(empresa_sucursal)
         } catch (error) {
-            //   console.error(error);
+            console.error(error);
+            res.status(500).json({ message: "No se encontro la empresa" });
+        }
+    }
+    static getEmpresaSucursalHeader = async (req: Request, res: Response) => {
+        try {
+            const { id_empresaSucursal } = req.params;
+            const empresa_sucursal = await Empresa_SucursalService.getEmpresaSucursalHeader(id_empresaSucursal);
+            res.status(201).json(empresa_sucursal)
+        } catch (error) {
+            console.error(error);
             res.status(500).json({ message: "No se encontro la empresa" });
         }
     }

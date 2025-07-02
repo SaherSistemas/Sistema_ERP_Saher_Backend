@@ -16,6 +16,7 @@ export class ArticuloController {
         }
     }
 
+
     static getAllParaCompra = async (req: Request, res: Response) => {
         try {
             const { id_empresasucursal } = req.params;
@@ -24,6 +25,16 @@ export class ArticuloController {
 
             const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(page, limit, id_empresasucursal);
             res.status(200).json(TodosArticulosParaCompra)
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al obtener todos los articulo." })
+        }
+    }
+
+    static getNegadosByEmpresa = async (req: Request, res: Response) => {
+        try {
+            console.log("NEGADOS")
+            res.status(200).json("NEGADOS")
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: "Error al obtener todos los articulo." })

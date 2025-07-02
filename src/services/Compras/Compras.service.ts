@@ -7,8 +7,8 @@ import dayjs from 'dayjs';
 
 
 export const CompraService = {
-    getAll: async (id_empresa: string) => {
-        return await CompraRepository.getAllCompra_General(id_empresa);
+    getAll: async (id_empresa: string, page: number, limit: number) => {
+        return await CompraRepository.getAllCompra_General(id_empresa, page, limit);
     },
     getEnCaptura: async (id_empresa: string) => {
         return await CompraRepository.getCompraEnCaptura(id_empresa)
@@ -25,8 +25,8 @@ export const CompraService = {
         const articulo = await ArticuloRepository.getByIDFlexible(detalle.id_articulo_detcompsol)
         const uuidArticulo = articulo.id_artic;
 
-        let compraGeneral = await CompraRepository.getAllCompra_General(id_empresa)
-        let compraGeneralActiva = compraGeneral.find(cg => cg.estado_comp === 'C')
+        let compraGeneralActiva = await CompraRepository.getCompraEnCaptura(id_empresa);
+
 
         if (!compraGeneralActiva) {
             compraGeneralActiva = await CompraRepository.createCompra_General({
@@ -78,6 +78,11 @@ export const CompraService = {
 
     getCompraProveedorPorIdGeneral: async (id_compra_general: string) => {
         return await CompraRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
+    },
+
+    guardarFolioEIniciarCapturaLotes: async (id_comp: string, folio_factura_compra: string) => {
+        console.log(folio_factura_compra)
+        return await CompraRepository.guardarFolioEIniciarCapturaLotes(id_comp, folio_factura_compra)
     },
     articulosDetalleCompraProveedor: async (id_comp: string) => {
         return await CompraRepository.articulosDetalleCompraProveedor(id_comp);
@@ -166,7 +171,6 @@ export const CompraService = {
         doc.text(`Subtotal: $${subtotal.toFixed(2)}`, 410, totalBoxY + 5);
 
         doc.end();
-
         return new Promise((resolve) => {
             doc.on('end', async () => {
                 // ✅ ACTUALIZA LA FECHA SI ES NULL

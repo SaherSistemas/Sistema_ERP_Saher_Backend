@@ -29,12 +29,12 @@ class Articulo extends Model {
     declare cod_barr_artic: string;
 
     @Column({
-        type: DataType.STRING(70),
+        type: DataType.STRING(255),
     })
     declare des_artic: string;
 
     @Column({
-        type: DataType.STRING(70),
+        type: DataType.STRING(255),
     })
     declare des_gener_artic: string;
 

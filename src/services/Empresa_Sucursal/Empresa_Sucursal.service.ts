@@ -39,6 +39,11 @@ export const Empresa_SucursalService = {
         if (!empresaSucursal) throw new Error("Empresa no encontrada.")
         return empresaSucursal
     },
+    getEmpresaSucursalHeader: async (id: string) => {
+        const empresaSucursal = await Empresa_SucursalRepository.getByIDHeader(id);
+        if (!empresaSucursal) throw new Error("Empresa no encontrada.")
+        return empresaSucursal
+    },
     updateEmpresaSucursal: async (id: string, data: IUpdateEmpresaSucursal) => {
         if (data.id_colonia_empre) {
             if (!isUUID(data.id_colonia_empre) && !isNaN(Number(data.id_colonia_empre))) {

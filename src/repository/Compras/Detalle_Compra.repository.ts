@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import Detalle_Compra_Solicitado from "../../models/Compra/Detalle_Compra_Solicitado";
 import Articulo from '../../models/Articulos/Articulo';
+import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
 
 export const Detalle_Compra_SolicitadoRepository = {
     getAllArticulosPorCompra: async (id_comp: string) => {
@@ -11,6 +12,9 @@ export const Detalle_Compra_SolicitadoRepository = {
                 {
                     model: Articulo
                 },
+                {
+                    model: Compra_Proveedor
+                }
             ]
         });
     },

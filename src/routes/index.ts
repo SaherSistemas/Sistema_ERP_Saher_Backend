@@ -41,8 +41,12 @@ import comprasRouter from './Compras/ComprasRouter'
 import detalleCompraRouter from './Compras/Detalle_CompraRouter'
 
 
+<<<<<<< HEAD
 import ClienteMostradorRouter from './VentasMostrador/ClienteMostradorRouter'
 
+=======
+import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
+>>>>>>> feature/compras
 const router = Router();
 
 
@@ -89,5 +93,9 @@ router.use('/compras', comprasRouter)
 router.use('/compras/detalle_compra', detalleCompraRouter)
 
 
+<<<<<<< HEAD
 router.use('/ClienteMostrador', ClienteMostradorRouter)
+=======
+router.use('/lotes_solicitados', lotesSolicitadoRouter)
+>>>>>>> feature/compras
 export default router
