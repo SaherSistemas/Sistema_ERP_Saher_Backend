@@ -1,0 +1,38 @@
+import { UUID } from "crypto";
+import Cliente from "../../models/VentaMostrador/Cliente";
+import { isUUID } from "../../utils/validaciones";
+import { ICliente, ICreateUpdateCliente } from "../../interface/VentaMostrador/Cliente.interface";
+import { v4 as uuidv4 } from "uuid";
+
+export const ClienteRepository = {
+
+    getAll:async () => {
+        return await Cliente.findAll();
+    },
+
+    getByIDFlexible: async(id_cliente_o_telefono : string ) => {
+        if(isUUID(id_cliente_o_telefono)){
+        return await Cliente.findByPk( id_cliente_o_telefono )
+        }else{
+
+        return await Cliente.findOne({
+            where:{
+                 telefono_cliente:id_cliente_o_telefono
+            }
+        })}
+    },
+    createCliente: async(data:ICliente) =>{
+        return await Cliente.create({
+            id_cliente: uuidv4(),
+            ...data
+        });
+    },
+    updateCliente: async(id_cliente: string, data: ICreateUpdateCliente) => {
+        return await Cliente.update(data, {
+            where: { id_cliente }
+        });
+    },
+
+
+
+}
