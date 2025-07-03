@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { ClienteController } from "../../controllers/VentaMostrador/ClienteController";
+import { ClienteController } from "../../controllers/Clientes/ClienteController";
 const router = Router();
 
 
 router.get('/:id_cliente', ClienteController.getByID)
+router.get('/', ClienteController.getAll)
 router.post('/', ClienteController.create);
 router.put('/:id_cliente', ClienteController.actualizarByID)
 router.patch('/:id_cliente', ClienteController.actualizarStatusByID);

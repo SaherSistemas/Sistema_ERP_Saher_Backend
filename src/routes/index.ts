@@ -41,9 +41,14 @@ import comprasRouter from './Compras/ComprasRouter'
 import detalleCompraRouter from './Compras/Detalle_CompraRouter'
 
 
-import ClienteMostradorRouter from './VentasMostrador/ClienteMostradorRouter'
+import ClienteMostradorRouter from './Clientes/ClienteMostradorRouter'
+import TipoClienteRouter from './Clientes/TipoClienteRouter' 
+import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter' 
 
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
+
+
+
 const router = Router();
 
 
@@ -91,5 +96,8 @@ router.use('/compras/detalle_compra', detalleCompraRouter)
 
 
 router.use('/ClienteMostrador', ClienteMostradorRouter)
+router.use('/tipo_cliente', TipoClienteRouter) 
+router.use('/beneficio_cliente', BeneficioClienteRouter) // Assuming
+
 router.use('/lotes_solicitados', lotesSolicitadoRouter)
 export default router

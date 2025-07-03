@@ -1,5 +1,7 @@
-import { ICliente, ICreateUpdateCliente} from "../../interface/VentaMostrador/Cliente.interface"
-import { ClienteRepository } from "../../repository/VentaMostrador/Cliente.repository";
+import { ICliente, ICreateUpdateCliente} from "../../interface/Clientes/Cliente.interface"
+import { ClienteRepository } from "../../repository/Clientes/Cliente.repository";
+import { TipoClienteRepository } from "../../repository/Clientes/Tipo_Cliente.repository";
+import { ColoniaRepository } from "../../repository/Lugares/Colonia.respository";
 
 
 export const ClienteService = {
@@ -13,6 +15,9 @@ export const ClienteService = {
     },
 
     createCliente: async(data:ICliente) =>{
+        if(!data.id_tipo_cliente || !TipoClienteRepository.getByIDFlexible(data.id_tipo_cliente)){
+            data.id_tipo_cliente = "94b4c283-3cd6-4776-a0f6-40730ebb6107";
+        }
         return await ClienteRepository.createCliente(data);
     },
 
