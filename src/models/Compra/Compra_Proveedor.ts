@@ -20,12 +20,6 @@ class Compra_Proveedor extends Model {
     })
     declare idprove_comp: string
 
-    @Unique
-    @Column({
-        type: DataType.STRING(80)
-    })
-    declare folio_factura_compra: string
-
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
