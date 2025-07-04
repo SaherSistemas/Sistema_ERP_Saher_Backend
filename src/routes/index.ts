@@ -41,11 +41,19 @@ import comprasRouter from './Compras/ComprasRouter'
 import detalleCompraRouter from './Compras/Detalle_CompraRouter'
 
 
-import ClienteMostradorRouter from './Clientes/ClienteMostradorRouter'
+import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
+
+//Clientes
+import ClienteMostradorRouter from './Clientes/ClienteRouter'
 import TipoClienteRouter from './Clientes/TipoClienteRouter' 
 import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter' 
 
-import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
+//Caja
+import MetodoPagoRouter from './Caja/Metodo_de_PagoRouter'
+import Movimiento_CajaRouter from './Caja/Movimiento_CajaRouter';
+import ParametroCajaRouter from './Caja/Parametro_CajaRouter';
+import CajaRouter from './Caja/CajaRouter';
+import Corte_CajaRoueter from './Caja/Corte_CajaRouter';
 
 
 
@@ -95,9 +103,21 @@ router.use('/compras', comprasRouter)
 router.use('/compras/detalle_compra', detalleCompraRouter)
 
 
+router.use('/lotes_solicitados', lotesSolicitadoRouter)
+
+
 router.use('/ClienteMostrador', ClienteMostradorRouter)
 router.use('/tipo_cliente', TipoClienteRouter) 
-router.use('/beneficio_cliente', BeneficioClienteRouter) // Assuming
+router.use('/beneficio_cliente', BeneficioClienteRouter) 
 
-router.use('/lotes_solicitados', lotesSolicitadoRouter)
+
+
+// Caja
+router.use('/metodo_pago', MetodoPagoRouter)
+router.use('/movimiento_caja', Movimiento_CajaRouter)
+router.use('/parametro_caja', ParametroCajaRouter)
+router.use('/caja', CajaRouter)
+router.use('/corte_caja', Corte_CajaRoueter)
+
+
 export default router

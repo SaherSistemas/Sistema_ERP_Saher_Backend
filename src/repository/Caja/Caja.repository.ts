@@ -1,0 +1,44 @@
+import { UUID } from "crypto";
+import Caja from "../../models/Caja/Caja";
+import { isUUID } from "../../utils/validaciones";
+import { ICaja } from "../../interface/Caja/Caja.interface"; 
+import { v4 as uuidv4 } from "uuid";
+import { get } from "http";
+
+export const CajaRepository = {
+    getAll: async () => {
+        return await Caja.findAll();
+    },
+
+    getByIDFlexible: async (id_caja: string) => {
+        if (isUUID(id_caja)) {
+            return await Caja.findByPk(id_caja);
+        } else {
+            return await Caja.findOne({
+                where: {
+                    nombre_caja: id_caja
+                }
+            });
+        }
+    },
+    
+    getCantidadCajasPorSucursal: async (id_empre: string) => {
+    return await Caja.count({
+        where: { id_empre }
+    });
+    },
+
+
+    createCaja: async (data: ICaja) => {
+        return await Caja.create({
+            id_caja: uuidv4(),
+            ...data
+        });
+    },
+
+    updateCaja: async (id_caja: string, data: ICaja) => {
+        return await Caja.update(data, {
+            where: { id_caja }
+        });
+    },
+}
