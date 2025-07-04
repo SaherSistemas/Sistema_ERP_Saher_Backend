@@ -31,15 +31,7 @@ export class ArticuloController {
         }
     }
 
-    static getNegadosByEmpresa = async (req: Request, res: Response) => {
-        try {
-            console.log("NEGADOS")
-            res.status(200).json("NEGADOS")
-        } catch (error) {
-            console.error(error);
-            res.status(500).json({ message: "Error al obtener todos los articulo." })
-        }
-    }
+
 
 
     static getPaginaArticuloParaContinuarCompra = async (req: Request, res: Response) => {

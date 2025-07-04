@@ -68,8 +68,6 @@ export const Empresa_SucursalRepository = {
     },
     cambiarStatus: async (id: string, statusContrario: boolean) => {
         const empresa = await Empresa_Sucursal.findByPk(id)
-        console.log(empresa)
-        console.log(statusContrario)
         if (!empresa) return null;
         return await empresa.update({ status_empre: statusContrario })
     }

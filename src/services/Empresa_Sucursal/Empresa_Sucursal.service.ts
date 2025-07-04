@@ -8,7 +8,6 @@ export const Empresa_SucursalService = {
         return await Empresa_SucursalRepository.getAll();
     },
     createEmpresaSucursal: async (data: ICrearEmpresaSucursal) => {
-        console.log(data)
         if (
             !data ||
             typeof data.nom_empre !== 'string' || !data.nom_empre.trim() ||

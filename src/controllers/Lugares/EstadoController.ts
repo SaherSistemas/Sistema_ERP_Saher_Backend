@@ -17,7 +17,7 @@ export class EstadoController {
             const estadosActivos = await EstadoService.getAllEstadoActivo();
             res.status(200).json({ mensaje: estadosActivos })
         } catch (error) {
-            console.log(error)
+            //   console.log(error)
             res.status(500).json({ message: "Error al obtener todos los países." });
         }
     }
@@ -28,7 +28,7 @@ export class EstadoController {
             const estadosPorPais = await EstadoService.getEstadosPorPais(id_pais_esta);
             res.status(200).json(estadosPorPais);
         } catch (error) {
-            console.log(error)
+            //      console.log(error)
             res.status(500).json({ message: "Error al obtener los estados del país." });
         }
     }

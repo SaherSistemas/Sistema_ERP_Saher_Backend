@@ -16,7 +16,7 @@ export const LotesSolicitadoCompraService = {
                 return {
                     numerolote_lote: lote.numerolote_lote,
                     fechavencimiento_lote: lote.fechavencimiento_lote,
-                    cantidad_solicitada: lote.cantidad_lote,
+                    cantidad_lote: lote.cantidad_lote,
                 };
             });
 

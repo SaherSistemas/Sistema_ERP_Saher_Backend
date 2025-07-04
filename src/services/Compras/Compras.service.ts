@@ -4,6 +4,8 @@ import { CompraRepository } from "../../repository/Compras/Compra.repository";
 import { Listado_ProveedorRepository } from "../../repository/Proveedor/Listado_Proveedor.repository";
 import PDFDocument from 'pdfkit';
 import dayjs from 'dayjs';
+import { Detalle_Compra_SolicitadoRepository } from "../../repository/Compras/Detalle_Compra_Solicitado.repository";
+import { Compra_ProveedorRepository } from "../../repository/Compras/Compra_Proveedor.repository";
 
 
 export const CompraService = {
@@ -52,7 +54,7 @@ export const CompraService = {
 
         //Agregar o Acumular el detalle
 
-        const Detalles = await CompraRepository.addDetallesCompraSolicitado(
+        const Detalles = await Detalle_Compra_SolicitadoRepository.addDetallesCompraSolicitado(
             compraProveedor.id_comp,
             [
                 {
@@ -81,11 +83,10 @@ export const CompraService = {
     },
 
     guardarFolioEIniciarCapturaLotes: async (id_comp: string, folio_factura_compra: string) => {
-        console.log(folio_factura_compra)
         return await CompraRepository.guardarFolioEIniciarCapturaLotes(id_comp, folio_factura_compra)
     },
     articulosDetalleCompraProveedor: async (id_comp: string) => {
-        return await CompraRepository.articulosDetalleCompraProveedor(id_comp);
+        return await Compra_ProveedorRepository.articulosDetalleCompraProveedor(id_comp);
     },
 
     generarPDFListado: async (id_comp: string): Promise<Buffer> => {
@@ -174,7 +175,7 @@ export const CompraService = {
         return new Promise((resolve) => {
             doc.on('end', async () => {
                 // ✅ ACTUALIZA LA FECHA SI ES NULL
-                await CompraRepository.actualizarFechaEnviadaProveedor(id_comp)
+                await Compra_ProveedorRepository.actualizarFechaEnviadaProveedor(id_comp)
 
                 const pdfBuffer = Buffer.concat(buffers);
                 resolve(pdfBuffer);
