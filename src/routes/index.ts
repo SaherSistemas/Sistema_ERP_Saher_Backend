@@ -22,6 +22,8 @@ import tipo_ArticuloRouter from '../routes/Articulos/Prioridad_ArticuloRouter'
 import empleadoRouter from './Usuarios/EmpleadoRouter'
 import rolRouter from './Usuarios/RolRouter'
 import usuarioRouter from './Usuarios/UsuarioRouter'
+import permisoRouter from './Usuarios/PermisoRouter'
+import permisoRolRouter from './Usuarios/Permiso_RolRouter'
 
 
 import cat_Regimen_fiscalRouter from './Catalogos/Cat_Regimen_FiscalRouter'
@@ -84,6 +86,10 @@ router.use('/cat_bancos', cat_BancoRouter)
 router.use('/empleado', empleadoRouter)
 router.use('/rol', rolRouter)
 router.use('/usuario', usuarioRouter)
+router.use('/permiso', permisoRouter)
+router.use('/permiso_rol', permisoRolRouter)
+
+
 
 router.use('/tipo_iva', tipoIVARouter)
 router.use('/unidadmedida', unidad_medidaRouter)

@@ -1,11 +1,10 @@
 export interface IRol {
-    id_rol: string;
-    id_introl: number;
+    id_rol: number;
     nom_rol: string;
-    prioridad: number
+    prioridad: number;
 }
 
 export interface ICreateOrUpdateRol {
-    nom_rol?: string
-    prioridad?: number
+    nom_rol?: string;
+    prioridad?: number;
 }

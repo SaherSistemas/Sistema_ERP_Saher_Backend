@@ -18,7 +18,7 @@ export class EmpleadoController {
             const nuevoEmpleado = await EmpleadoService.createEmpleado(data);
             res.status(201).json({ mensaje: "Empleado creado correctamente.", empleado: nuevoEmpleado })
         } catch (error) {
-            // console.error(error);
+            console.error(error);
             res.status(500).json({ message: "Error al crear el empleados" })
         }
     }

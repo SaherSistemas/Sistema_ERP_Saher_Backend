@@ -1,4 +1,6 @@
 import { Table, Column, Model, PrimaryKey, DataType, ForeignKey, BelongsTo, HasMany, Unique } from "sequelize-typescript";
+import Permiso_Rol from "./Permiso_Rol"; 
+
 
 @Table({
     tableName: 'rol'
@@ -6,15 +8,10 @@ import { Table, Column, Model, PrimaryKey, DataType, ForeignKey, BelongsTo, HasM
 class Rol extends Model {
     @PrimaryKey
     @Column({
-        type: DataType.UUID
-    })
-    declare id_rol: string;
-
-    @Unique
-    @Column({
         type: DataType.SMALLINT
     })
-    declare id_introl: number
+    declare id_rol: number;
+
     @Column({
         type: DataType.STRING(50)
     })
@@ -23,7 +20,10 @@ class Rol extends Model {
     @Column({
         type: DataType.SMALLINT
     })
-    declare prioridad: number
+    declare prioridad: number;
+
+    @HasMany(() => Permiso_Rol)
+    declare permisosRol: Permiso_Rol[];
 
 }
 export default Rol;

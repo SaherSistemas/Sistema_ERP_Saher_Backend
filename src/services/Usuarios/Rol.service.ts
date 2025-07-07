@@ -6,8 +6,8 @@ export const RolService = {
     getAllRol: async (): Promise<IRol[]> => {
         return await RolRepository.getAll();
     },
-    getRolByID: async (id: string) => {
-        const rol = await RolRepository.getByIdFlexible(id)
+    getRolByID: async (id: number) => {
+        const rol = await RolRepository.getByIdFlexible(id.toString())
         if (!rol) throw new Error("Rol no encontrado")
         return rol;
     },
@@ -22,7 +22,7 @@ export const RolService = {
         }
         return await RolRepository.create(data)
     },
-    updateRol: async (id: string, data: ICreateOrUpdateRol) => {
+    updateRol: async (id: number, data: ICreateOrUpdateRol) => {
         if (!data ||
             (typeof data.nom_rol !== 'string' ||
                 !data.nom_rol.trim()

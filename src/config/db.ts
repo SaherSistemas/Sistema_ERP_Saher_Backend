@@ -6,14 +6,14 @@ dotenv.config();
 
 export const dbLocal = new Sequelize({
     dialect: 'postgres',
-    host: 'localhost',
+    host: process.env.HOST || 'localhost',
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: 5432,
+    port: 5433,
     timezone: '+00:00', // ⬅️ esto fuerza UTC
     dialectOptions: {
-        useUTC: true, // ⬅️ importante para PostgreSQL
+        ssl: false, useUTC: true, 
     },
     models: [path.join(__dirname, '/../models/**/*.ts')],  // Corrige la ruta con path.join
     logging: false,
