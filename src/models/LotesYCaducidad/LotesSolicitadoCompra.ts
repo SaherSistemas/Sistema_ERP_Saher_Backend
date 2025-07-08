@@ -18,7 +18,7 @@ class Lotes_Solicitado_Compra extends Model {
     declare fechavencimiento_lote: Date;
 
     @Column(DataType.INTEGER)
-    declare cantidad_solicitada: number;
+    declare cantidad_lote: number;
 }
 
 export default Lotes_Solicitado_Compra;

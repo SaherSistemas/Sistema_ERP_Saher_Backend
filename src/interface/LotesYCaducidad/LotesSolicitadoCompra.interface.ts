@@ -1,7 +1,7 @@
 export interface ILoteRecibido {
     numerolote_lote: string;
     fechavencimiento_lote: Date; // formato ISO: yyyy-mm-dd
-    cantidad_solicitada: number;
+    cantidad_lote: number;
 }
 
 export interface IDetalleSolicitado {

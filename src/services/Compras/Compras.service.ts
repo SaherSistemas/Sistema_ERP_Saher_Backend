@@ -4,6 +4,8 @@ import { CompraRepository } from "../../repository/Compras/Compra.repository";
 import { Listado_ProveedorRepository } from "../../repository/Proveedor/Listado_Proveedor.repository";
 import PDFDocument from 'pdfkit';
 import dayjs from 'dayjs';
+import { Detalle_Compra_SolicitadoRepository } from "../../repository/Compras/Detalle_Compra_Solicitado.repository";
+import { Compra_ProveedorRepository } from "../../repository/Compras/Compra_Proveedor.repository";
 
 
 export const CompraService = {
@@ -41,10 +43,10 @@ export const CompraService = {
         }
 
         // buscar o crear compra proveedor 
-        let compraProveedor = await CompraRepository.findCompraProveedor_CapturandoByProveedor(id_proveedor, id_empresa)
+        let compraProveedor = await Compra_ProveedorRepository.findCompraProveedor_CapturandoByProveedor(id_proveedor, id_empresa)
 
         if (!compraProveedor) {
-            compraProveedor = await CompraRepository.createCompraProveedor({
+            compraProveedor = await Compra_ProveedorRepository.createCompraProveedor({
                 idprove_comp: id_proveedor,
                 id_compra_general: compraGeneralActiva.id_compra_general
             })
@@ -52,7 +54,7 @@ export const CompraService = {
 
         //Agregar o Acumular el detalle
 
-        const Detalles = await CompraRepository.addDetallesCompraSolicitado(
+        const Detalles = await Detalle_Compra_SolicitadoRepository.addDetallesCompraSolicitado(
             compraProveedor.id_comp,
             [
                 {
@@ -77,15 +79,11 @@ export const CompraService = {
 
 
     getCompraProveedorPorIdGeneral: async (id_compra_general: string) => {
-        return await CompraRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
+        return await Compra_ProveedorRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
     },
 
-    guardarFolioEIniciarCapturaLotes: async (id_comp: string, folio_factura_compra: string) => {
-        console.log(folio_factura_compra)
-        return await CompraRepository.guardarFolioEIniciarCapturaLotes(id_comp, folio_factura_compra)
-    },
     articulosDetalleCompraProveedor: async (id_comp: string) => {
-        return await CompraRepository.articulosDetalleCompraProveedor(id_comp);
+        return await Compra_ProveedorRepository.articulosDetalleCompraProveedor(id_comp);
     },
 
     generarPDFListado: async (id_comp: string): Promise<Buffer> => {
@@ -174,7 +172,7 @@ export const CompraService = {
         return new Promise((resolve) => {
             doc.on('end', async () => {
                 // ✅ ACTUALIZA LA FECHA SI ES NULL
-                await CompraRepository.actualizarFechaEnviadaProveedor(id_comp)
+                await Compra_ProveedorRepository.actualizarFechaEnviadaProveedor(id_comp)
 
                 const pdfBuffer = Buffer.concat(buffers);
                 resolve(pdfBuffer);

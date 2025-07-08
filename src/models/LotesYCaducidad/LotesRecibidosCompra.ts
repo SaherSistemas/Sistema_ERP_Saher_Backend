@@ -11,13 +11,13 @@ class LotesRecibidosCompra extends Model {
     @Column(DataType.UUID)
     declare id_detallecompr_recibido: string;
 
-    @Column(DataType.UUID)
+    @Column(DataType.STRING)
     declare numerolote_lote: string;
 
-    @Column(DataType.UUID)
+    @Column(DataType.DATEONLY)
     declare fechavencimiento_lote: Date;
 
-    @Column(DataType.UUID)
+    @Column(DataType.INTEGER)
     declare cantidad_lote: Date;
 
     @Column(DataType.TEXT)

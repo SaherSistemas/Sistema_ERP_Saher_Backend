@@ -3,49 +3,39 @@ import Compra from './Compra_Proveedor'
 import Articulo from "../Articulos/Articulo";
 
 @Table({
-    tableName: 'detalle_compra_solicitado'
+    tableName: 'detalle_compra_negados'
 })
 
-class Detalle_Compra_Solicitado extends Model {
+class Detalle_Compra_Negados extends Model {
     @PrimaryKey
     @Column({
         type: DataType.UUID,
         allowNull: false
     })
-    declare id_detcompsol: string
+    declare id_detcompneg: string
 
     @ForeignKey(() => Compra)
     @Column({
         type: DataType.UUID
     })
-    declare idcompr_detcompsol: string
+    declare idcompr_detcompneg: string
 
     @ForeignKey(() => Articulo)
     @Column({
         type: DataType.UUID
     })
-    declare idarticulo_detcompsol: string
+    declare idarticulo_detcompneg: string
 
     @Column({
         type: DataType.SMALLINT
     })
-    declare cantidad_detcompsol: number
-
-
-    @Column({
-        type: DataType.BOOLEAN
-    })
-    declare es_reposicion_negado: boolean
-
-    @Column({
-        type: DataType.UUID
-    })
-    declare id_detalle_compra_negado: string
+    declare cantidad_detcompneg: number
 
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
-    declare precio_detcompsol: number
+    declare precio_detcompneg: number
+
 
     @BelongsTo(() => Compra)
     declare compra: Compra;
@@ -54,4 +44,4 @@ class Detalle_Compra_Solicitado extends Model {
     declare articulo: Articulo;
 }
 
-export default Detalle_Compra_Solicitado
+export default Detalle_Compra_Negados

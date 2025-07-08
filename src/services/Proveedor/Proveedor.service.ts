@@ -1,10 +1,15 @@
 
 import { ProveedorRepository } from "../../repository/Proveedor/Proveedor.repository"
 import { ICreateProveedor, IProveedor, IProveedorUpdateBody } from "../../interface/Proveedor/Proveedor.interface";
+import { get } from "http";
 
 export const ProveedorService = {
     getAllProveedores: async (): Promise<IProveedor[]> => {
         return await ProveedorRepository.getAll();
+    },
+    getProveedorDeLaCompra: async (id_comp: string) => {
+        const proveedorCompra = await ProveedorRepository.getProveedorDeLaCompra(id_comp);
+        return proveedorCompra
     },
     crearProveedor: async (data: ICreateProveedor) => {
         return await ProveedorRepository.createProveedor(data)

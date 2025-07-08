@@ -2,6 +2,7 @@ import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, Belongs
 import Proveedor from "../Proveedor/Proveedor";
 import Detalle_Compra_Solicitado from "./Detalle_Compra_Solicitado";
 import Compra_General from "./Compra_General";
+import Factura_Compra_Proveedor from "../Proveedor/Factura_Compra_Proveedor";
 
 @Table({
     tableName: 'compra_proveedor',
@@ -20,9 +21,8 @@ class Compra_Proveedor extends Model {
     })
     declare idprove_comp: string
 
-    @Unique
     @Column({
-        type: DataType.STRING(80)
+        type: DataType.STRING(20)
     })
     declare folio_factura_compra: string
 
@@ -83,6 +83,10 @@ class Compra_Proveedor extends Model {
 
     @BelongsTo(() => Proveedor)
     proveedor: Proveedor;
+
+    @HasMany(() => Factura_Compra_Proveedor)
+    facturas!: Factura_Compra_Proveedor[];
+
 
 
     @HasMany(() => Detalle_Compra_Solicitado)

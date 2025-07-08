@@ -38,17 +38,17 @@ import tipoIVARouter from './Articulos/Tipo_IVARouter'
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
 
 
-import parametos_CompraRouter from './Compras/Parametros_CompraRouter'
+import parametos_CompraRouter from './Compras/parametros_CompraRouter'
 import comprasRouter from './Compras/ComprasRouter'
-import detalleCompraRouter from './Compras/Detalle_CompraRouter'
+import detalleCompraRouter from './Compras/detalle_CompraRouter'
 
 
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
 
 //Clientes
 import ClienteMostradorRouter from './Clientes/ClienteRouter'
-import TipoClienteRouter from './Clientes/TipoClienteRouter' 
-import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter' 
+import TipoClienteRouter from './Clientes/TipoClienteRouter'
+import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter'
 
 //Caja
 import MetodoPagoRouter from './Caja/Metodo_de_PagoRouter'
@@ -59,6 +59,7 @@ import Corte_CajaRoueter from './Caja/Corte_CajaRouter';
 
 
 
+import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
 const router = Router();
 
 
@@ -113,8 +114,8 @@ router.use('/lotes_solicitados', lotesSolicitadoRouter)
 
 
 router.use('/ClienteMostrador', ClienteMostradorRouter)
-router.use('/tipo_cliente', TipoClienteRouter) 
-router.use('/beneficio_cliente', BeneficioClienteRouter) 
+router.use('/tipo_cliente', TipoClienteRouter)
+router.use('/beneficio_cliente', BeneficioClienteRouter)
 
 
 
@@ -126,4 +127,5 @@ router.use('/caja', CajaRouter)
 router.use('/corte_caja', Corte_CajaRoueter)
 
 
+router.use('/facturas_proveedor', factura_compra_ProveedorRouter)
 export default router

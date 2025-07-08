@@ -7,9 +7,19 @@ import Ciudad from "../../models/Ubicacion/Ciudad";
 import Estado from "../../models/Ubicacion/Estado";
 import Pais from "../../models/Ubicacion/Pais";
 import { Proveedor_EmpresaRepository } from "./Proveedor_Empresa.repository";
+import { CompraRepository } from "../Compras/Compra.repository";
+import { Compra_ProveedorRepository } from "../Compras/Compra_Proveedor.repository";
 export const ProveedorRepository = {
     getAll: async (): Promise<IProveedor[]> => {
         return await Proveedor.findAll();
+    },
+    getProveedorDeLaCompra: async (id_comp: string) => {
+        const compra = await Compra_ProveedorRepository.getByID(id_comp);
+        if (!compra) {
+            throw new Error("Compra no encontrada");
+        }
+
+        return await Proveedor.findOne({ where: { id_prove: compra.idprove_comp } });
     },
     createProveedor: async (data: ICreateProveedor) => {
         const nuevoUUID = uuidv4();
