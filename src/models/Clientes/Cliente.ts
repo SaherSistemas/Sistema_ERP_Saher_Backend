@@ -1,5 +1,6 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
 import Colonia from "../Ubicacion/Colonia"
+import Tipo_Cliente from "./Tipo_Cliente";
 
 @Table({
     tableName:"cliente"
@@ -66,7 +67,27 @@ class Cliente extends Model{
     declare status_cliente : boolean;
 
 
+    @ForeignKey(()=> Tipo_Cliente)
+    @Column({
+        type: DataType.UUID
+    })
+    declare id_tipo_cliente : string;
+
+    @Column({
+        type: DataType.STRING
+    })
+    declare  ID_usuario_alta_cliente: string;
+
+    @Column({
+        type: DataType.STRING
+    })
+    declare  ID_empresa_alta_cliente: string;
+
+
     @BelongsTo(() => Colonia)
     colonia: Colonia;
+
+    @BelongsTo (() => Tipo_Cliente)
+    tipo_cliente: Tipo_Cliente;
 }
 export default Cliente;

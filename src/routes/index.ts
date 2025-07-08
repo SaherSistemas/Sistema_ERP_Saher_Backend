@@ -22,6 +22,8 @@ import tipo_ArticuloRouter from '../routes/Articulos/Prioridad_ArticuloRouter'
 import empleadoRouter from './Usuarios/EmpleadoRouter'
 import rolRouter from './Usuarios/RolRouter'
 import usuarioRouter from './Usuarios/UsuarioRouter'
+import permisoRouter from './Usuarios/PermisoRouter'
+import permisoRolRouter from './Usuarios/Permiso_RolRouter'
 
 
 import cat_Regimen_fiscalRouter from './Catalogos/Cat_Regimen_FiscalRouter'
@@ -41,9 +43,22 @@ import comprasRouter from './Compras/ComprasRouter'
 import detalleCompraRouter from './Compras/Detalle_CompraRouter'
 
 
-import ClienteMostradorRouter from './VentasMostrador/ClienteMostradorRouter'
-
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
+
+//Clientes
+import ClienteMostradorRouter from './Clientes/ClienteRouter'
+import TipoClienteRouter from './Clientes/TipoClienteRouter' 
+import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter' 
+
+//Caja
+import MetodoPagoRouter from './Caja/Metodo_de_PagoRouter'
+import Movimiento_CajaRouter from './Caja/Movimiento_CajaRouter';
+import ParametroCajaRouter from './Caja/Parametro_CajaRouter';
+import CajaRouter from './Caja/CajaRouter';
+import Corte_CajaRoueter from './Caja/Corte_CajaRouter';
+
+
+
 const router = Router();
 
 
@@ -71,6 +86,10 @@ router.use('/cat_bancos', cat_BancoRouter)
 router.use('/empleado', empleadoRouter)
 router.use('/rol', rolRouter)
 router.use('/usuario', usuarioRouter)
+router.use('/permiso', permisoRouter)
+router.use('/permiso_rol', permisoRolRouter)
+
+
 
 router.use('/tipo_iva', tipoIVARouter)
 router.use('/unidadmedida', unidad_medidaRouter)
@@ -90,6 +109,21 @@ router.use('/compras', comprasRouter)
 router.use('/compras/detalle_compra', detalleCompraRouter)
 
 
-router.use('/ClienteMostrador', ClienteMostradorRouter)
 router.use('/lotes_solicitados', lotesSolicitadoRouter)
+
+
+router.use('/ClienteMostrador', ClienteMostradorRouter)
+router.use('/tipo_cliente', TipoClienteRouter) 
+router.use('/beneficio_cliente', BeneficioClienteRouter) 
+
+
+
+// Caja
+router.use('/metodo_pago', MetodoPagoRouter)
+router.use('/movimiento_caja', Movimiento_CajaRouter)
+router.use('/parametro_caja', ParametroCajaRouter)
+router.use('/caja', CajaRouter)
+router.use('/corte_caja', Corte_CajaRoueter)
+
+
 export default router

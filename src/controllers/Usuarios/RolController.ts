@@ -16,7 +16,7 @@ export class RolController {
     static getRolByID = async (req: Request, res: Response) => {
         try {
             const { id_rol } = req.params;
-            const rol = await RolService.getRolByID(id_rol)
+            const rol = await RolService.getRolByID(Number(id_rol))
             res.status(201).json(rol)
         } catch (error) {
             //console.error(error)
@@ -30,7 +30,7 @@ export class RolController {
             const newRol = await RolService.createRol(data)
             res.status(201).json({ mensaje: "Rol creado correctamente.", rol: newRol })
         } catch (error) {
-            //console.error(error)
+            console.error(error)
             res.status(500).json({ message: "Error no se pudo crear el rol." })
         }
     }
@@ -38,7 +38,7 @@ export class RolController {
         try {
             const { id_rol } = req.params;
             const data: ICreateOrUpdateRol = req.body;
-            const updateRol = await RolService.updateRol(id_rol, data)
+            const updateRol = await RolService.updateRol(Number(id_rol), data)
             res.status(201).json({ mensaje: "Rol actualizado correctamente", rol: updateRol })
         } catch (error) {
             //console.error(error)

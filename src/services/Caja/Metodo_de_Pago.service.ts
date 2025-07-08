@@ -1,0 +1,21 @@
+import { IMetodoPago } from "../../interface/Caja/Metodo_de_Pago.interface";
+import { MetodoPagoRepository  } from "../../repository/Caja/Metodo_de_Pago.reposiroty";
+
+
+export const MetodoPagoService = {
+
+    getAll: async () => {
+        return await MetodoPagoRepository.getAll();
+    },
+
+    getByIDFlexible: async (id_metodo_pago: string) => {
+        return await MetodoPagoRepository.getByIDFlexible(id_metodo_pago);
+    },
+
+    createMetodoPago: async (data: IMetodoPago) => {
+         if(!data.id_metodo_pago || !MetodoPagoRepository.getByIDFlexible(data.id_metodo_pago)){
+                    data.id_metodo_pago = "";
+                }
+         return await MetodoPagoRepository.createMetodoPago(data);
+    },
+}

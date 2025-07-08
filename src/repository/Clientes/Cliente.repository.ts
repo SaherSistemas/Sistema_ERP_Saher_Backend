@@ -1,14 +1,14 @@
 import { UUID } from "crypto";
-import Cliente from "../../models/VentaMostrador/Cliente";
+import Cliente from "../../models/Clientes/Cliente";
 import { isUUID } from "../../utils/validaciones";
-import { ICliente, ICreateUpdateCliente } from "../../interface/VentaMostrador/Cliente.interface";
+import { ICliente, ICreateUpdateCliente } from "../../interface/Clientes/Cliente.interface";
 import { v4 as uuidv4 } from "uuid";
 
 export const ClienteRepository = {
 
-    getAll:async () => {
-        return await Cliente.findAll();
-    },
+        getAll:async () => {
+            return await Cliente.findAll();
+        },
 
     getByIDFlexible: async(id_cliente_o_telefono : string ) => {
         if(isUUID(id_cliente_o_telefono)){
@@ -32,6 +32,16 @@ export const ClienteRepository = {
             where: { id_cliente }
         });
     },
+
+    updateStatusCliente: async(id_cliente: string) => {
+       const cliente = await ClienteRepository.getByIDFlexible(id_cliente);
+       let statusActualCliente = cliente?.status_cliente;
+        statusActualCliente =! statusActualCliente;
+        console.log(statusActualCliente)
+        return await cliente.update({
+            status_cliente:statusActualCliente
+        })
+    }
 
 
 
