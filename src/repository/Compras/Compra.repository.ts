@@ -16,9 +16,6 @@ import { Empresa_SucursalRepository } from "../Empresa_Sucursal/Empresa_Sucursal
 */
 
 
-
-
-
 export const CompraRepository = {
     getAllCompra_General: async (id_empresa: string, page: number, limit: number) => {
         const offset = (page - 1) * limit;
@@ -92,70 +89,6 @@ export const CompraRepository = {
         return compra
     },
 
-
-
-
-
-    /*
-           Código	      Estado	                             Descripción
-           C	        CAPTURANDO	                             La compra está en proceso, aún sin finalizar.
-           A            CAPTURADA                                La captura ha sido completada pero aun no se ha enviado al proveedor.
-           E	        ENVIADA	                                 La orden ha sido enviada al proveedor.
-           L            CAPTURANDO LOTES                         La compra se estan capturando los lotes.
-           R	        RECIBIDA	                             Todos los productos han sido recibidos correctamente.(ESPERANDO CHEQUEO Y CONTEO)
-           F	        COMPLETADA	                             Fue recibido y se cerró la compra.
-           D            COMPLETADA PERO CON DEVOLUCION           La compra fue completada pero tiene devolucion.    
-    */
-    /*
-     * ************************************************************
-     * ************************COMPRA_PROVEEDOR*******************
-     * ***********************************************************
-     */
-
-    getAllCompra_ProveedorPorIdCompGener: async (id_compra_general: string) => {
-        return await Compra_Proveedor.findAll({
-            where: { id_compra_general: id_compra_general },
-            include: [
-                {
-                    model: Proveedor
-                }
-            ]
-        });
-    },
-
-    getByID_CompraProvedor: async (id_comp: string) => {
-        return await Compra_Proveedor.findByPk(id_comp)
-    },
-
-    actualizarEstadoAlGuardarLotes: async (id_comp: string) => {
-        const compraProveedor = await CompraRepository.getByID_CompraProvedor(id_comp)
-        compraProveedor.update({
-            fin_de_registro_lotes: new Date(),
-            estado_comp: 'K'
-        })
-    },
-
-    guardarFolioEIniciarCapturaLotes: async (id_comp: string, folio_factura_compra: string) => {
-        const compra = await CompraRepository.getByID_CompraProvedor(id_comp)
-        compra.update({
-            folio_factura_compra: folio_factura_compra,
-            inicio_de_registro_lotes: new Date(),
-            estado_comp: 'L'
-        })
-    },
-
-
-    createCompraProveedor: async (data: ICreateCompra_Proveedor) => {
-        const { idprove_comp, id_compra_general } = data
-        return await Compra_Proveedor.create({
-            id_comp: uuidv4(),
-            estado_comp: 'C',
-            idprove_comp: idprove_comp,
-            id_compra_general: id_compra_general,
-            inicio_de_compra_proveedor: new Date(),
-        })
-    },
-
     actualizarArticuloGuardadoUltimo: async (id_compra_general: string, id_artic: string) => {
 
         const compraGeneral = await Compra_General.findByPk(id_compra_general)
@@ -164,36 +97,4 @@ export const CompraRepository = {
             ultimo_articulo_guardado: id_artic
         })
     },
-
-    findCompraProveedor_CapturandoByProveedor: async (id_proveedor: string, id_empresa: string) => {
-        return await Compra_Proveedor.findOne({
-            where: {
-                idprove_comp: id_proveedor,
-                estado_comp: 'C' // o el que uses para 'Capturando'
-            },
-            include: [
-                {
-                    model: Compra_General,
-                    where: {
-                        id_empresa_sucursal: id_empresa
-                    }
-                }
-            ]
-        });
-    },
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
 }

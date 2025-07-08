@@ -15,6 +15,17 @@ export class ProveedorController {
         }
     }
 
+    static getProveedorDeLaCompra = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const proveedor = await ProveedorService.getProveedorDeLaCompra(id_comp);
+            res.status(200).json(proveedor)
+        } catch (error) {
+            //console.error(error)
+            res.status(500).json({ message: "No se encontro el proveedor de la compra" })
+        }
+    }
+
     static crearProveedor = async (req: Request<ICreateProveedor>, res: Response) => {
         try {
             const data = req.body

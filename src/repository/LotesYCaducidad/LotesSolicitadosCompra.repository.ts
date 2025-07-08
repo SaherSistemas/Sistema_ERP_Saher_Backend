@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import LotesRecibidosCompra from '../../models/LotesYCaducidad/LotesRecibidosCompra';
 import { IDataLotesRecibidos } from '../../interface/LotesYCaducidad/LotesSolicitadoCompra.interface';
 import Lotes_Solicitado_Compra from '../../models/LotesYCaducidad/LotesSolicitadoCompra';
-import { CompraRepository } from '../Compras/Compra.repository';
+import { Compra_ProveedorRepository } from '../Compras/Compra_Proveedor.repository';
 
 export const LotesSolicitadoCompraRepository = {
     getAllLotes: async (id_empresa_sucursal: string, id_artic: string) => {
@@ -34,7 +34,7 @@ export const LotesSolicitadoCompraRepository = {
                 motivo_ajuste: 'LOTE Y CADUCIDAD CORRECTA',
             }))
         );
-        await CompraRepository.actualizarEstadoAlGuardarLotes(data.id_comp)
+        await Compra_ProveedorRepository.actualizarEstadoAlGuardarLotes(data.id_comp)
 
 
         await LotesRecibidosCompra.bulkCreate(lotesRecibidos);

@@ -66,17 +66,7 @@ export class ComprasController {
         }
     }
 
-    static guardarFolioEIniciarCapturaLotes = async (req: Request, res: Response) => {
-        try {
-            const { id_comp, folio_factura_compra } = req.body
-
-            const actualizarFolioEIniciarCapturaLotes = await CompraService.guardarFolioEIniciarCapturaLotes(id_comp, folio_factura_compra)
-            res.status(200).json({ mensaje: "Folio compra se actualizo.", compraActualizada: actualizarFolioEIniciarCapturaLotes })
-        } catch (error) {
-            //console.error(error)
-            res.status(500).json({ message: "Error al actualizar la compra." })
-        }
-    }
+    
     /*
         static articulosGenerarPDF = async (req: Request, res: Response) => {
             try {

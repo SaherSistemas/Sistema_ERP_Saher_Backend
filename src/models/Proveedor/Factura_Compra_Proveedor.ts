@@ -3,9 +3,8 @@ import Compra_Proveedor from "../Compra/Compra_Proveedor";
 
 @Table({
     tableName: 'factura_compra_proveedor',
-    timestamps: false
 })
-class FacturaProveedor extends Model {
+class Factura_Compra_Proveedor extends Model {
     @PrimaryKey
     @Column({
         type: DataType.UUID
@@ -42,7 +41,7 @@ class FacturaProveedor extends Model {
     @Column({
         type: DataType.STRING(50)
     })
-    declare estatus_factura_proveedor: string
+    declare estatus_pago_factura: string
 
     @Column({
         type: DataType.STRING(255)
@@ -54,6 +53,9 @@ class FacturaProveedor extends Model {
     })
     declare url_XML: string
 
+    @BelongsTo(() => Compra_Proveedor)
+    compra!: Compra_Proveedor;
+
 }
 
-export default FacturaProveedor;
+export default Factura_Compra_Proveedor;

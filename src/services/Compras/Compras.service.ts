@@ -43,10 +43,10 @@ export const CompraService = {
         }
 
         // buscar o crear compra proveedor 
-        let compraProveedor = await CompraRepository.findCompraProveedor_CapturandoByProveedor(id_proveedor, id_empresa)
+        let compraProveedor = await Compra_ProveedorRepository.findCompraProveedor_CapturandoByProveedor(id_proveedor, id_empresa)
 
         if (!compraProveedor) {
-            compraProveedor = await CompraRepository.createCompraProveedor({
+            compraProveedor = await Compra_ProveedorRepository.createCompraProveedor({
                 idprove_comp: id_proveedor,
                 id_compra_general: compraGeneralActiva.id_compra_general
             })
@@ -79,12 +79,9 @@ export const CompraService = {
 
 
     getCompraProveedorPorIdGeneral: async (id_compra_general: string) => {
-        return await CompraRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
+        return await Compra_ProveedorRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
     },
 
-    guardarFolioEIniciarCapturaLotes: async (id_comp: string, folio_factura_compra: string) => {
-        return await CompraRepository.guardarFolioEIniciarCapturaLotes(id_comp, folio_factura_compra)
-    },
     articulosDetalleCompraProveedor: async (id_comp: string) => {
         return await Compra_ProveedorRepository.articulosDetalleCompraProveedor(id_comp);
     },

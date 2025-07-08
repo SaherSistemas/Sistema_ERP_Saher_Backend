@@ -36,14 +36,16 @@ import tipoIVARouter from './Articulos/Tipo_IVARouter'
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
 
 
-import parametos_CompraRouter from './Compras/Parametros_CompraRouter'
-import comprasRouter from './Compras/ComprasRouter'
-import detalleCompraRouter from './Compras/Detalle_CompraRouter'
+import parametos_CompraRouter from './Compras/parametros_CompraRouter'
+import comprasRouter from './Compras/comprasRouter'
+import detalleCompraRouter from './Compras/detalle_CompraRouter'
 
 
 import ClienteMostradorRouter from './VentasMostrador/ClienteMostradorRouter'
 
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
+
+import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
 const router = Router();
 
 
@@ -92,4 +94,7 @@ router.use('/compras/detalle_compra', detalleCompraRouter)
 
 router.use('/ClienteMostrador', ClienteMostradorRouter)
 router.use('/lotes_solicitados', lotesSolicitadoRouter)
+
+
+router.use('/facturas_proveedor', factura_compra_ProveedorRouter)
 export default router
