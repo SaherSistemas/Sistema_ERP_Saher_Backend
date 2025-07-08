@@ -38,9 +38,9 @@ import tipoIVARouter from './Articulos/Tipo_IVARouter'
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
 
 
-import parametos_CompraRouter from './Compras/parametros_CompraRouter'
+import parametos_CompraRouter from './Compras/Parametros_CompraRouter'
 import comprasRouter from './Compras/ComprasRouter'
-import detalleCompraRouter from './Compras/detalle_CompraRouter'
+import detalleCompraRouter from './Compras/Detalle_CompraRouter'
 
 
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
