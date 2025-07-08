@@ -55,7 +55,11 @@ import MetodoPagoRouter from './Caja/Metodo_de_PagoRouter'
 import Movimiento_CajaRouter from './Caja/Movimiento_CajaRouter';
 import ParametroCajaRouter from './Caja/Parametro_CajaRouter';
 import CajaRouter from './Caja/CajaRouter';
-import Corte_CajaRoueter from './Caja/Corte_CajaRouter';
+import Corte_CajaRouter from './Caja/Corte_CajaRouter';
+
+//Stock
+import Stock_SucursalRouter from "./Stock/Stock_SucursalRouter"
+
 
 
 
@@ -82,7 +86,7 @@ router.use('/cat_periodicidad_pago', cat_Periodicidad_PagoRouter)
 router.use('/cat_riesgo_puesto', cat_RiesgoPuestoRouter)
 router.use('/cat_bancos', cat_BancoRouter)
 
-
+//Usuario
 router.use('/empleado', empleadoRouter)
 router.use('/rol', rolRouter)
 router.use('/usuario', usuarioRouter)
@@ -123,7 +127,11 @@ router.use('/metodo_pago', MetodoPagoRouter)
 router.use('/movimiento_caja', Movimiento_CajaRouter)
 router.use('/parametro_caja', ParametroCajaRouter)
 router.use('/caja', CajaRouter)
-router.use('/corte_caja', Corte_CajaRoueter)
+router.use('/corte_caja', Corte_CajaRouter)
+
+
+//Stock
+router.use('/stock',Stock_SucursalRouter)
 
 
 export default router

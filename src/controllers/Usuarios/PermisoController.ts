@@ -24,11 +24,11 @@ export class PermisoController {
         }
     }
 
-    static crear = async (req: Request, res: Response) => {
+    static create = async (req: Request, res: Response) => {
         try {
             const data = req.body;
-            const newRol = await PermisoService.create(data)
-            res.status(201).json({ mensaje: "Permiso creado correctamente.", rol: newRol })
+            const newPermiso = await PermisoService.create(data)
+            res.status(201).json({ mensaje: "Permiso creado correctamente.", rol: newPermiso })
         } catch (error) {
             console.error(error)
             res.status(500).json({ message: "Error no se pudo crear el permiso." })

@@ -24,6 +24,18 @@ export class PermisoRolController {
         }
     }
 
+    static getAllRolbyPermiso = async (req: Request, res: Response) =>{
+        try {
+            const {id_permiso} = req.params;
+            const rol = await PermisoRolService.getAllRolbyPermiso(Number(id_permiso));
+            res.status(200).json(rol);
+            
+        } catch (error) {
+            console.error(error);
+            res.status(404).json({ message: error.message });
+        }
+    }
+
     static crear = async (req: Request, res: Response) => {
         try {
             const data = req.body;
