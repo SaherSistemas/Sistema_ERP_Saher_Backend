@@ -14,6 +14,16 @@ export const PermisoRolRepository = {
             order: [["id_rol_permiso", "DESC"]]
         });
     },
+
+    getAllRolbyPermiso:async (id_permiso : number) =>{
+        return Permiso_Rol.findAll({
+            where : {id_permiso}
+        });
+
+
+    },
+
+
     create: async (data: ICreateOrUpdatePermisoRol) => {
         try {
             return await Permiso_Rol.create({
@@ -33,6 +43,7 @@ export const PermisoRolRepository = {
         } 
         return null;
     },
+    
     update: async (data: ICreateOrUpdatePermisoRol, id_rol_permiso: string) => {
         const permisoRol = await PermisoRolRepository.getById(id_rol_permiso)
 

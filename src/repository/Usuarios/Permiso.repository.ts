@@ -1,7 +1,5 @@
 import { IPermiso, ICreateOrUpdatePermiso} from "../../interface/Usuarios/Permiso.interface"
 import Permiso from "../../models/Usuarios/Permiso";
-import { v4 as uuidv4 } from 'uuid';
-import { isUUID } from "../../utils/validaciones";
 import { UniqueConstraintError } from "sequelize";
 
 
@@ -15,7 +13,6 @@ export const PermisoRepository = {
         });
     },
     create: async (data: ICreateOrUpdatePermiso) => {
-        //const nuevoUUID = uuidv4();
         const ultimoID = await PermisoRepository.ultimoId();
         const nuevoIntID = ultimoID ? ultimoID.id_permiso + 1 : 1
 

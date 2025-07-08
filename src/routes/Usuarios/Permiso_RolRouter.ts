@@ -4,7 +4,10 @@ import { PermisoRolController } from "../../controllers/Usuarios/Permiso_RolCont
 const router = Router()
 
 router.get('/', PermisoRolController.getAll)
-router.get('/:id_permiso_rol', PermisoRolController.getByID)
+router.get('/:id_rol_permiso', PermisoRolController.getByID)
+
+router.get('/rol_permiso/:id_permiso', PermisoRolController.getAllRolbyPermiso);
+
 router.post('/', PermisoRolController.crear)
-router.put('/:id_permiso_rol', PermisoRolController.update)
+router.put('/:id_rol_permiso', PermisoRolController.update)
 export default router;

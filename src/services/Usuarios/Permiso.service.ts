@@ -8,9 +8,9 @@ export const PermisoService = {
         return await PermisoRepository.getAll();
     },
     getByID: async (id_permiso: string) => {
-        const rol = await PermisoRepository.getById(id_permiso)
+        const permiso = await PermisoRepository.getById(id_permiso)
         if (!id_permiso) throw new Error("ID no encontrado")
-        return rol;
+        return permiso;
     },
     create: async (data: ICreateOrUpdatePermiso) => {
         if (
