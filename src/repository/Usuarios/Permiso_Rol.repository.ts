@@ -19,8 +19,6 @@ export const PermisoRolRepository = {
         return Permiso_Rol.findAll({
             where : {id_permiso}
         });
-
-
     },
 
 

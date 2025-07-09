@@ -60,6 +60,13 @@ import Corte_CajaRouter from './Caja/Corte_CajaRouter';
 //Stock
 import Stock_SucursalRouter from "./Stock/Stock_SucursalRouter"
 
+//Lotes Sucursal
+import Lote_ArticuloSucursalRouter from "./LotesYCaducidades/Lote_ArticuloSucursalRouter"
+import Lote_Usado_VentaRouter from "./LotesYCaducidades/Lote_Usado_VentaRouter"
+
+//Venta
+import Detalle_VentaRouter from "./Venta/Detalle_VentaRouter"
+import VentaRouter from "./Venta/VentaRouter"
 
 
 
@@ -133,6 +140,17 @@ router.use('/corte_caja', Corte_CajaRouter)
 
 //Stock
 router.use('/stock',Stock_SucursalRouter)
+
+
+
+//Lote sucursal
+router.use('/lote_sucursal' , Lote_ArticuloSucursalRouter)
+router.use('/lote_usado_venta' , Lote_Usado_VentaRouter)
+
+//Venta
+router.use('/detalle_venta' , Detalle_VentaRouter)
+router.use('/venta' , VentaRouter)
+
 
 
 router.use('/facturas_proveedor', factura_compra_ProveedorRouter)
