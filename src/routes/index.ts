@@ -46,7 +46,7 @@ import detalleCompraRouter from './Compras/Detalle_CompraRouter'
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
 
 //Clientes
-import ClienteMostradorRouter from './Clientes/ClienteRouter'
+import ClienteRouter from './Clientes/ClienteRouter'
 import TipoClienteRouter from './Clientes/TipoClienteRouter'
 import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter'
 
@@ -67,6 +67,10 @@ import Lote_Usado_VentaRouter from "./LotesYCaducidades/Lote_Usado_VentaRouter"
 //Venta
 import Detalle_VentaRouter from "./Venta/Detalle_VentaRouter"
 import VentaRouter from "./Venta/VentaRouter"
+
+//Lista Precios
+import Lista_Precio from "./Articulos/Lista_Precio/Lista_PrecioRouter"
+
 
 
 
@@ -124,7 +128,7 @@ router.use('/compras/detalle_compra', detalleCompraRouter)
 router.use('/lotes_solicitados', lotesSolicitadoRouter)
 
 
-router.use('/ClienteMostrador', ClienteMostradorRouter)
+router.use('/Cliente', ClienteRouter)
 router.use('/tipo_cliente', TipoClienteRouter)
 router.use('/beneficio_cliente', BeneficioClienteRouter)
 
@@ -150,6 +154,9 @@ router.use('/lote_usado_venta' , Lote_Usado_VentaRouter)
 //Venta
 router.use('/detalle_venta' , Detalle_VentaRouter)
 router.use('/venta' , VentaRouter)
+
+//Lista Precios
+router.use('/lista_Precio' , Lista_Precio)
 
 
 

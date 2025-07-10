@@ -13,9 +13,6 @@ export const MetodoPagoService = {
     },
 
     createMetodoPago: async (data: IMetodoPago) => {
-         if(!data.id_metodo_pago || !MetodoPagoRepository.getByIDFlexible(data.id_metodo_pago)){
-                    data.id_metodo_pago = "";
-                }
          return await MetodoPagoRepository.createMetodoPago(data);
     },
 }

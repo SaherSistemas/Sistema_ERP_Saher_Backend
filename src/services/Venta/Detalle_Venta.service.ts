@@ -4,10 +4,10 @@ import { DetalleVentaRepository } from "../../repository/Venta/Detalle_Venta.rep
 
 
 export const DetalleVentaService = {
-    getAll: async (): Promise<IDetalleVenta[]> => {
+    getAll: async () => {
             return await DetalleVentaRepository.getAll();
         },
-     getById: async (id: string): Promise<IDetalleVenta> => {
+     getById: async (id: string) => {
             const loteartic = await DetalleVentaRepository.getById(id)
             if (!loteartic) throw new Error("Lote Articulo Sucursal no enocontrado")
             return loteartic

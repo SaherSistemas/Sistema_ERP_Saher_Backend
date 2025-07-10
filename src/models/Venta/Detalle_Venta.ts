@@ -4,7 +4,7 @@ import LoteUsadoVenta from '../LotesYCaducidad/Lote_Usado_Venta';
 import Venta from './Venta';
 
 @Table({
-    tableName: "Detalle Venta"
+    tableName: "DetalleVenta"
 })
 
 class DetalleVenta extends Model{
@@ -19,14 +19,14 @@ class DetalleVenta extends Model{
         type : DataType.UUID
     }) declare id_venta: string;
     @BelongsTo(() => Venta)
-    id_ven: Venta;
+    venta!: Venta;
 
     @ForeignKey(() => Articulo)
     @Column({
         type : DataType.UUID
     }) declare id_artic: string;
     @BelongsTo(() => Articulo)
-    id_art: Articulo;
+    articulo!: Articulo;
 
     @Column({
         type : DataType.INTEGER
@@ -37,7 +37,7 @@ class DetalleVenta extends Model{
     }) declare precio_unitario: number;
 
     @HasOne(() => LoteUsadoVenta)
-    declare Lote_usado: LoteUsadoVenta;
+    declare loteUsado: LoteUsadoVenta;
 }
 
 export default DetalleVenta;

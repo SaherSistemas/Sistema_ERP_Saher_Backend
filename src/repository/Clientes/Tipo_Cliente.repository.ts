@@ -1,16 +1,16 @@
 import { UUID } from "crypto";
 import Tipo_Cliente from "../../models/Clientes/Tipo_Cliente";
 import { isUUID } from "../../utils/validaciones";
-import { ITipoCliente } from "../../interface/Clientes/Tipo_Cliente.interface";
+import { ITipoCliente, ICreateOrUpdateTipoCliente } from "../../interface/Clientes/Tipo_Cliente.interface";
 import { v4 as uuidv4 } from "uuid"; 
 
 export const TipoClienteRepository = {
     
-getAll:async () => {
+    getAll:async () => {
     return await Tipo_Cliente.findAll();
     },
 
- createTipoCliente: async(data:ITipoCliente) =>{
+    createTipoCliente: async(data:ICreateOrUpdateTipoCliente) =>{
         return await Tipo_Cliente.create({
             id_tipo_cliente: uuidv4(),
             ...data

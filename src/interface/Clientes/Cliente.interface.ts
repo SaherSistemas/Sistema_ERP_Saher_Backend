@@ -5,7 +5,7 @@ export interface ICliente {
     apellido_pat_cliente: string;
     apellido_mat_cliente?: string;
     fec_nac_cliente: Date; 
-    colonia_cliente: string;
+    Id_colonia: string;
     email_cliente?: string;
     genero_cliente: string;
     calle_cliente?: string; 
@@ -20,7 +20,7 @@ export interface ICreateUpdateCliente {
     apellido_pat_cliente: string;
     apellido_mat_cliente?: string;
     fec_nac_cliente: Date;
-    colonia_cliente: string;
+    Id_colonia: string;
     email_cliente?: string;
     genero_cliente: string; 
     calle_cliente: string; 

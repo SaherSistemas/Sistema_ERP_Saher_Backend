@@ -3,7 +3,7 @@ import LoteArticuloSucursal from './Lote_ArticuloSucursal';
 import Detalle_Venta from '../Venta/Detalle_Venta';
 
 @Table({
-    tableName: "Lote usado venta"
+    tableName: "LoteUsadoVenta"
 })
 
 class LoteUsadoVenta extends Model {
@@ -19,7 +19,7 @@ class LoteUsadoVenta extends Model {
         type: DataType.UUID
     }) declare id_detalle_venta:string;
     @BelongsTo(() => Detalle_Venta)
-    detalle_Venta : Detalle_Venta;
+    detalleVenta! : Detalle_Venta;
 
 
     @ForeignKey(() => LoteArticuloSucursal)
@@ -27,7 +27,7 @@ class LoteUsadoVenta extends Model {
         type : DataType.UUID
     })declare  id_lote_sucursal :string;
     @BelongsTo(() => LoteArticuloSucursal)
-    id_lote_suc : LoteArticuloSucursal;
+    loteArticuloSucursal!: LoteArticuloSucursal;
 
     @Column({
         type : DataType.INTEGER

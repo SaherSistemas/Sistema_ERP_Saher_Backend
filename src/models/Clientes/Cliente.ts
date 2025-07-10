@@ -43,7 +43,7 @@ class Cliente extends Model{
      @Column({
         type: DataType.UUID
     })
-    declare colonia_cliente : string;
+    declare Id_colonia : string;
 
     @Column({
         type: DataType.STRING(50)
