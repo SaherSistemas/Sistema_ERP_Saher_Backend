@@ -1,6 +1,6 @@
 export interface IListaDePrecio {
-    id_lista_precios : string;
-    id_interno_lista_precios
+    id_lista_precio : string;
+    cod_int_lista_precio: number;
     id_empre: string;
     detalle_lista_precios: string;
     id_artic : string;
@@ -11,8 +11,8 @@ export interface IListaDePrecio {
     status_lista_precios: string;
 }
 
-export interface ICreateOrUpdateListaDePrecio {
-    id_internos_precios: string;
+export interface ICreateOrUpdateListaPrecio {
+    cod_int_lista_precio: number;
     id_empre: string;
     detalle_lista_precios: string;
     id_artic : string;

@@ -3,7 +3,7 @@ import LoteArticuloSucursal from './Lote_ArticuloSucursal';
 import Detalle_Venta from '../Venta/Detalle_Venta';
 
 @Table({
-    tableName: "LoteUsadoVenta"
+    tableName: "lote_usado_venta"
 })
 
 class LoteUsadoVenta extends Model {

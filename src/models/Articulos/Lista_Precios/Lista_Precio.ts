@@ -2,12 +2,13 @@ import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, Belongs
 import Empresa_Sucursal from "../../Empresa_Sucursal/Empresa_Sucursal";
 import Colonia from "../../Ubicacion/Colonia";
 import Articulo from "../Articulo";
+import DetalleListaPrecio from "./Detalle_Lista_Precio";
 
 @Table({
-    tableName:"ListaPrecios"
+    tableName:"lista_precio"
 })
 
-class ListaPrecios extends Model {
+class ListaPrecio extends Model {
 
     @PrimaryKey
     @Column({
@@ -17,7 +18,7 @@ class ListaPrecios extends Model {
     @Unique
     @Column({
         type: DataType.INTEGER
-    })declare id_interno_lista_precio: number;
+    })declare cod_int_lista_precio: number;
     
     @ForeignKey(() => Empresa_Sucursal)
     @Column({
@@ -26,12 +27,12 @@ class ListaPrecios extends Model {
     @BelongsTo(() => Empresa_Sucursal)
     empresa_Sucursal : Empresa_Sucursal;
 
-   // @ForeignKey(() => DetalleListaPrecio)
+    @ForeignKey(() => DetalleListaPrecio)
     @Column({
         type: DataType.UUID
-    })declare id_detalle_listaPrecio: string;
-    // @BelongsTo(() => DetalleListaPrecio)
-    // detallelistaprecio : DetalleListaPrecio;
+    })declare id_detalle_lista_precio: string;
+    @BelongsTo(() => DetalleListaPrecio)
+    detallelistaprecio : DetalleListaPrecio;
     
 
     @ForeignKey(() => Articulo)
@@ -61,5 +62,6 @@ class ListaPrecios extends Model {
         type: DataType.STRING(1)
     })declare status_lista_precios: string;
 
+
 }
-export default ListaPrecios;
+export default ListaPrecio;

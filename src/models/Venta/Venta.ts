@@ -7,7 +7,7 @@ import DetalleVenta from './Detalle_Venta';
 import Metodo_de_Pago from '../Caja/Metodo_de_Pago';
 
 @Table({
-    tableName: "Venta"
+    tableName: "venta"
 })
 
 class Venta extends Model{

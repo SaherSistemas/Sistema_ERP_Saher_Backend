@@ -70,8 +70,7 @@ import VentaRouter from "./Venta/VentaRouter"
 
 //Lista Precios
 import Lista_Precio from "./Articulos/Lista_Precio/Lista_PrecioRouter"
-
-
+import DetalleLista_Precio from "./Articulos/Lista_Precio/Detalle_Lista_PrecioRouter"
 
 
 import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
@@ -157,7 +156,7 @@ router.use('/venta' , VentaRouter)
 
 //Lista Precios
 router.use('/lista_Precio' , Lista_Precio)
-
+router.use('/detalle_precio', DetalleLista_Precio)
 
 
 router.use('/facturas_proveedor', factura_compra_ProveedorRouter)

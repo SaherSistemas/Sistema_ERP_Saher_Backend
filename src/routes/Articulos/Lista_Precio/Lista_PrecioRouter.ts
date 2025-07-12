@@ -1,11 +1,10 @@
 import { Router } from "express";
-import { ListaPreciosController } from "../../../controllers/Articulos/Lista_Precio/Lista_PrecioContorller";
+import { ListaPrecioController } from "../../../controllers/Articulos/Lista_Precio/Lista_PrecioController";
 const router = Router();
 
-router.get("/", ListaPreciosController.getAll);
-//router.get("/:id", ListaPreciosController.getById);
-router.post("/", ListaPreciosController.create);
-//router.put("/:id", ListaPreciosController.update);
-// router.delete("/:id", ListaPreciosController.delete);
+router.get("/", ListaPrecioController.getAll);
+router.get("/:id", ListaPrecioController.getById);
+router.post("/", ListaPrecioController.create);
+router.put("/update/:id", ListaPrecioController.update);
 
 export default router;
