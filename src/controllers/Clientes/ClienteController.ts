@@ -16,8 +16,8 @@ export class ClienteController {
 
         static getByID = async (req: Request, res: Response) => {
                 try {
-                    const { id_cliente } = req.params;
-                    const cliente = await ClienteService.getByIDFlexible(id_cliente)
+                    const { identificador_cliente } = req.params;
+                    const cliente = await ClienteService.getByIDFlexible(identificador_cliente)
                     res.status(200).json(cliente)
                 } catch (error) {
                     console.error(error);

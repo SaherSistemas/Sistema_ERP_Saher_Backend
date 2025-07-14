@@ -127,7 +127,7 @@ router.use('/compras/detalle_compra', detalleCompraRouter)
 router.use('/lotes_solicitados', lotesSolicitadoRouter)
 
 
-router.use('/Cliente', ClienteRouter)
+router.use('/cliente', ClienteRouter)
 router.use('/tipo_cliente', TipoClienteRouter)
 router.use('/beneficio_cliente', BeneficioClienteRouter)
 
