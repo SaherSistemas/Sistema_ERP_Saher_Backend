@@ -7,7 +7,7 @@ export const Factura_Compra_ProveedorRepository = {
     getAll: async (): Promise<IFactura_Compra_Proveedor[]> => {
         return await Factura_Compra_Proveedor.findAll();
     },
-    getByID: async (id_comp: string): Promise<IFactura_Compra_Proveedor | null> => {
+    getByID: async (id_comp: string) => {
         return await Factura_Compra_Proveedor.findOne({
             where: {
                 id_compra_proveedor: id_comp

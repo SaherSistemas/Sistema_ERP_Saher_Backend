@@ -3,6 +3,7 @@ import LotesRecibidosCompra from '../../models/LotesYCaducidad/LotesRecibidosCom
 import { IDataLotesRecibidos } from '../../interface/LotesYCaducidad/LotesSolicitadoCompra.interface';
 import Lotes_Solicitado_Compra from '../../models/LotesYCaducidad/LotesSolicitadoCompra';
 import { Compra_ProveedorRepository } from '../Compras/Compra_Proveedor.repository';
+import Detalle_Compra_Recibido from '../../models/Compra/Detalle_Compra_Recibido';
 
 export const LotesSolicitadoCompraRepository = {
     getAllLotes: async (id_empresa_sucursal: string, id_artic: string) => {
@@ -30,11 +31,22 @@ export const LotesSolicitadoCompraRepository = {
                 numerolote_lote: lote.numerolote_lote,
                 fechavencimiento_lote: lote.fechavencimiento_lote,
                 cantidad_lote: lote.cantidad_lote,
+                observacion_lote: lote.observacion_lote || null,
                 estado_lote: 'O',
                 motivo_ajuste: 'LOTE Y CADUCIDAD CORRECTA',
             }))
         );
-        await Compra_ProveedorRepository.actualizarEstadoAlGuardarLotes(data.id_comp)
+
+        const detalleCompraRecibido = productos.map((producto) => ({
+            id_detcomprec: uuidv4(),
+            idcompr_detcomprec: id_comp,
+            idarticulo_detcomprec: producto.id_detallecompr_solicitado,
+            cantidad_detcomprec: producto.lotes.reduce((sum, l) => sum + l.cantidad_lote, 0),
+            precio_detcomprec: producto.precio,
+        }));
+
+        await Compra_ProveedorRepository.actualizarEstadoAlGuardarLotes(id_comp)
+
 
 
         await LotesRecibidosCompra.bulkCreate(lotesRecibidos);

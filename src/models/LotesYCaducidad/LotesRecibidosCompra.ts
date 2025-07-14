@@ -26,6 +26,10 @@ class LotesRecibidosCompra extends Model {
     @Column(DataType.CHAR(1))
     declare estado_lote: string
 
+
+    @Column(DataType.TEXT)
+    declare observacion_lote: string;
+
     /* |------------------------------------------------------------------------------------------------------|
        |     ESTADO_LOTE          ¿QUE SIGNIFCA?                                         ¿SE PERMITE INGRESAR INVENTARIO?        COMENTARIO    |
        |------------------------------------------------------------------------------------------------------|

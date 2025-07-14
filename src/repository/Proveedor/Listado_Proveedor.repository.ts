@@ -1,6 +1,7 @@
 import Listado_Proveedor from '../../models/Proveedor/Listados_Proveedor';
 import Detalle_Listado_Proveedor from '../../models/Proveedor/Detalle_Listado_Proveedor';
 import Proveedor from '../../models/Proveedor/Proveedor';
+import { Op } from 'sequelize';
 
 export const Listado_ProveedorRepository = {
     getAllProveedorConListados: async () => {
@@ -27,11 +28,40 @@ export const Listado_ProveedorRepository = {
                 attributes: ['id_listprove'],
                 include: [{
                     model: Proveedor,
-                    attributes: ['nomcort_prove', 'razsoc_prove']
+                    attributes: ['id_prove', 'nomcort_prove', 'razsoc_prove']
                 }]
             }]
         });
     },
+    getProductosPorFiltro: async (filtro: string) => {
+        return await Detalle_Listado_Proveedor.findAll({
+            where: {
+                [Op.or]: [
+                    { cod_barra_pro_detlist: { [Op.iLike]: `%${filtro}%` } },
+                    { descrip_pro_detlis: { [Op.iLike]: `%${filtro}%` } }
+                ]
+            },
+            order: [
+                ['cod_barra_pro_detlist', 'ASC'],           // Agrupa por código de barras
+                ['preio_pro_detlist', 'ASC']               // Precio de mayor a menor
+            ],
+            attributes: [
+                'cod_barra_pro_detlist',
+                'descrip_pro_detlis',
+                'exist_pro_detlist',
+                'preio_pro_detlist'
+            ],
+            include: [{
+                model: Listado_Proveedor,
+                attributes: ['id_listprove'],
+                include: [{
+                    model: Proveedor,
+                    attributes: ['id_prove', 'nomcort_prove', 'razsoc_prove']
+                }]
+            }]
+        });
+    },
+
 
     crearListado: async (id_listado: string, id_proveedor: string) => {
         return await Listado_Proveedor.create({

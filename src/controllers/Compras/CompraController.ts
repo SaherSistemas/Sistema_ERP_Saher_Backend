@@ -24,6 +24,7 @@ export class ComprasController {
     }
 
 
+
     static getByEmpresaEnCaptura = async (req: Request, res: Response) => {
         try {
             const { id_empresa } = req.params
@@ -66,7 +67,7 @@ export class ComprasController {
         }
     }
 
-    
+
     /*
         static articulosGenerarPDF = async (req: Request, res: Response) => {
             try {
@@ -80,13 +81,27 @@ export class ComprasController {
             }
         }*/
 
+    static nombreArchivoPDF = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const nombreArchivo = await CompraService.obtenerNombreArchivoPDF(id_comp);
+            res.status(200).json({ nombreArchivo });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al obtener el nombre del archivo PDF." });
+        }
+    }
     static generarPDFListado = async (req: Request, res: Response) => {
         try {
             const { id_comp } = req.params;
             const pdfBuffer = await CompraService.generarPDFListado(id_comp);
 
+
+
+            const retornarNombreArchivo = await CompraService.obtenerNombreArchivoPDF(id_comp);
+
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `inline; filename=Orden_Compra_${id_comp}.pdf`);
+            res.setHeader('Content-Disposition', `inline; filename="${retornarNombreArchivo}"`);
             res.send(pdfBuffer);
         } catch (error) {
             console.error('Error al generar PDF:', error);

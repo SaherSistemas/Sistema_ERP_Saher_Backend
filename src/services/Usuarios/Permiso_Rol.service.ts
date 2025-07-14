@@ -6,7 +6,6 @@ import { RolService } from "./Rol.service";
 
 export const PermisoRolService = {
     getAll: async (): Promise<IPermisoRol[]> => {
-        console.log(PermisoRolRepository.getAll);
         return await PermisoRolRepository.getAll();
     },
     getByID: async (id_rol_permiso: string) => {

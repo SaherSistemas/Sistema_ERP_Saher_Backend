@@ -23,7 +23,7 @@ class Detalle_Listado_Proveedor extends Model {
     declare id_list_detlist: string
 
     @Column({
-        type: DataType.STRING(20),
+        type: DataType.STRING(50),
         allowNull: false,
     })
     declare cod_barra_pro_detlist: string

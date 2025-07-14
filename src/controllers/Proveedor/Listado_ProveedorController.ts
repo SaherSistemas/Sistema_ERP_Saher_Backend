@@ -22,6 +22,17 @@ export class Listado_ProveedorController {
         }
     }
 
+
+    static buscarProductosEnTodosLosListados = async (req: Request, res: Response) => {
+        try {
+            const terminoBusqueda = req.query.termBusqueda;
+            const resultados = await Listado_ProveedorService.buscarProductosEnTodosLosListados(terminoBusqueda as string);
+            res.json(resultados);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: 'Error al buscar productos' });
+        }
+    }
     static async cargarListadosProveedor(req: Request, res: Response) {
         try {
             if (!req.file) {

@@ -42,7 +42,9 @@ import parametos_CompraRouter from './Compras/parametros_CompraRouter'
 import comprasRouter from './Compras/ComprasRouter'
 import detalleCompraRouter from './Compras/detalle_CompraRouter'
 
-
+import detalleCompraNegadoRouter from './Compras/detalle_Compra_NegadoRouter'
+import detalleCompraRecibidoRouter from './Compras/detalle_Compra_RecibidoRouter'
+//Lotes y Caducidades
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
 
 //Clientes
@@ -113,6 +115,10 @@ router.use('/parametros_compra', parametos_CompraRouter)
 router.use('/compras', comprasRouter)
 router.use('/compras/detalle_compra', detalleCompraRouter)
 
+router.use('/compras/detalle_compra_negado', detalleCompraNegadoRouter)
+router.use('/compras/detalle_compra_recibido', detalleCompraRecibidoRouter)
+
+
 
 router.use('/lotes_solicitados', lotesSolicitadoRouter)
 
@@ -132,7 +138,7 @@ router.use('/corte_caja', Corte_CajaRouter)
 
 
 //Stock
-router.use('/stock',Stock_SucursalRouter)
+router.use('/stock', Stock_SucursalRouter)
 
 
 router.use('/facturas_proveedor', factura_compra_ProveedorRouter)

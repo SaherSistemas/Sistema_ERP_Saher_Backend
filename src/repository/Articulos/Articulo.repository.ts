@@ -16,6 +16,7 @@ import Parametros_Compra from '../../models/Compra/Parametros_Compra/Parametros_
 import Compra_General from '../../models/Compra/Compra_General';
 import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
 import Detalle_Compra_Solicitado from '../../models/Compra/Detalle_Compra_Solicitado';
+import Detalle_Compra_Negados from '../../models/Compra/Detalle_Compra_Negados';
 
 
 type DetalleConTotal = {
@@ -182,6 +183,55 @@ export const ArticuloRepository = {
         };
     },
 
+    getArticulosNegadosParaCompra: async (id_empresa_sucursal: string, page: number, limit: number) => {
+        const offset = (page - 1) * limit;
+
+        const { count, rows } = await Detalle_Compra_Negados.findAndCountAll({
+            where: {
+                recuperado: false,
+                fecha_limite_recuperacion: { [Op.gte]: new Date() },
+            },
+            include: [
+                {
+                    model: Compra_Proveedor,
+                    required: true,
+                    include: [
+                        {
+                            model: Compra_General,
+                            required: true,
+                            where: { id_empresa_sucursal: id_empresa_sucursal },
+                        }
+                    ]
+                },
+                {
+                    model: Articulo,
+                    required: true,
+                    attributes: {
+                        include: [
+                            [Sequelize.literal(`(
+                            SELECT COALESCE(SUM(dcs.cantidad_detcompsol), 0)
+                            FROM detalle_compra_solicitado dcs
+                            INNER JOIN compra_proveedor cp ON cp.id_comp = dcs.idcompr_detcompsol
+                            INNER JOIN compra_general cg ON cg.id_compra_general = cp.id_compra_general
+                            WHERE dcs.idarticulo_detcompsol = "articulo"."id_artic"
+                            AND cg.id_empresa_sucursal = '${id_empresa_sucursal}'
+                            AND cg.estado_comp IN ('C', 'F')
+                        )`), 'totalSolicitado']
+                        ]
+                    }
+                }
+            ],
+            offset,
+            limit
+        });
+
+        return {
+            total: count,
+            articulos: rows,
+            page,
+            totalPages: Math.ceil(count / limit)
+        };
+    },
 
     getByIDFlexible: async (id: string) => {
         if (isUUID(id)) {

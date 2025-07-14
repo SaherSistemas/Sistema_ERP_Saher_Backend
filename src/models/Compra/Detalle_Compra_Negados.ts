@@ -1,4 +1,4 @@
-import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, Default } from "sequelize-typescript";
 import Compra from './Compra_Proveedor'
 import Articulo from "../Articulos/Articulo";
 
@@ -29,12 +29,30 @@ class Detalle_Compra_Negados extends Model {
     @Column({
         type: DataType.SMALLINT
     })
-    declare cantidad_detcompneg: number
+    declare cantidad_negada: number
 
     @Column({
-        type: DataType.DECIMAL(12, 2)
+        type: DataType.TEXT
     })
-    declare precio_detcompneg: number
+    declare motivo_negado: string
+
+
+    @Default(false)
+    @Column({
+        type: DataType.BOOLEAN,
+    })
+    declare recuperado: boolean;
+
+    @Default(DataType.NOW)
+    @Column({
+        type: DataType.DATEONLY,
+    })
+    declare fecha_negado: Date;
+
+    @Column({
+        type: DataType.DATEONLY,
+    })
+    declare fecha_limite_recuperacion: Date;
 
 
     @BelongsTo(() => Compra)

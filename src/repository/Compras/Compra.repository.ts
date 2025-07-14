@@ -27,6 +27,8 @@ export const CompraRepository = {
         });
         return { total: count, compras: rows };
     },
+
+
     getCompraEnCaptura: async (id_empresa: string) => {
         return await Compra_General.findOne({
             where: {

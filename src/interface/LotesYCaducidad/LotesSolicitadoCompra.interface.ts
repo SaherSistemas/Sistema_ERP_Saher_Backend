@@ -2,11 +2,12 @@ export interface ILoteRecibido {
     numerolote_lote: string;
     fechavencimiento_lote: Date; // formato ISO: yyyy-mm-dd
     cantidad_lote: number;
+    observacion_lote?: string;
 }
 
 export interface IDetalleSolicitado {
     id_detallecompr_solicitado: string;
-    precio_detacompsol: number;
+    precio: number;
     lotes: ILoteRecibido[];
 }
 

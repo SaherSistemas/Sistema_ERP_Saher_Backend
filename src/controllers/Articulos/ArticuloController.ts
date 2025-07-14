@@ -31,8 +31,19 @@ export class ArticuloController {
         }
     }
 
+    static getAllArticulosNegadosParaCompra = async (req: Request, res: Response) => {
+        try {  
+            const { id_empresa_sucursal } = req.params;
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 20;
 
-
+            const articulosNegados = await ArticuloService.getAllArticulosNegadosParaCompra(id_empresa_sucursal, page, limit);
+            res.status(200).json(articulosNegados);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al obtener todos los artículos negados." });
+        }
+    }
 
     static getPaginaArticuloParaContinuarCompra = async (req: Request, res: Response) => {
         try {

@@ -29,7 +29,13 @@ class Compra_Proveedor extends Model {
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
-    declare total_comp: number
+    declare total_comp_factura: number
+
+    @Column({
+        type: DataType.DECIMAL(12, 2)
+    })
+    declare total_comp_recibido: number
+
 
     @Column({
         type: DataType.CHAR(1)
@@ -46,6 +52,11 @@ class Compra_Proveedor extends Model {
         type: DataType.DATE
     })
     declare inicio_de_compra_proveedor: Date
+    @Column({
+        type: DataType.DATE
+    })
+    declare fin_de_compra_proveedor: Date
+
 
     @Column({
         type: DataType.DATE

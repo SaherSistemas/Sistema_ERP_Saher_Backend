@@ -11,6 +11,9 @@ export const Listado_ProveedorService = {
     getProductoPorProveedorEnListas: async (cod_barra_pro_detlist: string) => {
         return await Listado_ProveedorRepository.getProductoPorProveedorEnListas(cod_barra_pro_detlist)
     },
+    buscarProductosEnTodosLosListados: async (terminoBusqueda: string) => {
+        return await Listado_ProveedorRepository.getProductosPorFiltro(terminoBusqueda);
+    },
     procesarListado: async (filePath: string, body: any) => {
         const {
             id_proveedor,

@@ -39,6 +39,12 @@ class Factura_Compra_Proveedor extends Model {
     declare total_factura_proveedor: number
 
     @Column({
+        type: DataType.DECIMAL(12, 2)
+    })
+    declare total_checado_proveedor: number
+
+
+    @Column({
         type: DataType.STRING(50)
     })
     declare estatus_pago_factura: string

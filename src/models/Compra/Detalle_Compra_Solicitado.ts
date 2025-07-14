@@ -31,17 +31,6 @@ class Detalle_Compra_Solicitado extends Model {
     })
     declare cantidad_detcompsol: number
 
-
-    @Column({
-        type: DataType.BOOLEAN
-    })
-    declare es_reposicion_negado: boolean
-
-    @Column({
-        type: DataType.UUID
-    })
-    declare id_detalle_compra_negado: string
-
     @Column({
         type: DataType.DECIMAL(12, 2)
     })

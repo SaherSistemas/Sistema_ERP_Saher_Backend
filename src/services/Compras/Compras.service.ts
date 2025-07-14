@@ -6,12 +6,14 @@ import PDFDocument from 'pdfkit';
 import dayjs from 'dayjs';
 import { Detalle_Compra_SolicitadoRepository } from "../../repository/Compras/Detalle_Compra_Solicitado.repository";
 import { Compra_ProveedorRepository } from "../../repository/Compras/Compra_Proveedor.repository";
+import { ProveedorRepository } from "../../repository/Proveedor/Proveedor.repository";
 
 
 export const CompraService = {
     getAll: async (id_empresa: string, page: number, limit: number) => {
         return await CompraRepository.getAllCompra_General(id_empresa, page, limit);
     },
+   
     getEnCaptura: async (id_empresa: string) => {
         return await CompraRepository.getCompraEnCaptura(id_empresa)
     },
@@ -19,15 +21,14 @@ export const CompraService = {
         const { id_empresa, id_listproveedor, detalle, tipo_compra } = data
 
         const listado = await Listado_ProveedorRepository.getByID(id_listproveedor)
-
         const id_proveedor = listado.id_prove_listprove;
 
         //BUSCAR O CREAR COMPRA GENERAL EN EL ESTAOD "C"
-
         const articulo = await ArticuloRepository.getByIDFlexible(detalle.id_articulo_detcompsol)
         const uuidArticulo = articulo.id_artic;
 
         let compraGeneralActiva = await CompraRepository.getCompraEnCaptura(id_empresa);
+        let compraProveedor = await Compra_ProveedorRepository.findCompraProveedor_CapturandoByProveedor(id_proveedor, id_empresa)
 
 
         if (!compraGeneralActiva) {
@@ -42,8 +43,6 @@ export const CompraService = {
             await CompraRepository.actualizarArticuloGuardadoUltimo(compraGeneralActiva.id_compra_general, uuidArticulo)
         }
 
-        // buscar o crear compra proveedor 
-        let compraProveedor = await Compra_ProveedorRepository.findCompraProveedor_CapturandoByProveedor(id_proveedor, id_empresa)
 
         if (!compraProveedor) {
             compraProveedor = await Compra_ProveedorRepository.createCompraProveedor({
@@ -53,14 +52,13 @@ export const CompraService = {
         }
 
         //Agregar o Acumular el detalle
-
         const Detalles = await Detalle_Compra_SolicitadoRepository.addDetallesCompraSolicitado(
             compraProveedor.id_comp,
             [
                 {
                     idarticulo_detcompsol: uuidArticulo,
                     cantidad_detcompsol: detalle.cantidad_detcompsol,
-                    precio_detcompsol: detalle.precio_detcompsol
+                    precio_detcompsol: detalle.precio_detcompsol,
                 }
             ]
         );
@@ -178,7 +176,27 @@ export const CompraService = {
                 resolve(pdfBuffer);
             });
         });
+    },
+    obtenerNombreArchivoPDF: async (id_comp: string): Promise<string> => {
+        const compra = await Compra_ProveedorRepository.getByID(id_comp);
+        if (!compra) {
+            throw new Error('Compra no encontrada');
+        }
+
+        const proveedore = await ProveedorRepository.findByPK(compra.idprove_comp);
+
+        const hoy = new Date();
+        const dia = String(hoy.getDate()).padStart(2, '0');
+        const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+        const anio = hoy.getFullYear();
+
+        const fechaFormateada = `${dia}-${mes}-${anio}`;
+
+
+        const proveedor = proveedore.nomcort_prove || 'Proveedor';
+        return `${proveedor}_${fechaFormateada}.pdf`;
     }
+
 
 
 

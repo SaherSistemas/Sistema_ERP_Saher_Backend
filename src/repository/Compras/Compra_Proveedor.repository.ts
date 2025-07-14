@@ -6,6 +6,8 @@ import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
 import Proveedor from '../../models/Proveedor/Proveedor';
 import { ICreateCompra_Proveedor } from '../../interface/Compras/Compra_Proveedor.interface';
 import Compra_General from '../../models/Compra/Compra_General';
+import Factura_Compra_Proveedor from '../../models/Proveedor/Factura_Compra_Proveedor';
+import { Factura_Compra_ProveedorRepository } from '../Proveedor/Factura_Compra_Proveedor.repository';
 
 export const Compra_ProveedorRepository = {
 
@@ -54,6 +56,22 @@ export const Compra_ProveedorRepository = {
                 }
             ]
         });
+    },
+    cambiarTotalFactura: async (id_comp: string, totalFactura: number) => {
+        const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp)
+        const facturaProveedor = await Factura_Compra_ProveedorRepository.getByID(id_comp)
+
+        await facturaProveedor.update({
+            total_factura_proveedor: totalFactura
+        })
+
+        return await compraProveedor.update({
+            total_comp_factura: totalFactura
+        })
+
+
+
+
     },
     getAllArticulosPorCompra: async (id_comp: string) => {
         return await Detalle_Compra_Solicitado.findAll({

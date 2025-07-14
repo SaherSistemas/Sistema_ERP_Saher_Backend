@@ -76,12 +76,17 @@ export const ProveedorRepository = {
         const proveedor = await ProveedorRepository.findByPK(id_prove);
         if (!proveedor) return null;
 
+        
         // Actualizar proveedor
         await proveedor.update({
             nomcort_prove: data.nomcort_prove,
             razsoc_prove: data.razsoc_prove,
             rfc_prove: data.rfc_prove,
             calle_prove: data.calle_prove,
+            diascre_prove: data.diascre_prove,
+            limicre_prove: data.limicre_prove,
+            telef_prove: data.telef_prove,
+            plazoentrega_prove: data.plazoentrega_prove,
             corr_prove: data.corr_prove,
             ctabanca_prove: data.ctabanca_prove,
             condpago_prove: data.condpago_prove,

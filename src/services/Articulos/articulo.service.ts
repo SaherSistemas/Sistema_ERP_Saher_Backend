@@ -7,6 +7,9 @@ export const ArticuloService = {
     getAllPagProductosParaCompra: async (page: number = 1, limit: number, id_empresasucursal: string) => {
         return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_empresasucursal);
     },
+    getAllArticulosNegadosParaCompra: async (id_empresa_sucursal: string, page: number = 1, limit: number) => {
+        return await ArticuloRepository.getArticulosNegadosParaCompra(id_empresa_sucursal, page, limit);
+    },
     obtenerPaginaDeArticulo: async (id_artic: string, limit: number) => {
         const codigos = await ArticuloRepository.getAll(); // retorna [{ id_artic: '...' }, ...]
         const ids = codigos.map(art => art.id_artic);

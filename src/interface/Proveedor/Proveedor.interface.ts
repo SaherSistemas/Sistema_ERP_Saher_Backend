@@ -41,8 +41,12 @@ export interface IProveedorUpdateBody {
     rfc_prove: string;
     calle_prove: string;
     corr_prove: string;
+    telef_prove: string;
+    diascre_prove: number;
+    limicre_prove: number;
     ctabanca_prove: string;
     condpago_prove: string;
+    plazoentrega_prove: number;
     id_colonia_prove: string;
     empresas: string[]; // ← IDs de empresas nuevas
 }
