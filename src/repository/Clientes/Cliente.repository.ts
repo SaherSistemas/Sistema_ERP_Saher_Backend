@@ -3,23 +3,29 @@ import Cliente from "../../models/Clientes/Cliente";
 import { isUUID } from "../../utils/validaciones";
 import { ICliente, ICreateUpdateCliente } from "../../interface/Clientes/Cliente.interface";
 import { v4 as uuidv4 } from "uuid";
-
+import { Op } from "sequelize";
 export const ClienteRepository = {
 
         getAll:async () => {
             return await Cliente.findAll();
         },
 
-    getByIDFlexible: async(id_cliente_o_telefono : string ) => {
-        if(isUUID(id_cliente_o_telefono)){
-        return await Cliente.findByPk( id_cliente_o_telefono )
+        getByIDFlexible: async(identificador_cliente : string ) => {
+        if(isUUID(identificador_cliente)){
+        return await Cliente.findByPk( identificador_cliente )
         }else{
 
         return await Cliente.findOne({
             where:{
-                 telefono_cliente:id_cliente_o_telefono
+                [Op.or] : [
+                { telefono_cliente: identificador_cliente },
+                { nombre_cliente: { [Op.like]: `%${identificador_cliente}%` } },
+                { apelliapellido_pat_cliente: { [Op.like]: `%${identificador_cliente}%` } },
+                { apelliapellido_mat_cliente: { [Op.like]: `%${identificador_cliente}%` } }
+                ]
             }
-        })}
+        });
+    }
     },
     createCliente: async(data:ICliente) =>{
         return await Cliente.create({

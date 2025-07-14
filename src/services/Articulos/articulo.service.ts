@@ -29,7 +29,9 @@ export const ArticuloService = {
     createArticulo: async (data: ICreateOrUpdateArticulo) => {
         return await ArticuloRepository.createArticulo(data)
     },
+
     updateByID: async (id_articulo: string, data: ICreateOrUpdateArticulo) => {
         return await ArticuloRepository.updateArticulo(id_articulo, data);
     }
+    
 }

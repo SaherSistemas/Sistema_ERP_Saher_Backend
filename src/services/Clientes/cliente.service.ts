@@ -10,8 +10,8 @@ export const ClienteService = {
         return await ClienteRepository.getAll();
     },
 
-    getByIDFlexible: async(id_cliente_o_telefono : string ) => {
-        return await ClienteRepository.getByIDFlexible(id_cliente_o_telefono);
+    getByIDFlexible: async(identificador_cliente  : string ) => {
+        return await ClienteRepository.getByIDFlexible(identificador_cliente );
     },
 
     createCliente: async(data:ICliente) =>{
