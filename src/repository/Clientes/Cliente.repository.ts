@@ -3,7 +3,7 @@ import Cliente from "../../models/Clientes/Cliente";
 import { isUUID } from "../../utils/validaciones";
 import { ICliente, ICreateUpdateCliente } from "../../interface/Clientes/Cliente.interface";
 import { v4 as uuidv4 } from "uuid";
-import { Op } from "sequelize";
+import { Op, literal } from "sequelize";
 export const ClienteRepository = {
 
         getAll:async () => {
@@ -15,13 +15,13 @@ export const ClienteRepository = {
         return await Cliente.findByPk( identificador_cliente )
         }else{
 
-        return await Cliente.findOne({
+        return await Cliente.findAll({
             where:{
                 [Op.or] : [
                 { telefono_cliente: identificador_cliente },
-                { nombre_cliente: { [Op.like]: `%${identificador_cliente}%` } },
-                { apelliapellido_pat_cliente: { [Op.like]: `%${identificador_cliente}%` } },
-                { apelliapellido_mat_cliente: { [Op.like]: `%${identificador_cliente}%` } }
+                { nombre_cliente: { [Op.iLike]: `%${identificador_cliente}%` } },
+                { apellido_pat_cliente: { [Op.iLike]: `%${identificador_cliente}%` } },
+                { apellido_mat_cliente: { [Op.iLike]: `%${identificador_cliente}%` } }
                 ]
             }
         });
@@ -38,16 +38,17 @@ export const ClienteRepository = {
             where: { id_cliente }
         });
     },
+    
 
-    updateStatusCliente: async(id_cliente: string) => {
-       const cliente = await ClienteRepository.getByIDFlexible(id_cliente);
-       let statusActualCliente = cliente?.status_cliente;
-        statusActualCliente =! statusActualCliente;
-        console.log(statusActualCliente)
-        return await cliente.update({
-            status_cliente:statusActualCliente
-        })
-    }
+    // updateStatusCliente: async(id_cliente: string) => {
+    //    const cliente = await ClienteRepository.getByIDFlexible(id_cliente);
+    //    let statusActualCliente = cliente?.status_cliente;
+    //     statusActualCliente =! statusActualCliente;
+    //     console.log(statusActualCliente)
+    //     return await cliente.update({
+    //         status_cliente:statusActualCliente
+    //     })
+    // }
 
 
 

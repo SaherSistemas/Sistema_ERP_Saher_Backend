@@ -17,7 +17,10 @@ export class ClienteController {
         static getByID = async (req: Request, res: Response) => {
                 try {
                     const { identificador_cliente } = req.params;
+
+                    console.log(identificador_cliente);
                     const cliente = await ClienteService.getByIDFlexible(identificador_cliente)
+                  // console.log(cliente)
                     res.status(200).json(cliente)
                 } catch (error) {
                     console.error(error);
@@ -35,25 +38,39 @@ export class ClienteController {
                     res.status(500).json({ mensaje: "Error al crear el cliente." });
                 }
             }
-        static actualizarByID = async (req: Request, res: Response) => {
-                try {
-                    const { id_cliente } = req.params;
-                    const data = req.body;
-                    const clienteActualizado = await ClienteService.updateCliente(id_cliente, data);
-                    res.status(200).json(clienteActualizado);
-                } catch (error) {
-                    console.error(error);
-                    res.status(500).json({ mensaje: "Error al actualizar el cliente." });
-                }
-            }
-        static actualizarStatusByID = async (req: Request, res: Response) => {
-                try {
-                    const { id_cliente } = req.params;
-                    const clienteActualizado = await ClienteService.updateStatusCliente(id_cliente);
-                    res.status(200).json(clienteActualizado);
-                } catch (error) {
-                    console.error(error);
-                    res.status(500).json({ mensaje: "Error al actualizar el estado del cliente." });
-                }
-            }
+
+            static generarPDFListado = async (req: Request, res: Response)=>{
+             try {
+                        const pdfBuffer = await ClienteService.generarPDFListado();
+                        res.setHeader('Content-Type', 'application/pdf');
+                        res.send(pdfBuffer);
+                    } catch (error) {
+                        console.error('Error al generar PDF:', error);
+                        res.status(500).json({ error: 'No se pudo generar el PDF' });
+                    }
+                };
+            
+        // static actualizarByID = async (req: Request, res: Response) => {
+        //         try {
+        //             const { id_cliente } = req.params;
+        //             const data = req.body;
+        //             const clienteActualizado = await ClienteService.updateCliente(id_cliente, data);
+        //             res.status(200).json(clienteActualizado);
+        //         } catch (error) {
+        //             console.error(error);
+        //             res.status(500).json({ mensaje: "Error al actualizar el cliente." });
+        //         }
+        //     }
+        // static actualizarStatusByID = async (req: Request, res: Response) => {
+        //         try {
+        //             const { id_cliente } = req.params;
+        //             const clienteActualizado = await ClienteService.updateStatusCliente(id_cliente);
+        //             res.status(200).json(clienteActualizado);
+        //         } catch (error) {
+        //             console.error(error);
+        //             res.status(500).json({ mensaje: "Error al actualizar el estado del cliente." });
+        //         }
+        //     }
+
+
     }
