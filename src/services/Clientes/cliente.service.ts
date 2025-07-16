@@ -26,16 +26,17 @@ export const ClienteService = {
         return await ClienteRepository.createCliente(data);
     },
 
-    generarPDFListado: async ()=> {
+    generarPDFListado: async () : Promise<Buffer> => {
         const clientes = await ClienteService.getAll();
 
         const doc = new PDFDocument ({margin: 30, size:'letter'});
         const buffers: Buffer[] = [];
+
         doc.on('data', buffers.push.bind(buffers));
 
         const drawEncabezadoTablaClientes = ( ) => { 
             const y = doc.y;
-            doc.rect(20, y, 550, 20). fill('#E0E0E0')
+            doc.rect(20, y, 550, 20).fill('#E0E0E0')
             doc.fillColor('black').font('Helvetica-Bold').fontSize(10);
     
             doc.text('ID', 32, y + 5);                            // id_cliente
@@ -88,13 +89,18 @@ export const ClienteService = {
         doc.moveDown(1);
     }
 
-    doc.end();
+    //doc.end();
 
-    return new Promise((resolve) => {
-        doc.on('end', () => {
-            const pdfBuffer = Buffer.concat(buffers);
-            resolve(pdfBuffer);
-        });
+    return new Promise((resolve, reject) => {
+    doc.on('data', (chunk) => buffers.push(chunk));
+    doc.on('end', () => {
+        const pdfBuffer = Buffer.concat(buffers);
+        resolve(pdfBuffer);
+    });
+    doc.on('error', (err) => {
+        reject(err);
+    });
+    doc.end(); 
     });
     }
     

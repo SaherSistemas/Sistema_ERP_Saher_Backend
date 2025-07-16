@@ -40,9 +40,13 @@ export class ClienteController {
             }
 
             static generarPDFListado = async (req: Request, res: Response)=>{
-             try {
+             try {  
+                        const { id_cliente } = req.params;
                         const pdfBuffer = await ClienteService.generarPDFListado();
+
                         res.setHeader('Content-Type', 'application/pdf');
+                        res.setHeader('Content-Disposition', 'attachment; filename="Listado_Clientes.pdf"'); 
+
                         res.send(pdfBuffer);
                     } catch (error) {
                         console.error('Error al generar PDF:', error);

@@ -25,6 +25,7 @@ export const ColoniaRepository = {
 
         return await Colonia.findAll({ where: { id_ciuda_colonia: ciudad.id_ciuda } })
     },
+    
     findByIdFlexible: async (id: string): Promise<Colonia | null> => {
         if (isUUID(id)) {
             return await Colonia.findByPk(id, {
