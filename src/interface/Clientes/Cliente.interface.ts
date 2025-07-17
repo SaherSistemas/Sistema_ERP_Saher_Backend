@@ -6,12 +6,14 @@ export interface ICliente {
     apellido_mat_cliente?: string;
     fec_nac_cliente: Date; 
     Id_colonia: string;
-    email_cliente?: string;
+    correo_cliente?: string;
     genero_cliente: string;
-    calle_cliente?: string; 
+    calle_cliente: string; 
+    status_cliente: string;
     id_tipo_cliente: string;
-    ID_usuario_alta_cliente: string;
-    ID_empresa_alta_cliente: string;
+    id_lista_precio: string;
+    id_empleado: string;
+    id_empre: string;
 }
 
 export interface ICreateUpdateCliente {
@@ -21,8 +23,11 @@ export interface ICreateUpdateCliente {
     apellido_mat_cliente?: string;
     fec_nac_cliente: Date;
     Id_colonia: string;
-    email_cliente?: string;
+    correo_cliente?: string;
     genero_cliente: string; 
     calle_cliente: string; 
     id_tipo_cliente: string;
+    id_lista_precio: string;
+    id_empleado: string;
+    id_empre: string;
 }

@@ -1,5 +1,6 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
 import Caja from "./Caja"; 
+import Empleado from "../Usuarios/Empleado";
 
 @Table({
     tableName: "corte_caja"
@@ -17,22 +18,29 @@ class CorteCaja extends Model {
         type: DataType.UUID,
     })
     declare id_caja: string;
+    @BelongsTo(() => Caja)
+    idcaja: Caja;
 
-    // @ForeignKey(() => usuario)
+    @ForeignKey(() => Empleado)
     @Column({
         type: DataType.UUID,
     })
     declare id_usuario_apertura: string;
+    @BelongsTo(() => Empleado, 'id_usuario_apertura')
+    empleado_apertura: Empleado;
 
     @Column({
         type: DataType.DATE,
     })
     declare fecha_apertura: Date;
 
+    @ForeignKey(() => Empleado)
     @Column({
         type: DataType.UUID,
     })
     declare id_usuario_cierre: string;
+    @BelongsTo(() => Empleado, 'id_usuario_cierre')
+    empleado_cierre: Empleado;
 
     @Column({
         type: DataType.DATE,
@@ -42,11 +50,17 @@ class CorteCaja extends Model {
     @Column({
         type: DataType.DECIMAL(10, 2),
     })
-    declare monto_final: string;
+    declare monto_final: number;
+
+    @Column({
+        type: DataType.DECIMAL(10, 2),
+    })
+    declare total_venta: number;
+    
 
     @Column({
         type: DataType.BOOLEAN,
     })
-    declare estado_corte: boolean;
+    declare status_corte: boolean;
 }
 export default CorteCaja;

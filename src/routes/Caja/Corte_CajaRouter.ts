@@ -7,6 +7,7 @@ router.get('/:id_corte', CorteCajaController.getByID);
 router.get('/', CorteCajaController.getAll);
 router.post('/', CorteCajaController.create);
 router.get('/cantidad/:id_caja', CorteCajaController.getCantidadCortesPorCaja);
+router.patch('/cierre/:id_corte', CorteCajaController.updateCierreCorteCaja);
 
 export default router;
 

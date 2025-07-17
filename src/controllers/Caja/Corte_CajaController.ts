@@ -57,4 +57,16 @@ export class CorteCajaController {
             res.status(500).json({ mensaje: "Error al actualizar el corte de caja." });
         }
     }
+
+    static updateCierreCorteCaja = async (req: Request, res: Response) => {
+        try {
+            const { id_corte } = req.params;
+            const data = req.body;
+            const corteActualizado = await CorteCajaService.updateCierreCorteCaja(id_corte, data);
+            res.status(200).json({message: 'Corte cerrado exitosamente', corteActualizado});
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: "Error al actualizar el corte de caja." });
+        }
+    }
 }

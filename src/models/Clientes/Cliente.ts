@@ -1,6 +1,9 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
 import Colonia from "../Ubicacion/Colonia"
 import Tipo_Cliente from "./Tipo_Cliente";
+import ListaPrecio from "../Articulos/Lista_Precios/Lista_Precio";
+import Empleado from "../Usuarios/Empleado";
+import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 
 @Table({
     tableName:"cliente"
@@ -44,6 +47,8 @@ class Cliente extends Model{
         type: DataType.UUID
     })
     declare Id_colonia : string;
+    @BelongsTo(() => Colonia)
+    colonia: Colonia;
 
     @Column({
         type: DataType.STRING(50)
@@ -66,28 +71,37 @@ class Cliente extends Model{
     })
     declare status_cliente : boolean;
 
-
     @ForeignKey(()=> Tipo_Cliente)
     @Column({
         type: DataType.UUID
     })
     declare id_tipo_cliente : string;
-
-    @Column({
-        type: DataType.STRING
-    })
-    declare  ID_usuario_alta_cliente: string;
-
-    @Column({
-        type: DataType.STRING
-    })
-    declare  ID_empresa_alta_cliente: string;
-
-
-    @BelongsTo(() => Colonia)
-    colonia: Colonia;
-
     @BelongsTo (() => Tipo_Cliente)
     tipo_cliente: Tipo_Cliente;
+
+    @ForeignKey(()=> ListaPrecio)
+    @Column({
+        type: DataType.UUID
+    })
+    declare id_lista_precio : string;
+    @BelongsTo (() => ListaPrecio)
+    listaPrecio: ListaPrecio;
+
+    @ForeignKey(()=> Empleado)
+    @Column({
+        type: DataType.UUID
+    })
+    declare  id_empleado: string;
+    @BelongsTo (() => Empleado)
+    empleado: Empleado;
+
+    @ForeignKey(()=> Empresa_Sucursal)
+    @Column({
+        type: DataType.UUID
+    })
+    declare  id_empre: string;
+    @BelongsTo (() => Empresa_Sucursal)
+    empresaSucursal: Empresa_Sucursal;
+
 }
 export default Cliente;

@@ -40,7 +40,7 @@ export const VentaRepository = {
     }
     },
 
-     //CHECAR
+    
     create: async (data : ICreateOrUpdateVenta) => {
         const  nuevoUUID = uuidv4();
 
