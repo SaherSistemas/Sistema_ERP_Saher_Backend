@@ -46,7 +46,7 @@ class Cliente extends Model{
      @Column({
         type: DataType.UUID
     })
-    declare Id_colonia : string;
+    declare id_colonia : string;
     @BelongsTo(() => Colonia)
     colonia: Colonia;
 
@@ -61,7 +61,7 @@ class Cliente extends Model{
     declare email_cliente : string;
 
     @Column({
-        type: DataType.CHAR(1)
+        type: DataType.STRING
     })
     declare genero_cliente : string;
 

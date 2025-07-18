@@ -2,7 +2,7 @@ import Colonia from "../../models/Ubicacion/Colonia";
 import Ciudad from "../../models/Ubicacion/Ciudad";
 import { ICreateColonia, IColonia, IUpdateColonia } from "../../interface/Lugares/Colonia.interface";
 import { v4 as uuidv4 } from 'uuid';
-import { UniqueConstraintError } from "sequelize";
+import { Op, UniqueConstraintError } from "sequelize";
 import { isUUID } from "../../utils/validaciones";
 import { CiudadRepository } from "./Ciudad.repository";
 
@@ -36,7 +36,12 @@ export const ColoniaRepository = {
                 where: { id_intcolonia: Number(id) },
                 include: [{ model: Ciudad, attributes: ['id_ciuda', 'nom_ciuda'] }]
             })
-        }
+        }else{
+        return await Colonia.findOne({
+            where: { nom_colonia: { [Op.iLike]: id } }, 
+            include: [{ model: Ciudad, attributes: ['id_ciuda', 'nom_ciuda'] }]
+        });
+    }
         return null;
     },
 

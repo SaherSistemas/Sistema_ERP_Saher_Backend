@@ -2,7 +2,7 @@
 import { UUID } from "crypto";
 import CorteCaja from "../../models/Caja/Corte_Caja";
 import { isUUID } from "../../utils/validaciones";
-import { ICorteCaja, ICorteCajaUpdate } from "../../interface/Caja/Corte_Caja.interface"; 
+import { ICorteCaja, ICorteCajaCreate, ICorteCajaUpdate } from "../../interface/Caja/Corte_Caja.interface"; 
 import { v4 as uuidv4 } from "uuid";
 import { get } from "http";
 import Empleado from "../../models/Usuarios/Empleado";
@@ -34,14 +34,16 @@ export const CorteCajaRepository = {
         });
     },
   
-    createCorteCaja: async (data: ICorteCaja) => {
+    createCorteCaja: async (data: ICorteCajaCreate) => {
         return await CorteCaja.create({
             id_corte: uuidv4(),
             fecha_apertura : new Date,
             status_corte: true,
+            id_caja:data.id_caja,
+            id_usuario_apertura:data.id_usuario_apertura
 
-            ...data
         });
+
     },
 
    updateCierreCorteCaja: async (id_corte: string, data: ICorteCajaUpdate) => {

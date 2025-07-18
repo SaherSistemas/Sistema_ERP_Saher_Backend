@@ -20,8 +20,9 @@ export const ClienteService = {
     },
 
     createCliente: async(data:ICliente) =>{
-        if(!data.id_tipo_cliente || !TipoClienteRepository.getByIDFlexible(data.id_tipo_cliente)){
-            data.id_tipo_cliente = "94b4c283-3cd6-4776-a0f6-40730ebb6107";
+        if(!data.id_tipo_cliente && !data.id_lista_precio){
+            data.id_lista_precio = "e3b85da4-6ec9-440d-983e-e060d69dc6b1";
+            data.id_tipo_cliente = "d2a20360-ae70-4271-8929-2d8d0a26c896";
         }
         return await ClienteRepository.createCliente(data);
     },
@@ -84,7 +85,7 @@ export const ClienteService = {
         doc.text(dayjs(cliente.fec_nac_cliente).format('DD/MM/YYYY'), 260, startY, { width: 70 });
         doc.text(cliente.genero_cliente, 340, startY, { width: 50 });
         doc.text(cliente.email_cliente || '-', 400, startY, { width: 90 });
-        doc.text(cliente.Id_colonia, 500, startY, { width: 60 });
+        doc.text(cliente.id_colonia, 500, startY, { width: 60 });
 
         doc.moveDown(1);
     }
