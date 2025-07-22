@@ -5,6 +5,7 @@ import Usuario from '../Usuarios/Usuario';
 import Empresa_Sucursal from '../Empresa_Sucursal/Empresa_Sucursal';
 import DetalleVenta from './Detalle_Venta';
 import Metodo_de_Pago from '../Caja/Metodo_de_Pago';
+import Empleado from '../Usuarios/Empleado';
 
 @Table({
     tableName: "venta"
@@ -23,14 +24,14 @@ class Venta extends Model{
         type : DataType.UUID
     }) declare id_cliente: string;
     @BelongsTo(() => Cliente)
-    id_clien: Cliente;
+    idcliente: Cliente;
 
-    @ForeignKey(() => Usuario)
+    @ForeignKey(() => Empleado)
     @Column({
         type : DataType.UUID
-    }) declare id_user: string;
-    @BelongsTo(() => Usuario)
-    iduser: Usuario;
+    }) declare id_empleado: string;
+    @BelongsTo(() => Empleado)
+    idempleado: Empleado;
 
    @ForeignKey(() => Empresa_Sucursal)
     @Column({
@@ -38,7 +39,6 @@ class Venta extends Model{
     }) declare id_empre: string;
     @BelongsTo(() => Empresa_Sucursal)
     idempre: Empresa_Sucursal; 
-
 
     @Column({
         type : DataType.STRING(1)

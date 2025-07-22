@@ -96,8 +96,6 @@ export class ComprasController {
             const { id_comp } = req.params;
             const pdfBuffer = await CompraService.generarPDFListado(id_comp);
 
-
-
             const retornarNombreArchivo = await CompraService.obtenerNombreArchivoPDF(id_comp);
 
             res.setHeader('Content-Type', 'application/pdf');
