@@ -13,7 +13,7 @@ export const CompraService = {
     getAll: async (id_empresa: string, page: number, limit: number) => {
         return await CompraRepository.getAllCompra_General(id_empresa, page, limit);
     },
-   
+
     getEnCaptura: async (id_empresa: string) => {
         return await CompraRepository.getCompraEnCaptura(id_empresa)
     },
@@ -71,8 +71,8 @@ export const CompraService = {
 
     },
 
-    finalizarCompras: async (id_empresa_sucursal: string) => {
-        return await CompraRepository.actualizarEstadoCompras(id_empresa_sucursal)
+    finalizarCompras: async (id_empresa_sucursal: string, id_empleado_finaliza:string) => {
+        return await CompraRepository.actualizarEstadoCompras(id_empresa_sucursal, id_empleado_finaliza)
     },
 
 

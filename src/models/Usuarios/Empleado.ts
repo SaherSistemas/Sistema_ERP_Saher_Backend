@@ -57,7 +57,7 @@ class Empleado extends Model {
     @Column(DataType.STRING(12))
     declare nss_empleado: string;
 
-    @Column(DataType.DATE)
+    @Column(DataType.DATEONLY)
     declare fecha_inicio_rel_laboral: Date;
 
     @ForeignKey(() => Cat_Regimen_Fiscal)
@@ -75,7 +75,9 @@ class Empleado extends Model {
     @BelongsTo(() => Ciudad)
     declare ciudad?: Ciudad;
 
-    @Column(DataType.DATE)
+    
+
+    @Column(DataType.DATEONLY)
     declare fechanacimiento_empleado: Date;
 
     @ForeignKey(() => Cat_Tipo_Contrato)

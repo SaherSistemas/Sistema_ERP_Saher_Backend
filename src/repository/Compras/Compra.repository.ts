@@ -7,6 +7,7 @@ import { ICreateCompra_General } from "../../interface/Compras/Compra_General.in
 import Proveedor from "../../models/Proveedor/Proveedor";
 import Articulo from "../../models/Articulos/Articulo";
 import { Empresa_SucursalRepository } from "../Empresa_Sucursal/Empresa_Sucursal.repository";
+import { EmpleadoRepository } from "../Usuarios/Empleado.repository";
 /*
        Código	      Estado	                             Descripción
        C	        CAPTURANDO	                             La compra está en proceso, aún sin finalizar.
@@ -72,21 +73,27 @@ export const CompraRepository = {
         const compra = await CompraRepository.getCompraEnCaptura(id_empresa_sucursal)
         return compra
     },
-    actualizarEstadoCompras: async (id_empresa_sucursal: string) => {
+    actualizarEstadoCompras: async (id_empresa_sucursal: string, id_empleado_finaliza: string) => {
         const compra = await CompraRepository.compraGeneralEmpresa(id_empresa_sucursal)
+        // console.log(id_empleado_finaliza)
         // Obtener las compras por proveedor relacionadas
         const comprasProveedor = await Compra_Proveedor.findAll({
             where: { id_compra_general: compra.id_compra_general }
         });
+        const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado_finaliza)
+
+
         for (const compprov of comprasProveedor) {
             await compprov.update({
                 estado_comp: 'A',
+                id_empleado_compra: empleado.id_empleado,
             });
         }
 
         await compra.update({
             estado_comp: 'A',
-            fecha_fin_captura: new Date()
+            fecha_fin_captura: new Date(),
+
         });
         return compra
     },

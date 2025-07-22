@@ -38,9 +38,9 @@ class Usuario extends Model {
 
     @ForeignKey(() => Rol)
     @Column({
-        type: DataType.UUID,
+        type: DataType.SMALLINT,
     })
-    declare idrol_user: string;
+    declare idrol_user: number;
 
     @BelongsTo(() => Empleado)
     declare empleado: Empleado;

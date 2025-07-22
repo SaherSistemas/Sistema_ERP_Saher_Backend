@@ -12,4 +12,15 @@ export class Detalle_Compra_NegadoController {
             res.status(500).json({ message: "Error al crear los detalles de compra negados." });
         }
     }
+    static recuperadoTrue = async (req: Request, res: Response) => {
+        try {
+            const { id_detcompneg } = req.params;
+            await Detalle_Compra_NegadosService.recuperadoTrue(id_detcompneg)
+            res.status(200).json({ mensaje: "Se actualizo correctamente" })
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al crear los detalles de compra negados." });
+
+        }
+    }
 }
