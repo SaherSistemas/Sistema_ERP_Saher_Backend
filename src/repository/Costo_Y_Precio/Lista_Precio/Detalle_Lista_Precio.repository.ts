@@ -1,5 +1,5 @@
 import { ICreateOrUpdateIDetalleListaPrecio, IDetalleListaDePrecio } from "../../../interface/Costo_y_Precio/Lista_Precios/Detalle_Lista_Pecios.interface";
-import DetalleListaPrecio from "../../../models/Articulos/Lista_Precios/Lista_Precio";
+import DetalleListaPrecio from "../../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio";
 import { v4 as uuidv4 } from "uuid";
 
 export const DetalleListaPreciosRepository = {

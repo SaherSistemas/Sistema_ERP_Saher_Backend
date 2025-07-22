@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { ListaPrecioController } from "../../../controllers/Articulos/Lista_Precio/Lista_PrecioController";
+import { ListaPrecioController } from "../../../controllers/Costo_Y_Precios/Lista_Precio/Lista_PrecioController";
 const router = Router();
 
 router.get("/", ListaPrecioController.getAll);

@@ -20,6 +20,7 @@ export const Factura_Compra_ProveedorRepository = {
         compraProveedor.update({
             folio_factura_compra: data.folio_factura_proveedor,
             inicio_de_registro_lotes: new Date(),
+            costo_por_envio: data.costo_por_envio,
             estado_comp: 'L'
         })
 

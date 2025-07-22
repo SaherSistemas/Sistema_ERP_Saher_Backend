@@ -5,16 +5,21 @@ import { ICrearEmpleado, IEmpleado, IUpdateEmpleado } from "../../interface/Usua
 export class EmpleadoController {
     static getAllEmpleados = async (req: Request, res: Response) => {
         try {
-            const todosEmpleados = await EmpleadoService.getAllEmpleados();
-            res.status(201).json({ mensaje: todosEmpleados })
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 20;
+            const query = (req.query.query as string) || ''
+            const empleados = await EmpleadoService.getAllEmpleados(page, limit, query)
+            //console.log(empleados)
+            res.status(201).json(empleados)
         } catch (error) {
-            //console.error(error);
+            console.error(error);
             res.status(500).json({ message: "Error al obtener todos los empleados" })
         }
     }
     static createEmpleado = async (req: Request<ICrearEmpleado>, res: Response) => {
         try {
             const data = req.body;
+
             const nuevoEmpleado = await EmpleadoService.createEmpleado(data);
             res.status(201).json({ mensaje: "Empleado creado correctamente.", empleado: nuevoEmpleado })
         } catch (error) {
@@ -39,7 +44,7 @@ export class EmpleadoController {
             const updateEmpleado = await EmpleadoService.updateEmpleado(id_empleado, data)
             res.status(201).json({ mensaje: "Empleado actualizado correctamente", empleado: updateEmpleado })
         } catch (error) {
-            //console.error(error)
+            console.error(error)
             res.status(500).json({ message: "Error al actualizar el empleado " })
         }
     }

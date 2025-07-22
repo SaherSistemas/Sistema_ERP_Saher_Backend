@@ -40,6 +40,7 @@ export interface IEmpleado {
 
 // Interface para crear un nuevo empleado
 export interface ICrearEmpleado {
+    idinterno_empleado: number;
     idempresa_empleado: string;
     nombre_empleado: string;
     ap_pat_empleado: string;

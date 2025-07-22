@@ -5,8 +5,8 @@ import { isUUID } from "../../utils/validaciones";
 import { CiudadRepository } from "../../repository/Lugares/Ciudad.repository";
 
 export const EmpleadoService = {
-    getAllEmpleados: async (): Promise<IEmpleado[]> => {
-        return await EmpleadoRepository.getAll();
+    getAllEmpleados: async (page: number = 1, limit: number, query: string = '') => {
+        return await EmpleadoRepository.getAll(page, limit, query);
     },
     getEmpledoById: async (id: string): Promise<IEmpleado> => {
         const empleado = await EmpleadoRepository.getByIdFlexible(id)
