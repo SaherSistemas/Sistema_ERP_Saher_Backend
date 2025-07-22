@@ -17,6 +17,9 @@ import Compra_General from '../../models/Compra/Compra_General';
 import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
 import Detalle_Compra_Solicitado from '../../models/Compra/Detalle_Compra_Solicitado';
 import Detalle_Compra_Negados from '../../models/Compra/Detalle_Compra_Negados';
+import DetalleListaPrecio from '../../models/Articulos/Lista_Precios/Detalle_Lista_Precio';
+import Stock_sucursal from '../../models/Stock/Stock_Sucursal';
+import Cliente from '../../models/Clientes/Cliente';
 
 
 type DetalleConTotal = {
@@ -91,6 +94,51 @@ export const ArticuloRepository = {
             page,
             totalPages: Math.ceil(count / limit)
         };
+    },
+
+    getAllParaVenta: async (
+        cod_barr_artic: number,
+        cantidad: number,
+        id_cliente?: string,
+        // lote_sucursal:string
+        ) => {
+
+        // Busca el artículo por código de barras
+        const articulo = await ArticuloRepository.getByIDFlexible(String(cod_barr_artic));
+        if (!articulo) {
+        throw new Error('Artículo no encontrado');
+        }
+
+        // Busca la lista de precio que tiene el clinte 
+        // const cliente = await Cliente.findByPk(id_cliente, {
+        //     attributes: ['id_lista_precio']
+        // }); if (!cliente) throw new Error('Cliente no encontrado');
+
+        // const id_lista_precio = cliente.id_lista_precio;
+
+        // Buscar el precio del artículo en esa lista
+        // const detallePrecio = await DetalleListaPrecio.findOne({
+        //     where:{
+        //         id_artic: articulo.id_artic
+        //         // id_lista_precios:id_lista_precio
+        //     },
+        //     attributes:['precios']
+        // }); if (!detallePrecio) {
+        //     throw new Error('No hay precio para este artículo en la lista asignada al cliente');
+        // }
+
+        // const precio_unitario = Number(detallePrecio.precios);
+        // const total = precio_unitario * cantidad;
+    
+        // Devolver la info que necesita la venta
+        return {
+            articulo: articulo.cod_barr_artic,
+            descripcion: articulo.des_artic,
+            cantidad,
+            // precio_unitario,
+            // total
+    };
+
     },
 
     getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string) => {

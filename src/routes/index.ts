@@ -150,8 +150,6 @@ router.use('/corte_caja', Corte_CajaRouter)
 //Stock
 router.use('/stock', Stock_SucursalRouter)
 
-
-
 //Lote sucursal
 router.use('/lote_sucursal' , Lote_ArticuloSucursalRouter)
 router.use('/lote_usado_venta' , Lote_Usado_VentaRouter)

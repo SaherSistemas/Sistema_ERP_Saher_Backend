@@ -1,4 +1,4 @@
-import { Table, HasOne, Column, Model, PrimaryKey, DataType, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
+import { Table, HasOne, Column, Model,HasMany,PrimaryKey, DataType, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
 import LoteUsadoVenta from '../LotesYCaducidad/Lote_Usado_Venta';
 import Cliente from '../Clientes/Cliente';
 import Usuario from '../Usuarios/Usuario';
@@ -55,7 +55,7 @@ class Venta extends Model{
         type : DataType.STRING
     }) declare status_venta: String;
 
-    @HasOne(() => DetalleVenta)
+    @HasMany(() => DetalleVenta)
     declare detalle_venta: DetalleVenta;
 }
 

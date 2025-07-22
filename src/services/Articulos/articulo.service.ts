@@ -4,6 +4,9 @@ export const ArticuloService = {
     getAllPaginado: async (page: number = 1, limit: number, query: string = '') => {
         return await ArticuloRepository.getAllPag(page, limit, query);
     },
+    getAllParaVenta: async ( cod_barr_artic: number, cantidad: number, id_cliente: string )=>{
+            return await ArticuloRepository.getAllParaVenta( cod_barr_artic, cantidad, id_cliente);
+    },
     getAllPagProductosParaCompra: async (page: number = 1, limit: number, id_empresasucursal: string) => {
         return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_empresasucursal);
     },

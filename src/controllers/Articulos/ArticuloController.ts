@@ -15,6 +15,38 @@ export class ArticuloController {
             res.status(500).json({ message: "Error al obtener los artículos." });
         }
     }
+    static getAllParaVenta = async (req: Request, res: Response) =>{
+     // Función flecha local para parsear cantidad y código
+        const parseCantidadYCodigo = (input: string): { cantidad: number; cod_barr_artic: string } => {
+            if (input.includes('*')) {
+            const [cantidadStr, cod_barr_artic] = input.split('*');
+            const cantidad = Number(cantidadStr);
+            if (isNaN(cantidad) || cantidad <= 0) throw new Error('Cantidad inválida');
+            return { cantidad, cod_barr_artic };
+            }
+            return { cantidad: 1, cod_barr_artic: input };
+        };   
+        try {
+                const input = req.params.cod_barr_artic; // puede venir "2*7501109760671"
+                const { cantidad, cod_barr_artic } = parseCantidadYCodigo(input);
+                const id_cliente = req.query.id_cliente as string | undefined;
+
+            if (!cod_barr_artic) {
+                res.status(400).json({ message: 'cod_barr_artic es obligatorio' });
+        }
+
+        const resultado = await ArticuloService.getAllParaVenta(
+            Number(cod_barr_artic),
+            cantidad,
+            id_cliente || null
+            );
+
+        res.status(200).json(resultado);
+        } catch (error: any) {
+        console.error('Error en getAllParaVenta:', error.message);
+        res.status(500).json({ message: error.message });
+        }
+    }
 
 
     static getAllParaCompra = async (req: Request, res: Response) => {
@@ -90,4 +122,5 @@ export class ArticuloController {
             res.status(500).json({ message: "Error al actualizar el articulo." })
         }
     }
-}
+
+    }
