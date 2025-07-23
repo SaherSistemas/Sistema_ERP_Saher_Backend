@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { ArticuloService } from '../../services/Articulos/articulo.service'
+import ListaPrecio from "../../models/Articulos/Lista_Precios/Lista_Precio";
 
 export class ArticuloController {
     static getAllPaginados = async (req: Request, res: Response) => {
@@ -16,7 +17,7 @@ export class ArticuloController {
         }
     }
     static getAllParaVenta = async (req: Request, res: Response) =>{
-     // Función flecha local para parsear cantidad y código
+
         const parseCantidadYCodigo = (input: string): { cantidad: number; cod_barr_artic: string } => {
             if (input.includes('*')) {
             const [cantidadStr, cod_barr_artic] = input.split('*');
@@ -27,7 +28,7 @@ export class ArticuloController {
             return { cantidad: 1, cod_barr_artic: input };
         };   
         try {
-                const input = req.params.cod_barr_artic; // puede venir "2*7501109760671"
+                const input = req.params.cod_barr_artic; 
                 const { cantidad, cod_barr_artic } = parseCantidadYCodigo(input);
                 const id_cliente = req.query.id_cliente as string | undefined;
 
@@ -35,11 +36,10 @@ export class ArticuloController {
                 res.status(400).json({ message: 'cod_barr_artic es obligatorio' });
         }
 
-        const resultado = await ArticuloService.getAllParaVenta(
+        const resultado = await ArticuloService.getAllParaVenta (
             Number(cod_barr_artic),
             cantidad,
-            id_cliente || null
-            );
+            id_cliente || null            );
 
         res.status(200).json(resultado);
         } catch (error: any) {

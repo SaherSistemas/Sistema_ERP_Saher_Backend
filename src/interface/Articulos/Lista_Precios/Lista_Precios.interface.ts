@@ -3,7 +3,6 @@ export interface IListaDePrecio {
     cod_int_lista_precio: number;
     id_empre: string;
     detalle_lista_precios: string;
-    id_artic : string;
     nombre_lista_precio: string;
     descripcion_lista_precio: string;
     fecha_inicio: Date;
@@ -15,7 +14,7 @@ export interface ICreateOrUpdateListaPrecio {
     cod_int_lista_precio: number;
     id_empre: string;
     detalle_lista_precios: string;
-    id_artic : string;
+    // id_artic : string;
     nombre_lista_precio: string;
     descripcion_lista_precio: string;
     fecha_inicio: Date;

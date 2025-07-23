@@ -160,7 +160,7 @@ router.use('/venta' , VentaRouter)
 
 //Lista Precios
 router.use('/lista_Precio' , Lista_Precio)
-router.use('/detalle_precio', DetalleLista_Precio)
+router.use('/detalle_lista_precio', DetalleLista_Precio)
 
 
 router.use('/facturas_proveedor', factura_compra_ProveedorRouter)

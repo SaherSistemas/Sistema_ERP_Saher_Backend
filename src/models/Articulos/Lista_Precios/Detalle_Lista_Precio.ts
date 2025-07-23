@@ -1,5 +1,4 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
-import Empresa_Sucursal from "../../Empresa_Sucursal/Empresa_Sucursal";
 import ListaPrecio from "./Lista_Precio";
 import Articulo from "../Articulo";
 
