@@ -122,7 +122,7 @@ router.use('/compras/detalle_compra_recibido', detalleCompraRecibidoRouter)
 router.use('/lotes_solicitados', lotesSolicitadoRouter)
 
 
-router.use('/ClienteMostrador', ClienteMostradorRouter)
+router.use('/cliente', ClienteMostradorRouter)
 router.use('/tipo_cliente', TipoClienteRouter)
 router.use('/beneficio_cliente', BeneficioClienteRouter)
 
