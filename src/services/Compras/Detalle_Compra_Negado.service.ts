@@ -15,8 +15,11 @@ export const Detalle_Compra_NegadosService = {
             fecha_limite_recuperacion: new Date(new Date().setDate(new Date().getDate() + 10))
         }));
         return await Detalle_Compra_NegadosRepository.agregarProductosNegados(detallesNegados);
-    }
+    },
 
+    recuperadoTrue: async(id_detcompneg:string)=>{
+        return await Detalle_Compra_NegadosRepository.recuperadoTrue(id_detcompneg)
+    }
 
 
 }
