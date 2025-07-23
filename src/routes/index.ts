@@ -139,6 +139,18 @@ router.use('/corte_caja', Corte_CajaRouter)
 //Stock
 router.use('/stock', Stock_SucursalRouter)
 
+//Lote sucursal
+router.use('/lote_sucursal' , Lote_ArticuloSucursalRouter)
+router.use('/lote_usado_venta' , Lote_Usado_VentaRouter)
+
+//Venta
+router.use('/detalle_venta' , Detalle_VentaRouter)
+router.use('/venta' , VentaRouter)
+
+//Lista Precios
+router.use('/lista_Precio' , Lista_Precio)
+router.use('/detalle_lista_precio', DetalleLista_Precio)
+
 
 router.use('/facturas_proveedor', factura_compra_ProveedorRouter)
 export default router

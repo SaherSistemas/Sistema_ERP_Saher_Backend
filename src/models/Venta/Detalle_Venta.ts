@@ -26,7 +26,7 @@ class DetalleVenta extends Model{
         type : DataType.UUID
     }) declare id_artic: string;
     @BelongsTo(() => Articulo)
-    articulo!: Articulo;
+    articulo: Articulo;
 
     @Column({
         type : DataType.INTEGER

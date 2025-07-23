@@ -113,7 +113,6 @@ class Articulo extends Model {
     @BelongsTo(() => UnidadMedida)
     unidadMedida: UnidadMedida;
 
-
     @BelongsTo(() => Presentacion_Articulo)
     presentacion: Presentacion_Articulo;
 
@@ -128,6 +127,8 @@ class Articulo extends Model {
 
     @BelongsTo(() => Categoria_Articulo)
     categoria: Categoria_Articulo
+
+    
 
 }
 

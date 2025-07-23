@@ -5,12 +5,15 @@ import { v4 as uuidv4 } from 'uuid';
 import LoteUsadoVenta from "../../models/LotesYCaducidad/Lote_Usado_Venta";
 import { Sequelize } from "sequelize-typescript";
 import { LoteUsadoVentaRepository } from "../LotesYCaducidad/Lote_Usado_Venta.repository";
+import Articulo from "../../models/Articulos/Articulo";
 
 export const DetalleVentaRepository = {
        getAll: async () => {
-    return await DetalleVenta.findAll({
+        return await DetalleVenta.findAll({
         include: [
-            { model: LoteUsadoVenta }
+            { model: LoteUsadoVenta },
+            { model: Articulo, attributes: ['des_artic'] } // trae solo el nombre del artículo
+
         ]
     });
 },
@@ -20,7 +23,9 @@ export const DetalleVentaRepository = {
          if (isUUID(id_detalle_venta)) {
             return await DetalleVenta.findByPk(id_detalle_venta, {
                include: [
-                { model: LoteUsadoVenta  }
+                { model: LoteUsadoVenta  },
+                { model: Articulo, attributes: ['des_artic'] } // trae solo el nombre del artículo
+     
         ]
      });
     }

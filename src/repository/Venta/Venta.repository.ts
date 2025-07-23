@@ -47,7 +47,7 @@ export const VentaRepository = {
         const venta = await Venta.create({
         id_venta: nuevoUUID,
         id_cliente: data.id_cliente,
-        id_user: data.id_user,
+        id_user: data.id_empleado,
         id_empre:data.id_empre,
         tipo_venta: data.tipo_venta,
         id_metodo_pago : data.id_metodo_pago,
