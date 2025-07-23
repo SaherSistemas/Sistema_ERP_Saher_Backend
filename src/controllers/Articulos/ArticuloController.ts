@@ -30,7 +30,7 @@ export class ArticuloController {
         try {
             const input = req.params.cod_barr_artic;
             const { cantidad, cod_barr_artic } = parseCantidadYCodigo(input);
-            const id_cliente = req.query.id_cliente as string | undefined;
+            const cliente  = req.query.id_cliente as string | undefined;
 
             if (!cod_barr_artic) {
                 res.status(400).json({ message: 'cod_barr_artic es obligatorio' });
@@ -39,9 +39,9 @@ export class ArticuloController {
             const resultado = await ArticuloService.getAllParaVenta(
                 Number(cod_barr_artic),
                 cantidad,
-                id_cliente || null);
-
+                cliente  || null);
             res.status(200).json(resultado);
+
         } catch (error: any) {
             console.error('Error en getAllParaVenta:', error.message);
             res.status(500).json({ message: error.message });

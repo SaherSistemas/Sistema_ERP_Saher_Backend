@@ -100,34 +100,42 @@ export const ArticuloRepository = {
     getAllParaVenta: async (
         cod_barr_artic: number, 
         cantidad: number, 
-        id_cliente?: string
+        telefono_cliente?: string
         ) => {
+
+        let id_lista_precio: string;
 
         const articulo = await ArticuloRepository.getByIDFlexible(String(cod_barr_artic));
         if (!articulo) {
         throw new Error('Artículo no encontrado');
         }
 
-        let id_lista_precio: string;
-    
-        if (id_cliente) {
-            const cliente = await Cliente.findByPk(id_cliente);
-            if (!cliente) throw new Error('Cliente no encontrado');
+        if (telefono_cliente) {
+        
+        const cliente = await Cliente.findOne({
+            where: { id_cliente: telefono_cliente }
+        });
 
-            id_lista_precio = cliente.id_lista_precio;
+        if (!cliente) throw new Error('Cliente no encontrado');
+
+        id_lista_precio = cliente.id_lista_precio;
         } else {
-            id_lista_precio = 'c3e5665d-a85f-4da6-ba67-64b89c1b6877'; // Lista de Precios Base
-        }
-            
-        const detallePrecio = await DetalleListaPrecio.findOne({
-            where: {
+            id_lista_precio = 'c3e5665d-a85f-4da6-ba67-64b89c1b6877'; // Lista Base
+    }
+
+
+    const detallePrecio = await DetalleListaPrecio.findOne({
+        where: {
             id_artic: articulo.id_artic,
             id_lista_precio
-            }
-        });
-        const precio_unitario = detallePrecio?.precios ?? 0;
-        
+        }
+    });
+
+    const precio_unitario = detallePrecio?.precios ?? 0;
+
+    
         return {
+            cliente: telefono_cliente,
             articulo: articulo.cod_barr_artic,
             cantidad,
             descripcion: articulo.des_artic,

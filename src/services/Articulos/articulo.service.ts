@@ -6,8 +6,8 @@ export const ArticuloService = {
         return await ArticuloRepository.getAllPag(page, limit, query);
     },
 
-    getAllParaVenta: async ( cod_barr_artic: number, cantidad: number, id_cliente: string | null )=>{
-        return await ArticuloRepository.getAllParaVenta( cod_barr_artic, cantidad);
+    getAllParaVenta: async ( cod_barr_artic: number, cantidad: number, telefono_cliente: string | null )=>{
+        return await ArticuloRepository.getAllParaVenta(cod_barr_artic, cantidad, telefono_cliente);
     },
 
 
