@@ -116,7 +116,7 @@ export const ArticuloRepository = {
 
             id_lista_precio = cliente.id_lista_precio;
         } else {
-            id_lista_precio = '982d41af-f9b7-4d6e-aa2e-9a6b2c1e0ad4'; // Lista de Precios Base
+            id_lista_precio = 'c3e5665d-a85f-4da6-ba67-64b89c1b6877'; // Lista de Precios Base
         }
             
         const detallePrecio = await DetalleListaPrecio.findOne({

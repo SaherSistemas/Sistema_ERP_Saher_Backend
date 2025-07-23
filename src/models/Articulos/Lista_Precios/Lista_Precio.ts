@@ -10,7 +10,8 @@ class ListaPrecio extends Model {
 
     @PrimaryKey
     @Column({
-        type: DataType.UUID
+        type: DataType.UUID,
+        allowNull: false
     })declare id_lista_precio : string;
 
     @Unique
@@ -18,13 +19,6 @@ class ListaPrecio extends Model {
         type: DataType.INTEGER
     })declare cod_int_lista_precio: number;
     
-    @ForeignKey(() => Empresa_Sucursal)
-    @Column({
-        type: DataType.UUID
-    })declare id_empre: string;
-    @BelongsTo(() => Empresa_Sucursal)
-    empresa_Sucursal : Empresa_Sucursal;
-
     
     @Column({
         type: DataType.STRING(50)

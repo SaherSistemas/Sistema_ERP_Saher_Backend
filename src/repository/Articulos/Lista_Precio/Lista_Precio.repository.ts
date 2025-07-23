@@ -36,7 +36,7 @@ export const ListaPrecioRepository = {
     
     const nuevoID = UltimoId ? UltimoId.cod_int_lista_precio + 1 : 1;
     return await ListaPrecio.create({
-      id_lista_de_precio: nuevoUUID,
+      id_lista_precio: nuevoUUID,
       cod_int_lista_precio: nuevoID,
       ...data,
     });
