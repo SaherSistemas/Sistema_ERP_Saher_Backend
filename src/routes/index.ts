@@ -38,17 +38,18 @@ import tipoIVARouter from './Articulos/Tipo_IVARouter'
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
 
 
-import parametos_CompraRouter from './Compras/Parametros_CompraRouter'
-import comprasRouter from './Compras/ComprasRouter'
-import detalleCompraRouter from './Compras/Detalle_CompraRouter'
 
 import detalleCompraNegadoRouter from './Compras/detalle_Compra_NegadoRouter'
 import detalleCompraRecibidoRouter from './Compras/detalle_Compra_RecibidoRouter'
+import parametos_CompraRouter from './Compras/parametros_CompraRouter'
+import comprasRouter from './Compras/ComprasRouter'
+import detalleCompraRouter from './Compras/detalle_CompraRouter'
 //Lotes y Caducidades
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
 
 //Clientes
 import ClienteRouter from './Clientes/ClienteRouter'
+import ClienteMostradorRouter from './Clientes/ClienteRouter'
 import TipoClienteRouter from './Clientes/TipoClienteRouter'
 import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter'
 
@@ -73,6 +74,7 @@ import VentaRouter from "./Venta/VentaRouter"
 //Lista Precios
 import Lista_Precio from "./Articulos/Lista_Precio/Lista_PrecioRouter"
 import DetalleLista_Precio from "./Articulos/Lista_Precio/Detalle_Lista_PrecioRouter"
+
 
 
 import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
@@ -134,6 +136,7 @@ router.use('/lotes_solicitados', lotesSolicitadoRouter)
 
 
 router.use('/cliente', ClienteRouter)
+router.use('/cliente', ClienteMostradorRouter)
 router.use('/tipo_cliente', TipoClienteRouter)
 router.use('/beneficio_cliente', BeneficioClienteRouter)
 
@@ -151,15 +154,15 @@ router.use('/corte_caja', Corte_CajaRouter)
 router.use('/stock', Stock_SucursalRouter)
 
 //Lote sucursal
-router.use('/lote_sucursal' , Lote_ArticuloSucursalRouter)
-router.use('/lote_usado_venta' , Lote_Usado_VentaRouter)
+router.use('/lote_sucursal', Lote_ArticuloSucursalRouter)
+router.use('/lote_usado_venta', Lote_Usado_VentaRouter)
 
 //Venta
-router.use('/detalle_venta' , Detalle_VentaRouter)
-router.use('/venta' , VentaRouter)
+router.use('/detalle_venta', Detalle_VentaRouter)
+router.use('/venta', VentaRouter)
 
 //Lista Precios
-router.use('/lista_Precio' , Lista_Precio)
+router.use('/lista_Precio', Lista_Precio)
 router.use('/detalle_lista_precio', DetalleLista_Precio)
 
 

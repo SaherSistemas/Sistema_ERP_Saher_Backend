@@ -48,7 +48,8 @@ export class ComprasController {
     static finalizarCompras = async (req: Request, res: Response) => {
         try {
             const { id_empresa_sucursal } = req.params;
-            const modificarCompras = await CompraService.finalizarCompras(id_empresa_sucursal)
+            const { id_empleado_finaliza } = req.body;
+            const modificarCompras = await CompraService.finalizarCompras(id_empresa_sucursal, id_empleado_finaliza)
             res.status(200).json({ mensaje: "Compra finalizada" })
         } catch (error) {
             console.error(error);

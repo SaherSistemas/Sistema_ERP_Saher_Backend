@@ -113,6 +113,7 @@ class Articulo extends Model {
     @BelongsTo(() => UnidadMedida)
     unidadMedida: UnidadMedida;
 
+
     @BelongsTo(() => Presentacion_Articulo)
     presentacion: Presentacion_Articulo;
 

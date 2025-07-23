@@ -7,5 +7,4 @@ router.post('/', Detalle_Compra_NegadoController.createDetalleCompraNegados)
 
 
 
-
 export default router

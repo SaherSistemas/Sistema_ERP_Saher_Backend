@@ -12,4 +12,5 @@ router.get('/:id_articulo', ArticuloController.getByID);
 router.put('/:id_articulo', ArticuloController.actualizarByID);
 
 
+
 export default router;
