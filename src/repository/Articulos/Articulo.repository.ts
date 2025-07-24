@@ -108,14 +108,12 @@ export const ArticuloRepository = {
         if (telefono_cliente) {
 
             const cliente = await Cliente.findOne({
-                where: { id_cliente: telefono_cliente }
-            });
-
-            if (!cliente) throw new Error('Cliente no encontrado');
-
+                where: { telefono_cliente } 
+            }); if (!cliente) throw new Error('Cliente no encontrado');
             id_lista_precio = cliente.id_lista_de_precio;
+
         } else {
-            id_lista_precio = 'c3e5665d-a85f-4da6-ba67-64b89c1b6877'; // Lista Base
+            id_lista_precio = '570a0829-1a98-46ae-aab4-805750bbfaf3';
         }
 
 
@@ -130,7 +128,7 @@ export const ArticuloRepository = {
 
 
         return {
-            cliente: telefono_cliente,
+            cliente: telefono_cliente || 'General',
             articulo: articulo.cod_barr_artic,
             cantidad,
             descripcion: articulo.des_artic,

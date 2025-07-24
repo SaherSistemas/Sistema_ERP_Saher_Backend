@@ -6,6 +6,7 @@ import { isUUID } from "../../../utils/validaciones";
 export const ListaPrecioRepository = {
   getAll: async () => {
     return await ListaPrecio.findAll();
+
   },
 
   getById: async (id: string) => {

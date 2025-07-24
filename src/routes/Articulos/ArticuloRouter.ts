@@ -3,7 +3,7 @@ import { ArticuloController } from "../../controllers/Articulos/ArticuloControll
 const router = Router();
 
 router.post('/', ArticuloController.create);
-router.get('/paraVenta/:cod_barr_artic', ArticuloController.getAllParaVenta );
+router.get('/paraVenta/:cantidad/:cod_barr_artic', ArticuloController.getAllParaVenta );
 router.get('/', ArticuloController.getAllPaginados);
 router.get('/paginaDeArticulo/:id_artic', ArticuloController.getPaginaArticuloParaContinuarCompra)
 router.get('/paraCompra/:id_empresasucursal', ArticuloController.getAllParaCompra);
