@@ -4,7 +4,7 @@ import { LotesSolicitadoCompraRepository } from "../../repository/LotesYCaducida
 export const LotesSolicitadoCompraService = {
 
     guardarLoteCompraSolicitada: async (data: any) => {
-        const { id_comp } = data;
+        const { id_comp, id_empleado_registro_lotes } = data;
 
 
         let totalFactura = 0;
@@ -38,10 +38,11 @@ export const LotesSolicitadoCompraService = {
             };
         });
 
-        console.log(`🧾 Total de la factura calculado: $${totalFactura.toFixed(2)}`);
+        //  console.log(`🧾 Total de la factura calculado: $${totalFactura.toFixed(2)}`);
 
         const resultado = await LotesSolicitadoCompraRepository.create({
             id_comp: data.id_comp,
+            id_empleado_registro_lotes: id_empleado_registro_lotes,
             productos: productosMapeados
         });
 

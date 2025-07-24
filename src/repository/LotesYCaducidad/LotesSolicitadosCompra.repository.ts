@@ -12,7 +12,7 @@ export const LotesSolicitadoCompraRepository = {
         });
     },
     create: async (data: IDataLotesRecibidos) => {
-        const { id_comp, productos } = data;
+        const { id_comp, productos, id_empleado_registro_lotes } = data;
 
         const lotesSolicitados = productos.flatMap((producto) => {
             return producto.lotes.map((lote) => ({
@@ -45,7 +45,7 @@ export const LotesSolicitadoCompraRepository = {
             precio_detcomprec: producto.precio,
         }));
 
-        await Compra_ProveedorRepository.actualizarEstadoAlGuardarLotes(id_comp)
+        await Compra_ProveedorRepository.actualizarEstadoAlGuardarLotes(id_comp, id_empleado_registro_lotes)
 
 
 

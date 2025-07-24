@@ -8,6 +8,7 @@ import { ICreateCompra_Proveedor } from '../../interface/Compras/Compra_Proveedo
 import Compra_General from '../../models/Compra/Compra_General';
 import Factura_Compra_Proveedor from '../../models/Proveedor/Factura_Compra_Proveedor';
 import { Factura_Compra_ProveedorRepository } from '../Proveedor/Factura_Compra_Proveedor.repository';
+import { EmpleadoRepository } from '../Usuarios/Empleado.repository';
 
 export const Compra_ProveedorRepository = {
 
@@ -17,6 +18,7 @@ export const Compra_ProveedorRepository = {
            A            CAPTURADA                                La captura ha sido completada pero aun no se ha enviado al proveedor.
            E	        ENVIADA	                                 La orden ha sido enviada al proveedor.
            L            CAPTURANDO LOTES                         La compra se estan capturando los lotes.
+           K            LOTES REGISTRADOS	                     Los lotes han sido registrados y se está esperando la recepción de los productos.
            R	        RECIBIDA	                             Todos los productos han sido recibidos correctamente.(ESPERANDO CHEQUEO Y CONTEO)
            F	        COMPLETADA	                             Fue recibido y se cerró la compra.
            D            COMPLETADA PERO CON DEVOLUCION           La compra fue completada pero tiene devolucion.    
@@ -146,11 +148,13 @@ export const Compra_ProveedorRepository = {
         })
     },
 
-    actualizarEstadoAlGuardarLotes: async (id_comp: string) => {
+    actualizarEstadoAlGuardarLotes: async (id_comp: string, id_empleado_registro_lotes: string) => {
         const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp)
+        const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado_registro_lotes);
         compraProveedor.update({
             fin_de_registro_lotes: new Date(),
-            estado_comp: 'K'
+            estado_comp: 'K',
+            id_empleado_registro_lotes: empleado.id_empleado
         })
     },
 

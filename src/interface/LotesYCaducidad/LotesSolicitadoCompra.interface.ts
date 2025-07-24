@@ -13,5 +13,6 @@ export interface IDetalleSolicitado {
 
 export interface IDataLotesRecibidos {
     id_comp: string;
+    id_empleado_registro_lotes: string
     productos: IDetalleSolicitado[];
 }
