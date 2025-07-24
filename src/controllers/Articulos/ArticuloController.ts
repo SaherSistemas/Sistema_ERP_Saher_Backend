@@ -15,21 +15,11 @@ export class ArticuloController {
             res.status(500).json({ message: "Error al obtener los artículos." });
         }
     }
+    
     static getAllParaVenta = async (req: Request, res: Response) => {
-
-        const parseCantidadYCodigo = (input: string): { cantidad: number; cod_barr_artic: string } => {
-            if (input.includes('*')) {
-                const [cantidadStr, cod_barr_artic] = input.split('*');
-                const cantidad = Number(cantidadStr);
-                if (isNaN(cantidad) || cantidad <= 0) throw new Error('Cantidad inválida');
-                return { cantidad, cod_barr_artic };
-            }
-            return { cantidad: 1, cod_barr_artic: input };
-        };
         try {
-            const input = req.params.cod_barr_artic;
-            const { cantidad, cod_barr_artic } = parseCantidadYCodigo(input);
-            const cliente = req.query.id_cliente as string | undefined;
+            const { cantidad, cod_barr_artic } = req.params;
+            const telefonocliente = req.query.telefono_cliente as string | undefined;
 
             if (!cod_barr_artic) {
                 res.status(400).json({ message: 'cod_barr_artic es obligatorio' });
@@ -37,8 +27,8 @@ export class ArticuloController {
 
             const resultado = await ArticuloService.getAllParaVenta(
                 Number(cod_barr_artic),
-                cantidad,
-                cliente || null);
+                Number(cantidad),
+                telefonocliente || null);
             res.status(200).json(resultado);
 
         } catch (error: any) {

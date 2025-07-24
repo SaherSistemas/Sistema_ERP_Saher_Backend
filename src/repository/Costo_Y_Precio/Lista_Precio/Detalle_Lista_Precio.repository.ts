@@ -1,10 +1,19 @@
 import { ICreateOrUpdateIDetalleListaPrecio, IDetalleListaDePrecio } from "../../../interface/Articulos/Lista_Precios/Detalle_Lista_Pecios.interface";
 import DetalleListaPrecio from "../../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio";
 import { v4 as uuidv4 } from "uuid";
+import ListaPrecio from "../../../models/Costo_Y_Precio/Lista_Precios/Lista_Precio";
 
 export const DetalleListaPreciosRepository = {
+  
   getAll: async () => {
-    return await DetalleListaPrecio.findAll();
+    return await DetalleListaPrecio.findAll({
+      include : [
+        {
+          model: ListaPrecio,
+          attributes: ['nombre_lista_precio']
+        }
+      ]
+    });
   },
 
   getById: async (id: string) => {
