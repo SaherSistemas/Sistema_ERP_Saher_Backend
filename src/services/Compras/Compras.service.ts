@@ -70,13 +70,21 @@ export const CompraService = {
 
     },
 
-    finalizarCompras: async (id_empresa_sucursal: string, id_empleado_finaliza:string) => {
+    finalizarCompras: async (id_empresa_sucursal: string, id_empleado_finaliza: string) => {
         return await CompraRepository.actualizarEstadoCompras(id_empresa_sucursal, id_empleado_finaliza)
     },
 
 
     getCompraProveedorPorIdGeneral: async (id_compra_general: string) => {
         return await Compra_ProveedorRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
+    },
+
+    getAllCompras_ProveedorParaRecibir: async (id_empresa_sucursal: string) => {
+        return await Compra_ProveedorRepository.getAllCompras_ProveedorParaRecibir(id_empresa_sucursal)
+    },
+
+    marcarCompraProveedorComoRecibida: async (id_comp: string) => {
+        return await Compra_ProveedorRepository.marcarCompraProveedorComoRecibida(id_comp);
     },
 
     articulosDetalleCompraProveedor: async (id_comp: string) => {

@@ -82,10 +82,19 @@ class Proveedor extends Model {
     declare activo_prove: boolean
 
     @Column({
-        type: DataType.SMALLINT,
+        type: DataType.STRING, // Ej: '1 days 6 hours'
         allowNull: false
     })
-    declare plazoentrega_prove: number
+    declare plazoentrega_prove: string; // promedio actual en texto
+
+
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+    })
+    declare num_entregas_prove: number; // cantidad de entregas recibidas
+
 
     @Column({
         type: DataType.STRING(20),

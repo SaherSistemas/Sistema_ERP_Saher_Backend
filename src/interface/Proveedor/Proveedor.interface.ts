@@ -11,7 +11,8 @@ export interface IProveedor {
     diascre_prove: number;
     limicre_prove: number;
     activo_prove: boolean;
-    plazoentrega_prove: number;
+    plazoentrega_prove: string;
+    num_entregas_prove: number;
     ctabanca_prove: string;
     condpago_prove: string;
     createdAt?: Date;

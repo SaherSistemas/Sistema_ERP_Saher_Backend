@@ -12,4 +12,14 @@ export class Detalle_Compra_RecibidoController {
             res.status(500).json({ message: "Error al crear los detalles de compra negados." });
         }
     }
+    static getAllDetallesDeCompraRecibidosDeUnaCompra = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const detallesRecibidos = await Detalle_Compra_RecibidoService.getAllDetallesDeCompraRecibidosDeUnaCompra(id_comp);
+            res.status(200).json({ mensaje: "Detalles de compra recibidos obtenidos correctamente.", detallesRecibidos });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al obtener los detalles de compra recibidos." });
+        }
+    }
 }

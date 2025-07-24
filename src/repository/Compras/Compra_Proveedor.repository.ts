@@ -9,6 +9,7 @@ import Compra_General from '../../models/Compra/Compra_General';
 import Factura_Compra_Proveedor from '../../models/Proveedor/Factura_Compra_Proveedor';
 import { Factura_Compra_ProveedorRepository } from '../Proveedor/Factura_Compra_Proveedor.repository';
 import { EmpleadoRepository } from '../Usuarios/Empleado.repository';
+import { Sequelize } from 'sequelize-typescript';
 
 export const Compra_ProveedorRepository = {
 
@@ -40,6 +41,86 @@ export const Compra_ProveedorRepository = {
         });
     },
 
+    getAllCompras_ProveedorParaRecibir: async (id_empresa_sucursal: string) => {
+        const comprasGenerales = await Compra_General.findAll({
+            where: { id_empresa_sucursal }
+        });
+
+        return await Compra_Proveedor.findAll({
+            include: [Proveedor],
+            where: {
+                id_compra_general: comprasGenerales.map(compra => compra.id_compra_general)
+            },
+            order: [
+                [Sequelize.literal('fecha_mercancia_recibida_proveedor IS NOT NULL'), 'ASC'], // NULL primero
+                ['fecha_mercancia_recibida_proveedor', 'ASC'] // Luego fechas en orden ascendente
+            ]
+        });
+    },
+
+    marcarCompraProveedorComoRecibida: async (id_comp: string) => {
+        const compraProveedor = await Compra_Proveedor.findByPk(id_comp);
+
+        if (!compraProveedor) {
+            throw new Error('Compra del proveedor no encontrada');
+        }
+
+        let seActualizoCompra = false;
+
+        // Si aún no ha sido marcada como recibida, actualízala
+        if (compraProveedor.fecha_mercancia_recibida_proveedor == null) {
+            await compraProveedor.update({
+                fecha_mercancia_recibida_proveedor: new Date(),
+                estado_comp: 'R'
+            });
+            seActualizoCompra = true;
+        }
+
+        // Buscar proveedor
+        const proveedor = await Proveedor.findByPk(compraProveedor.idprove_comp);
+        if (!proveedor) {
+            throw new Error('Proveedor no encontrado');
+        }
+
+        // Funciones auxiliares
+        const intervalToMinutes = (interval: string): number => {
+            const match = interval.match(/(\d+)\s*days?\s*(\d+)?\s*hours?/);
+            if (!match) return 0;
+            const days = parseInt(match[1] || '0');
+            const hours = parseInt(match[2] || '0');
+            return days * 24 * 60 + hours * 60;
+        };
+
+        const minutesToIntervalString = (minutes: number): string => {
+            const days = Math.floor(minutes / 1440);
+            const hours = Math.floor((minutes % 1440) / 60);
+            return `${days} dias ${hours} horas`;
+        };
+
+        // Calcular promedio actualizado
+        const plazoEntrega = intervalToMinutes(proveedor.plazoentrega_prove);
+        const entregasPrevias = proveedor.num_entregas_prove || 0;
+
+        const nuevoPlazoCompraMin = Math.floor(
+            (new Date().getTime() - new Date(compraProveedor.fecha_enviada_proveedor).getTime()) / 60000
+        );
+
+        const nuevoPromedioMin = Math.round(
+            (plazoEntrega * entregasPrevias + nuevoPlazoCompraMin) / (entregasPrevias + 1)
+        );
+
+        const nuevoIntervalo = minutesToIntervalString(nuevoPromedioMin);
+
+        await proveedor.update({
+            plazoentrega_prove: nuevoIntervalo,
+            num_entregas_prove: entregasPrevias + 1
+        });
+
+        return {
+            actualizado: seActualizoCompra,
+            nuevoPromedio: nuevoIntervalo
+        };
+    },
 
 
 

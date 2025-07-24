@@ -10,6 +10,10 @@ router.get('/compraProveedorPorGeneral/:id_compra_general', ComprasController.co
 router.get('/articulosGenerarPDF/:id_comp', ComprasController.generarPDFListado)
 router.get('/nombreArchivoPDF/:id_comp', ComprasController.nombreArchivoPDF)
 
+
+router.get('/compraProveedorPorRecibir/:id_empresa_sucursal', ComprasController.getAllCompras_ProveedorParaRecibir)
+router.patch('/marcarRecibida/:id_comp', ComprasController.marcarCompraProveedorComoRecibida)
+
 router.patch('/finalizar/:id_empresa_sucursal', ComprasController.finalizarCompras)
 
 

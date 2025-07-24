@@ -68,7 +68,28 @@ export class ComprasController {
         }
     }
 
+    static getAllCompras_ProveedorParaRecibir = async (req: Request, res: Response) => {
+        try {
+            const { id_empresa_sucursal } = req.params;
+            const comprasProveedorPorRecibir = await CompraService.getAllCompras_ProveedorParaRecibir(id_empresa_sucursal);
+            res.status(200).json({ mensaje: "Compras Proveedor para recibir.", compraProveedor: comprasProveedorPorRecibir })
+        } catch (error) {
+            // console.error(error);
+            res.status(500).json({ message: "Error al obtener." })
+        }
+    }
 
+
+    static marcarCompraProveedorComoRecibida = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const compraProveedorRecibida = await CompraService.marcarCompraProveedorComoRecibida(id_comp);
+            res.status(200).json({ mensaje: "Compra proveedor marcada como recibida.", compraProveedor: compraProveedorRecibida });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al marcar la compra proveedor como recibida." });
+        }
+    }
     /*
         static articulosGenerarPDF = async (req: Request, res: Response) => {
             try {

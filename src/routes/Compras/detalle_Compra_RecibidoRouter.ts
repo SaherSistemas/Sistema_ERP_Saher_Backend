@@ -4,7 +4,7 @@ const router = Router();
 
 
 router.post('/', Detalle_Compra_RecibidoController.createDetalleCompraRecibidos)
-
+router.get('/:id_comp', Detalle_Compra_RecibidoController.getAllDetallesDeCompraRecibidosDeUnaCompra)
 
 
 

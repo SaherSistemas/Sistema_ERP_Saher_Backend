@@ -6,5 +6,11 @@ export const Detalle_Compra_RecibidosRepository = {
 
     createDetallesCompraRecibido: async (detallesRecibidos: any[]) => {
         return await Detalle_Compra_Recibidos.bulkCreate(detallesRecibidos)
+    },
+
+    getAllDetallesDeCompraRecibidosDeUnaCompra: async (id_comp: string) => {
+        return await Detalle_Compra_Recibidos.findAll({
+            where: { idcompr_detcomprec: id_comp },
+        });
     }
 }

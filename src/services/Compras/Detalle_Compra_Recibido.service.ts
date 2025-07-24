@@ -11,6 +11,9 @@ export const Detalle_Compra_RecibidoService = {
             precio_detcomprec: productoRec.precio,
         }));
         return await Detalle_Compra_RecibidosRepository.createDetallesCompraRecibido(detallesRecibidos);
+    },
+    getAllDetallesDeCompraRecibidosDeUnaCompra: async (id_comp: string) => {
+        return await Detalle_Compra_RecibidosRepository.getAllDetallesDeCompraRecibidosDeUnaCompra(id_comp);
     }
 
 
