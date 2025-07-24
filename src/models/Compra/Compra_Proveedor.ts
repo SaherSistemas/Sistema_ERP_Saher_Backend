@@ -82,14 +82,14 @@ class Compra_Proveedor extends Model {
     })
     declare fecha_mercancia_recibida_proveedor: Date
 
-    /* // Quién recibió la mercancía
- @ForeignKey(() => Empleado)
- @Column({ type: DataType.UUID })
- declare id_empleado_recibio: string;
- 
- @BelongsTo(() => Empleado, 'id_empleado_recibio')
- empleado_recibio: Empleado;
- */
+    // Quién recibió la mercancía
+    @ForeignKey(() => Empleado)
+    @Column({ type: DataType.UUID })
+    declare id_empleado_recibio: string;
+
+    @BelongsTo(() => Empleado, 'id_empleado_recibio')
+    empleado_recibio: Empleado;
+
     @Column({
         type: DataType.DATE
     })
@@ -101,13 +101,13 @@ class Compra_Proveedor extends Model {
     declare fin_de_registro_lotes: Date
 
 
-    /* // Quién registró los lotes
-     @ForeignKey(() => Empleado)
-     @Column({ type: DataType.UUID })
-     declare id_empleado_registro_lotes: string;
- 
-     @BelongsTo(() => Empleado, 'id_empleado_registro_lotes')
-     empleado_registro_lotes: Empleado;*/
+    // Quién registró los lotes
+    @ForeignKey(() => Empleado)
+    @Column({ type: DataType.UUID })
+    declare id_empleado_registro_lotes: string;
+
+    @BelongsTo(() => Empleado, 'id_empleado_registro_lotes')
+    empleado_registro_lotes: Empleado;
 
     @Column({
         type: DataType.DATE
@@ -120,38 +120,33 @@ class Compra_Proveedor extends Model {
     declare fin_de_checado: Date
 
 
-    /*
-    
-    // Quién checó la mercancía
-@ForeignKey(() => Empleado)
-@Column({ type: DataType.UUID })
-declare id_empleado_checado: string;
 
-@BelongsTo(() => Empleado, 'id_empleado_checado')
-empleado_checado: Empleado;
-    
-    */
+
+    // Quién checó la mercancía
+    @ForeignKey(() => Empleado)
+    @Column({ type: DataType.UUID })
+    declare id_empleado_checado: string;
+
+    @BelongsTo(() => Empleado, 'id_empleado_checado')
+    empleado_checado: Empleado;
+
+
 
     @Column({
         type: DataType.DATE
     })
     declare inicio_acomodo_mercancia: Date
 
-    @Column({
-        type: DataType.DATE
-    })
 
-    /*
-    
     // Quién acomodó la mercancía
-@ForeignKey(() => Empleado)
-@Column({ type: DataType.UUID })
-declare id_empleado_acomodo: string;
+    @ForeignKey(() => Empleado)
+    @Column({ type: DataType.UUID })
+    declare id_empleado_acomodo: string;
 
-@BelongsTo(() => Empleado, 'id_empleado_acomodo')
-empleado_acomodo: Empleado;
+    @BelongsTo(() => Empleado, 'id_empleado_acomodo')
+    empleado_acomodo: Empleado;
 
-    */
+
     declare fin_acomodo_mercancia: Date
     /*  FALTA AGREGAR QUIEN FUE EL QUE HIZO LA COMPRA, ACOMODO  */
 

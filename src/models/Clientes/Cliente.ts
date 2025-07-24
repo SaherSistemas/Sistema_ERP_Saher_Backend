@@ -1,7 +1,7 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
 import Colonia from "../Ubicacion/Colonia"
 import Tipo_Cliente from "./Tipo_Cliente";
-import ListaPrecio from "../Articulos/Lista_Precios/Lista_Precio";
+import ListaPrecio from "../Costo_Y_Precio/Lista_Precios/Lista_Precio";
 import Empleado from "../Usuarios/Empleado";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 
@@ -85,7 +85,8 @@ class Cliente extends Model {
     @Column({
         type: DataType.UUID
     })
-    declare id_lista_precio: string;
+    declare id_lista_de_precio: string;
+
     @BelongsTo(() => ListaPrecio)
     listaPrecio: ListaPrecio;
 

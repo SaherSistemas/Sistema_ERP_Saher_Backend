@@ -72,8 +72,8 @@ import Detalle_VentaRouter from "./Venta/Detalle_VentaRouter"
 import VentaRouter from "./Venta/VentaRouter"
 
 //Lista Precios
-import Lista_Precio from "./Articulos/Lista_Precio/Lista_PrecioRouter"
-import DetalleLista_Precio from "./Articulos/Lista_Precio/Detalle_Lista_PrecioRouter"
+import Lista_Precio from "./Costo_y_Precio/Lista_Precio/Lista_PrecioRouter"
+import DetalleLista_Precio from "./Costo_y_Precio/Lista_Precio/Detalle_Lista_PrecioRouter"
 
 
 

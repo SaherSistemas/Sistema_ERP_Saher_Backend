@@ -17,10 +17,9 @@ import Compra_General from '../../models/Compra/Compra_General';
 import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
 import Detalle_Compra_Solicitado from '../../models/Compra/Detalle_Compra_Solicitado';
 import Detalle_Compra_Negados from '../../models/Compra/Detalle_Compra_Negados';
-import DetalleListaPrecio from '../../models/Articulos/Lista_Precios/Detalle_Lista_Precio';
+import DetalleListaPrecio from '../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio';
 import Stock_sucursal from '../../models/Stock/Stock_Sucursal';
 import Cliente from '../../models/Clientes/Cliente';
-import ListaPrecio from '../../models/Articulos/Lista_Precios/Lista_Precio';
 
 
 type DetalleConTotal = {
@@ -97,43 +96,39 @@ export const ArticuloRepository = {
         };
     },
 
-    getAllParaVenta: async (
-        cod_barr_artic: number, 
-        cantidad: number, 
-        telefono_cliente?: string
-        ) => {
+    getAllParaVenta: async (cod_barr_artic: number, cantidad: number, telefono_cliente?: string) => {
 
         let id_lista_precio: string;
 
         const articulo = await ArticuloRepository.getByIDFlexible(String(cod_barr_artic));
         if (!articulo) {
-        throw new Error('Artículo no encontrado');
+            throw new Error('Artículo no encontrado');
         }
 
         if (telefono_cliente) {
-        
-        const cliente = await Cliente.findOne({
-            where: { id_cliente: telefono_cliente }
-        });
 
-        if (!cliente) throw new Error('Cliente no encontrado');
+            const cliente = await Cliente.findOne({
+                where: { id_cliente: telefono_cliente }
+            });
 
-        id_lista_precio = cliente.id_lista_precio;
+            if (!cliente) throw new Error('Cliente no encontrado');
+
+            id_lista_precio = cliente.id_lista_de_precio;
         } else {
             id_lista_precio = 'c3e5665d-a85f-4da6-ba67-64b89c1b6877'; // Lista Base
-    }
-
-
-    const detallePrecio = await DetalleListaPrecio.findOne({
-        where: {
-            id_artic: articulo.id_artic,
-            id_lista_precio
         }
-    });
 
-    const precio_unitario = detallePrecio?.precios ?? 0;
 
-    
+        const detallePrecio = await DetalleListaPrecio.findOne({
+            where: {
+                id_artic: articulo.id_artic,
+                id_lista_precio
+            }
+        });
+
+        const precio_unitario = detallePrecio?.precios ?? 0;
+
+
         return {
             cliente: telefono_cliente,
             articulo: articulo.cod_barr_artic,
@@ -141,7 +136,7 @@ export const ArticuloRepository = {
             descripcion: articulo.des_artic,
             precio_unitario,
             total: precio_unitario * cantidad
-    };
+        };
 
     },
 

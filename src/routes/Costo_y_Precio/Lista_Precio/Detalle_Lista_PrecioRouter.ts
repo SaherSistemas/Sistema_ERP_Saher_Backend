@@ -4,7 +4,7 @@ const router = Router();
 
 router.get("/", DetalleListaPrecioController.getAll);
 router.post("/", DetalleListaPrecioController.create);
-router.put("/:id_detalle", DetalleListaPrecioController.update);
+router.put("/id_detalle", DetalleListaPrecioController.update);
 
 //router.put("/:id", DetalleListaPrecioController.update);
 // router.delete("/:id", ListaPreciosController.delete);

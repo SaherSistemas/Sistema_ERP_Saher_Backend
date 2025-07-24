@@ -1,4 +1,4 @@
-import { ICreateOrUpdateIDetalleListaPrecio } from "../../../interface/Costo_y_Precio/Lista_Precios/Detalle_Lista_Pecios.interface";
+import { ICreateOrUpdateIDetalleListaPrecio } from "../../../interface/Articulos/Lista_Precios/Detalle_Lista_Pecios.interface";
 import { DetalleListaPreciosRepository } from "../../../repository/Costo_Y_Precio/Lista_Precio/Detalle_Lista_Precio.repository";
 
 export class DetalleListaPrecioService {

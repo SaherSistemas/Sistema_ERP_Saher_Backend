@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import { ArticuloService } from '../../services/Articulos/articulo.service'
-import ListaPrecio from "../../models/Articulos/Lista_Precios/Lista_Precio";
 
 export class ArticuloController {
     static getAllPaginados = async (req: Request, res: Response) => {
@@ -30,7 +29,7 @@ export class ArticuloController {
         try {
             const input = req.params.cod_barr_artic;
             const { cantidad, cod_barr_artic } = parseCantidadYCodigo(input);
-            const cliente  = req.query.id_cliente as string | undefined;
+            const cliente = req.query.id_cliente as string | undefined;
 
             if (!cod_barr_artic) {
                 res.status(400).json({ message: 'cod_barr_artic es obligatorio' });
@@ -39,7 +38,7 @@ export class ArticuloController {
             const resultado = await ArticuloService.getAllParaVenta(
                 Number(cod_barr_artic),
                 cantidad,
-                cliente  || null);
+                cliente || null);
             res.status(200).json(resultado);
 
         } catch (error: any) {

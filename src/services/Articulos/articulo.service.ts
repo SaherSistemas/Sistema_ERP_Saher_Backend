@@ -1,12 +1,11 @@
 import { ICreateOrUpdateArticulo } from "../../interface/Articulos/Articulo.interface";
-import ListaPrecio from "../../models/Articulos/Lista_Precios/Lista_Precio";
 import { ArticuloRepository } from "../../repository/Articulos/Articulo.repository";
 export const ArticuloService = {
     getAllPaginado: async (page: number = 1, limit: number, query: string = '') => {
         return await ArticuloRepository.getAllPag(page, limit, query);
     },
 
-    getAllParaVenta: async ( cod_barr_artic: number, cantidad: number, telefono_cliente: string | null )=>{
+    getAllParaVenta: async (cod_barr_artic: number, cantidad: number, telefono_cliente: string | null) => {
         return await ArticuloRepository.getAllParaVenta(cod_barr_artic, cantidad, telefono_cliente);
     },
 
@@ -40,5 +39,5 @@ export const ArticuloService = {
     updateByID: async (id_articulo: string, data: ICreateOrUpdateArticulo) => {
         return await ArticuloRepository.updateArticulo(id_articulo, data);
     }
-    
+
 }

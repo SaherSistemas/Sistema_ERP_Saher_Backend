@@ -129,7 +129,7 @@ class Articulo extends Model {
     @BelongsTo(() => Categoria_Articulo)
     categoria: Categoria_Articulo
 
-    
+
 
 }
 

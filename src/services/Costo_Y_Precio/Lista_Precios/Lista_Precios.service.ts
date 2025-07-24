@@ -1,4 +1,4 @@
-import { ICreateOrUpdateListaPrecio, IListaDePrecio } from "../../../interface/Costo_y_Precio/Lista_Precios/Lista_Precios.interface";
+import { ICreateOrUpdateListaPrecio, IListaDePrecio } from "../../../interface/Articulos/Lista_Precios/Lista_Precios.interface";
 import { ListaPrecioRepository } from "../../../repository/Costo_Y_Precio/Lista_Precio/Lista_Precio.repository";
 
 export const ListaPrecioService = {

@@ -1,4 +1,4 @@
-import { ICreateOrUpdateListaPrecio, IListaDePrecio } from "../../../interface/Costo_y_Precio/Lista_Precios/Lista_Precios.interface";
+import { ICreateOrUpdateListaPrecio, IListaDePrecio } from "../../../interface/Articulos/Lista_Precios/Lista_Precios.interface";
 import ListaPrecio from "../../../models/Costo_Y_Precio/Lista_Precios/Lista_Precio";
 import { v4 as uuidv4 } from "uuid";
 import { isUUID } from "../../../utils/validaciones";
@@ -36,7 +36,7 @@ export const ListaPrecioRepository = {
 
     const nuevoID = UltimoId ? UltimoId.cod_int_lista_precio + 1 : 1;
     return await ListaPrecio.create({
-      id_lista_de_precio: nuevoUUID,
+      id_lista_precio: nuevoUUID,
       cod_int_lista_precio: nuevoID,
       ...data,
     });
