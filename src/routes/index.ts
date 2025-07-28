@@ -78,6 +78,8 @@ import DetalleLista_Precio from "./Costo_y_Precio/Lista_Precio/Detalle_Lista_Pre
 
 
 import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
+
+import Margen_Ganancia_ListaRouter from './Costo_y_Precio/Margen_Ganancia_ListaRouter'
 const router = Router();
 
 
@@ -130,7 +132,7 @@ router.use('/compras/detalle_compra', detalleCompraRouter)
 router.use('/compras/detalle_compra_negado', detalleCompraNegadoRouter)
 router.use('/compras/detalle_compra_recibido', detalleCompraRecibidoRouter)
 
-
+router.use('/margen_ganancia_lista', Margen_Ganancia_ListaRouter)
 
 router.use('/lotes_solicitados', lotesSolicitadoRouter)
 
