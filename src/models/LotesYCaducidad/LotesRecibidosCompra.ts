@@ -1,4 +1,5 @@
 import { Table, Column, Model, PrimaryKey, DataType, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
+import Detalle_Compra_Recibido from '../Compra/Detalle_Compra_Recibido';
 
 
 @Table({ tableName: 'lotes_recibidos_compra' })
@@ -8,6 +9,8 @@ class LotesRecibidosCompra extends Model {
     @Column(DataType.UUID)
     declare id_loterecibido: string;
 
+
+    @ForeignKey(() => Detalle_Compra_Recibido)
     @Column(DataType.UUID)
     declare id_detallecompr_recibido: string;
 
@@ -29,6 +32,9 @@ class LotesRecibidosCompra extends Model {
 
     @Column(DataType.TEXT)
     declare observacion_lote: string;
+
+    @BelongsTo(() => Detalle_Compra_Recibido)
+    detalleCompraRecibido: Detalle_Compra_Recibido;
 
     /* |------------------------------------------------------------------------------------------------------|
        |     ESTADO_LOTE          ¿QUE SIGNIFCA?                                         ¿SE PERMITE INGRESAR INVENTARIO?        COMENTARIO    |

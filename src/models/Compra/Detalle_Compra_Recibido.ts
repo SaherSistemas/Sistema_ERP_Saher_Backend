@@ -1,6 +1,8 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
 import Compra from './Compra_Proveedor'
 import Articulo from "../Articulos/Articulo";
+import Detalle_Compra_Solicitado from "./Detalle_Compra_Solicitado";
+import LotesRecibidosCompra from "../LotesYCaducidad/LotesRecibidosCompra";
 
 @Table({
     tableName: 'detalle_compra_recibido'
@@ -19,6 +21,12 @@ class Detalle_Compra_Recibido extends Model {
         type: DataType.UUID
     })
     declare idcompr_detcomprec: string
+
+    @ForeignKey(() => Detalle_Compra_Solicitado)
+    @Column(DataType.UUID)
+    declare id_detallecompr_solicitado: string;
+
+
 
     @ForeignKey(() => Articulo)
     @Column({
@@ -41,6 +49,12 @@ class Detalle_Compra_Recibido extends Model {
 
     @BelongsTo(() => Articulo)
     declare articulo: Articulo;
+
+    @BelongsTo(() => Detalle_Compra_Solicitado)
+    detalleCompraSolicitado: Detalle_Compra_Solicitado;
+
+    @HasMany(() => LotesRecibidosCompra)
+    lotesRecibidos: LotesRecibidosCompra[];
 }
 
 export default Detalle_Compra_Recibido

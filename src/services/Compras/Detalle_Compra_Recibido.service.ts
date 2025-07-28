@@ -6,6 +6,7 @@ export const Detalle_Compra_RecibidoService = {
         const detallesRecibidos = productosRecibidos.map(productoRec => ({
             id_detcomprec: uuidv4(),
             idcompr_detcomprec: id_comp,
+            id_detallecompr_solicitado: productoRec.id_detallecompr_solicitado,
             idarticulo_detcomprec: productoRec.idarticulo_detcomprec,
             cantidad_detcomprec: productoRec.cantidad_recibida,
             precio_detcomprec: productoRec.precio,

@@ -14,43 +14,52 @@ export const LotesSolicitadoCompraRepository = {
     create: async (data: IDataLotesRecibidos) => {
         const { id_comp, productos, id_empleado_registro_lotes } = data;
 
-        const lotesSolicitados = productos.flatMap((producto) => {
-            return producto.lotes.map((lote) => ({
+        // Obtener los id_detcomprec relacionados
+        const detalleRecibidoMap = new Map<string, string>();
+
+        for (const producto of productos) {
+            const detalleRecibido = await Detalle_Compra_Recibido.findOne({
+                where: { id_detallecompr_solicitado: producto.id_detallecompr_solicitado },
+            });
+            console.log(`Detalle recibido encontrado para producto ${producto.id_detallecompr_solicitado}:`, detalleRecibido);
+            console.log(detalleRecibido)
+
+            if (detalleRecibido) {
+                detalleRecibidoMap.set(producto.id_detallecompr_solicitado, detalleRecibido.id_detcomprec);
+            } else {
+                throw new Error(`No se encontró el detalle recibido para el producto con ID ${producto.id_detallecompr_solicitado}`);
+            }
+        }
+
+        // Generar lotes solicitados
+        const lotesSolicitados = productos.flatMap((producto) =>
+            producto.lotes.map((lote) => ({
                 id_lotesolicitado: uuidv4(),
                 id_detallecompr_solicitado: producto.id_detallecompr_solicitado,
                 numerolote_lote: lote.numerolote_lote,
                 fechavencimiento_lote: lote.fechavencimiento_lote,
                 cantidad_lote: lote.cantidad_lote,
-            }));
-        });
+            }))
+        );
 
-        const lotesRecibidos = productos.flatMap((producto) =>
-            producto.lotes.map((lote) => ({
+        // Generar lotes recibidos con el id_detcomprec correcto
+        const lotesRecibidos = productos.flatMap((producto) => {
+            const id_detcomprec = detalleRecibidoMap.get(producto.id_detallecompr_solicitado);
+            return producto.lotes.map((lote) => ({
                 id_loterecibido: uuidv4(),
-                id_detallecompr_recibido: producto.id_detallecompr_solicitado, // este es para tabla 2
+                id_detallecompr_recibido: id_detcomprec,
                 numerolote_lote: lote.numerolote_lote,
                 fechavencimiento_lote: lote.fechavencimiento_lote,
                 cantidad_lote: lote.cantidad_lote,
                 observacion_lote: lote.observacion_lote || null,
                 estado_lote: 'O',
                 motivo_ajuste: 'LOTE Y CADUCIDAD CORRECTA',
-            }))
-        );
+            }));
+        });
 
-        const detalleCompraRecibido = productos.map((producto) => ({
-            id_detcomprec: uuidv4(),
-            idcompr_detcomprec: id_comp,
-            idarticulo_detcomprec: producto.id_detallecompr_solicitado,
-            cantidad_detcomprec: producto.lotes.reduce((sum, l) => sum + l.cantidad_lote, 0),
-            precio_detcomprec: producto.precio,
-        }));
-
-        await Compra_ProveedorRepository.actualizarEstadoAlGuardarLotes(id_comp, id_empleado_registro_lotes)
-
-
+        await Compra_ProveedorRepository.actualizarEstadoAlGuardarLotes(id_comp, id_empleado_registro_lotes);
 
         await LotesRecibidosCompra.bulkCreate(lotesRecibidos);
-
         return await Lotes_Solicitado_Compra.bulkCreate(lotesSolicitados);
     }
 

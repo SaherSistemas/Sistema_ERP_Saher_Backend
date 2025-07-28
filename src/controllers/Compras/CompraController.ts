@@ -83,7 +83,8 @@ export class ComprasController {
     static marcarCompraProveedorComoRecibida = async (req: Request, res: Response) => {
         try {
             const { id_comp } = req.params;
-            const compraProveedorRecibida = await CompraService.marcarCompraProveedorComoRecibida(id_comp);
+            const { id_empleado } = req.body
+            const compraProveedorRecibida = await CompraService.marcarCompraProveedorComoRecibida(id_comp,id_empleado);
             res.status(200).json({ mensaje: "Compra proveedor marcada como recibida.", compraProveedor: compraProveedorRecibida });
         } catch (error) {
             console.error(error);

@@ -83,8 +83,8 @@ export const CompraService = {
         return await Compra_ProveedorRepository.getAllCompras_ProveedorParaRecibir(id_empresa_sucursal)
     },
 
-    marcarCompraProveedorComoRecibida: async (id_comp: string) => {
-        return await Compra_ProveedorRepository.marcarCompraProveedorComoRecibida(id_comp);
+    marcarCompraProveedorComoRecibida: async (id_comp: string, id_empleado:string) => {
+        return await Compra_ProveedorRepository.marcarCompraProveedorComoRecibida(id_comp, id_empleado);
     },
 
     articulosDetalleCompraProveedor: async (id_comp: string) => {
