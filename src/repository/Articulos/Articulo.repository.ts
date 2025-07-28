@@ -113,7 +113,8 @@ export const ArticuloRepository = {
             id_lista_precio = cliente.id_lista_de_precio;
 
         } else {
-            id_lista_precio = '570a0829-1a98-46ae-aab4-805750bbfaf3';
+            id_lista_precio = '0012e739-4940-42a9-ab26-4ce32ebf708c';
+            
         }
 
 
