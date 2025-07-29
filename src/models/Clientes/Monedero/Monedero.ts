@@ -12,7 +12,7 @@ import Cliente from "../Cliente";
 @Table({
   tableName: "monedero_cliente",
 })
-class MonederoCliente extends Model {
+class Monedero extends Model {
   @PrimaryKey
   @Column({
     type: DataType.UUID,
@@ -44,4 +44,4 @@ class MonederoCliente extends Model {
   cliente: Cliente;
 }
 
-export default MonederoCliente;
+export default Monedero;

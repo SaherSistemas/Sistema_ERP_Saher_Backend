@@ -41,9 +41,9 @@ import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
 
 import detalleCompraNegadoRouter from './Compras/detalle_Compra_NegadoRouter'
 import detalleCompraRecibidoRouter from './Compras/detalle_Compra_RecibidoRouter'
-import parametos_CompraRouter from './Compras/parametros_CompraRouter'
+// import parametos_CompraRouter from './Compras/parametros_CompraRouter'
 import comprasRouter from './Compras/ComprasRouter'
-import detalleCompraRouter from './Compras/detalle_CompraRouter'
+// import detalleCompraRouter from './Compras/detalle_CompraRouter'
 //Lotes y Caducidades
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
 
@@ -52,7 +52,7 @@ import ClienteRouter from './Clientes/ClienteRouter'
 import ClienteMostradorRouter from './Clientes/ClienteRouter'
 import TipoClienteRouter from './Clientes/TipoClienteRouter'
 import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter'
-
+import MonederoRouter from './Clientes/Monedero/MonederoRouter'
 //Caja
 import MetodoPagoRouter from './Caja/Metodo_de_PagoRouter'
 import Movimiento_CajaRouter from './Caja/Movimiento_CajaRouter';
@@ -125,9 +125,9 @@ router.use('/prioridades_articulo', tipo_ArticuloRouter)
 router.use('/empresas_sucursal', empresa_SucursalRouter)
 
 
-router.use('/parametros_compra', parametos_CompraRouter)
+// router.use('/parametros_compra', parametos_CompraRouter)
 router.use('/compras', comprasRouter)
-router.use('/compras/detalle_compra', detalleCompraRouter)
+// router.use('/compras/detalle_compra', detalleCompraRouter)
 
 router.use('/compras/detalle_compra_negado', detalleCompraNegadoRouter)
 router.use('/compras/detalle_compra_recibido', detalleCompraRecibidoRouter)
@@ -141,6 +141,9 @@ router.use('/cliente', ClienteRouter)
 router.use('/cliente', ClienteMostradorRouter)
 router.use('/tipo_cliente', TipoClienteRouter)
 router.use('/beneficio_cliente', BeneficioClienteRouter)
+
+
+router.use('/monedero', MonederoRouter)
 
 
 

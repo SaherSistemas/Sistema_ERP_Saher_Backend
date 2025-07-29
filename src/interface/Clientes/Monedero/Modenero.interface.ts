@@ -1,4 +1,4 @@
-export interface IMonederoCliente{
+export interface IMonedero{
     id_monedero:string;
     saldo_monedero:number;
     fecha_creacion:Date;
@@ -6,7 +6,7 @@ export interface IMonederoCliente{
     id_cliente:string;
 }
 
-export interface ICreateOrUpdateMonederoCliente{
+export interface ICreateOrUpdateMonedero{
     saldo_monedero:number;
     fecha_creacion:Date;
     fecha_expiro:Date;
