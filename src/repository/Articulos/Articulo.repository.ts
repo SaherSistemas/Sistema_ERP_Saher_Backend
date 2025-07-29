@@ -38,7 +38,7 @@ export const ArticuloRepository = {
             ? {
                 [Op.or]: [
                     { des_artic: { [Op.iLike]: `%${query}%` } },
-                    { des_artic: { [Op.iLike]: `%${query}%` } },
+                    { des_gener_artic: { [Op.iLike]: `%${query}%` } },
                     Sequelize.where(Sequelize.cast(Sequelize.col('cod_barr_artic'), 'TEXT'), {
                         [Op.iLike]: `%${query}%`
                     }),
@@ -53,6 +53,7 @@ export const ArticuloRepository = {
             where: whereClause,
             offset,
             limit,
+            order: [['cod_int_artic', 'ASC']],
             include: [
                 {
                     model: Temporabilidad,
@@ -97,24 +98,21 @@ export const ArticuloRepository = {
     },
 
     getAllParaVenta: async (cod_barr_artic: number, cantidad: number, telefono_cliente?: string) => {
-
         let id_lista_precio: string;
-
         const articulo = await ArticuloRepository.getByIDFlexible(String(cod_barr_artic));
         if (!articulo) {
             throw new Error('Artículo no encontrado');
         }
-
         if (telefono_cliente) {
-
             const cliente = await Cliente.findOne({
-                where: { telefono_cliente } 
-            }); if (!cliente) throw new Error('Cliente no encontrado');
+                where: { telefono_cliente }
+            });
+             if (!cliente) throw new Error('Cliente no encontrado');
             id_lista_precio = cliente.id_lista_de_precio;
 
         } else {
             id_lista_precio = '0012e739-4940-42a9-ab26-4ce32ebf708c';
-            
+
         }
 
 

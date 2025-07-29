@@ -5,7 +5,9 @@ import { IMargen_Ganancia_ListaCreate } from "../../interface/Costo_y_Precio/Mar
 
 export const Margen_Ganancia_ListaRepository = {
     getAll: async () => {
-        return await Margen_Ganancia_Lista.findAll()
+        return await Margen_Ganancia_Lista.findAll({
+            include: ['lista_precio', 'categoria', 'presentacion'],
+        })
     },
     create: async (data: IMargen_Ganancia_ListaCreate) => {
         return await Margen_Ganancia_Lista.create({
