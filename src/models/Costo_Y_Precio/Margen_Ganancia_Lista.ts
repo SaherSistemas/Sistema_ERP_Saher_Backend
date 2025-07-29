@@ -1,4 +1,4 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
 
 import Lista_Precios from './Lista_Precios/Lista_Precio';
 import Categoria_Articulo from '../Articulos/Categoria_Articulo';
@@ -49,6 +49,14 @@ class Margen_Ganancia_Lista extends Model {
     })
     declare margen: number;
 
+    @BelongsTo(() => Lista_Precios)
+    declare lista_precio: Lista_Precios;
+
+    @BelongsTo(() => Categoria_Articulo)
+    declare categoria: Categoria_Articulo;
+
+    @BelongsTo(() => Presentacion_Articulo)
+    declare presentacion: Presentacion_Articulo;
 }
 
 export default Margen_Ganancia_Lista;
