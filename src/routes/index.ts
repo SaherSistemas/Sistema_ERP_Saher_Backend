@@ -140,7 +140,7 @@ router.use('/lotes_solicitados', lotesSolicitadoRouter)
 router.use('/cliente', ClienteRouter)
 router.use('/cliente', ClienteMostradorRouter)
 router.use('/tipo_cliente', TipoClienteRouter)
-router.use('/beneficio_cliente', BeneficioClienteRouter)
+router.use('/beneficio', BeneficioClienteRouter)
 
 
 router.use('/monedero', MonederoRouter)

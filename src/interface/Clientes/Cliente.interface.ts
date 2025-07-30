@@ -1,3 +1,5 @@
+import { ITipoCliente } from "./Tipo_Cliente.interface";
+
 export interface ICliente {
     id_cliente: string;
     telefono_cliente: string;
@@ -14,6 +16,7 @@ export interface ICliente {
     id_lista_precio: string;
     id_empleado: string;
     id_empre: string;
+        tipo_cliente:ITipoCliente;
 }
 
 export interface ICreateUpdateCliente {
@@ -30,4 +33,6 @@ export interface ICreateUpdateCliente {
     id_lista_precio: string;
     id_empleado: string;
     id_empre: string;
+        tipo_cliente:ITipoCliente;
+
 }

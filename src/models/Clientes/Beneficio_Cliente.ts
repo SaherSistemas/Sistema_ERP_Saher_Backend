@@ -18,6 +18,9 @@ import Tipo_Cliente from "./Tipo_Cliente";
         type: DataType.UUID,
      })
      declare id_tipo_cliente:string;
+     @BelongsTo(() => Tipo_Cliente)
+     tipo_cliente: Tipo_Cliente;
+     
 
     @Column({ 
         type: DataType.STRING(100),
@@ -25,9 +28,9 @@ import Tipo_Cliente from "./Tipo_Cliente";
      declare tipo_beneficio:string;
 
     @Column({ 
-        type: DataType.STRING(100),
+        type: DataType.FLOAT,
      })
-     declare porcentaje_beneficio:string;
+     declare porcentaje_beneficio:number;
 
     @Column({ 
         type: DataType.BOOLEAN,

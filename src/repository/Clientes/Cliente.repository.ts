@@ -4,6 +4,7 @@ import { isUUID } from "../../utils/validaciones";
 import { ICliente, ICreateUpdateCliente } from "../../interface/Clientes/Cliente.interface";
 import { v4 as uuidv4 } from "uuid";
 import { Op, literal } from "sequelize";
+import Tipo_Cliente from "../../models/Clientes/Tipo_Cliente";
 export const ClienteRepository = {
 
         getAll:async () => {
@@ -27,6 +28,21 @@ export const ClienteRepository = {
         });
     }
     },
+
+
+    getDatosBeneficiado : async(telefono_cliente : string ) => {
+        return await Cliente.findOne({
+        where: { telefono_cliente }, // condición
+        include: [
+        {
+            model: Tipo_Cliente,
+            as: "tipo_cliente",  
+            attributes: ["nom_tipo_cliente", "porcentaje_beneficio"],
+        },
+        ],
+    });
+    },
+    
     createCliente: async(data:ICliente) =>{
         return await Cliente.create({
             id_cliente: uuidv4(),
