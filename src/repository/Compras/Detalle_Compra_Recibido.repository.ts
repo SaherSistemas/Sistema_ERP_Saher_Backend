@@ -7,7 +7,7 @@ import Articulo from '../../models/Articulos/Articulo';
 export const Detalle_Compra_RecibidosRepository = {
 
     createDetallesCompraRecibido: async (detallesRecibidos: any[]) => {
-        console.log('Detalles recibidos a crear:', detallesRecibidos);
+        // console.log('Detalles recibidos a crear:', detallesRecibidos);
         return await Detalle_Compra_Recibidos.bulkCreate(detallesRecibidos)
     },
 

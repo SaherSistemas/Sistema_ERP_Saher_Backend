@@ -34,8 +34,7 @@ export class Margen_Ganancia_ListaController {
         try {
             const { id } = req.params;
             const actualizada = await Margen_Ganancia_ListaService.update(id, req.body);
-            if (!actualizada)
-                res.status(200).json(actualizada);
+            res.status(200).json(actualizada);
         } catch (error) {
             res.status(500).json({ message: "Error al actualizar Margen de Ganancia Lista", error });
         }
