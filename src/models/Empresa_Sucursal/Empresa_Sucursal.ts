@@ -1,5 +1,6 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, Default } from "sequelize-typescript";
 import Colonia from "../Ubicacion/Colonia";
+import Grupo_Empresa from "./Grupo_Empresa";
 
 @Table({
     tableName: 'empresa_sucursal'
@@ -55,6 +56,15 @@ class Empresa_Sucursal extends Model {
         type: DataType.BOOLEAN
     })
     declare status_empre: boolean
+
+    @ForeignKey(()=>Grupo_Empresa)
+    @Column({
+        type: DataType.UUID
+    })
+    declare idgrup_empre: string
+
+    @BelongsTo(() => Grupo_Empresa)
+    grupo: Grupo_Empresa;
 
     @BelongsTo(() => Colonia)
     colonia: Colonia;

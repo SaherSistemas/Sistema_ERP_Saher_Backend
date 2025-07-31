@@ -44,7 +44,7 @@ import detalleCompraNegadoRouter from './Compras/detalle_Compra_NegadoRouter'
 import detalleCompraRecibidoRouter from './Compras/detalle_Compra_RecibidoRouter'
 import parametos_CompraRouter from './Compras/parametros_CompraRouter'
 import comprasRouter from './Compras/ComprasRouter'
-// import detalleCompraRouter from './Compras/detalle_CompraRouter'
+import detalle_CompraRouter from './Compras/detalle_CompraRouter'
 //Lotes y Caducidades
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
 
@@ -128,7 +128,7 @@ router.use('/grupo_empresa', grupo_EmpresaRouter)
 
 router.use('/parametros_compra', parametos_CompraRouter)
 router.use('/compras', comprasRouter)
-// router.use('/compras/detalle_compra', detalleCompraRouter)
+router.use('/compras/detalle_compra', detalle_CompraRouter)
 
 router.use('/compras/detalle_compra_negado', detalleCompraNegadoRouter)
 router.use('/compras/detalle_compra_recibido', detalleCompraRecibidoRouter)
