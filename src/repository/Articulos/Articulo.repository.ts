@@ -107,7 +107,7 @@ export const ArticuloRepository = {
             const cliente = await Cliente.findOne({
                 where: { telefono_cliente }
             });
-             if (!cliente) throw new Error('Cliente no encontrado');
+            if (!cliente) throw new Error('Cliente no encontrado');
             id_lista_precio = cliente.id_lista_de_precio;
 
         } else {

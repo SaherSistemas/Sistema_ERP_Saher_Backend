@@ -36,12 +36,13 @@ import cat_RiesgoPuestoRouter from './Catalogos/Cat_Riesgo_Puesto'
 import tipoIVARouter from './Articulos/Tipo_IVARouter'
 
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
+import grupo_EmpresaRouter from './Empresa_Sucursal/grupo_EmpresaSucursalRouter'
 
 
 
 import detalleCompraNegadoRouter from './Compras/detalle_Compra_NegadoRouter'
 import detalleCompraRecibidoRouter from './Compras/detalle_Compra_RecibidoRouter'
-// import parametos_CompraRouter from './Compras/parametros_CompraRouter'
+import parametos_CompraRouter from './Compras/parametros_CompraRouter'
 import comprasRouter from './Compras/ComprasRouter'
 // import detalleCompraRouter from './Compras/detalle_CompraRouter'
 //Lotes y Caducidades
@@ -123,9 +124,9 @@ router.use('/prioridades_articulo', tipo_ArticuloRouter)
 
 
 router.use('/empresas_sucursal', empresa_SucursalRouter)
+router.use('/grupo_empresa', grupo_EmpresaRouter)
 
-
-// router.use('/parametros_compra', parametos_CompraRouter)
+router.use('/parametros_compra', parametos_CompraRouter)
 router.use('/compras', comprasRouter)
 // router.use('/compras/detalle_compra', detalleCompraRouter)
 
