@@ -1,9 +1,10 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, HasOne } from "sequelize-typescript";
 import Colonia from "../Ubicacion/Colonia"
 import Tipo_Cliente from "./Tipo_Cliente";
 import ListaPrecio from "../Costo_Y_Precio/Lista_Precios/Lista_Precio";
 import Empleado from "../Usuarios/Empleado";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
+import Monedero from "./Monedero/Monedero";
 
 @Table({
     tableName: "cliente"
@@ -105,5 +106,8 @@ class Cliente extends Model {
     declare id_empre: string;
     @BelongsTo(() => Empresa_Sucursal)
     empresaSucursal: Empresa_Sucursal;
+
+    @HasOne(() => Monedero, { as: 'monedero' })
+    monedero: Monedero;
 }
 export default Cliente;

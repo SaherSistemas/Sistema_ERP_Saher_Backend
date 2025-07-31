@@ -112,11 +112,6 @@ export const ArticuloRepository = {
 
         } else {
             id_lista_precio = '0012e739-4940-42a9-ab26-4ce32ebf708c';
-<<<<<<< HEAD
-
-=======
-        //    id_lista_precio = '7f0fe6f0-fdb3-45f0-b5f9-dd353354dbb7';
->>>>>>> 9c454d6d10d8c7aca9a6fcf34c5b0dbf65260d0b
         }
 
 

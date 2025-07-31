@@ -39,7 +39,6 @@ class Monedero extends Model {
     type: DataType.UUID,
   })
   declare id_cliente: string;
-
   @BelongsTo(() => Cliente)
   cliente: Cliente;
 }

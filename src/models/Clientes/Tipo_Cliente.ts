@@ -1,4 +1,5 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
+import { HasOne, Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
+import Beneficio_Cliente from "./Beneficio_Cliente";
 
 
 @Table({
@@ -23,6 +24,12 @@ import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, Belongs
      })
      declare desc_tipo_cliente:string;
 
-}
+     @HasOne(() => Beneficio_Cliente, {
+    foreignKey: "id_tipo_cliente",
+    as: "beneficio", 
+    }) beneficio: Beneficio_Cliente;
+    }
+
+
 
 export default Tipo_Cliente;

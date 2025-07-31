@@ -27,6 +27,24 @@ export class ClienteController {
                     res.status(500).json({ mensaje: "Error al encontrar todos los clientes." });
                 }
             }
+
+           static getDatosBeneficiado = async (req: Request, res: Response) => {
+            const telefono = req.params.telefono;
+            try {
+            const cliente = await ClienteService.getDatosBeneficiado(telefono);
+
+            if (!cliente) {
+                res.status(404).json({ mensaje: "Cliente no encontrado" });
+            }
+
+            res.status(200).json(cliente);
+            } catch (error) {
+            console.error("Error en getDatosBeneficiado:", error);
+            res.status(500).json({ mensaje: "Error interno del servidor" });
+            }
+        }
+
+
          static create = async (req: Request, res: Response) => {
          
                 try {

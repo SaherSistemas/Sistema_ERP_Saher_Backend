@@ -16,7 +16,9 @@ export interface ICliente {
     id_lista_precio: string;
     id_empleado: string;
     id_empre: string;
-        tipo_cliente:ITipoCliente;
+        tipo_cliente: {
+        nombre_tipo_cliente: string;
+        };
 }
 
 export interface ICreateUpdateCliente {
@@ -33,6 +35,4 @@ export interface ICreateUpdateCliente {
     id_lista_precio: string;
     id_empleado: string;
     id_empre: string;
-        tipo_cliente:ITipoCliente;
-
 }

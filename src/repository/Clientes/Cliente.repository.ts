@@ -5,6 +5,8 @@ import { ICliente, ICreateUpdateCliente } from "../../interface/Clientes/Cliente
 import { v4 as uuidv4 } from "uuid";
 import { Op, literal } from "sequelize";
 import Tipo_Cliente from "../../models/Clientes/Tipo_Cliente";
+import Beneficio_Cliente from "../../models/Clientes/Beneficio_Cliente";
+import Monedero from "../../models/Clientes/Monedero/Monedero";
 export const ClienteRepository = {
 
         getAll:async () => {
@@ -31,16 +33,35 @@ export const ClienteRepository = {
 
 
     getDatosBeneficiado : async(telefono_cliente : string ) => {
+          console.log("Buscando cliente con teléfono:", telefono_cliente);
+
+
         return await Cliente.findOne({
-        where: { telefono_cliente }, // condición
-        include: [
-        {
-            model: Tipo_Cliente,
-            as: "tipo_cliente",  
-            attributes: ["nom_tipo_cliente", "porcentaje_beneficio"],
-        },
-        ],
-    });
+        where: { telefono_cliente }, 
+        attributes:[
+        "nombre_cliente",
+        "apellido_pat_cliente",
+        "apellido_mat_cliente"],
+        include: [{
+                model: Tipo_Cliente, 
+                as: "tipo_cliente",  
+                attributes: ["nom_tipo_cliente"],
+                include:[{
+                        model: Beneficio_Cliente,
+                        as: "beneficio",
+                        attributes:["porcentaje_beneficio"],
+                        }
+                    ]
+                },
+                  {
+                    model: Monedero,
+                    as: "monedero", 
+                    attributes: ["saldo_monedero", "fecha_expiro"]
+                }
+            ]
+        
+        });
+        
     },
     
     createCliente: async(data:ICliente) =>{

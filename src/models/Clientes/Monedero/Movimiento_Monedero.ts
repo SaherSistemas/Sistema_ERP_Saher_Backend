@@ -10,6 +10,7 @@ import {
 } from "sequelize-typescript";
 import Cliente from "../Cliente"; 
 import Empresa_Sucursal from "../../Empresa_Sucursal/Empresa_Sucursal";
+import Monedero from "./Monedero";
 
 @Table({
   tableName: "movimiento_monedero_cliente",
@@ -21,10 +22,13 @@ class MovimientoMonederoCliente extends Model {
   })
   declare id_mov_monedero: string;
 
+  @ForeignKey(() => Monedero)
   @Column({
     type: DataType.UUID,
   })
-  declare id_movimiento: string;
+  declare id_monedero: string;
+  @BelongsTo(() => Monedero)
+  monedero : Monedero;
 
   @Column({
     type: DataType.FLOAT,
