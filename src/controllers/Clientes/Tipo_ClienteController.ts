@@ -24,4 +24,20 @@ export class TipoClienteController {
             res.status(500).json({ mensaje: "Error al encontrar todos los tipos de clientes." });
         }
     }
+
+    static getByIDFlexible = async (req: Request, res: Response) => {
+    try {
+      const id_o_nombre = req.params.id_o_nombre; // nombre que le pongas en la ruta
+      const tipoCliente = await TipoClienteService.getByIDFlexible(id_o_nombre);
+
+      if (!tipoCliente) {
+         res.status(404).json({ mensaje: "Tipo de cliente no encontrado." });
+      }
+
+      res.status(200).json(tipoCliente);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ mensaje: "Error al buscar el tipo de cliente." });
+    }
+  }
 }

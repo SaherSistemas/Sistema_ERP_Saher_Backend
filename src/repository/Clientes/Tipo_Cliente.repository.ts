@@ -19,11 +19,11 @@ export const TipoClienteRepository = {
 
     getByIDFlexible: async(id_tipo_cliente_o_nombre : string ) => {
         if(isUUID(id_tipo_cliente_o_nombre)){
-            return await Tipo_Cliente.findByPk( id_tipo_cliente_o_nombre )
+            return await Tipo_Cliente.findByPk(id_tipo_cliente_o_nombre )
         }else{
             return await Tipo_Cliente.findOne({
                 where:{
-                    nombre_tipo_cliente:id_tipo_cliente_o_nombre
+                    nom_tipo_cliente:id_tipo_cliente_o_nombre
                 }
             })
         }

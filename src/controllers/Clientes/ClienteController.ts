@@ -39,7 +39,7 @@ export class ClienteController {
 
             res.status(200).json(cliente);
             } catch (error) {
-            console.error("Error en getDatosBeneficiado:", error);
+            console.error("Error en cliente controlador:", error);
             res.status(500).json({ mensaje: "Error interno del servidor" });
             }
         }

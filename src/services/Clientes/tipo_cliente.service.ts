@@ -10,5 +10,7 @@ export const TipoClienteService = {
     createCliente: async(data:ITipoCliente) =>{
         return await TipoClienteRepository.createTipoCliente(data);
     },
-
+   getByIDFlexible: async (id_o_nombre: string) => {
+    return await TipoClienteRepository.getByIDFlexible(id_o_nombre);
+    },
 }
