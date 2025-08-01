@@ -3,16 +3,16 @@ import Empresa_Sucursal from "../../Empresa_Sucursal/Empresa_Sucursal";
 
 
 @Table({
-    tableName: "lista_precio"
+    tableName: "grupo_empresa_lista_precio"
 })
 
-class ListaPrecio extends Model {
+class Grupo_Empresa_Lista_Precio extends Model {
 
     @PrimaryKey
     @Column({
         type: DataType.UUID,
         allowNull: false
-    }) declare id_lista_precio: string;
+    }) declare id_grupo_empresa_lista_precio: string;
 
     @Unique
     @Column({
@@ -48,4 +48,4 @@ class ListaPrecio extends Model {
 
 
 }
-export default ListaPrecio;
+export default Grupo_Empresa_Lista_Precio;

@@ -1,4 +1,5 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, Default } from "sequelize-typescript";
+import Empresa_Sucursal from "./Empresa_Sucursal";
 
 @Table({
     tableName: 'grupo_empresa'
@@ -16,6 +17,9 @@ class Grupo_Empresa extends Model {
     })
     declare nom_grup_empresa: string
 
+
+    @HasMany(() => Empresa_Sucursal)
+    empresaSucursal: Empresa_Sucursal;
 }
 
 export default Grupo_Empresa

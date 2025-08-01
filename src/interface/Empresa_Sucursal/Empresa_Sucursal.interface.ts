@@ -6,6 +6,7 @@ export interface IEmpresaSucursal {
     idgrup_empre: string;   //GRUPO EMPRESA
     calle_empre: string;
     id_colonia_empre: string;
+    id_listapreciodefault: string //LISTA DE PRECIO
     correo_empre: string;
     tele_empre: string;
     status_empre: boolean;
@@ -17,6 +18,7 @@ export interface ICrearEmpresaSucursal {
     calle_empre: string;
     id_colonia_empre: string;
     idgrup_empre: string;   //GRUPO EMPRESA
+    id_listapreciodefault: string //LISTA DE PRECIO
     correo_empre: string;
     tele_empre: string;
     status_empre: boolean;
@@ -28,6 +30,7 @@ export interface IUpdateEmpresaSucursal {
     calle_empre?: string;
     id_colonia_empre?: string;
     idgrup_empre?: string;   //GRUPO EMPRESA
+    id_listapreciodefault?: string //LISTA DE PRECIO
     correo_empre?: string;
     tele_empre?: string;
     status_empre?: boolean
