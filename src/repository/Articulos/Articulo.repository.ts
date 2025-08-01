@@ -20,6 +20,10 @@ import Detalle_Compra_Negados from '../../models/Compra/Detalle_Compra_Negados';
 import DetalleListaPrecio from '../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio';
 import Stock_sucursal from '../../models/Stock/Stock_Sucursal';
 import Cliente from '../../models/Clientes/Cliente';
+import Empresa_Sucursal from '../../models/Empresa_Sucursal/Empresa_Sucursal';
+import { Empresa_SucursalRepository } from '../Empresa_Sucursal/Empresa_Sucursal.repository';
+import LoteArticuloSucursal from '../../models/LotesYCaducidad/Lote_ArticuloSucursal';
+import { LotesArticuloSucursalRepository } from '../LotesYCaducidad/Lote_ArticuloSucursal.reposiroty';
 
 
 type DetalleConTotal = {
@@ -97,29 +101,25 @@ export const ArticuloRepository = {
         };
     },
 
-    getAllParaVenta: async (cod_barr_artic: number, cantidad: number, telefono_cliente?: string) => {
-        let id_lista_precio: string;
-        const articulo = await ArticuloRepository.getByIDFlexible(String(cod_barr_artic));
+    getAllParaVenta: async (id_empresa: string, cantidad: number, cod_barr_artic: string) => {
+        // let id_lista_precio: string;
+        console.log(cod_barr_artic);
+        const articulo = await ArticuloRepository.getByIDFlexible(cod_barr_artic);
         if (!articulo) {
             throw new Error('Artículo no encontrado');
         }
         
-        if (telefono_cliente) {
-            const cliente = await Cliente.findOne({
-                where: { telefono_cliente }
-            });
-            if (!cliente) throw new Error('Cliente no encontrado');
-            id_lista_precio = cliente.id_lista_de_precio;
-
-        } else {
-            id_lista_precio = '0012e739-4940-42a9-ab26-4ce32ebf708c';
-        }
+        const empresa = await Empresa_SucursalRepository.getByID(id_empresa);
+        const Lista_precio_empresa = empresa.id_listapreciodefault;
+       
+        // const lote_articulo = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(cod_barr_artic);
+        const lote_articulo = await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(cod_barr_artic, cantidad);
 
 
         const detallePrecio = await DetalleListaPrecio.findOne({
             where: {
                 id_artic: articulo.id_artic,
-                id_lista_precio
+                id_lista_precio:Lista_precio_empresa
             }
         });
 
@@ -127,8 +127,8 @@ export const ArticuloRepository = {
 
 
         return {
-            cliente: telefono_cliente || 'General',
             articulo: articulo.cod_barr_artic,
+            lote_articulo,
             cantidad,
             descripcion: articulo.des_artic,
             precio_unitario,
