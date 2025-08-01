@@ -22,4 +22,21 @@ export class Detalle_Compra_RecibidoController {
             res.status(500).json({ message: "Error al obtener los detalles de compra recibidos." });
         }
     }
+
+
+    /*ESTE METODO SIRVE PARA DAR DE ALTA LOS PRODUCTOS EN LA EMPRESA ENTRAR EN 
+        - STOCK_SUCURSAL
+        - LOTE_ARTICULO_SUCURSAL
+    TAMBIEN MODIFICAREMOS EL PRECIO EN LAS LISTAS DE PRECIO DEL GRUPO EMPRESA 
+        - DETALLE_LIST_PRECIO
+        - AL COMPRA PASA A OTRO ESTADO O QUEDA TERMINADO 
+    */
+
+    static ingresarProductosRecibidosEmpresa = async (req: Request, res: Response) => {
+        try {
+            console.log("HOLA")
+        } catch (error) {
+
+        }
+    }
 }

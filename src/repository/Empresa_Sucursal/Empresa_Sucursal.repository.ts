@@ -49,7 +49,6 @@ export const Empresa_SucursalRepository = {
         });
     },
     crearNuevaSucursalEmpresa: async (data: ICrearEmpresaSucursal) => {
-
         const nuevoUUID = uuidv4();
         return await Empresa_Sucursal.create({
             id_empre: nuevoUUID,
