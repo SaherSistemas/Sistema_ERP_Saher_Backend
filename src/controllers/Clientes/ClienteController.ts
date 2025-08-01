@@ -35,9 +35,11 @@ export class ClienteController {
 
             if (!cliente) {
                 res.status(404).json({ mensaje: "Cliente no encontrado" });
+            }else{
+            res.status(200).json(cliente);
+
             }
 
-            res.status(200).json(cliente);
             } catch (error) {
             console.error("Error en cliente controlador:", error);
             res.status(500).json({ mensaje: "Error interno del servidor" });

@@ -103,6 +103,7 @@ export const ArticuloRepository = {
         if (!articulo) {
             throw new Error('Artículo no encontrado');
         }
+        
         if (telefono_cliente) {
             const cliente = await Cliente.findOne({
                 where: { telefono_cliente }
