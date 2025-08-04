@@ -56,17 +56,16 @@ export class MonederoController {
 
   static acumularSaldo = async (req: Request, res: Response) => {
     try {
-      const telefono_cliente = req.params.telefono_cliente;
+      const telefono = req.params.telefono_cliente;
       const { saldo } = req.body;
 
-      if (!telefono_cliente || typeof saldo !== "number" || saldo <= 0) {
-        res.status(400).json({ message: "Datos inválidos" });
+      if (!telefono) {
+        res.status(400).json({ message: "Falta Telefono" });
       }
 
-      const resultado = await MonederoRepository.acumularSaldo(telefono_cliente, saldo);
-      res.json({ message: "Saldo acumulado correctamente", resultado });
-    } catch (error: any) {
-      console.error(error);
+      const resultado = await MonederoService.acumularSaldoporTelefono(telefono, saldo);
+      res.json({ message: "Saldo acumulado correctamente", data: resultado });
+    } catch (error) {
       res.status(500).json({ message: error.message });
     }
   };

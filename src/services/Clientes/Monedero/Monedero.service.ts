@@ -8,6 +8,7 @@ import MonederoCliente from "../../../models/Clientes/Monedero/Monedero";
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import dayjs from "dayjs";
+import Cliente from "../../../models/Clientes/Cliente";
 
 export const MonederoService = {
   getAll: async () => {
@@ -31,10 +32,31 @@ export const MonederoService = {
   deleteMonedero: async (id_monedero: string) => {
     return await MonederoRepository.deleteMonedero(id_monedero);
   },
-  acumularSaldo: async (telefono_cliente: string, monto: number) => {
-    return await MonederoRepository.acumularSaldo(
-      telefono_cliente.trim(),
-      monto
-    );
+
+  acumularSaldoporTelefono: async (telefono: string, saldo: number) => {
+    if (typeof saldo !== "number" || saldo <= 0) {
+      throw new Error("Monto invalido");
+    }
+    const cliente = await Cliente.findOne({
+      where: { telefono_cliente: telefono },
+      attributes:["id_cliente","nombre_cliente"],
+    });
+    if (!cliente) {
+      throw new Error("Cliente no encontrado");
+    }
+    const monedero = await MonederoCliente.findOne({
+      where: {id_cliente: cliente.id_cliente},
+    })
+
+    if (!monedero) {
+      throw new Error("Monedero del cliente no encontrado");
+    }
+    const resultado = await MonederoRepository.acumularSaldo(monedero, saldo);
+
+    return {
+      nombre_cliente: cliente.nombre_cliente,
+      nuevo_saldo: resultado.nuevo_saldo,
+    };
+
   },
 };

@@ -46,6 +46,7 @@ export const MonederoRepository = {
       fecha_expiro: new Date(data.fecha_expiro),
     });
   },
+
   deleteMonedero: async (id_monedero: string) => {
     if (!isUUID(id_monedero)) {
       throw new Error("El id_monedero proporcionado no es válido");
@@ -63,20 +64,14 @@ export const MonederoRepository = {
     };
   },
 
-  acumularSaldo: async (telefono: string, monto: number) => {
-    const cliente = await Cliente.findOne({
-      where: { telefono_cliente: telefono },
-      include: [{ model: MonederoCliente, as: "monedero" }],
-    });
-
-    if (!cliente || !cliente.monedero) {
-      throw new Error("Cliente o monedero no encontrado");
-    }
-
-    cliente.monedero.saldo_monedero += monto;
-
-    await cliente.monedero.save();
-
-    return cliente.monedero;
+  acumularSaldo: async (monedero: MonederoCliente, saldo: number) => {
+    console.log("Acumulando saldo:", saldo);
+    monedero.saldo_monedero += saldo;
+    await monedero.save();
+    return {
+      message: `Saldo acumulado correctamente.`,
+      nuevo_saldo: monedero.saldo_monedero,
+      nombre_cliente: monedero.id_cliente,
+    };
   },
 };
