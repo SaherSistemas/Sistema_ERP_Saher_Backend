@@ -37,7 +37,7 @@ import tipoIVARouter from './Articulos/Tipo_IVARouter'
 
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter'
 import grupo_EmpresaRouter from './Empresa_Sucursal/grupo_EmpresaSucursalRouter'
-
+import grupoEmpresaListaPrecioRouter from './Costo_y_Precio/Grupo_Empresa_Lista_PrecioRouter'
 
 
 import detalleCompraNegadoRouter from './Compras/detalle_Compra_NegadoRouter'
@@ -125,6 +125,7 @@ router.use('/prioridades_articulo', tipo_ArticuloRouter)
 
 router.use('/empresas_sucursal', empresa_SucursalRouter)
 router.use('/grupo_empresa', grupo_EmpresaRouter)
+router.use('/grupo_empresa_lista_precio', grupoEmpresaListaPrecioRouter)
 
 router.use('/parametros_compra', parametos_CompraRouter)
 router.use('/compras', comprasRouter)
