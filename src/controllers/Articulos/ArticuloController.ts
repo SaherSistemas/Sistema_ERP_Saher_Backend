@@ -18,17 +18,16 @@ export class ArticuloController {
     
     static getAllParaVenta = async (req: Request, res: Response) => {
         try {
+            
+             const id_empresa = req.query.id_empresa as string;
             const { cantidad, cod_barr_artic } = req.params;
-            const telefonocliente = req.query.telefono_cliente as string | undefined;
-
-            if (!cod_barr_artic) {
-                res.status(400).json({ message: 'cod_barr_artic es obligatorio' });
-            }
 
             const resultado = await ArticuloService.getAllParaVenta(
-                Number(cod_barr_artic),
+                id_empresa,
                 Number(cantidad),
-                telefonocliente || null);
+                cod_barr_artic
+                
+              );
             res.status(200).json(resultado);
 
         } catch (error: any) {
