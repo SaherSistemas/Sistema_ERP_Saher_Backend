@@ -1,51 +1,33 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, HasMany } from "sequelize-typescript";
-import Empresa_Sucursal from "../../Empresa_Sucursal/Empresa_Sucursal";
-
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Index } from "sequelize-typescript";
+import Grupo_Empresa from "../../Empresa_Sucursal/Grupo_Empresa";
+import ListaPrecio from "./Lista_Precio";
 
 @Table({
     tableName: "grupo_empresa_lista_precio"
 })
-
 class Grupo_Empresa_Lista_Precio extends Model {
-
     @PrimaryKey
     @Column({
         type: DataType.UUID,
         allowNull: false
-    }) declare id_grupo_empresa_lista_precio: string;
+    })
+    declare id_grupo_empresa_lista_precio: string;
 
-    @Unique
+    @ForeignKey(() => Grupo_Empresa)
+    @Index('unique_grupo_lista') // índice único compuesto
     @Column({
-        type: DataType.INTEGER
-    }) declare cod_int_lista_precio: number;
+        type: DataType.UUID,
+        allowNull: false
+    })
+    declare id_grup_empresa: string;
 
-
+    @ForeignKey(() => ListaPrecio)
+    @Index('unique_grupo_lista') // índice único compuesto
     @Column({
-        type: DataType.STRING(50)
-    }) declare nombre_lista_precio: string;
-
-    @Column({
-        type: DataType.STRING(50)
-    }) declare descripcion_lista_precio: string;
-
-    @Column({
-        type: DataType.DATE
-    }) declare fecha_inicio: Date;
-
-    @Column({
-        type: DataType.DATE
-    }) declare fecha_fin: Date;
-
-    @Column({
-        type: DataType.STRING(1)
-    }) declare status_lista_precios: string;
-
-
-
-    @HasMany(() => Empresa_Sucursal)
-    empresaSucursal: Empresa_Sucursal
-
-
-
+        type: DataType.UUID,
+        allowNull: false
+    })
+    declare id_list_precio: string;
 }
+
 export default Grupo_Empresa_Lista_Precio;
