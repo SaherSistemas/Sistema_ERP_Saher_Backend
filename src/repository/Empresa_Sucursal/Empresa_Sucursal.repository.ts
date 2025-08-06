@@ -16,6 +16,18 @@ export const Empresa_SucursalRepository = {
             ]
         });
     },
+    getEmpresasPorGrupo: async (id_grup_empre: string) => {
+        const empresas = await Empresa_Sucursal.findAll({
+            attributes: ["id_empre"], // Solo traigo el ID
+            where: {
+                idgrup_empre: id_grup_empre
+            },
+            raw: true // Para que devuelva objetos planos
+        });
+
+        // Devuelvo solo un array de IDs
+        return empresas.map(e => e.id_empre);
+    },
     getByID: async (id: string): Promise<IEmpresaSucursal | null> => {
         return await Empresa_Sucursal.findByPk(id, {
             include: [
@@ -42,6 +54,15 @@ export const Empresa_SucursalRepository = {
                 }
             ]
         });
+    },
+    getGrupo: async (id_empresa: string) => {
+        return await Empresa_Sucursal.findOne({
+            where: {
+                id_empre: id_empresa
+            },
+            attributes: ['idgrup_empre'],
+            raw: true
+        })
     },
     getByIDHeader: async (id: string): Promise<IEmpresaSucursal | null> => {
         return await Empresa_Sucursal.findByPk(id, {

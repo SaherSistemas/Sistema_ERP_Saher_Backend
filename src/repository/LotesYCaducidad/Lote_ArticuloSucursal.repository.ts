@@ -1,8 +1,5 @@
 import Lote_sucursal_articulo from "../../models/LotesYCaducidad/Lote_ArticuloSucursal";
-import {
-  ILotesArticuloSucursal,
-  ICreaterOrUdateLotesArticuloSucursal,
-} from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
+import { ILotesArticuloSucursal, ICreaterOrUdateLotesArticuloSucursal } from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
 
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from "uuid";
@@ -41,10 +38,7 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
-  repartirCantidadEntreLotes: async (
-    cod_barr_artic: string,
-    cantidadSolicitada: number
-  ) => {
+  repartirCantidadEntreLotes: async (cod_barr_artic: string, cantidadSolicitada: number) => {
     const lotes = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(
       cod_barr_artic
     );
@@ -93,6 +87,40 @@ export const LotesArticuloSucursalRepository = {
         }
       );
     }
+  },
+
+
+  llevarmeCostosDeLotesExistentesEnVariasEmpresas: async (id_artic: string, ids_Empresas: string[]) => {
+    const lotesExistencia = await Lote_sucursal_articulo.findAll({
+      attributes: [
+        "cantidad_lote_sucursal",
+        "precio_costo_lote_sucursal"
+      ],
+      where: {
+        id_artic,
+        id_empre: ids_Empresas,
+        cantidad_lote_sucursal: { [Op.gt]: 0 }
+      },
+      raw: true
+    })
+
+    let totalCosto = 0;
+    let totalCantidad = 0;
+
+    for (const lote of lotesExistencia) {
+      const costo = lote.precio_costo_lote_sucursal;
+      const cantidad = lote.cantidad_lote_sucursal;
+
+      totalCosto += costo * cantidad;
+      totalCantidad += cantidad;
+    }
+
+    const costoPromedio = totalCantidad > 0 ? totalCosto / totalCantidad : 0;
+
+    return {
+      costoPromedio,
+      totalCantidad
+    };
   },
 
 

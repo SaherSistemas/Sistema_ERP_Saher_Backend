@@ -2,7 +2,7 @@ import {
   ILotesArticuloSucursal,
   ICreaterOrUdateLotesArticuloSucursal,
 } from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
-import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.reposiroty";
+import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
 
 export const LotesArticuloSucursalService = {
   getAll: async (): Promise<ILotesArticuloSucursal[]> => {
@@ -18,10 +18,9 @@ export const LotesArticuloSucursalService = {
       cod_barr_artic
     );
   },
-  repartirCantidadEntreLotes: async (cod_barr_artic: string, cantidadSolicitada: number  ) => {
+  repartirCantidadEntreLotes: async (cod_barr_artic: string, cantidadSolicitada: number) => {
     return await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(cod_barr_artic, cantidadSolicitada);
   },
-
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     return LotesArticuloSucursalRepository.create(data);
   },

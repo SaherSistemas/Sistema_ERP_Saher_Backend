@@ -6,8 +6,8 @@ export const Margen_Ganancia_ListaService = {
         return await Margen_Ganancia_ListaRepository.getAll();
     },
 
-    getPorProducto: async ( id_categoria: string, id_presentacion: string) => {
-        return await Margen_Ganancia_ListaRepository.getByProducto( id_categoria, id_presentacion);
+    getPorProducto: async (id_categoria: string, id_presentacion: string) => {
+        return await Margen_Ganancia_ListaRepository.getByProducto(id_categoria, id_presentacion);
     },
 
     create: async (data: IMargen_Ganancia_ListaCreate) => {

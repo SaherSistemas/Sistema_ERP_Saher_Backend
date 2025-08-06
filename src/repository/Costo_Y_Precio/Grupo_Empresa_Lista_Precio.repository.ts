@@ -63,7 +63,16 @@ export const Grupo_Empresa_Lista_PrecioRepository = {
             ]
         })
     },
-
+    getSoloListasDePrecioPorIDGrupo: async (id_grup_empresa: string) => {
+        return await Grupo_Empresa_Lista_Precio.findAll({
+            where:
+            {
+                id_grup_empresa
+            },
+            attributes: ['id_list_precio'],
+            raw: true
+        })
+    },
     delete: async (id_grupo_empresa_lista_precio: string) => {
         return await Grupo_Empresa_Lista_Precio.destroy({
             where: { id_grupo_empresa_lista_precio: id_grupo_empresa_lista_precio }

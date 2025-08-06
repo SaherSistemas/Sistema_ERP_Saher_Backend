@@ -23,7 +23,7 @@ import Cliente from '../../models/Clientes/Cliente';
 import Empresa_Sucursal from '../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { Empresa_SucursalRepository } from '../Empresa_Sucursal/Empresa_Sucursal.repository';
 import LoteArticuloSucursal from '../../models/LotesYCaducidad/Lote_ArticuloSucursal';
-import { LotesArticuloSucursalRepository } from '../LotesYCaducidad/Lote_ArticuloSucursal.reposiroty';
+import { LotesArticuloSucursalRepository } from '../LotesYCaducidad/Lote_ArticuloSucursal.repository';
 
 
 type DetalleConTotal = {
@@ -34,6 +34,9 @@ export const ArticuloRepository = {
 
     getAll: async () => {
         return await Articulo.findAll({ attributes: ['id_artic'], raw: true })
+    },
+    getByPK: async (id_artic: string) => {
+        return await Articulo.findByPk(id_artic)
     },
     getAllPag: async (page: number, limit: number, query: string) => {
         const offset = (page - 1) * limit;
@@ -108,10 +111,10 @@ export const ArticuloRepository = {
         if (!articulo) {
             throw new Error('Artículo no encontrado');
         }
-        
+
         const empresa = await Empresa_SucursalRepository.getByID(id_empresa);
         const Lista_precio_empresa = empresa.id_listapreciodefault;
-       
+
         // const lote_articulo = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(cod_barr_artic);
         const lote_articulo = await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(cod_barr_artic, cantidad);
 
@@ -119,7 +122,7 @@ export const ArticuloRepository = {
         const detallePrecio = await DetalleListaPrecio.findOne({
             where: {
                 id_artic: articulo.id_artic,
-                id_lista_precio:Lista_precio_empresa
+                id_lista_precio: Lista_precio_empresa
             }
         });
 

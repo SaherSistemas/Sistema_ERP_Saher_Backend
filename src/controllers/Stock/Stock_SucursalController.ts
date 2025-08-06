@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { StockSucursalService } from "../../services/Stock/Stock_Sucursal.service"; 
+import { StockSucursalService } from "../../services/Stock/Stock_Sucursal.service";
 import Articulo from "../../models/Articulos/Articulo";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 import Stock_sucursal from "../../models/Stock/Stock_Sucursal";
@@ -26,45 +26,45 @@ export class StockSucursalController {
     }
   }
 
-  static getAllsucursalesPorIdArticulo = async(req: Request, res: Response) => {
+  static getAllsucursalesPorIdArticulo = async (req: Request, res: Response) => {
     try {
-        const {id_artic} = req.params;
-        const stockensucursal = await StockSucursalService.getAllsucursalesPorIdArticulo(id_artic);
-        res.status(200).json(stockensucursal);
+      const { id_artic } = req.params;
+      const stockensucursal = await StockSucursalService.getAllsucursalesPorIdArticulo(id_artic);
+      res.status(200).json(stockensucursal);
     } catch (error) {
-        console.error('Error en StockSucursalController.getAllsucursalesPorIdArticulo:', error);
+      console.error('Error en StockSucursalController.getAllsucursalesPorIdArticulo:', error);
 
-        res.status(500).json({
+      res.status(500).json({
         message: 'Error al obtener el stock por sucursal',
       });
-        
+
     }
   }
 
-  static getAllArticulosporSucursal = async(req: Request, res: Response) => {
+  static getAllArticulosporSucursal = async (req: Request, res: Response) => {
     try {
-        const {id_empre} = req.params;
-        const stockensucursal = await StockSucursalService.getAllArticulosporSucursal(id_empre);
-        res.status(200).json(stockensucursal);
+      const { id_empre } = req.params;
+      const stockensucursal = await StockSucursalService.getAllArticulosporSucursal(id_empre);
+      res.status(200).json(stockensucursal);
     } catch (error) {
-        console.error('Error en StockSucursalController.getAllArticulosporSucursal:', error);
+      console.error('Error en StockSucursalController.getAllArticulosporSucursal:', error);
 
-        res.status(500).json({
+      res.status(500).json({
         message: 'Error al obtener el stock por sucursal',
       });
-        
+
     }
   }
-
-  static create = async (req: Request, res: Response) =>{
+  //DARLE ENTRADA AL STOCK_SUCURSAL, LOTES_SUCURSAL
+  static create = async (req: Request, res: Response) => {
     try {
-        const data = req.body;
-        const nuevoStock = await StockSucursalService.create(data);
-        res.status(201).json(nuevoStock);
+      const data = req.body;
+      const nuevoStock = await StockSucursalService.create(data);
+      res.status(201).json(nuevoStock);
 
     } catch (error) {
-         console.error(error);
-         res.status(500).json({ mensaje: "Error al crear el stock." });    
+      console.error(error);
+      res.status(500).json({ mensaje: "Error al crear el stock." });
     }
   }
 

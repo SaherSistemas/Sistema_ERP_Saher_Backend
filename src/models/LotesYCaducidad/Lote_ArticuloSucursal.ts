@@ -2,44 +2,50 @@ import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, Belongs
 import Articulo from "../Articulos/Articulo";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 
-@Table ({
-    tableName:"lote_sucursal_articulo"
+@Table({
+    tableName: "lote_sucursal_articulo"
 })
 
-class LoteArticuloSucursal extends Model{
+class LoteArticuloSucursal extends Model {
 
     @PrimaryKey
     @Column({
-        type:DataType.UUID
+        type: DataType.UUID
     })
     declare id_lote_sucursal: string;
 
-    @ForeignKey(() => Articulo )
+    @ForeignKey(() => Articulo)
     @Column({
-        type:DataType.UUID
+        type: DataType.UUID
     })
-    declare id_artic : string;
+    declare id_artic: string;
     @BelongsTo(() => Articulo)
-    articulo : Articulo;
+    articulo: Articulo;
 
     @ForeignKey(() => Empresa_Sucursal)
     @Column({
         type: DataType.UUID
-    }) declare id_empre : string;
-    @BelongsTo (() => Empresa_Sucursal)
-    empresa : Empresa_Sucursal;
+    }) declare id_empre: string;
+    @BelongsTo(() => Empresa_Sucursal)
+    empresa: Empresa_Sucursal;
 
     @Column({
-        type:DataType.STRING(50)
+        type: DataType.STRING(50)
     }) declare numero_lote_sucursal: string;
 
     @Column({
         type: DataType.DATE
-    })declare fecha_venci_lote_sucursal: Date;
-    
+    }) declare fecha_venci_lote_sucursal: Date;
+
     @Column({
-        type : DataType.INTEGER
+        type: DataType.INTEGER
     }) declare cantidad_lote_sucursal: number;
+
+    //NUEVO CAMPO PARA COSTO DEL LOTE  
+    @Column({
+        type: DataType.DECIMAL(10, 2)
+    })
+    declare precio_costo_lote_sucursal: number;
 
     @Column({
         type: DataType.CHAR(1)
