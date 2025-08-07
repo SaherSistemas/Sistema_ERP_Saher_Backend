@@ -14,8 +14,8 @@ export class DetalleListaPrecioService {
     return await DetalleListaPreciosRepository.create(data);
   };
 
-  static update = async (id: string, data: ICreateOrUpdateIDetalleListaPrecio) => {
-    return await DetalleListaPreciosRepository.update(id, data);
+  static update = async (data: ICreateOrUpdateIDetalleListaPrecio) => {
+    return await DetalleListaPreciosRepository.updateOrCreate(data);
   };
 
 

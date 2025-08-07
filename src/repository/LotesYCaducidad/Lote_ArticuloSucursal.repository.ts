@@ -133,14 +133,36 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
-  update: async (
-    id_lote_sucursal: string,
-    data: ICreaterOrUdateLotesArticuloSucursal
-  ) => {
-    const existe = await LotesArticuloSucursalRepository.getById(
-      id_lote_sucursal
-    );
-    if (!existe) return null;
-    return await existe.update(data);
-  },
+  updateOrCreateLoteSucursal: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
+    const { id_artic, id_empre, numero_lote_sucursal } = data;
+
+    const loteExistente = await Lote_sucursal_articulo.findOne({
+      where: {
+        id_artic,
+        id_empre,
+        numero_lote_sucursal
+      }
+    });
+
+
+    if (loteExistente) {
+      const nuevaCantidad = loteExistente.cantidad_lote_sucursal + data.cantidad_lote_sucursal;
+
+      await loteExistente.update({
+        cantidad_lote_sucursal: nuevaCantidad,
+        precio_costo_lote_sucursal: data.precio_costo_lote_sucursal,
+        fecha_venci_lote_sucursal: data.fecha_venci_lote_sucursal,
+        estado_lote_sucursal: data.estado_lote_sucursal
+      });
+
+      return loteExistente;
+    }
+
+    const nuevoLote = await Lote_sucursal_articulo.create({
+      ...data,
+      id_lote_sucursal: uuidv4()
+    });
+
+    return nuevoLote;
+  }
 };

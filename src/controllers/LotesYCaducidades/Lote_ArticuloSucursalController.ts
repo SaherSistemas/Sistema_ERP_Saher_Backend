@@ -82,26 +82,26 @@ export class LotesArticuloSucursalController {
         .json({ mensaje: "Error al crear Lotes Articulo sucursal." });
     }
   };
-
-  static updateByID = async (req: Request, res: Response) => {
-    try {
-      const { id_lote_sucursal } = req.params;
-      const data = req.body;
-      const updateLote = await LotesArticuloSucursalService.update(
-        id_lote_sucursal,
-        data
-      );
-      res
-        .status(201)
-        .json({
-          mensaje: "Lotes Articulo sucursal actualizado correctamente.",
-          id_lote_sucursal: updateLote,
-        });
-    } catch (error) {
-      console.error(error);
-      res
-        .status(500)
-        .json({ mensaje: "Error al actualizar Lotes Articulo sucursal." });
-    }
-  };
+  /*
+    static updateByID = async (req: Request, res: Response) => {
+      try {
+        const { id_lote_sucursal } = req.params;
+        const data = req.body;
+        const updateLote = await LotesArticuloSucursalService.update(
+          id_lote_sucursal,
+          data
+        );
+        res
+          .status(201)
+          .json({
+            mensaje: "Lotes Articulo sucursal actualizado correctamente.",
+            id_lote_sucursal: updateLote,
+          });
+      } catch (error) {
+        console.error(error);
+        res
+          .status(500)
+          .json({ mensaje: "Error al actualizar Lotes Articulo sucursal." });
+      }
+    };*/
 }

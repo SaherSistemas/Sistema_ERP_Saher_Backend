@@ -33,8 +33,7 @@ export class DetalleListaPrecioController {
 
   static update = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
-      const actualizada = await DetalleListaPrecioService.update(id, req.body);
+      const actualizada = await DetalleListaPrecioService.update(req.body);
       if (!actualizada)
         res.status(200).json(actualizada);
     } catch (error) {

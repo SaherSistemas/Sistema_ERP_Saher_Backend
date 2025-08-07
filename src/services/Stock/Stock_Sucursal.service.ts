@@ -2,6 +2,7 @@ import { ICreateOrUpdateStockSucursal, IDataProductosStock, IStockSucursal } fro
 import { ICrearEmpleado, IEmpleado, IUpdateEmpleado } from "../../interface/Usuarios/Empleado.interface";
 import { ArticuloRepository } from "../../repository/Articulos/Articulo.repository";
 import { Grupo_Empresa_Lista_PrecioRepository } from "../../repository/Costo_Y_Precio/Grupo_Empresa_Lista_Precio.repository";
+import { DetalleListaPreciosRepository } from "../../repository/Costo_Y_Precio/Lista_Precio/Detalle_Lista_Precio.repository";
 import { Margen_Ganancia_ListaRepository } from "../../repository/Costo_Y_Precio/Margen_Ganancia_Lista.repository";
 import { Empresa_SucursalRepository } from "../../repository/Empresa_Sucursal/Empresa_Sucursal.repository";
 import { Grupo_EmpresaRepository } from "../../repository/Empresa_Sucursal/Grupo_Empresa.repository";
@@ -19,6 +20,8 @@ export const StockSucursalService = {
     getAllArticulosporSucursal: async (id_empre: string) => {
         return await StockSucursalRepository.getAllArticulosporSucursal(id_empre);
     },
+
+    //ESTE METODO SE USARA PARA LOS CABOS Y PARA CULIACAN 
     create: async (data: { id_empresa: string; productosEntrada: ICreateOrUpdateStockSucursal[] }) => {
         const { id_empresa, productosEntrada } = data;
 
@@ -42,7 +45,6 @@ export const StockSucursalService = {
         for (const producto of productosEntrada) {
             const modeloArticulo = await ArticuloRepository.getByPK(producto.id_artic)
 
-
             //PARA EL COSTO 
             const { costoPromedio, totalCantidad } =
                 await LotesArticuloSucursalRepository.llevarmeCostosDeLotesExistentesEnVariasEmpresas(
@@ -61,19 +63,39 @@ export const StockSucursalService = {
             console.log(costoPromedioActualizado)
 
 
+            for (const lote of producto.lotes) {
+                await LotesArticuloSucursalRepository.updateOrCreateLoteSucursal({
+                    id_artic: producto.id_artic,
+                    id_empre: id_empresa,
+                    numero_lote_sucursal: lote.numerolote_lote,
+                    fecha_venci_lote_sucursal: new Date(lote.fechavencimiento_lote),
+                    cantidad_lote_sucursal: lote.cantidad_lote,
+                    precio_costo_lote_sucursal: costoNuevo,
+                    estado_lote_sucursal: 'A' // o el estado correspondiente
+                });
+            }
+
+            await StockSucursalRepository.updateCantidadExistencia(id_empresa, producto.id_artic);
+            //FALTA VERIFICAR SI HAY UN MARGEN ESPECIAL PARA EL PRODUCTO EN ESPECIFICO VIGENTE 
             const margenGananciaTodasLasListas = await Margen_Ganancia_ListaRepository.getByProducto(modeloArticulo.id_categoria, modeloArticulo.id_presentacion)
+
             const margenesFiltrados = margenGananciaTodasLasListas.filter(
                 margen => idsListasGrupo.includes(margen.id_lista_precio)
             );
-            // Convertir margen a números
-            // const margenNum = parseFloat(margenesFiltrados.);
 
             for (const margen of margenesFiltrados) {
                 const margenNum = margen.margen
                 const precioPorLista = costoPromedioActualizado / (1 - (margenNum / 100));
+
                 console.log(`📌 Lista: ${margen.lista_precio.nombre_lista_precio}`);
                 console.log(`   Margen: ${margenNum}%`);
                 console.log(`   Precio final: ${precioPorLista.toFixed(2)}`);
+
+                await DetalleListaPreciosRepository.updateOrCreate({
+                    id_lista_precio: margen.lista_precio.id_lista_precio,
+                    id_artic: producto.id_artic,
+                    precios: precioPorLista
+                })
             }
             // Aquí puedes obtener el artículo de la BD
             // const obtenerArticulo = await ArticuloRepository.getByPK(producto.id_artic);

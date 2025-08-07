@@ -24,12 +24,11 @@ export const LotesArticuloSucursalService = {
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     return LotesArticuloSucursalRepository.create(data);
   },
-  update: async (
-    id_lote_sucursal: string,
-    data: ICreaterOrUdateLotesArticuloSucursal
-  ) => {
-    return await LotesArticuloSucursalRepository.update(id_lote_sucursal, data);
+  /*
+  update: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
+    return await LotesArticuloSucursalRepository.updateOrUpdate(data);
   },
+  */
   // update: async (id_lote_sucursal: string, data: ICreaterOrUdateLotesArticuloSucursal) => {
   //     const result = await LotesArticuloSucursalRepository.update(id_lote_sucursal, data);
 
