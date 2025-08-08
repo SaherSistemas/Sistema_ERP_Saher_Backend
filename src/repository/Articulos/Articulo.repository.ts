@@ -105,19 +105,17 @@ export const ArticuloRepository = {
     },
 
     getAllParaVenta: async (id_empresa: string, cantidad: number, cod_barr_artic: string) => {
-        // let id_lista_precio: string;
-        console.log(cod_barr_artic);
+
         const articulo = await ArticuloRepository.getByIDFlexible(cod_barr_artic);
+
         if (!articulo) {
             throw new Error('Artículo no encontrado');
         }
 
-        const empresa = await Empresa_SucursalRepository.getByID(id_empresa);
+        const empresa = await Empresa_SucursalRepository.getByIDLista(id_empresa);
         const Lista_precio_empresa = empresa.id_listapreciodefault;
 
-        // const lote_articulo = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(cod_barr_artic);
         const lote_articulo = await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(cod_barr_artic, cantidad);
-
 
         const detallePrecio = await DetalleListaPrecio.findOne({
             where: {
@@ -137,9 +135,7 @@ export const ArticuloRepository = {
             precio_unitario,
             total: precio_unitario * cantidad
         };
-
     },
-
     getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string) => {
         const offset = (page - 1) * limit;
 

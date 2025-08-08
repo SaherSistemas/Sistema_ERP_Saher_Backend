@@ -55,6 +55,12 @@ export const Empresa_SucursalRepository = {
             ]
         });
     },
+    getByIDLista: async (id_empresa: string) => {
+        return await Empresa_Sucursal.findOne({
+            where: { id_empre: id_empresa },
+            attributes: ['id_listapreciodefault'], // SOLO este campo
+        });
+    },
     getGrupo: async (id_empresa: string) => {
         return await Empresa_Sucursal.findOne({
             where: {
