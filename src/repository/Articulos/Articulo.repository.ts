@@ -105,30 +105,25 @@ export const ArticuloRepository = {
     },
 
     getAllParaVenta: async (id_empresa: string, cantidad: number, cod_barr_artic: string) => {
-
         const articulo = await ArticuloRepository.getByIDFlexible(cod_barr_artic);
-
         if (!articulo) {
             throw new Error('Artículo no encontrado');
         }
-
+        
         const empresa = await Empresa_SucursalRepository.getByIDLista(id_empresa);
-        const Lista_precio_empresa = empresa.id_listapreciodefault;
-
+        const Lista_precio_empresa = empresa?.id_listapreciodefault ?? null;
         const lote_articulo = await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(cod_barr_artic, cantidad);
-
         const detallePrecio = await DetalleListaPrecio.findOne({
             where: {
                 id_artic: articulo.id_artic,
                 id_lista_precio: Lista_precio_empresa
             }
         });
-
         const precio_unitario = detallePrecio?.precios ?? 0;
 
-
         return {
-            articulo: articulo.cod_barr_artic,
+            id_artic: articulo.id_artic,
+            cod_barr_artic: articulo.cod_barr_artic,
             lote_articulo,
             cantidad,
             descripcion: articulo.des_artic,

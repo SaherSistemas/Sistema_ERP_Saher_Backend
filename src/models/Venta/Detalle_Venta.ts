@@ -37,7 +37,7 @@ class DetalleVenta extends Model{
     }) declare precio_unitario: number;
 
     @HasOne(() => LoteUsadoVenta)
-    declare loteUsado: LoteUsadoVenta;
+    declare lote_usado: LoteUsadoVenta;
 }
 
 export default DetalleVenta;

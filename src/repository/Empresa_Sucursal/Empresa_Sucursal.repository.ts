@@ -8,6 +8,8 @@ import Pais from "../../models/Ubicacion/Pais";
 export const Empresa_SucursalRepository = {
     getAll: async (): Promise<IEmpresaSucursal[]> => {
         return await Empresa_Sucursal.findAll({
+            attributes: ['id_empre', 'nom_empre', 'rfc_empre', 'tipo_empre', 'calle_empre', 'id_colonia_empre', 'correo_empre', 'tele_empre', 'status_empre', 'idgrup_empre', 'id_listapreciodefault', 'createdAt', 'updatedAt'],
+   
             include: [
                 {
                     model: Colonia,
@@ -58,7 +60,8 @@ export const Empresa_SucursalRepository = {
     getByIDLista: async (id_empresa: string) => {
         return await Empresa_Sucursal.findOne({
             where: { id_empre: id_empresa },
-            attributes: ['id_listapreciodefault'], // SOLO este campo
+            attributes: ['id_listapreciodefault'], 
+            raw: true
         });
     },
     getGrupo: async (id_empresa: string) => {

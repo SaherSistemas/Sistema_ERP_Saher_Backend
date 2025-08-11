@@ -1,4 +1,4 @@
-import { IDetalleVenta } from "./Detalle_Venta.interface";
+import { IDetalleVenta, IDetalleVentaInput } from "./Detalle_Venta.interface";
 
 export interface IVenta{
     id_venta: string;
@@ -8,16 +8,26 @@ export interface IVenta{
     tipo_venta:string;
     id_metodo_pago: string;
     status_venta: string;
-      detalle_venta: IDetalleVenta;
+      detalle_venta: IDetalleVenta[];
 }
 
 export interface ICreateOrUpdateVenta{
+    id_venta?: string;
     id_cliente: string;
-    id_empleado?: string;
-    id_user?: string;
+    id_empleado: string;
     id_empre:string;
     tipo_venta:string;
     id_metodo_pago : string;
-    status_venta: string;
-        detalle_venta: IDetalleVenta;
+    status_venta?: string;
+        detalle_venta: IDetalleVenta[];
+}
+
+export interface IVentaInput {
+  id_cliente?: string;
+  id_empleado?: string;
+  id_empre: string;
+  tipo_venta: string;
+  id_metodo_pago: string;
+  status_venta: string;
+  detalle_venta: IDetalleVentaInput[];
 }
