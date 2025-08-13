@@ -1,16 +1,33 @@
 import Lote_sucursal_articulo from "../../models/LotesYCaducidad/Lote_ArticuloSucursal";
-import { ILotesArticuloSucursal, ICreaterOrUdateLotesArticuloSucursal } from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
+import {
+  ILotesArticuloSucursal,
+  ICreaterOrUdateLotesArticuloSucursal,
+} from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
 
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from "uuid";
 import { ArticuloRepository } from "../Articulos/Articulo.repository";
 import { Op, Sequelize } from "sequelize";
-
+import { FindOptions } from "sequelize";
+type RepoOpts = FindOptions;
 
 export const LotesArticuloSucursalRepository = {
-  getAll: async () => {
-    return await Lote_sucursal_articulo.findAll();
-    //return await Lote_sucursal_articulo.findAll({ attributes: ['id_lote_sucursal'], raw: true })
+  getAll: async (id_empre?: string, id_artic?: string) => {
+    const where: any = {};
+
+    if (id_empre) {
+      where.id_empre = id_empre;
+    }
+
+    if (id_artic) {
+      where.id_artic = id_artic;
+    }
+
+    return await Lote_sucursal_articulo.findAll({
+      where,
+      attributes: ["id_lote_sucursal"],
+      raw: true,
+    });
   },
 
   getById: async (id: string) => {
@@ -18,6 +35,18 @@ export const LotesArticuloSucursalRepository = {
       return await Lote_sucursal_articulo.findByPk(id);
     }
   },
+
+  listByEmpresaArticulo: async (
+    id_empre: string,
+    id_artic: string,
+    options: RepoOpts = {}
+  ) => {
+    return await Lote_sucursal_articulo.findAll({
+      where: { id_empre, id_artic },
+      ...options,
+    });
+  },
+
   getLotesPorCodigoBarra: async (cod_barr_artic: string) => {
     const articulo = await ArticuloRepository.getByIDFlexible(cod_barr_artic);
     if (!articulo) throw new Error("Artículo no encontrado");
@@ -38,8 +67,23 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
-  repartirCantidadEntreLotes: async (cod_barr_artic: string, cantidadSolicitada: number) => {
-    const lotes = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(cod_barr_artic);
+  findByPkInEmpresaArticulo: async (id_lote_sucursal: string,id_empre: string,id_artic: string,options: FindOptions = {}) => {
+    return await Lote_sucursal_articulo.findOne({
+      where: { 
+        id_lote_sucursal, 
+        id_empre, 
+        id_artic },
+      ...options,
+    });
+  },
+
+  repartirCantidadEntreLotes: async (
+    cod_barr_artic: string,
+    cantidadSolicitada: number
+  ) => {
+    const lotes = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(
+      cod_barr_artic
+    );
 
     const lotesParaVenta = [];
     let cantidadRestante = cantidadSolicitada;
@@ -64,16 +108,25 @@ export const LotesArticuloSucursalRepository = {
     }
 
     if (totalDisponible < cantidadSolicitada) {
-      throw new Error("No hay suficiente stock total para cubrir la cantidad solicitada");
+      throw new Error(
+        "No hay suficiente stock total para cubrir la cantidad solicitada"
+      );
     }
 
     return lotesParaVenta;
   },
-  descontarStockLotes: async (lotesVendidos: { numero_lote_sucursal: string; cantidad_lote_sucursal: number }[]) => {
+  descontarStockLotes: async (
+    lotesVendidos: {
+      numero_lote_sucursal: string;
+      cantidad_lote_sucursal: number;
+    }[]
+  ) => {
     for (const lote of lotesVendidos) {
       await Lote_sucursal_articulo.update(
         {
-          cantidad_lote_sucursal: Sequelize.literal(`cantidad_lote_sucursal - ${lote.cantidad_lote_sucursal}`),
+          cantidad_lote_sucursal: Sequelize.literal(
+            `cantidad_lote_sucursal - ${lote.cantidad_lote_sucursal}`
+          ),
         },
         {
           where: {
@@ -85,20 +138,19 @@ export const LotesArticuloSucursalRepository = {
     }
   },
 
-
-  llevarmeCostosDeLotesExistentesEnVariasEmpresas: async (id_artic: string, ids_Empresas: string[]) => {
+  llevarmeCostosDeLotesExistentesEnVariasEmpresas: async (
+    id_artic: string,
+    ids_Empresas: string[]
+  ) => {
     const lotesExistencia = await Lote_sucursal_articulo.findAll({
-      attributes: [
-        "cantidad_lote_sucursal",
-        "precio_costo_lote_sucursal"
-      ],
+      attributes: ["cantidad_lote_sucursal", "precio_costo_lote_sucursal"],
       where: {
         id_artic,
         id_empre: ids_Empresas,
-        cantidad_lote_sucursal: { [Op.gt]: 0 }
+        cantidad_lote_sucursal: { [Op.gt]: 0 },
       },
-      raw: true
-    })
+      raw: true,
+    });
 
     let totalCosto = 0;
     let totalCantidad = 0;
@@ -115,10 +167,9 @@ export const LotesArticuloSucursalRepository = {
 
     return {
       costoPromedio,
-      totalCantidad
+      totalCantidad,
     };
   },
-
 
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     const nuevoUUID = uuidv4();
@@ -129,26 +180,28 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
-  updateOrCreateLoteSucursal: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
+  updateOrCreateLoteSucursal: async (
+    data: ICreaterOrUdateLotesArticuloSucursal
+  ) => {
     const { id_artic, id_empre, numero_lote_sucursal } = data;
 
     const loteExistente = await Lote_sucursal_articulo.findOne({
       where: {
         id_artic,
         id_empre,
-        numero_lote_sucursal
-      }
+        numero_lote_sucursal,
+      },
     });
 
-
     if (loteExistente) {
-      const nuevaCantidad = loteExistente.cantidad_lote_sucursal + data.cantidad_lote_sucursal;
+      const nuevaCantidad =
+        loteExistente.cantidad_lote_sucursal + data.cantidad_lote_sucursal;
 
       await loteExistente.update({
         cantidad_lote_sucursal: nuevaCantidad,
         precio_costo_lote_sucursal: data.precio_costo_lote_sucursal,
         fecha_venci_lote_sucursal: data.fecha_venci_lote_sucursal,
-        estado_lote_sucursal: data.estado_lote_sucursal
+        estado_lote_sucursal: data.estado_lote_sucursal,
       });
 
       return loteExistente;
@@ -156,9 +209,9 @@ export const LotesArticuloSucursalRepository = {
 
     const nuevoLote = await Lote_sucursal_articulo.create({
       ...data,
-      id_lote_sucursal: uuidv4()
+      id_lote_sucursal: uuidv4(),
     });
 
     return nuevoLote;
-  }
+  },
 };

@@ -15,6 +15,31 @@ export class LotesArticuloSucursalController {
         });
     }
   };
+  static getAllByEmpresaArticulo = async (req: Request, res: Response) => {
+    try {
+      const { id_empre, id_artic } = req.params;
+
+      const conStock = String(req.query.conStock ?? "false").toLowerCase() === "true";
+      const noVencidos = String(req.query.noVencidos ?? "false").toLowerCase() === "true";
+      const estado = req.query.estado ? String(req.query.estado) : undefined;
+      const ordenar = (req.query.ordenar as "fefo" | "fifo" | "recientes") || "fefo";
+
+      const lotes = await LotesArticuloSucursalService.getAllByEmpresaArticulo(
+        id_empre,
+        id_artic,
+        { conStock, estado, noVencidos, ordenar }
+      );
+
+       res.status(200).json(lotes);
+    } catch (error: any) {
+      if (error?.message?.includes("Faltan id_empre o id_artic")) {
+         res.status(400).json({ mensaje: error.message });
+      }
+      console.error("getAllByEmpresaArticulo:", error);
+       res.status(500).json({ mensaje: "Error al obtener lotes." });
+    }
+  };
+
 
   static getByID = async (req: Request, res: Response) => {
     try {
@@ -69,7 +94,6 @@ export class LotesArticuloSucursalController {
       res.status(500).json({ mensaje: error.message });
     }
   };
-
   static create = async (req: Request, res: Response) => {
     try {
       const data = req.body;
@@ -82,6 +106,8 @@ export class LotesArticuloSucursalController {
         .json({ mensaje: "Error al crear Lotes Articulo sucursal." });
     }
   };
+
+
   /*
     static updateByID = async (req: Request, res: Response) => {
       try {

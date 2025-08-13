@@ -71,6 +71,7 @@ import Lote_Usado_VentaRouter from "./LotesYCaducidades/Lote_Usado_VentaRouter"
 //Venta
 import Detalle_VentaRouter from "./Venta/Detalle_VentaRouter"
 import VentaRouter from "./Venta/VentaRouter"
+import Venta_PagoRouter from "./Venta/Venta_PagoRouter"
 
 //Lista Precios
 import Lista_Precio from "./Costo_y_Precio/Lista_Precio/Lista_PrecioRouter"
@@ -167,6 +168,8 @@ router.use('/lote_usado_venta', Lote_Usado_VentaRouter)
 //Venta
 router.use('/detalle_venta', Detalle_VentaRouter)
 router.use('/venta', VentaRouter)
+router.use('/ventapago', Venta_PagoRouter)
+
 
 //Lista Precios
 router.use('/lista_Precio', Lista_Precio)

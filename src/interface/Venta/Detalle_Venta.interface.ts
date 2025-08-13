@@ -1,4 +1,5 @@
-import { ICreateOrUpdateLoteUsadoVenta, ILoteUsadoVenta } from "../LotesYCaducidad/Lote_Usado_Venta.interaface";
+import { IMetodoPagoVentaInput } from "../Caja/Metodo_de_Pago.interface";
+import { ICreateOrUpdateLoteUsadoVenta, ILoteUsadoVenta, ILoteUsadoVentaInput } from "../LotesYCaducidad/Lote_Usado_Venta.interaface";
 
 export interface IDetalleVenta{
     id_detalle_venta:string;
@@ -10,17 +11,17 @@ export interface IDetalleVenta{
 }
 
 export interface ICreateOrUpdateDetalleVenta{
-    id_detalle_venta?: string;
-    id_venta?: string;
+    id_venta: string;
     id_artic: string;
     cantidad: number;
     precio_unitario: number;
-      lote_usado: ICreateOrUpdateLoteUsadoVenta[];
+    lote_usado: ICreateOrUpdateLoteUsadoVenta[];
 }
 
 export interface IDetalleVentaInput {
+  id_venta: string;
   id_artic: string;
   cantidad: number;
   precio_unitario: number;
-     lote_usado:  ICreateOrUpdateLoteUsadoVenta[]; 
+  lote_usado:  ILoteUsadoVentaInput[]; 
 }

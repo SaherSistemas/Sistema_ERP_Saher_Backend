@@ -27,7 +27,6 @@ export const ClienteService = {
         return await ClienteRepository.createCliente(data);
     },
 
-
     getDatosBeneficiado: async (telefono_cliente:string)=>{
         const cliente = await ClienteRepository.getDatosBeneficiado(telefono_cliente);
         return cliente;

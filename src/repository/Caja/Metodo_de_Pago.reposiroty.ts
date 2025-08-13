@@ -1,6 +1,6 @@
 import Metodo_de_Pago from "../../models/Caja/Metodo_de_Pago";
 import { isUUID } from "../../utils/validaciones";
-import { IMetodoPago, ICreateOrUpdateMetodoPago } from "../../interface/Caja/Metodo_de_Pago.interface";
+import { IMetodoPago, ICreateOrUpdateMetodoPago, IMetodoPagoVentaInput } from "../../interface/Caja/Metodo_de_Pago.interface";
 import { v4 as uuidv4 } from "uuid";
 
 export const MetodoPagoRepository = {
@@ -21,7 +21,7 @@ export const MetodoPagoRepository = {
         }
     },
 
-    createMetodoPago: async (data: ICreateOrUpdateMetodoPago) => {
+    create: async (data: ICreateOrUpdateMetodoPago) => {
         return await Metodo_de_Pago.create({
             id_metodo_pago: uuidv4(),
             ...data

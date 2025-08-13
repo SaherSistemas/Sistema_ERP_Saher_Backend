@@ -1,4 +1,4 @@
-import { IMetodoPago } from "../../interface/Caja/Metodo_de_Pago.interface";
+import { ICreateOrUpdateMetodoPago, IMetodoPago, IMetodoPagoVentaInput } from "../../interface/Caja/Metodo_de_Pago.interface";
 import { MetodoPagoRepository  } from "../../repository/Caja/Metodo_de_Pago.reposiroty";
 
 
@@ -12,7 +12,7 @@ export const MetodoPagoService = {
         return await MetodoPagoRepository.getByIDFlexible(id_metodo_pago);
     },
 
-    createMetodoPago: async (data: IMetodoPago) => {
-         return await MetodoPagoRepository.createMetodoPago(data);
+    createMetodoPago: async (data: ICreateOrUpdateMetodoPago) => {
+         return await MetodoPagoRepository.create(data);
     },
 }

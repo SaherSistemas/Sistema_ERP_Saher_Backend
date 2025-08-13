@@ -1,23 +1,32 @@
 import Venta from "../../models/Venta/Venta";
 import DetalleVenta from "../../models/Venta/Detalle_Venta";
 import LoteUsadoVenta from "../../models/LotesYCaducidad/Lote_Usado_Venta";
-import { Transaction } from "sequelize"; 
-import {
-  IVenta,
-  ICreateOrUpdateVenta,
-  IVentaInput,
-} from "../../interface/Venta/Venta.interface";
+import { Transaction } from "sequelize";
+import { dbLocal } from "../../config/db";
+
+import {ICreateOrUpdateVenta,IVentaInput} from "../../interface/Venta/Venta.interface";
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from "uuid";
 import { DetalleVentaRepository } from "./Detalle_Venta.repository";
+import Metodo_de_Pago from "../../models/Caja/Metodo_de_Pago";
+import Venta_Pago from "../../models/Venta/Venta_Pago";
+import sequelize from "sequelize/lib/sequelize";
 
 const ventaIncludes = [
   {
     model: DetalleVenta,
+    as: "detalle_venta",
+    include: [{ model: LoteUsadoVenta, as: "lote_usado" }],
+  },
+  {
+    model: Venta_Pago,
+    as: "venta_pago",
+    attributes: ["id_metodo_pago", "monto"],
     include: [
       {
-        model: LoteUsadoVenta,
-        as: 'lote_usado',
+        model: Metodo_de_Pago,
+        as: "metodo_pago",
+        attributes: ["nombre_metodo_pago"],
       },
     ],
   },
@@ -28,26 +37,66 @@ export const VentaRepository = {
     return await Venta.findAll({ include: ventaIncludes });
   },
 
-  getById: async (id_venta: string) => {
+  getById: async (
+    id_venta: string,
+    options?: { transaction?: Transaction }
+  ) => {
     if (!isUUID(id_venta)) return null;
-    return await Venta.findByPk(id_venta, { include: ventaIncludes });
+    return Venta.findByPk(id_venta, {
+      include: ventaIncludes,
+      transaction: options?.transaction,
+    });
   },
 
-  create: async (data: Partial<ICreateOrUpdateVenta>, options?: { transaction?: Transaction }) => {
-  return await Venta.create(data, options);
-},
+  create: async (input: IVentaInput, options?: { transaction?: Transaction }
+) => {
+    const run = async (t: Transaction) => {
+      const {
+        detalle_venta = [],
+        venta_pago = [],
+        ...ventaData
+      } = input as any;
+    
+      if (ventaData.id_venta == null) delete (ventaData as any).id_venta;
 
+      const id_venta = uuidv4();
+
+      const venta = await Venta.create(
+        {...ventaData, id_venta},
+        { transaction: t });
+
+      if (detalle_venta.length) {
+        const payloadDetalles = detalle_venta.map((d: any) => ({
+         id_artic: d.id_artic,
+          cantidad: d.cantidad,
+          precio_unitario: d.precio_unitario,
+          id_venta, 
+        }));
+        await DetalleVenta.bulkCreate(payloadDetalles, { transaction: t });
+      }
+
+      if (venta_pago.length) {
+        const payloadPagos = venta_pago.map((p: any) => ({
+          id_venta,                        
+          id_metodo_pago: p.id_metodo_pago,
+          monto: p.monto,
+        }));
+        await Venta_Pago.bulkCreate(payloadPagos, { transaction: t });
+      }
+
+      await venta.reload({ include: ventaIncludes, transaction: t });
+      return venta;
+    };
+
+    if (options?.transaction) {
+      return run(options.transaction);
+    }
+    return dbLocal.transaction(run);
+  },
 
   update: async (id_venta: string, data: Partial<ICreateOrUpdateVenta>) => {
     const venta = await Venta.findByPk(id_venta);
     if (!venta) return null;
-    return await venta.update(data);
+    return venta.update(data);
   },
-
-  // delete: async (id_venta: string) => {
-  //   const venta = await Venta.findByPk(id_venta);
-  //   if (!venta) return null;
-  //   await venta.destroy();
-  //   return true;
-  // },
 };

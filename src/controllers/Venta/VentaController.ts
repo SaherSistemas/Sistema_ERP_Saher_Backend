@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import { VentaService } from "../../services/Venta/Venta.service";
-import { ventaSchema } from "../../schema/ventas/venta.schema";
 
 export class VentaController {
   static getAll = async (req: Request, res: Response) => {
@@ -16,8 +15,8 @@ export class VentaController {
   static getByID = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const caja = await VentaService.getById(id);
-      res.status(200).json(caja);
+      const venta = await VentaService.getById(id);
+      res.status(200).json(venta);
     } catch (error) {
       console.error(error);
       res.status(500).json({ mensaje: "Error al encontrar la Venta." });
@@ -25,16 +24,8 @@ export class VentaController {
   };
 
   static create = async (req: Request, res: Response) => {
-    const parseResult = ventaSchema.safeParse(req.body);
-
-    if (!parseResult.success) {
-       res.status(400).json({
-        mensaje: "Datos inválidos",
-        errores: parseResult.error.issues,
-      });
-      return;
-    }
-    const data = parseResult.data;
+   
+    const data =  req.body;
 
     try {
       const nuevaVenta = await VentaService.create(data);

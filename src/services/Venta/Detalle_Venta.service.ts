@@ -1,5 +1,6 @@
 import { dbLocal } from "../../config/db";
 import {IDetalleVenta, ICreateOrUpdateDetalleVenta, IDetalleVentaInput} from "../../interface/Venta/Detalle_Venta.interface"
+import { LoteUsadoVentaRepository } from "../../repository/LotesYCaducidad/Lote_Usado_Venta.repository";
 import { DetalleVentaRepository } from "../../repository/Venta/Detalle_Venta.repository"
 import { v4 as uuidv4 } from "uuid";
 
@@ -16,37 +17,35 @@ export const DetalleVentaService = {
         },
         
    create: async (data: IDetalleVentaInput) => {
-     const transaction = await dbLocal.transaction();
-     try {
-       const id_detalle_venta = uuidv4();
- 
-       await DetalleVentaRepository.create(
+     const t = await dbLocal.transaction();
+     try { 
+       const detalle_venta = await DetalleVentaRepository.create(
          {
-              id_detalle_venta,
+              id_venta: data.id_venta,
               id_artic: data.id_artic,
               cantidad: data.cantidad,
               precio_unitario: data.precio_unitario,
-           
-         }, { transaction }
-       );
+              lote_usado: data.lote_usado
+         }, { transaction : t });
+
+      
+       const id_detalle_venta = detalle_venta.id_detalle_venta;
        
        for (const lote_usado of data.lote_usado) {
-         await DetalleVentaRepository.create(
+         await LoteUsadoVentaRepository.create(
            {
+              id_detalle_venta,
              ...lote_usado,
-            //  id_lote_usado: uuidv4(),
-             id_detalle_venta,
            },
-           { transaction}
+           { transaction : t}
          );
        }
- 
-       await transaction.commit();
- 
-       return await DetalleVentaRepository.getById(id_detalle_venta);
+      
+      await t.commit();
+      return await DetalleVentaRepository.getById(id_detalle_venta);
  
      } catch (error) {
-       await transaction.rollback();
+       await t.rollback();
        throw error;
      }
    },

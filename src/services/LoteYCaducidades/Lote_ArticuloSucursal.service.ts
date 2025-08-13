@@ -3,6 +3,7 @@ import {
   ICreaterOrUdateLotesArticuloSucursal,
 } from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
 import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
+import { Op } from "sequelize";
 
 export const LotesArticuloSucursalService = {
   getAll: async (): Promise<ILotesArticuloSucursal[]> => {
@@ -18,25 +19,58 @@ export const LotesArticuloSucursalService = {
       cod_barr_artic
     );
   },
-  repartirCantidadEntreLotes: async (cod_barr_artic: string, cantidadSolicitada: number) => {
-    return await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(cod_barr_artic, cantidadSolicitada);
+  getAllByEmpresaArticulo: async (
+    id_empre: string,
+    id_artic: string,
+    opts?: {
+      conStock?: boolean;
+      estado?: string;
+      noVencidos?: boolean;
+      ordenar?: "fefo" | "fifo" | "recientes";
+    }
+  ) => {
+    if (!id_empre || !id_artic) {
+      throw new Error("Faltan id_empre o id_artic");
+    }
+
+    const where: any = { id_empre, id_artic };
+
+    if (opts?.estado) {
+      // p.ej. "B" = Bueno
+      where.estado_lote_sucursal = opts.estado;
+    }
+    if (opts?.conStock) {
+      where.cantidad_lote_sucursal = { [Op.gt]: 0 };
+    }
+    if (opts?.noVencidos) {
+      where.fecha_venci_lote_sucursal = { [Op.gte]: new Date() };
+    }
+
+    // Orden por defecto: FEFO (más próximo a vencer primero)
+    let order: any[] = [["fecha_venci_lote_sucursal", "ASC"]];
+    if (opts?.ordenar === "fifo") order = [["createdAt", "ASC"]];
+    if (opts?.ordenar === "recientes") order = [["createdAt", "DESC"]];
+
+    return await LotesArticuloSucursalRepository.listByEmpresaArticulo(
+      id_empre,
+      id_artic,
+      {
+        where,
+        order,
+      }
+    );
+  },
+  repartirCantidadEntreLotes: async (
+    cod_barr_artic: string,
+    cantidadSolicitada: number
+  ) => {
+    return await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(
+      cod_barr_artic,
+      cantidadSolicitada
+    );
   },
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     return LotesArticuloSucursalRepository.create(data);
-  },
-  /*
-  update: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
-    return await LotesArticuloSucursalRepository.updateOrUpdate(data);
-  },
-  */
-  // update: async (id_lote_sucursal: string, data: ICreaterOrUdateLotesArticuloSucursal) => {
-  //     const result = await LotesArticuloSucursalRepository.update(id_lote_sucursal, data);
+  }
 
-  //     if (!result) {
-  //         throw new Error("No se actualizó ningún registro");
-  //     }
-
-  //     // Ahora sí, busca el lote actualizado
-  //     return await LotesArticuloSucursalRepository.getById(id_lote_sucursal);
-  //}
 };
