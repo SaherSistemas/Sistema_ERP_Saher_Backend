@@ -1,6 +1,6 @@
 import Margen_Ganancia_Lista from "../../models/Costo_Y_Precio/Margen_Ganancia_Lista";
 import { v4 } from "uuid";
-import { Op } from "sequelize";
+import { Op, Transaction } from "sequelize";
 import { IMargen_Ganancia_ListaCreate } from "../../interface/Costo_y_Precio/Marge_Ganancia_Lista.interface";
 
 export const Margen_Ganancia_ListaRepository = {
@@ -18,13 +18,14 @@ export const Margen_Ganancia_ListaRepository = {
             margen: data.margen
         })
     },
-    getByProducto: async (id_categoria: string, id_presentacion: string) => {
+    getByProducto: async (id_categoria: string, id_presentacion: string, options?: { transaction?: Transaction }) => {
         return await Margen_Ganancia_Lista.findAll({
             where: {
                 id_categoria,
                 id_presentacion,
             },
             include: ['lista_precio', 'categoria', 'presentacion'],
+            transaction: options?.transaction
         });
     },
     update: async (id_margen: string, data: IMargen_Ganancia_ListaCreate) => {

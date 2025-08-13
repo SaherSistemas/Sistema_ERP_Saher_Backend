@@ -1,4 +1,4 @@
-import { Op, Sequelize } from 'sequelize';
+import { Op, Sequelize, Transaction } from 'sequelize';
 import { ICreateOrUpdateArticulo } from "../../interface/Articulos/Articulo.interface";
 import Articulo from "../../models/Articulos/Articulo";
 import { isUUID } from "../../utils/validaciones";
@@ -35,8 +35,10 @@ export const ArticuloRepository = {
     getAll: async () => {
         return await Articulo.findAll({ attributes: ['id_artic'], raw: true })
     },
-    getByPK: async (id_artic: string) => {
-        return await Articulo.findByPk(id_artic)
+    getByPK: async (id_artic: string, options?: { transaction?: Transaction }) => {
+        return await Articulo.findByPk(id_artic, {
+            transaction: options.transaction
+        })
     },
     getAllPag: async (page: number, limit: number, query: string) => {
         const offset = (page - 1) * limit;
@@ -109,7 +111,7 @@ export const ArticuloRepository = {
         if (!articulo) {
             throw new Error('Artículo no encontrado');
         }
-        
+
         const empresa = await Empresa_SucursalRepository.getByIDLista(id_empresa);
         const Lista_precio_empresa = empresa?.id_listapreciodefault ?? null;
         const lote_articulo = await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(cod_barr_artic, cantidad);

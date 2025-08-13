@@ -24,8 +24,20 @@ export class VentaController {
   };
 
   static create = async (req: Request, res: Response) => {
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
    
     const data =  req.body;
+=======
+
+
+    const data = req.body;
+>>>>>>> Stashed changes
+=======
+
+
+    const data = req.body;
+>>>>>>> Stashed changes
 
     try {
       const nuevaVenta = await VentaService.create(data);

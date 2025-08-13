@@ -1,6 +1,7 @@
 import { ICrearEmpresaSucursal, IEmpresaSucursal, IUpdateEmpresaSucursal } from "../../interface/Empresa_Sucursal/Empresa_Sucursal.interface";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 import { v4 as uuidv4 } from 'uuid';
+import { Transaction } from "sequelize"; // Asegúrate de importar Transaction
 import Colonia from "../../models/Ubicacion/Colonia";
 import Ciudad from "../../models/Ubicacion/Ciudad";
 import Estado from "../../models/Ubicacion/Estado";
@@ -9,7 +10,7 @@ export const Empresa_SucursalRepository = {
     getAll: async (): Promise<IEmpresaSucursal[]> => {
         return await Empresa_Sucursal.findAll({
             attributes: ['id_empre', 'nom_empre', 'rfc_empre', 'tipo_empre', 'calle_empre', 'id_colonia_empre', 'correo_empre', 'tele_empre', 'status_empre', 'idgrup_empre', 'id_listapreciodefault', 'createdAt', 'updatedAt'],
-   
+
             include: [
                 {
                     model: Colonia,
@@ -18,13 +19,14 @@ export const Empresa_SucursalRepository = {
             ]
         });
     },
-    getEmpresasPorGrupo: async (id_grup_empre: string) => {
+    getEmpresasPorGrupo: async (id_grup_empre: string, options?: { transaction?: Transaction }) => {
         const empresas = await Empresa_Sucursal.findAll({
             attributes: ["id_empre"], // Solo traigo el ID
             where: {
                 idgrup_empre: id_grup_empre
             },
-            raw: true // Para que devuelva objetos planos
+            raw: true, // Para que devuelva objetos planos
+            transaction: options?.transaction,
         });
 
         // Devuelvo solo un array de IDs
@@ -60,17 +62,18 @@ export const Empresa_SucursalRepository = {
     getByIDLista: async (id_empresa: string) => {
         return await Empresa_Sucursal.findOne({
             where: { id_empre: id_empresa },
-            attributes: ['id_listapreciodefault'], 
+            attributes: ['id_listapreciodefault'],
             raw: true
         });
     },
-    getGrupo: async (id_empresa: string) => {
+    getGrupo: async (id_empresa: string, options?: { transaction?: Transaction }) => {
         return await Empresa_Sucursal.findOne({
             where: {
                 id_empre: id_empresa
             },
             attributes: ['idgrup_empre'],
-            raw: true
+            raw: true,
+            transaction: options?.transaction
         })
     },
     getByIDHeader: async (id: string): Promise<IEmpresaSucursal | null> => {

@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 import Articulo from "../../models/Articulos/Articulo";
 import LoteArticuloSucursal from "../../models/LotesYCaducidad/Lote_ArticuloSucursal";
+import { Transaction } from "sequelize"; // Asegúrate de importar Transaction
 
 export const StockSucursalRepository = {
     getAll: async () => {
@@ -30,13 +31,14 @@ export const StockSucursalRepository = {
             ...data
         });
     },
-    updateCantidadExistencia: async (id_empre: string, id_artic: string) => {
+    updateCantidadExistencia: async (id_empre: string, id_artic: string, options?: { transaction?: Transaction }) => {
         const lotes = await LoteArticuloSucursal.findAll({
             where: {
                 id_artic,
                 id_empre,
                 estado_lote_sucursal: 'A' // o el estado que estés usando
-            }
+            },
+            transaction: options?.transaction
         });
 
         const total = lotes.reduce((sum, lote) => {

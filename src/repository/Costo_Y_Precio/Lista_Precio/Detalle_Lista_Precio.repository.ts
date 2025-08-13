@@ -2,6 +2,7 @@ import { ICreateOrUpdateIDetalleListaPrecio, IDetalleListaDePrecio } from "../..
 import DetalleListaPrecio from "../../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio";
 import { v4 as uuidv4 } from "uuid";
 import ListaPrecio from "../../../models/Costo_Y_Precio/Lista_Precios/Lista_Precio";
+import { Transaction } from "sequelize"; // Asegúrate de importar Transaction
 
 export const DetalleListaPreciosRepository = {
 
@@ -31,7 +32,7 @@ export const DetalleListaPreciosRepository = {
     });
   },
 
-  updateOrCreate: async (data: ICreateOrUpdateIDetalleListaPrecio) => {
+  updateOrCreate: async (data: ICreateOrUpdateIDetalleListaPrecio, options?: { transaction?: Transaction }) => {
     const [registro, created] = await DetalleListaPrecio.findOrCreate({
       where: {
         id_lista_precio: data.id_lista_precio,
@@ -40,7 +41,8 @@ export const DetalleListaPreciosRepository = {
       defaults: {
         id_detalle_lista_precio: uuidv4(),
         precios: data.precios
-      }
+      },
+      transaction: options?.transaction
     });
 
     if (!created) {

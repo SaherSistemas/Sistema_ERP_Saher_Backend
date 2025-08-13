@@ -8,15 +8,27 @@ export interface IStockSucursal {
 }
 
 export interface ICreateOrUpdateStockSucursal {
-    id_comp: string
-    precio: string
-    id_artic: string
-    id_empresa: string
-    id_detcomprec: string
-    lotes: ILoteRecibido[]
+    id_comp: string;
+    precio: string; // unitario
+    id_artic: string;
+    id_empresa: string;
+    id_detcomprec: string;
+    lotes: ILoteRecibido[];
 }
 
-export interface IDataProductosStock {
-    id_empresa: string
+/** ← NUEVO: estructura de cada renglón de devolución */
+export interface IProductoDevolucion {
+    id_comp: string;
+    id_detcomprec: string;
+    cantidad_devolucion: number;
+    lote: string | null;
+    fecha_caducidad: string | null; // YYYY-MM-DD
+    observacion: string;
+}
+
+/** ← NUEVO: payload con las “tres cosas” */
+export interface IDataProductosStockConDevolucion {
+    id_empresa: string;
     productosEntrada: ICreateOrUpdateStockSucursal[];
+    productosDevolucion: IProductoDevolucion[];
 }

@@ -7,9 +7,17 @@ import {
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from "uuid";
 import { ArticuloRepository } from "../Articulos/Articulo.repository";
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import { Op, Sequelize } from "sequelize";
 import { FindOptions } from "sequelize";
 type RepoOpts = FindOptions;
+=======
+=======
+>>>>>>> Stashed changes
+import { Op, Sequelize, Transaction } from "sequelize";
+
+>>>>>>> Stashed changes
 
 export const LotesArticuloSucursalRepository = {
   getAll: async (id_empre?: string, id_artic?: string) => {
@@ -138,10 +146,18 @@ export const LotesArticuloSucursalRepository = {
     }
   },
 
+<<<<<<< Updated upstream
   llevarmeCostosDeLotesExistentesEnVariasEmpresas: async (
     id_artic: string,
     ids_Empresas: string[]
   ) => {
+=======
+
+  llevarmeCostosDeLotesExistentesEnVariasEmpresas: async (id_artic: string, ids_Empresas: string[], options?: { transaction?: Transaction }) => {
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
     const lotesExistencia = await Lote_sucursal_articulo.findAll({
       attributes: ["cantidad_lote_sucursal", "precio_costo_lote_sucursal"],
       where: {
@@ -150,7 +166,15 @@ export const LotesArticuloSucursalRepository = {
         cantidad_lote_sucursal: { [Op.gt]: 0 },
       },
       raw: true,
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
     });
+=======
+=======
+>>>>>>> Stashed changes
+      transaction: options?.transaction
+    })
+>>>>>>> Stashed changes
 
     let totalCosto = 0;
     let totalCantidad = 0;
@@ -180,17 +204,34 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
   updateOrCreateLoteSucursal: async (
     data: ICreaterOrUdateLotesArticuloSucursal
   ) => {
+=======
+  updateOrCreateLoteSucursal: async (data: ICreaterOrUdateLotesArticuloSucursal, options?: { transaction?: Transaction }) => {
+>>>>>>> Stashed changes
+=======
+  updateOrCreateLoteSucursal: async (data: ICreaterOrUdateLotesArticuloSucursal, options?: { transaction?: Transaction }) => {
+>>>>>>> Stashed changes
     const { id_artic, id_empre, numero_lote_sucursal } = data;
 
     const loteExistente = await Lote_sucursal_articulo.findOne({
       where: {
         id_artic,
         id_empre,
+<<<<<<< Updated upstream
         numero_lote_sucursal,
       },
+=======
+        numero_lote_sucursal
+      },
+      transaction: options?.transaction
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
     });
 
     if (loteExistente) {
