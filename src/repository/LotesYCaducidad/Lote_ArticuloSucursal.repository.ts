@@ -7,17 +7,8 @@ import {
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from "uuid";
 import { ArticuloRepository } from "../Articulos/Articulo.repository";
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-import { Op, Sequelize } from "sequelize";
-import { FindOptions } from "sequelize";
+import { Op, Sequelize, Transaction, FindOptions } from "sequelize";
 type RepoOpts = FindOptions;
-=======
-=======
->>>>>>> Stashed changes
-import { Op, Sequelize, Transaction } from "sequelize";
-
->>>>>>> Stashed changes
 
 export const LotesArticuloSucursalRepository = {
   getAll: async (id_empre?: string, id_artic?: string) => {
@@ -75,12 +66,18 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
-  findByPkInEmpresaArticulo: async (id_lote_sucursal: string,id_empre: string,id_artic: string,options: FindOptions = {}) => {
+  findByPkInEmpresaArticulo: async (
+    id_lote_sucursal: string,
+    id_empre: string,
+    id_artic: string,
+    options: FindOptions = {}
+  ) => {
     return await Lote_sucursal_articulo.findOne({
-      where: { 
-        id_lote_sucursal, 
-        id_empre, 
-        id_artic },
+      where: {
+        id_lote_sucursal,
+        id_empre,
+        id_artic,
+      },
       ...options,
     });
   },
@@ -123,6 +120,7 @@ export const LotesArticuloSucursalRepository = {
 
     return lotesParaVenta;
   },
+
   descontarStockLotes: async (
     lotesVendidos: {
       numero_lote_sucursal: string;
@@ -139,25 +137,18 @@ export const LotesArticuloSucursalRepository = {
         {
           where: {
             numero_lote_sucursal: lote.numero_lote_sucursal,
-            cantidad_lote_sucursal: { [Op.gte]: lote.cantidad_lote_sucursal }, // evitar negativos
+            cantidad_lote_sucursal: { [Op.gte]: lote.cantidad_lote_sucursal },
           },
         }
       );
     }
   },
 
-<<<<<<< Updated upstream
   llevarmeCostosDeLotesExistentesEnVariasEmpresas: async (
     id_artic: string,
-    ids_Empresas: string[]
+    ids_Empresas: string[],
+    options?: { transaction?: Transaction }
   ) => {
-=======
-
-  llevarmeCostosDeLotesExistentesEnVariasEmpresas: async (id_artic: string, ids_Empresas: string[], options?: { transaction?: Transaction }) => {
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     const lotesExistencia = await Lote_sucursal_articulo.findAll({
       attributes: ["cantidad_lote_sucursal", "precio_costo_lote_sucursal"],
       where: {
@@ -166,15 +157,8 @@ export const LotesArticuloSucursalRepository = {
         cantidad_lote_sucursal: { [Op.gt]: 0 },
       },
       raw: true,
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
+      transaction: options?.transaction,
     });
-=======
-=======
->>>>>>> Stashed changes
-      transaction: options?.transaction
-    })
->>>>>>> Stashed changes
 
     let totalCosto = 0;
     let totalCantidad = 0;
@@ -204,34 +188,19 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
   updateOrCreateLoteSucursal: async (
-    data: ICreaterOrUdateLotesArticuloSucursal
+    data: ICreaterOrUdateLotesArticuloSucursal,
+    options?: { transaction?: Transaction }
   ) => {
-=======
-  updateOrCreateLoteSucursal: async (data: ICreaterOrUdateLotesArticuloSucursal, options?: { transaction?: Transaction }) => {
->>>>>>> Stashed changes
-=======
-  updateOrCreateLoteSucursal: async (data: ICreaterOrUdateLotesArticuloSucursal, options?: { transaction?: Transaction }) => {
->>>>>>> Stashed changes
     const { id_artic, id_empre, numero_lote_sucursal } = data;
 
     const loteExistente = await Lote_sucursal_articulo.findOne({
       where: {
         id_artic,
         id_empre,
-<<<<<<< Updated upstream
         numero_lote_sucursal,
       },
-=======
-        numero_lote_sucursal
-      },
-      transaction: options?.transaction
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
+      transaction: options?.transaction,
     });
 
     if (loteExistente) {
