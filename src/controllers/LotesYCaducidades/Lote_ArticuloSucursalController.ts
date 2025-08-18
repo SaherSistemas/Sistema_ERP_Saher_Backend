@@ -55,8 +55,9 @@ export class LotesArticuloSucursalController {
   };
   static getLotesPorCodigoBarra = async (req: Request, res: Response) => {
     try {
-      const { cod_barr_artic } = req.params;
+      const { id_empresa, cod_barr_artic } = req.params;
       const lotes = await LotesArticuloSucursalService.getLotesPorCodigoBarra(
+       id_empresa,
         cod_barr_artic
       );
       res.status(200).json({
@@ -69,31 +70,31 @@ export class LotesArticuloSucursalController {
         .json({ mensaje: "Error al obtener la cantidad de lotes por codigo." });
     }
   };
-  static repartirCantidadEntreLotes = async (req: Request, res: Response) => {
-    try {
-      const { cod_barr_artic } = req.params;
-      const cantidadSolicitada = Number(req.query.cantidad); // o puede ser req.body.cantidad, según cómo quieras
+  // static repartirCantidadEntreLotes = async (req: Request, res: Response) => {
+  //   try {
+  //     const { cod_barr_artic } = req.params;
+  //     const cantidadSolicitada = Number(req.query.cantidad); // o puede ser req.body.cantidad, según cómo quieras
 
-      if (
-        !cod_barr_artic ||
-        isNaN(cantidadSolicitada) ||
-        cantidadSolicitada <= 0
-      ) {
-        res.status(400).json({ mensaje: "Parámetros inválidos" });
-      }
+  //     if (
+  //       !cod_barr_artic ||
+  //       isNaN(cantidadSolicitada) ||
+  //       cantidadSolicitada <= 0
+  //     ) {
+  //       res.status(400).json({ mensaje: "Parámetros inválidos" });
+  //     }
 
-      const lotesParaVenta =
-        await LotesArticuloSucursalService.repartirCantidadEntreLotes(
-          cod_barr_artic,
-          cantidadSolicitada
-        );
+  //     const lotesParaVenta =
+  //       await LotesArticuloSucursalService.repartirCantidadEntreLotes(
+  //         cod_barr_artic,
+  //         cantidadSolicitada
+  //       );
 
-      res.status(200).json(lotesParaVenta);
-    } catch (error: any) {
-      console.error("Error en repartirCantidadEntreLotes:", error.message);
-      res.status(500).json({ mensaje: error.message });
-    }
-  };
+  //     res.status(200).json(lotesParaVenta);
+  //   } catch (error: any) {
+  //     console.error("Error en repartirCantidadEntreLotes:", error.message);
+  //     res.status(500).json({ mensaje: error.message });
+  //   }
+  // };
   static create = async (req: Request, res: Response) => {
     try {
       const data = req.body;

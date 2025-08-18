@@ -10,16 +10,16 @@ export const ArticuloService = {
   },
 
   getAllParaVenta: async (
-    id_empresa: string,
+    id_empresa:string,
     cantidad: number,
     cod_barr_artic: string
 
     
   ) => {
     return await ArticuloRepository.getAllParaVenta(
-       id_empresa,
-       cantidad,
-        cod_barr_artic      
+      id_empresa,
+      cantidad,
+      cod_barr_artic      
      
     );
   },

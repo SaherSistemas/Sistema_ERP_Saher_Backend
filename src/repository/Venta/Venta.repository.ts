@@ -48,8 +48,7 @@ export const VentaRepository = {
     });
   },
 
-  create: async (input: IVentaInput, options?: { transaction?: Transaction }
-) => {
+  create: async (input: IVentaInput, options?: { transaction?: Transaction }) => {
     const run = async (t: Transaction) => {
       const {
         detalle_venta = [],
