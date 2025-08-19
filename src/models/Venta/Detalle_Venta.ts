@@ -33,7 +33,7 @@ class DetalleVenta extends Model{
     }) declare cantidad: number;
     
    @Column({
-        type : DataType.INTEGER
+        type : DataType.DECIMAL(10, 2),
     }) declare precio_unitario: number;
 
     @HasOne(() => LoteUsadoVenta)

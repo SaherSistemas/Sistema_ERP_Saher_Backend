@@ -14,8 +14,9 @@ export const LotesArticuloSucursalService = {
     if (!loteartic) throw new Error("Lote Articulo Sucursal no enocontrado");
     return loteartic;
   },
-  getLotesPorCodigoBarra: async (cod_barr_artic: string) => {
+  getLotesPorCodigoBarra: async (id_empresa:string, cod_barr_artic: string) => {
     return await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(
+      id_empresa,
       cod_barr_artic
     );
   },
@@ -60,15 +61,15 @@ export const LotesArticuloSucursalService = {
       }
     );
   },
-  repartirCantidadEntreLotes: async (
-    cod_barr_artic: string,
-    cantidadSolicitada: number
-  ) => {
-    return await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(
-      cod_barr_artic,
-      cantidadSolicitada
-    );
-  },
+  // repartirCantidadEntreLotes: async (
+  //   cod_barr_artic: string,
+  //   cantidadSolicitada: number
+  // ) => {
+  //   return await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(
+  //     cod_barr_artic,
+  //     cantidadSolicitada
+  //   );
+  // },
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     return LotesArticuloSucursalRepository.create(data);
   }

@@ -46,7 +46,7 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
-  getLotesPorCodigoBarra: async (cod_barr_artic: string) => {
+  getLotesPorCodigoBarra: async (cod_barr_artic: string, id_empre:string) => {
     const articulo = await ArticuloRepository.getByIDFlexible(cod_barr_artic);
     if (!articulo) throw new Error("Artículo no encontrado");
 
@@ -54,15 +54,18 @@ export const LotesArticuloSucursalRepository = {
 
     return Lote_sucursal_articulo.findAll({
       where: {
+        id_empre,
         id_artic,
         cantidad_lote_sucursal: { [Op.gt]: 0 },
       },
       attributes: [
+        "id_lote_sucursal",  
         "fecha_venci_lote_sucursal",
         "numero_lote_sucursal",
         "cantidad_lote_sucursal",
       ],
       order: [["fecha_venci_lote_sucursal", "ASC"]],
+      limit:1
     });
   },
 
@@ -82,44 +85,44 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
-  repartirCantidadEntreLotes: async (
-    cod_barr_artic: string,
-    cantidadSolicitada: number
-  ) => {
-    const lotes = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(
-      cod_barr_artic
-    );
+  // repartirCantidadEntreLotes: async (
+  //   cod_barr_artic: string,
+  //   cantidadSolicitada: number
+  // ) => {
+  //   const lotes = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(
+  //     cod_barr_artic
+  //   );
 
-    const lotesParaVenta = [];
-    let cantidadRestante = cantidadSolicitada;
-    let totalDisponible = 0;
+  //   const lotesParaVenta = [];
+  //   let cantidadRestante = cantidadSolicitada;
+  //   let totalDisponible = 0;
 
-    for (const lote of lotes) {
-      if (cantidadRestante <= 0) break;
+  //   for (const lote of lotes) {
+  //     if (cantidadRestante <= 0) break;
 
-      const disponible = lote.cantidad_lote_sucursal;
-      if (disponible <= 0) continue;
+  //     const disponible = lote.cantidad_lote_sucursal;
+  //     if (disponible <= 0) continue;
 
-      totalDisponible += disponible;
+  //     totalDisponible += disponible;
 
-      const cantidadTomada = Math.min(disponible, cantidadRestante);
-      lotesParaVenta.push({
-        numero_lote_sucursal: lote.numero_lote_sucursal,
-        fecha_venci_lote_sucursal: lote.fecha_venci_lote_sucursal,
-        cantidad_lote_sucursal: cantidadTomada,
-      });
+  //     const cantidadTomada = Math.min(disponible, cantidadRestante);
+  //     lotesParaVenta.push({
+  //       numero_lote_sucursal: lote.numero_lote_sucursal,
+  //       fecha_venci_lote_sucursal: lote.fecha_venci_lote_sucursal,
+  //       cantidad_lote_sucursal: cantidadTomada,
+  //     });
 
-      cantidadRestante -= cantidadTomada;
-    }
+  //     cantidadRestante -= cantidadTomada;
+  //   }
 
-    if (totalDisponible < cantidadSolicitada) {
-      throw new Error(
-        "No hay suficiente stock total para cubrir la cantidad solicitada"
-      );
-    }
+  //   if (totalDisponible < cantidadSolicitada) {
+  //     throw new Error(
+  //       "No hay suficiente stock total para cubrir la cantidad solicitada"
+  //     );
+  //   }
 
-    return lotesParaVenta;
-  },
+  //   return lotesParaVenta;
+  // },
 
   descontarStockLotes: async (
     lotesVendidos: {
