@@ -4,7 +4,8 @@ import { OfertaService } from "../../services/Ofertas/Ofertas.service";
 export class OfertaController {
   static getAll = async (req: Request, res: Response) => {
     try {
-      const cajas = await OfertaService.getAll();
+      const oferta = await OfertaService.getAll();
+       res.status(200).json(oferta);
     } catch (error) {
       console.error(error);
       res

@@ -20,6 +20,7 @@ export const TIPO_ALCANCE_VALUES = [
   "TIPO_CLIENTE",
   "METODO_PAGO",
 ] as const;
+
 export type TipoAlcance = (typeof TIPO_ALCANCE_VALUES)[number];
 
 export const NIVEL_APLICACION_VALUES = ["ITEM", "TICKET", "BUNDLE"] as const;
@@ -57,34 +58,5 @@ class AlcanceOfertas extends Model {
   })
   declare id_referencia: string | null;
 
-  @Column({
-    type: DataType.ENUM(...(NIVEL_APLICACION_VALUES as unknown as string[])),
-    allowNull: false,
-  })
-  declare nivel_aplicacion: NivelAplicacion;
-
-  @Default("INCLUDE")
-  @Column({
-    type: DataType.ENUM(...(MODO_ALCANCE_VALUES as unknown as string[])),
-    allowNull: false,
-  })
-  declare modo_alcance: ModoAlcance;
-
-  @Column({
-    type: DataType.SMALLINT,
-  })
-  declare prioridad_alcance?: number | null;
-
-  @Default(false)
-  @Column({
-    type: DataType.BOOLEAN,
-    allowNull: false,
-  })
-  declare include_descendientes: boolean;
-
-  @Column({
-    type: DataType.BOOLEAN,
-  })
-  declare activo: boolean;
 }
 export default AlcanceOfertas;

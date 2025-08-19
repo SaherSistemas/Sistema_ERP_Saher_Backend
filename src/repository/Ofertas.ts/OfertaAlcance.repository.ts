@@ -17,7 +17,6 @@ export const AlcanceOfertaRepository = {
   create: async (data: ICreateOrUpdateAlcanceOferta) => {
     return await AlcanceOfertas.create({
       id_alcance: uuidv4(),
-      activo: true,
       ...data,
     });
   },

@@ -1,6 +1,7 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, HasMany } from "sequelize-typescript";
 import AlcanceOfertas from "./OfertaAlcance";
-
+import Empleado from "../Usuarios/Empleado";
+import UsoOferta from "./UsoOferta";
 
 @Table({
     tableName: "ofertas"
@@ -18,7 +19,12 @@ class Ofertas extends Model {
         type: DataType.STRING
     })
     declare nombre_oferta: string;
-    
+   
+    @Column({
+        type: DataType.STRING
+    })
+    declare descripcion: string;
+ 
     @Column({
         type: DataType.DATEONLY
     })
@@ -32,15 +38,42 @@ class Ofertas extends Model {
     @Column({
         type: DataType.STRING
     })
+    declare dias_semana: String;
+
+    @Column({
+        type: DataType.TIME
+    })
+    declare hora_ini: String;
+    @Column({
+        type: DataType.TIME
+    })
+    declare hora_fin: String;
+
+    @ForeignKey(() => Empleado)
+    @Column({
+        type: DataType.UUID
+    })
+    declare creada_por: string;
+    @BelongsTo(() => Empleado)
+    id_empleado : Empleado;
+    
+    @Column({
+        type: DataType.STRING
+    })
     declare canal_oferta: string;
 
     @Column({
-        type: DataType.BOOLEAN
+        type: DataType.STRING
     })
-    declare status_oferta:boolean;
+    declare status_oferta:string;
 
-     @HasMany(() => AlcanceOfertas, { 
+    @HasMany(() => AlcanceOfertas, { 
         as: 'alcances'})
         alcances?: AlcanceOfertas[];
+
+    @HasMany(() => UsoOferta, { 
+        as: 'usoOferta'})
+        usos?: UsoOferta[];
+    
 }
 export default Ofertas;
