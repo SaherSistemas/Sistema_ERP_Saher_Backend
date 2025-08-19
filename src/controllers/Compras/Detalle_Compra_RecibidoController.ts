@@ -16,6 +16,7 @@ export class Detalle_Compra_RecibidoController {
         try {
             const { id_comp } = req.params;
             const detallesRecibidos = await Detalle_Compra_RecibidoService.getAllDetallesDeCompraRecibidosDeUnaCompra(id_comp);
+            //console.log(detallesRecibidos)
             res.status(200).json({ mensaje: "Detalles de compra recibidos obtenidos correctamente.", detallesRecibidos });
         } catch (error) {
             console.error(error);

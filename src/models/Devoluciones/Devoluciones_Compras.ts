@@ -39,7 +39,7 @@ class Devoluciones_Compras extends Model {
     @Column({
         type: DataType.DECIMAL(10, 2)
     })
-    declare iva_total: Date
+    declare iva_total: number
 
     @ForeignKey(() => Empleado)
     @Column({

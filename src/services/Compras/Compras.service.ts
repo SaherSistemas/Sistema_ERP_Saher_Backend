@@ -75,6 +75,7 @@ export const CompraService = {
     },
 
 
+
     getCompraProveedorPorIdGeneral: async (id_compra_general: string) => {
         return await Compra_ProveedorRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
     },
@@ -83,9 +84,20 @@ export const CompraService = {
         return await Compra_ProveedorRepository.getAllCompras_ProveedorParaRecibir(id_empresa_sucursal)
     },
 
-    marcarCompraProveedorComoRecibida: async (id_comp: string, id_empleado:string) => {
+    marcarCompraProveedorComoRecibida: async (id_comp: string, id_empleado: string) => {
         return await Compra_ProveedorRepository.marcarCompraProveedorComoRecibida(id_comp, id_empleado);
     },
+
+    marcarIniciarChecado: async (id_comp: string, id_empleado: string) => {
+        return await Compra_ProveedorRepository.iniciarChequeoDeCompraProveedor(id_comp, id_empleado)
+    },
+    marcarInicioAcomodo: async (id_comp: string, id_empleado: string) => {
+        return await Compra_ProveedorRepository.iniciarAcomodoDeCompraProveedor(id_comp, id_empleado)
+    },
+    marcarFinAcomodo: async (id_comp: string, id_empleado: string) => {
+        return await Compra_ProveedorRepository.finalizarAcomodoDeCompraProveedor(id_comp, id_empleado)
+    },
+
 
     articulosDetalleCompraProveedor: async (id_comp: string) => {
         return await Compra_ProveedorRepository.articulosDetalleCompraProveedor(id_comp);

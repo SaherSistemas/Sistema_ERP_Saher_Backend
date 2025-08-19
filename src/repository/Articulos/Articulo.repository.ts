@@ -24,6 +24,7 @@ import Empresa_Sucursal from '../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { Empresa_SucursalRepository } from '../Empresa_Sucursal/Empresa_Sucursal.repository';
 import LoteArticuloSucursal from '../../models/LotesYCaducidad/Lote_ArticuloSucursal';
 import { LotesArticuloSucursalRepository } from '../LotesYCaducidad/Lote_ArticuloSucursal.repository';
+import { Tipo_IVARepository } from './Tipo_IVA.repository';
 
 
 type DetalleConTotal = {
@@ -39,6 +40,18 @@ export const ArticuloRepository = {
         return await Articulo.findByPk(id_artic, {
             transaction: options.transaction
         })
+    },
+    getIVAPorArticulo: async (id_artic: string, costo: number) => {
+        const articulo = await ArticuloRepository.getByIDFlexible(id_artic);
+
+        const tipoIVA = await Tipo_IVARepository.getByID(articulo.tipo_de_iva);
+        if (!tipoIVA) throw new Error(`Tipo de IVA no encontrado para artículo ${id_artic}`);
+
+        // Asegúrate de acceder a la propiedad correcta, por ejemplo:
+        const porcentaje = Number(tipoIVA.porcentaje_iva) / 100; // o tipoIVA.valor, según tu modelo
+        const ivaDelArticulo = costo * porcentaje;
+
+        return ivaDelArticulo;
     },
     getAllPag: async (page: number, limit: number, query: string) => {
         const offset = (page - 1) * limit;

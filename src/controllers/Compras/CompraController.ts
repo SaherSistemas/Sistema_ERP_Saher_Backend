@@ -84,11 +84,45 @@ export class ComprasController {
         try {
             const { id_comp } = req.params;
             const { id_empleado } = req.body
-            const compraProveedorRecibida = await CompraService.marcarCompraProveedorComoRecibida(id_comp,id_empleado);
+            const compraProveedorRecibida = await CompraService.marcarCompraProveedorComoRecibida(id_comp, id_empleado);
             res.status(200).json({ mensaje: "Compra proveedor marcada como recibida.", compraProveedor: compraProveedorRecibida });
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: "Error al marcar la compra proveedor como recibida." });
+        }
+    }
+    static iniciarChecado = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const { id_empleado } = req.body
+            const iniciarChecado = await CompraService.marcarIniciarChecado(id_comp, id_empleado);
+            res.status(200).json({ mensaje: "Compra proveedor marcada como recibida.", compraProveedor: iniciarChecado });
+        } catch (error) {
+            // console.error(error);
+            res.status(500).json({ message: "Error al marcar la compra proveedor como recibida." });
+        }
+    }
+    static iniciarAcomodo = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const { id_empleado } = req.body;
+            const iniciarAcomodo = await CompraService.marcarInicioAcomodo(id_comp, id_empleado)
+            res.status(200).json({ mensaje: "Compra proveedor iniciando a acomodar.", compraProveedor: iniciarAcomodo });
+
+        } catch (error) {
+            // console.error(error);
+            res.status(500).json({ message: "Error al iniciar acomodo de la compra proveedor." });
+        }
+    }
+    static finalizarAcomodo = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const { id_empleado } = req.body;
+            const finalizarAcomodo = await CompraService.marcarFinAcomodo(id_comp, id_empleado)
+            res.status(200).json({ mensaje: "Compra proveedor iniciando a acomodar.", compraProveedor: finalizarAcomodo });
+        } catch (error) {
+            // console.error(error);
+            res.status(500).json({ message: error.message || "Error al finalizar acomodo de la compra proveedor." });
         }
     }
     /*

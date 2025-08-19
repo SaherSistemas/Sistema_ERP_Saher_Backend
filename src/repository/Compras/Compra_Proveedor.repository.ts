@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-
+import { Op, Transaction } from 'sequelize';
 import Detalle_Compra_Solicitado from "../../models/Compra/Detalle_Compra_Solicitado";
 import Articulo from '../../models/Articulos/Articulo';
 import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
@@ -21,6 +21,9 @@ export const Compra_ProveedorRepository = {
            L            CAPTURANDO LOTES                         La compra se estan capturando los lotes.
            K            LOTES REGISTRADOS	                     Los lotes han sido registrados y se está esperando la recepción de los productos.
            R	        RECIBIDA	                             Todos los productos han sido recibidos correctamente.(ESPERANDO CHEQUEO Y CONTEO)
+           H	        HACIENDO CHEQUEO	                     La mercancía fue recibida y se encuentra en proceso de verificación y conteo antes de cerrar la compra.
+           Z            FIN CHEQUEO                              Fin chequeo pero no acomodado
+           M	        MOVIENDO/ACOMODANDO                      La mercancía fue revisada y está en proceso de traslado y acomodo en su ubicación final.
            F	        COMPLETADA	                             Fue recibido y se cerró la compra.
            D            COMPLETADA PERO CON DEVOLUCION           La compra fue completada pero tiene devolucion.    
     */
@@ -49,7 +52,8 @@ export const Compra_ProveedorRepository = {
         return await Compra_Proveedor.findAll({
             include: [Proveedor],
             where: {
-                id_compra_general: comprasGenerales.map(compra => compra.id_compra_general)
+                id_compra_general: comprasGenerales.map(compra => compra.id_compra_general),
+                estado_comp: { [Op.ne]: "F" }
             },
             order: [
                 [Sequelize.literal('fecha_mercancia_recibida_proveedor IS NOT NULL'), 'ASC'], // NULL primero
@@ -77,52 +81,75 @@ export const Compra_ProveedorRepository = {
             seActualizoCompra = true;
         }
 
-        // Buscar proveedor
-        /*  const proveedor = await Proveedor.findByPk(compraProveedor.idprove_comp);
-          if (!proveedor) {
-              throw new Error('Proveedor no encontrado');
-          }
-  
-          // Funciones auxiliares
-          const intervalToMinutes = (interval: string): number => {
-              const match = interval.match(/(\d+)\s*days?\s*(\d+)?\s*hours?/);
-              if (!match) return 0;
-              const days = parseInt(match[1] || '0');
-              const hours = parseInt(match[2] || '0');
-              return days * 24 * 60 + hours * 60;
-          };
-  
-          const minutesToIntervalString = (minutes: number): string => {
-              const days = Math.floor(minutes / 1440);
-              const hours = Math.floor((minutes % 1440) / 60);
-              return `${days} dias ${hours} horas`;
-          };
-  
-          // Calcular promedio actualizado
-          const plazoEntrega = intervalToMinutes(proveedor.plazoentrega_prove);
-          const entregasPrevias = proveedor.num_entregas_prove || 0;
-  
-          const nuevoPlazoCompraMin = Math.floor(
-              (new Date().getTime() - new Date(compraProveedor.fecha_enviada_proveedor).getTime()) / 60000
-          );
-  
-          const nuevoPromedioMin = Math.round(
-              (plazoEntrega * entregasPrevias + nuevoPlazoCompraMin) / (entregasPrevias + 1)
-          );
-  
-          const nuevoIntervalo = minutesToIntervalString(nuevoPromedioMin);
-  
-          await proveedor.update({
-              plazoentrega_prove: nuevoIntervalo,
-              num_entregas_prove: entregasPrevias + 1
-          });
-  */
+        return {
+            actualizado: seActualizoCompra,
+        };
+    },
+    iniciarChequeoDeCompraProveedor: async (id_comp: string, id_empleado: string) => {
+        const compraProveedor = await Compra_Proveedor.findByPk(id_comp);
+        const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado);
+        if (!compraProveedor) {
+            throw new Error('Compra del proveedor no encontrada');
+        }
+
+        let seActualizoCompra = false;
+        if (compraProveedor.inicio_de_checado == null) {
+            await compraProveedor.update({
+                inicio_de_checado: new Date(),
+                estado_comp: 'H',
+                id_empleado_checado: empleado.id_empleado
+            });
+            seActualizoCompra = true;
+        }
+
         return {
             actualizado: seActualizoCompra,
         };
     },
 
+    iniciarAcomodoDeCompraProveedor: async (id_comp: string, id_empleado: string) => {
+        const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp);
+        const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado);
 
+        if (!compraProveedor) {
+            throw new Error('Compra del proveedor no encontrada');
+        }
+        let seActualizoCompra = false;
+        if (compraProveedor.inicio_acomodo_mercancia == null) {
+            await compraProveedor.update({
+                inicio_acomodo_mercancia: new Date(),
+                estado_comp: 'M',
+                id_empleado_acomodo: empleado.id_empleado
+            });
+            seActualizoCompra = true;
+        }
+
+        return {
+            actualizado: seActualizoCompra,
+        };
+    },
+    finalizarAcomodoDeCompraProveedor: async (id_comp: string, id_empleado: string) => {
+        const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp);
+        const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado);
+        if (!compraProveedor) {
+            throw new Error('Compra del proveedor no encontrada');
+        }
+        if (compraProveedor.id_empleado_acomodo !== empleado.id_empleado) {
+            throw new Error('No es el mismo empleado que acomodo.');
+        }
+        let seActualizoCompra = false;
+        if (compraProveedor.fin_acomodo_mercancia == null && compraProveedor.id_empleado_acomodo === empleado.id_empleado) {
+            await compraProveedor.update({
+                fin_acomodo_mercancia: new Date(),
+                estado_comp: 'F',
+            });
+            seActualizoCompra = true;
+        }
+
+        return {
+            actualizado: seActualizoCompra,
+        };
+    },
 
     findCompraProveedor_CapturandoByProveedor: async (id_proveedor: string, id_empresa: string) => {
         return await Compra_Proveedor.findOne({
@@ -285,5 +312,24 @@ export const Compra_ProveedorRepository = {
             ultimo_articulo_guardado: id_artic
         })
     },
+
+    compraProveedorRecibida: async (id_comp: string, totalCompra: number, options?: { transaction?: Transaction }) => {
+
+        const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp)
+        const esCompleta = Number(compraProveedor.total_comp_factura) === Number(totalCompra);
+
+        return await Compra_Proveedor.update(
+            {
+                total_comp_recibido: totalCompra,
+                fin_de_checado: new Date(),
+                fin_de_compra_proveedor: esCompleta ? new Date() : null,
+                estado_comp: 'Z',
+            },
+            {
+                where: { id_comp },
+                transaction: options?.transaction
+            }
+        );
+    }
 
 }

@@ -19,5 +19,11 @@ export const Detalle_Compra_RecibidosRepository = {
                 { model: Articulo }
             ]
         });
+    },
+
+    getArtuculoRecibido: async (id_detcomprec: string) => {
+        return await Detalle_Compra_Recibidos.findByPk(id_detcomprec, {
+            attributes: ['idarticulo_detcomprec']
+        })
     }
 }

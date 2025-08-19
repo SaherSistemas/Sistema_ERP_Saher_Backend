@@ -21,6 +21,7 @@ export interface IProductoDevolucion {
     id_comp: string;
     id_detcomprec: string;
     cantidad_devolucion: number;
+    costo: string
     lote: string | null;
     fecha_caducidad: string | null; // YYYY-MM-DD
     observacion: string;
@@ -28,7 +29,9 @@ export interface IProductoDevolucion {
 
 /** ← NUEVO: payload con las “tres cosas” */
 export interface IDataProductosStockConDevolucion {
+    id_comp: string;
     id_empresa: string;
+    id_empleado: string;
     productosEntrada: ICreateOrUpdateStockSucursal[];
     productosDevolucion: IProductoDevolucion[];
 }

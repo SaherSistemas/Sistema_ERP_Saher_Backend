@@ -13,7 +13,9 @@ router.get('/nombreArchivoPDF/:id_comp', ComprasController.nombreArchivoPDF)
 
 router.get('/compraProveedorPorRecibir/:id_empresa_sucursal', ComprasController.getAllCompras_ProveedorParaRecibir)
 router.patch('/marcarRecibida/:id_comp', ComprasController.marcarCompraProveedorComoRecibida)
-
+router.patch('/iniciarChecado/:id_comp', ComprasController.iniciarChecado)
+router.patch('/iniciarAcomodo/:id_comp', ComprasController.iniciarAcomodo)
+router.patch('/finalizarAcomodo/:id_comp', ComprasController.finalizarAcomodo)
 router.patch('/finalizar/:id_empresa_sucursal', ComprasController.finalizarCompras)
 
 

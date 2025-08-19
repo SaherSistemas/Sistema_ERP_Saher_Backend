@@ -1,5 +1,5 @@
-import { v4 as uuidv4 } from 'uuid';
 
+import { Transaction } from 'sequelize';
 import Detalle_Compra_Negados from '../../models/Compra/Detalle_Compra_Negados';
 
 export const Detalle_Compra_NegadosRepository = {
@@ -8,9 +8,16 @@ export const Detalle_Compra_NegadosRepository = {
     getByID: async (id_detcompneg: string) => {
         return await Detalle_Compra_Negados.findByPk(id_detcompneg)
     },
-    agregarProductosNegados: async (detallesNegados: any[]) => {
+    agregarProductosNegados: async (detallesNegados: any[], options?: { transaction?: Transaction }) => {
         return await Detalle_Compra_Negados.bulkCreate(detallesNegados, {
-            updateOnDuplicate: ['cantidad_negada', 'motivo_negado', 'recuperado', 'fecha_negado', 'fecha_limite_recuperacion']
+            updateOnDuplicate: [
+                'cantidad_negada',
+                'motivo_negado',
+                'recuperado',
+                'fecha_negado',
+                'fecha_limite_recuperacion'
+            ],
+            transaction: options?.transaction // 👈 usar transacción
         });
     },
 

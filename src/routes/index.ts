@@ -177,4 +177,7 @@ router.use('/detalle_lista_precio', DetalleLista_Precio)
 
 
 router.use('/facturas_proveedor', factura_compra_ProveedorRouter)
+
+
+//router.use('/uploads/factura', uploadsRouter)
 export default router

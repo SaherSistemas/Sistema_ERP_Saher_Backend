@@ -4,8 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Detalle_Compra_Solicitado from "../../models/Compra/Detalle_Compra_Solicitado";
 import Compra_General from "../../models/Compra/Compra_General";
 import { ICreateCompra_General } from "../../interface/Compras/Compra_General.interface";
-import Proveedor from "../../models/Proveedor/Proveedor";
-import Articulo from "../../models/Articulos/Articulo";
+
 import { Empresa_SucursalRepository } from "../Empresa_Sucursal/Empresa_Sucursal.repository";
 import { EmpleadoRepository } from "../Usuarios/Empleado.repository";
 /*

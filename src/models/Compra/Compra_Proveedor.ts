@@ -146,7 +146,9 @@ class Compra_Proveedor extends Model {
     @BelongsTo(() => Empleado, 'id_empleado_acomodo')
     empleado_acomodo: Empleado;
 
-
+    @Column({
+        type: DataType.DATE
+    })
     declare fin_acomodo_mercancia: Date
     /*  FALTA AGREGAR QUIEN FUE EL QUE HIZO LA COMPRA, ACOMODO  */
 
