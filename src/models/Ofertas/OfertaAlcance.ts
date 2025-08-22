@@ -14,8 +14,9 @@ import Ofertas from "./Ofertas";
 
 export const TIPO_ALCANCE_VALUES = [
   "GRUPO_EMPRESA",
+  "GLOBAL",
   "EMPRESA",
-  "PRODUCTO",
+  "ARTICULO",
   "CATEGORIA",
   "TIPO_CLIENTE",
   "METODO_PAGO",

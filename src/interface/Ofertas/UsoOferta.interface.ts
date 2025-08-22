@@ -9,5 +9,5 @@ export interface ICreateOrUpdateUsoOferta{
     id_oferta: string;
     id_cliente: string;
     id_venta: string;
-    fecha_uso: Date;
+    fecha_uso?: Date;
 }

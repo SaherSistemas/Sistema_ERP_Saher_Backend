@@ -5,6 +5,8 @@ export class AlcanceOfertaController {
   static getAll = async (req: Request, res: Response) => {
     try {
       const alcance = await AlcanceOfertaService.getAll();
+      res.status(200).json(alcance);
+
     } catch (error) {
       console.error(error);
       res.status(500).json({ mensaje: "Error al encontrar todas los Alcances." });

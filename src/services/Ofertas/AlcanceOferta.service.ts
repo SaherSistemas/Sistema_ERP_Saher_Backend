@@ -1,6 +1,6 @@
 import { dbLocal } from "../../config/db";
 import { ICreateOrUpdateAlcanceOferta } from "../../interface/Ofertas/AlcanceOferta.interface";
-import { AlcanceOfertaRepository } from "../../repository/Ofertas.ts/OfertaAlcance.repository";
+import { AlcanceOfertaRepository } from "../../repository/Ofertas/OfertaAlcance.repository";
 import { v4 as uuidv4 } from "uuid";
 
 export const AlcanceOfertaService = {
@@ -10,7 +10,7 @@ export const AlcanceOfertaService = {
 
   getById: async (id_oferta: string) => {
     const oferta = await AlcanceOfertaRepository.getById(id_oferta);
-    if (!oferta) throw new Error("Oferta no enocontrada");
+    if (!oferta) throw new Error("Oferta no enocontrada1");
     return oferta;
   },
 

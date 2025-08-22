@@ -1,6 +1,7 @@
 import { TimeLike } from "fs";
 import { IAlcanceOferta } from "./AlcanceOferta.interface";
 import { IUsoOferta } from "./UsoOferta.interface";
+import { IReglasOferta } from "./ReglasOferta.interface";
 
 
 
@@ -21,10 +22,13 @@ export interface IOferta{
     canal_oferta: string;
     status_oferta:string;
         alcances: IAlcanceOferta[];
+        reglas: IReglasOferta[];
+        usos: IUsoOferta[];
 }
 
 export interface ICreateOrUpdateOferta{
     nombre_oferta: string;
+    descripcion: string,
     fecha_ini_oferta: string;
     fecha_fin_oferta: string;
     dias_semana:string;
@@ -34,6 +38,7 @@ export interface ICreateOrUpdateOferta{
     canal_oferta: string;
     status_oferta:string;
         alcances: IAlcanceOferta[];
+        reglas: IReglasOferta[];
 }
 
 

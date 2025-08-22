@@ -18,15 +18,14 @@ export class ArticuloController {
     
     static getAllParaVenta = async (req: Request, res: Response) => {
         try {
-            
-            const id_empresa = req.query.id_empresa as string;
+
+            const id_empresa =  req.query.id_empresa as string;
             const { cantidad, cod_barr_artic } = req.params;
 
             const resultado = await ArticuloService.getAllParaVenta(
                 id_empresa,
                 Number(cantidad),
                 cod_barr_artic
-                
               );
             res.status(200).json(resultado);
 

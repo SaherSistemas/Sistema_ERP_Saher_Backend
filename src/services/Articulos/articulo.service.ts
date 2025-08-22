@@ -13,14 +13,11 @@ export const ArticuloService = {
     id_empresa:string,
     cantidad: number,
     cod_barr_artic: string
-
-    
   ) => {
     return await ArticuloRepository.getAllParaVenta(
       id_empresa,
       cantidad,
       cod_barr_artic      
-     
     );
   },
 

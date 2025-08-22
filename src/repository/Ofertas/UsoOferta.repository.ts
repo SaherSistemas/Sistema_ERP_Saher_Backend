@@ -2,6 +2,7 @@ import { ICreateOrUpdateUsoOferta, IUsoOferta } from "../../interface/Ofertas/Us
 import { v4 as uuidv4 } from "uuid";
 import { isUUID } from "../../utils/validaciones";
 import UsoOferta from "../../models/Ofertas/UsoOferta"; 
+import { CreateOptions } from "sequelize";
 
 
 export const UsoOfertaRepository = {
@@ -15,11 +16,14 @@ export const UsoOfertaRepository = {
     }
   },
 
-  create: async (data: ICreateOrUpdateUsoOferta) => {
-    return await UsoOferta.create({
+  create: async (data: ICreateOrUpdateUsoOferta, options?: CreateOptions) => {
+    return await UsoOferta.create(
+      {
       id_uso: uuidv4(),
-      ...data,
-    });
+      fecha_uso: data.fecha_uso ?? new Date(), 
+      ...data},
+       options
+    );
   },
 
   update: async (id: string, data: Partial<ICreateOrUpdateUsoOferta>) => {

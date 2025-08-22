@@ -81,6 +81,7 @@ import DetalleLista_Precio from "./Costo_y_Precio/Lista_Precio/Detalle_Lista_Pre
 import OfertasRouter from "./Ofertas/OfertasRouter";
 import AlcanceOfertasRouter from "./Ofertas/AlcanceOfertasRouter";
 import UsoOfertasRouter from "./Ofertas/UsoOfertaRouter";
+import ReglaOfertaRouter from "./Ofertas/ReglaOfertaRouter";
 
 
 import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
@@ -180,9 +181,10 @@ router.use('/lista_Precio', Lista_Precio)
 router.use('/detalle_lista_precio', DetalleLista_Precio)
 
 //Ofertas
-router.use('/ofertas', OfertasRouter)
-router.use('/alcanceofertas', AlcanceOfertasRouter)
+router.use('/oferta', OfertasRouter)
+router.use('/alcanceOferta', AlcanceOfertasRouter)
 router.use('/usoOferta', UsoOfertasRouter)
+router.use('/reglaOferta', ReglaOfertaRouter)
 
 
 

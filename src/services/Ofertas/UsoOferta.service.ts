@@ -1,6 +1,6 @@
 import { dbLocal } from "../../config/db";
 import { ICreateOrUpdateUsoOferta, IUsoOferta } from "../../interface/Ofertas/UsoOferta.interface";
-import { UsoOfertaRepository } from "../../repository/Ofertas.ts/UsoOferta.repository";
+import { UsoOfertaRepository } from "../../repository/Ofertas/UsoOferta.repository";
 import { v4 as uuidv4 } from "uuid";
 
 export const UsoOfertaService = {

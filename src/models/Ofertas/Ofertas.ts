@@ -2,6 +2,7 @@ import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, Belongs
 import AlcanceOfertas from "./OfertaAlcance";
 import Empleado from "../Usuarios/Empleado";
 import UsoOferta from "./UsoOferta";
+import ReglaOferta from "./ReglaOferta";
 
 @Table({
     tableName: "ofertas"
@@ -72,8 +73,12 @@ class Ofertas extends Model {
         alcances?: AlcanceOfertas[];
 
     @HasMany(() => UsoOferta, { 
-        as: 'usoOferta'})
+        as: 'usos'})
         usos?: UsoOferta[];
+
+    @HasMany(() => ReglaOferta, { 
+        as: 'reglas'})
+        reglas?: ReglaOferta[];
     
 }
 export default Ofertas;
