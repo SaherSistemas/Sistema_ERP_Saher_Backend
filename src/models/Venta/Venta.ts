@@ -1,12 +1,11 @@
 import { Table, HasOne, Column, Model,HasMany,PrimaryKey, DataType, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
 import LoteUsadoVenta from '../LotesYCaducidad/Lote_Usado_Venta';
 import Cliente from '../Clientes/Cliente';
-import Usuario from '../Usuarios/Usuario';
 import Empresa_Sucursal from '../Empresa_Sucursal/Empresa_Sucursal';
 import DetalleVenta from './Detalle_Venta';
-import Metodo_de_Pago from '../Caja/Metodo_de_Pago';
 import Empleado from '../Usuarios/Empleado';
 import Venta_Pago from './Venta_Pago';
+import UsoOferta from '../Ofertas/UsoOferta';
 
 @Table({
     tableName: "venta"
@@ -56,6 +55,9 @@ class Venta extends Model{
 
     @HasMany(() => Venta_Pago)
     declare venta_pago: Venta_Pago[];
+
+    @HasMany(() => UsoOferta)
+    usooferta? : UsoOferta[];
 }
 
 export default Venta;

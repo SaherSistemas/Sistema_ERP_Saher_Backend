@@ -10,6 +10,8 @@ import { dbLocal } from "../../config/db";
 import { VentaPagoRepository } from "../../repository/Venta/Venta_Pago.repository";
 import { LoteUsadoVentaRepository } from "../../repository/LotesYCaducidad/Lote_Usado_Venta.repository";
 import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
+import { UsoOfertaRepository } from "../../repository/Ofertas/UsoOferta.repository";
+import { OfertaRepository } from "../../repository/Ofertas/Ofertas.repository";
 
 export const VentaService = {
   getAll: async () => {
@@ -47,7 +49,7 @@ export const VentaService = {
           { id_venta, ...detalle },
           { transaction: t }
         );
-        if (lote_usado.length ===  0) {
+        if (lote_usado.length === 0) {
           throw new Error(
             `Faltan lotes usados para el artículo ${colsDetalle.id_artic}.`
           );
@@ -65,7 +67,7 @@ export const VentaService = {
               lu.id_lote_sucursal,
               data.id_empre,
               colsDetalle.id_artic,
-              { transaction: t,}
+              { transaction: t }
             );
           if (!lote) {
             throw new Error(
@@ -98,6 +100,25 @@ export const VentaService = {
             `La suma de lotes usados (${acumulado}) no coincide con la cantidad vendida (${colsDetalle.cantidad}).`
           );
         }
+        // const ofertas = await OfertaRepository.getOfertas(
+        //   {
+        //     id_artic: colsDetalle.id_artic,
+        //     id_empre: data.id_empre,
+        //     fecha: new Date(),
+        //   },
+        //   { transaction: t }
+        // );
+
+        // for (const ofe of ofertas) {
+        //   await UsoOfertaRepository.create(
+        //     {
+        //       id_venta,
+        //       id_oferta: ofe.id_oferta,
+        //       id_cliente: data.id_cliente ?? null,
+        //     },
+        //     { transaction: t }
+        //   );
+        // }
       }
       for (const p of data.venta_pago) {
         await VentaPagoRepository.create(
@@ -111,6 +132,7 @@ export const VentaService = {
           }
         );
       }
+
       const ventaCompleta = await VentaRepository.getById(id_venta, {
         transaction: t,
       });

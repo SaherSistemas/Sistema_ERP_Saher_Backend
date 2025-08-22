@@ -2,6 +2,7 @@ import { ICreateOrUpdateAlcanceOferta } from "../../interface/Ofertas/AlcanceOfe
 import { v4 as uuidv4 } from "uuid";
 import { isUUID } from "../../utils/validaciones";
 import AlcanceOfertas from "../../models/Ofertas/OfertaAlcance";
+import { BulkCreateOptions, CreateOptions } from "sequelize";
 
 export const AlcanceOfertaRepository = {
   getAll: async () => {
@@ -14,13 +15,24 @@ export const AlcanceOfertaRepository = {
     }
   },
 
-  create: async (data: ICreateOrUpdateAlcanceOferta) => {
+  create: async (data: ICreateOrUpdateAlcanceOferta, options?: CreateOptions) => {
     return await AlcanceOfertas.create({
       id_alcance: uuidv4(),
-      activo: true,
       ...data,
-    });
+    }, 
+    options
+  );
   },
+  bulkCreate: async (
+    rows: ICreateOrUpdateAlcanceOferta[],
+    options?: BulkCreateOptions
+  ) => {
+    return await AlcanceOfertas.bulkCreate(
+      rows.map(r => ({ id_alcance: uuidv4(), ...r })), 
+      options
+    );
+  },
+
 
   update: async (id: string, data: Partial<ICreateOrUpdateAlcanceOferta>) => {
     if (!isUUID(id)) return null;

@@ -37,10 +37,7 @@ export const VentaRepository = {
     return await Venta.findAll({ include: ventaIncludes });
   },
 
-  getById: async (
-    id_venta: string,
-    options?: { transaction?: Transaction }
-  ) => {
+  getById: async ( id_venta: string, options?: { transaction?: Transaction }) => {
     if (!isUUID(id_venta)) return null;
     return Venta.findByPk(id_venta, {
       include: ventaIncludes,
