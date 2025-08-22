@@ -1,4 +1,4 @@
-import { IEsctructuraCompra } from "../../interface/Compras/Compra_Proveedor.interface";
+import { ICompra_Proveedor, IEsctructuraCompra } from "../../interface/Compras/Compra_Proveedor.interface";
 import { ArticuloRepository } from "../../repository/Articulos/Articulo.repository";
 import { CompraRepository } from "../../repository/Compras/Compra.repository";
 import { Listado_ProveedorRepository } from "../../repository/Proveedor/Listado_Proveedor.repository";
@@ -75,6 +75,7 @@ export const CompraService = {
     },
 
 
+    //COMPRA PROVEEDOR
 
     getCompraProveedorPorIdGeneral: async (id_compra_general: string) => {
         return await Compra_ProveedorRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
@@ -95,6 +96,7 @@ export const CompraService = {
         return await Compra_ProveedorRepository.iniciarAcomodoDeCompraProveedor(id_comp, id_empleado)
     },
     marcarFinAcomodo: async (id_comp: string, id_empleado: string) => {
+        //TAMBIEN TENEMOS QUE SUMAR LO QUE SE CHECO AL TOTAL DE LA COMPRA GENERAL
         return await Compra_ProveedorRepository.finalizarAcomodoDeCompraProveedor(id_comp, id_empleado)
     },
 
@@ -106,7 +108,7 @@ export const CompraService = {
     generarPDFListado: async (id_comp: string): Promise<Buffer> => {
         const compraProveedor = await CompraService.articulosDetalleCompraProveedor(id_comp);
         const { proveedor, detallesCompra } = compraProveedor;
-
+        console.log("ENTRO")
         const doc = new PDFDocument({ margin: 30, size: 'letter' });
         const buffers: Buffer[] = [];
 
@@ -202,7 +204,7 @@ export const CompraService = {
             throw new Error('Compra no encontrada');
         }
 
-        const proveedore = await ProveedorRepository.findByPK(compra.idprove_comp);
+        const proveedore = await ProveedorRepository.findByPKNOMBRE(compra.idprove_comp);
 
         const hoy = new Date();
         const dia = String(hoy.getDate()).padStart(2, '0');
@@ -214,9 +216,38 @@ export const CompraService = {
 
         const proveedor = proveedore.nomcort_prove || 'Proveedor';
         return `${proveedor}_${fechaFormateada}.pdf`;
+    },
+
+
+    getComprasGeneralesConProveedor: async (id_empresa: string, rango: { start: Date; end: Date }) => {
+
+
+        //console.log(id_empresa)
+        //console.log(rango)
+
+        //COMPRAS GENERALES DE LA EMPRESA ENTRE LAS FECHAS 
+        const comprasGenerales = await CompraRepository.findByEmpresaYRangoFecha(id_empresa, rango);
+        //console.log(comprasGenerales)
+
+
+        //TRAER COMPRAS PROVEEDOR DE ESAS COMPRAS GENERALES 
+        const idsGenerals = comprasGenerales.map(g => g.id_compra_general)
+        const comprasProv = await Compra_ProveedorRepository.getAllCompra_ProveedorPorIdCompGener(idsGenerals)
+
+
+
+        //console.log(comprasProv)
+        const comprasProvedorByGeneral = comprasProv.reduce((acc, cp) => {
+            (acc[cp.id_compra_general] ||= []).push(cp);
+            return acc;
+        }, {} as Record<string, any[]>);
+
+        // console.log(comprasProvedorByGeneral)
+
+        return comprasGenerales.map(g => ({
+            ...g,
+            comprasProveedor: comprasProvedorByGeneral[g.id_compra_general] ?? []
+        }));
     }
-
-
-
 
 }

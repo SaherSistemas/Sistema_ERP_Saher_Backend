@@ -44,6 +44,12 @@ class Detalle_Compra_Recibido extends Model {
     })
     declare precio_detcomprec: number
 
+    @Column({
+        type: DataType.DECIMAL(12, 2)
+    })
+    declare iva_detcomprec: number
+
+
     @BelongsTo(() => Compra)
     declare compra: Compra;
 

@@ -38,10 +38,18 @@ class Compra_General extends Model {
         type: DataType.CHAR(1)
     })
     declare estado_comp: string
+
     @Column({
-        type: DataType.DECIMAL(12, 2)
+        type: DataType.DECIMAL(12, 2),
+        defaultValue: 0
     })
     declare total_compra_general: number
+
+    @Column({
+        type: DataType.DECIMAL(12, 2),
+        defaultValue: 0
+    })
+    declare total_iva_compra_general: number
 
 
     @ForeignKey(() => Empresa_Sucursal)

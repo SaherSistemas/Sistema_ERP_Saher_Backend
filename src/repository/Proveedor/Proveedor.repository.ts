@@ -60,6 +60,9 @@ export const ProveedorRepository = {
             ]
         })
     },
+    findByPKNOMBRE: async (id: string) => {
+        return await Proveedor.findByPk(id)
+    },
 
 
     statusActualProveedor: async (id_prove: string) => {
@@ -76,7 +79,7 @@ export const ProveedorRepository = {
         const proveedor = await ProveedorRepository.findByPK(id_prove);
         if (!proveedor) return null;
 
-        
+
         // Actualizar proveedor
         await proveedor.update({
             nomcort_prove: data.nomcort_prove,

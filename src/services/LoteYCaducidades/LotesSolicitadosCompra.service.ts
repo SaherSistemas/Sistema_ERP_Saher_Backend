@@ -7,7 +7,6 @@ export const LotesSolicitadoCompraService = {
         const { id_comp, id_empleado_registro_lotes } = data;
 
 
-        let totalFactura = 0;
 
         const productosMapeados = data.productos.map((producto: any) => {
             if (!producto.lotes || producto.lotes.length === 0) {
@@ -27,18 +26,13 @@ export const LotesSolicitadoCompraService = {
                 };
             });
 
-            // ✅ Sumar cantidades y calcular total por producto
-            const totalCantidad = lotesMapeados.reduce((acc, lote) => acc + lote.cantidad_lote, 0);
-            const subtotal = totalCantidad * producto.precio;
-            totalFactura += subtotal;
-
             return {
                 id_detallecompr_solicitado: producto.id_detcompsol,
                 lotes: lotesMapeados
             };
         });
 
-        //  console.log(`🧾 Total de la factura calculado: $${totalFactura.toFixed(2)}`);
+
 
         const resultado = await LotesSolicitadoCompraRepository.create({
             id_comp: data.id_comp,
@@ -48,10 +42,9 @@ export const LotesSolicitadoCompraService = {
 
         //DARLE TOTAL A LA COMPRA PROVEEDOR Y FACTURA UN TOTAL(FACTURA)
 
-        const cambiarTotalFactura = await Compra_ProveedorRepository.cambiarTotalFactura(id_comp, totalFactura)
+        const cambiarTotalFactura = await Compra_ProveedorRepository.cambiarTotalFactura(id_comp)
         return {
-            resultado,
-            totalFactura
+            resultado
         };
     }
 

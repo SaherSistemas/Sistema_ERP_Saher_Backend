@@ -4,6 +4,7 @@ const router = Router();
 
 router.post('/', ComprasController.createCompra)
 router.get('/:id_empresa', ComprasController.getAll)
+router.get('/GeneralesConCompraProveedor/:id_empresa', ComprasController.getGeneralPorProveedor)
 router.get('/enCaptura/:id_empresa', ComprasController.getByEmpresaEnCaptura)
 router.get('/compraProveedorPorGeneral/:id_compra_general', ComprasController.comprasProveedorPorIDCompraGeneral)
 //router.patch('/guardarFacturaEIniciarCaptura', ComprasController.guardarFacturaEIniciarCapturaLotes)

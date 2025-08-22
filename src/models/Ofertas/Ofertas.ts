@@ -18,7 +18,7 @@ class Ofertas extends Model {
         type: DataType.STRING
     })
     declare nombre_oferta: string;
-    
+
     @Column({
         type: DataType.DATEONLY
     })
@@ -35,12 +35,13 @@ class Ofertas extends Model {
     declare canal_oferta: string;
 
     @Column({
-        type: DataType.BOOLEAN
+        type: DataType.STRING
     })
-    declare status_oferta:boolean;
+    declare status_oferta: string;
 
-     @HasMany(() => AlcanceOfertas, { 
-        as: 'alcances'})
-        alcances?: AlcanceOfertas[];
+    @HasMany(() => AlcanceOfertas, {
+        as: 'alcances'
+    })
+    alcances?: AlcanceOfertas[];
 }
 export default Ofertas;

@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Detalle_Compra_Solicitado from "../../models/Compra/Detalle_Compra_Solicitado";
 import Compra_General from "../../models/Compra/Compra_General";
 import { ICreateCompra_General } from "../../interface/Compras/Compra_General.interface";
+import { Op } from "sequelize";
 
 import { Empresa_SucursalRepository } from "../Empresa_Sucursal/Empresa_Sucursal.repository";
 import { EmpleadoRepository } from "../Usuarios/Empleado.repository";
@@ -17,15 +18,39 @@ import { EmpleadoRepository } from "../Usuarios/Empleado.repository";
 
 
 export const CompraRepository = {
+    getAllCompra_GeneralSinPaginar: async (id_empresa: string) => {
+        return await Compra_General.findAll({
+            where: { id_empresa_sucursal: id_empresa },
+            order: [['fecha_inicio', 'DESC']],
+            attributes: ['id_compra_general']
+        });
+    },
+
     getAllCompra_General: async (id_empresa: string, page: number, limit: number) => {
         const offset = (page - 1) * limit;
         const { count, rows } = await Compra_General.findAndCountAll({
-            where: { id_empresa_sucursal: id_empresa },
+            where: {
+                id_empresa_sucursal: id_empresa,
+                fecha_completa_fin: { [Op.is]: null }
+            },
             order: [['fecha_inicio', 'DESC']],
             limit,
             offset
         });
         return { total: count, compras: rows };
+    },
+
+    findByEmpresaYRangoFecha: async (id_empresa: string, { start, end }: { start: Date; end: Date }) => {
+
+        return await Compra_General.findAll({
+            where: {
+                id_empresa_sucursal: id_empresa,
+                fecha_inicio: {
+                    [Op.between]: [start, end]
+                }
+            },
+            raw: true,
+        })
     },
 
 
@@ -68,6 +93,8 @@ export const CompraRepository = {
     findByPK_Compra_General: async (id_compra_general: string) => {
         return await Compra_General.findByPk(id_compra_general)
     },
+
+
     compraGeneralEmpresa: async (id_empresa_sucursal: string) => {
         const compra = await CompraRepository.getCompraEnCaptura(id_empresa_sucursal)
         return compra
@@ -105,4 +132,15 @@ export const CompraRepository = {
             ultimo_articulo_guardado: id_artic
         })
     },
+
+    updateTotalCompraGeneral: async (id_compra_general: string, subtotal: number, totalIva: number) => {
+        const compraGeneral = await CompraRepository.findByPK_Compra_General(id_compra_general);
+
+        return await compraGeneral.increment({
+            total_compra_general: subtotal,
+            total_iva_compra_general: totalIva,
+        });
+
+
+    }
 }

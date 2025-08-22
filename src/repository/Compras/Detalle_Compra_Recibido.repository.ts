@@ -10,7 +10,9 @@ export const Detalle_Compra_RecibidosRepository = {
         // console.log('Detalles recibidos a crear:', detallesRecibidos);
         return await Detalle_Compra_Recibidos.bulkCreate(detallesRecibidos)
     },
-
+    getByPK: async (id_detalle_recibido: string) => {
+        return await Detalle_Compra_Recibidos.findByPk(id_detalle_recibido)
+    },
     getAllDetallesDeCompraRecibidosDeUnaCompra: async (id_comp: string) => {
         return await Detalle_Compra_Recibidos.findAll({
             where: { idcompr_detcomprec: id_comp },
@@ -20,10 +22,22 @@ export const Detalle_Compra_RecibidosRepository = {
             ]
         });
     },
-
+    getArticulosRecibidos: async (idcompr_detcomprec: string) => {
+        return await Detalle_Compra_Recibidos.findAll({
+            where: { idcompr_detcomprec }
+        })
+    },
     getArtuculoRecibido: async (id_detcomprec: string) => {
         return await Detalle_Compra_Recibidos.findByPk(id_detcomprec, {
             attributes: ['idarticulo_detcomprec']
+        })
+    },
+
+    actualizarCantidadRecibidaReal: async (id_detalleRecibido: string, cantidadRealEntrada: number) => {
+        const detalleRecibido = await Detalle_Compra_RecibidosRepository.getByPK(id_detalleRecibido);
+
+        return await detalleRecibido.update({
+            cantidad_detcomprec: cantidadRealEntrada
         })
     }
 }

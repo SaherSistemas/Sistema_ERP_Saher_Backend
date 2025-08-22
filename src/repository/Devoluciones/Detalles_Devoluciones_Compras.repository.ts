@@ -28,7 +28,7 @@ export const Detalle_Devoluciones_CompraRepository = {
 
         //console.log(data)
 
-        await Devoluciones_ComprasRepository.updateIvaYCosto(data[0].id_devo, costoTotal, ivaTotal, { transaction: options?.transaction })
+        return await Devoluciones_ComprasRepository.updateIvaYCosto(data[0].id_devo, costoTotal, ivaTotal, { transaction: options?.transaction })
         //GUARDAR DETALLE E IR SUMANDO PARA HACER UN UPDATE AL DEVOLUCIONCOMPRA
     },
 

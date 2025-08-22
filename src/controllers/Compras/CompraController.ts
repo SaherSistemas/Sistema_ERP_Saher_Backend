@@ -22,6 +22,39 @@ export class ComprasController {
             res.status(500).json({ message: "Error al obtener todas las compras." });
         }
     }
+    static getGeneralPorProveedor = async (req: Request, res: Response) => {
+        try {
+            const { id_empresa } = req.params;
+            // from/to en query; si no vienen, se ponen default (1er día del mes y hoy)
+            const { from, to } = req.query as { from?: string; to?: string };
+
+            // Defaults (server timezone; si usas TZ, mejor con dayjs.tz/moment-timezone)
+            const now = new Date();
+            const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+            // Normaliza a YYYY-MM-DD
+            const toYMD = (d: Date) =>
+                `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+            const fromStr = from?.trim() || toYMD(firstOfMonth);
+            const toStr = to?.trim() || toYMD(now);
+
+            // Construye rango con fin del día para incluirlo
+            const start = new Date(`${fromStr}T00:00:00.000`);
+            const end = new Date(`${toStr}T23:59:59.999`);
+
+            // Llama al service con rango
+            const comprasGeneralesConProveedor = await CompraService.getComprasGeneralesConProveedor(
+                id_empresa,
+                { start, end }
+            );
+            // console.log(comprasGeneralesConProveedor)
+            res.status(200).json(comprasGeneralesConProveedor);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al obtener todas las compras." });
+        }
+    }
 
 
 
@@ -153,10 +186,10 @@ export class ComprasController {
             const { id_comp } = req.params;
             const pdfBuffer = await CompraService.generarPDFListado(id_comp);
 
-            const retornarNombreArchivo = await CompraService.obtenerNombreArchivoPDF(id_comp);
+            //  const retornarNombreArchivo = await CompraService.obtenerNombreArchivoPDF(id_comp);
 
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `inline; filename="${retornarNombreArchivo}"`);
+            res.setHeader('Content-Disposition', `inline; filename="prueba"`);
             res.send(pdfBuffer);
         } catch (error) {
             console.error('Error al generar PDF:', error);

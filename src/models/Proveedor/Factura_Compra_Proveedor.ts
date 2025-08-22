@@ -37,11 +37,10 @@ class Factura_Compra_Proveedor extends Model {
         type: DataType.DECIMAL(12, 2)
     })
     declare total_factura_proveedor: number
-
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
-    declare total_checado_proveedor: number
+    declare total_iva_factura: number
 
 
     @Column({

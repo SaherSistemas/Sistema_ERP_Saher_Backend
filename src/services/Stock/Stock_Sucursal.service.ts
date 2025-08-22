@@ -58,7 +58,7 @@ export const StockSucursalService = {
             const idsListasGrupo = listasDePrecioGrupo.map(l => l.id_list_precio);
 
             let subtotalRecibido = 0;
-
+            let ivaRecibido = 0;
             // 🟢 4. Recorrer productos de entrada
             for (const producto of productosEntrada) {
                 const modeloArticulo = await ArticuloRepository.getByPK(producto.id_artic, { transaction: t });
@@ -78,9 +78,14 @@ export const StockSucursalService = {
 
                 // 🟢 Crear/actualizar lotes
                 for (const lote of producto.lotes) {
+                    // console.log(producto.lotes)
                     const cantidad = Number(lote.cantidad_lote) || 0;
                     const costoUnitario = parseFloat(producto.precio);
                     subtotalRecibido += cantidad * costoUnitario;
+                    ivaRecibido += await ArticuloRepository.getIVAPorArticulo(producto.id_artic, costoUnitario) * cantidad;
+                    //console.log(ivaRecibido)
+                    //ACTUALIZAR CANTIDAD RECIBIDA 
+                    await Detalle_Compra_RecibidosRepository.actualizarCantidadRecibidaReal(lote.id_detallecompr_recibido, lote.cantidad_lote)
                     const loteData: ICreaterOrUdateLotesArticuloSucursal = {
                         id_artic: producto.id_artic,
                         id_empre: id_empresa,
@@ -171,7 +176,7 @@ export const StockSucursalService = {
                 const negadoDeDevolucion = await Detalle_Compra_NegadosRepository.agregarProductosNegados(dataParaNegados, { transaction: t });
             }
 
-            const terminarPedido = await Compra_ProveedorRepository.compraProveedorRecibida(data.id_comp, subtotalRecibido, { transaction: t })
+            const terminarPedido = await Compra_ProveedorRepository.compraProveedorTerminarRecibida(data.id_comp, subtotalRecibido, ivaRecibido, { transaction: t })
             await t.commit();
             return { mensaje: "Carga de stock y devoluciones completadas correctamente" };
 

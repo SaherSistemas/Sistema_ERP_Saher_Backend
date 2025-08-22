@@ -1,5 +1,6 @@
 export interface ILoteRecibido {
     numerolote_lote: string;
+    id_detallecompr_recibido: string
     fechavencimiento_lote: Date; // formato ISO: yyyy-mm-dd
     cantidad_lote: number;
     observacion_lote?: string;

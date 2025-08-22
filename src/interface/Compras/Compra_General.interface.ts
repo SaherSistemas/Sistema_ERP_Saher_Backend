@@ -1,5 +1,6 @@
 import { IArticulo } from "../Articulos/Articulo.interface"
 import { IEmpresaSucursal } from "../Empresa_Sucursal/Empresa_Sucursal.interface"
+import { ICompra_Proveedor } from "./Compra_Proveedor.interface"
 
 export interface ICompra_General {
     id_compra_general: string
@@ -10,6 +11,7 @@ export interface ICompra_General {
     total_compra_general: number
     id_empresa: IEmpresaSucursal
     ultimo_articulo_guardado: IArticulo
+    comprasProveedor?: ICompra_Proveedor[];
 }
 
 

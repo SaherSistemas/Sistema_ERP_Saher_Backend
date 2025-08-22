@@ -32,11 +32,21 @@ class Compra_Proveedor extends Model {
     })
     declare total_comp_factura: number
 
+
+    @Column({
+        type: DataType.DECIMAL(12, 2)
+    })
+    declare total_iva_factura: number
+
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
     declare total_comp_recibido: number
 
+    @Column({
+        type: DataType.DECIMAL(12, 2)
+    })
+    declare total_iva_recibido: number
     //NUEVO CAMPO
     @Column({
         type: DataType.DECIMAL(12, 2)
