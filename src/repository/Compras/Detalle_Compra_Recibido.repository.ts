@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import Detalle_Compra_Recibidos from '../../models/Compra/Detalle_Compra_Recibido';
 import LotesRecibidosCompra from '../../models/LotesYCaducidad/LotesRecibidosCompra';
 import Articulo from '../../models/Articulos/Articulo';
+import { ICreateOrUpdateStockSucursal } from '../../interface/Stock/Stock_Sucursal.interface';
+import { LoteRecibidoCompraRepository } from '../LotesYCaducidad/LoteRecibidoCompra.repository';
 
 export const Detalle_Compra_RecibidosRepository = {
 
@@ -33,7 +35,8 @@ export const Detalle_Compra_RecibidosRepository = {
         })
     },
 
-    actualizarCantidadRecibidaReal: async (id_detalleRecibido: string, cantidadRealEntrada: number) => {
+    actualizarCantidadRecibidaReal: async ( id_detalleRecibido: string, cantidadRealEntrada: number) => {
+      
         const detalleRecibido = await Detalle_Compra_RecibidosRepository.getByPK(id_detalleRecibido);
 
         return await detalleRecibido.update({

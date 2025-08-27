@@ -11,7 +11,6 @@ router.get('/compraProveedorPorGeneral/:id_compra_general', ComprasController.co
 router.get('/articulosGenerarPDF/:id_comp', ComprasController.generarPDFListado)
 router.get('/nombreArchivoPDF/:id_comp', ComprasController.nombreArchivoPDF)
 
-
 router.get('/compraProveedorPorRecibir/:id_empresa_sucursal', ComprasController.getAllCompras_ProveedorParaRecibir)
 router.patch('/marcarRecibida/:id_comp', ComprasController.marcarCompraProveedorComoRecibida)
 router.patch('/iniciarChecado/:id_comp', ComprasController.iniciarChecado)
@@ -19,6 +18,10 @@ router.patch('/iniciarAcomodo/:id_comp', ComprasController.iniciarAcomodo)
 router.patch('/finalizarAcomodo/:id_comp', ComprasController.finalizarAcomodo)
 router.patch('/finalizar/:id_empresa_sucursal', ComprasController.finalizarCompras)
 
-
+//PARA LA NOTA DE CREDIOT 
+//router.post('/:id_comp/notaCredito', ComprasController.crearNotaCredito)
+//router.get('/notaCredito/:id_comp', ComprasController.getNotaCreditoPorCompraProveedor)
+//router.get('/notaCredito/empresa/:id_empresa', ComprasController.getAllNotasCreditoPorEmpresa)
+//router.patch('/notaCredito/anular/:id_nota_credito', ComprasController.anularNotaCredito)
 
 export default router

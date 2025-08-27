@@ -13,12 +13,14 @@ import { ICreaterOrUdateLotesArticuloSucursal } from "../../interface/LotesYCadu
 import { ICreateOrUpdateIDetalleListaPrecio } from "../../interface/Articulos/Lista_Precios/Detalle_Lista_Pecios.interface";
 import { Devoluciones_ComprasRepository } from "../../repository/Devoluciones/Devoluciones_Compras.repository";
 import { EmpleadoRepository } from "../../repository/Usuarios/Empleado.repository";
-import { ICreateDetalleDevolucionCompra, ICreateDevoluciones_Compra } from "../../interface/Devoluciones/Devoluciones_Compras.interface";
+import { ICreateDevoluciones_Compra } from "../../interface/Devoluciones/Devoluciones_Compras.interface";
 import { Detalle_Compra_RecibidosRepository } from "../../repository/Compras/Detalle_Compra_Recibido.repository";
 import { Console } from "console";
 import { Detalle_Devoluciones_CompraRepository } from "../../repository/Devoluciones/Detalles_Devoluciones_Compras.repository";
 import { Detalle_Compra_NegadosRepository } from "../../repository/Compras/Detalle_Compra_Negado.repository";
 import { Compra_ProveedorRepository } from "../../repository/Compras/Compra_Proveedor.repository";
+import { LoteRecibidoCompraRepository } from "../../repository/LotesYCaducidad/LoteRecibidoCompra.repository";
+import { ILoteRecibidoChecado } from "../../interface/LotesYCaducidad/LotesRecibidosCompra.interface";
 
 export const StockSucursalService = {
 
@@ -86,6 +88,28 @@ export const StockSucursalService = {
                     //console.log(ivaRecibido)
                     //ACTUALIZAR CANTIDAD RECIBIDA 
                     await Detalle_Compra_RecibidosRepository.actualizarCantidadRecibidaReal(lote.id_detallecompr_recibido, lote.cantidad_lote)
+                    //ACTUALIZAR LOTE RECIBIIDO TAMBIEN EN LOTES_RECIBIDOS_COMPRA
+                    // -----------------AQUI ------------------------
+                    const loteRealRecibido: ILoteRecibidoChecado = {
+                        id_loterecibido: lote.id_loterecibido,
+                        id_detallecompr_recibido: lote.id_detallecompr_recibido,
+                        numerolote_lote: lote.numerolote_lote,
+                        fechavencimiento_lote: lote.fechavencimiento_lote,
+                        cantidad_lote: lote.cantidad_lote,
+                        observacion_lote: lote.observacion_lote ?? null,
+                        estado_lote: 'O',
+                        motivo_ajuste: 'LOTE Y CADUCIDAD CORRECTA',
+                    }
+
+                    await LoteRecibidoCompraRepository.update(loteRealRecibido, { transaction: t })
+                    // -----------------AQUI ------------------------
+
+                    // console.log("Lote a crear o actualizar:", lote);
+                    // Validar datos necesarios
+                    if (!lote.numerolote_lote || !lote.fechavencimiento_lote || !lote.cantidad_lote) {
+                        throw new Error(`Datos incompletos para el lote: ${JSON.stringify(lote)}`);
+                    }
+
                     const loteData: ICreaterOrUdateLotesArticuloSucursal = {
                         id_artic: producto.id_artic,
                         id_empre: id_empresa,

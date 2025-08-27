@@ -7,7 +7,6 @@ export const LotesSolicitadoCompraService = {
         const { id_comp, id_empleado_registro_lotes } = data;
 
 
-
         const productosMapeados = data.productos.map((producto: any) => {
             if (!producto.lotes || producto.lotes.length === 0) {
                 throw new Error(`Producto inválido o sin lotes: ${JSON.stringify(producto)}`);

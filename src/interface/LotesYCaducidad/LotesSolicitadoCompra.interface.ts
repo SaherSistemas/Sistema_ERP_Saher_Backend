@@ -1,4 +1,5 @@
 export interface ILoteRecibido {
+    id_loterecibido?: string;                // si lo generas tú con uuidv4
     numerolote_lote: string;
     id_detallecompr_recibido: string
     fechavencimiento_lote: Date; // formato ISO: yyyy-mm-dd

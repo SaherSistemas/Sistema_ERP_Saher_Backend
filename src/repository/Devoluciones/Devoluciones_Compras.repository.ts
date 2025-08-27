@@ -1,7 +1,7 @@
 import { v4 } from "uuid";
 import { Op, Transaction } from "sequelize";
 import { ICreateDevoluciones_Compra } from "../../interface/Devoluciones/Devoluciones_Compras.interface";
-import Devoluciones_Compras from "../../models/Devoluciones/Devoluciones_Compras";
+import Devoluciones_Compras from "../../models/Devolucion_NC/Devolucion/Devoluciones_Compras";
 import { Factura_Compra_ProveedorRepository } from "../Proveedor/Factura_Compra_Proveedor.repository";
 
 export const Devoluciones_ComprasRepository = {
@@ -22,6 +22,14 @@ export const Devoluciones_ComprasRepository = {
         return await Devoluciones_Compras.findByPk(id_devo, {
             transaction: options?.transaction
         });
+    },
+    getIdDevolucionPorCompra: async (id_comp: string) => {
+        return await Devoluciones_Compras.findOne({
+            where: {
+                id_compr_prove: id_comp
+            },
+            attributes: ['id_devo']
+        })
     },
     updateIvaYCosto: async (id_devo: string, costoTotal: number, ivaTotal: number, options?: { transaction?: Transaction }) => {
         const encabezadoDevolucion = await Devoluciones_ComprasRepository.getByID(id_devo, { transaction: options?.transaction });

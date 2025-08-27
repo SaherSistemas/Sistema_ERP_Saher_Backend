@@ -21,7 +21,7 @@ class LotesRecibidosCompra extends Model {
     declare fechavencimiento_lote: Date;
 
     @Column(DataType.INTEGER)
-    declare cantidad_lote: Date;
+    declare cantidad_lote: number;
 
     @Column(DataType.TEXT)
     declare motivo_ajuste: string
