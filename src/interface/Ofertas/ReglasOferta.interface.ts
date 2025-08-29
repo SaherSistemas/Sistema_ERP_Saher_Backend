@@ -36,30 +36,6 @@ export interface ICreateOrUpdateReglasOferta {
 }
 
 
-// type TipoBeneficio = "PORCENTAJE" | "MONTO_FIJO" | "X_POR_Y" | "ARTICULO_GRATIS" | "CUPON";
-
-// interface BaseRegla {
-//   id_oferta: string;
-//   exclusiva?: boolean;
-//   max_usos_cliente?: number;
-//   max_usos_global?: number;
-//   cantidad_max_dias?: number;
-//   tope_desc?: number;
-//   minimo_articulo?: number;
-//   monto_minimo_total?: number;
-// }
-
-// interface ReglaPorcentaje extends BaseRegla {
-//   tipo_beneficio: "PORCENTAJE";
-//   valor: number;
-//   cantidad_minima?: number;
-// }
-
-// interface ReglaMontoFijo extends BaseRegla {
-//   tipo_beneficio: "MONTO_FIJO";
-//   valor: number;
-//   cantidad_minima?: number;
-// }
 
 // interface ReglaXPorY extends BaseRegla {
 //   tipo_beneficio: "X_POR_Y";
@@ -68,12 +44,7 @@ export interface ICreateOrUpdateReglasOferta {
 //   articulo_gratis?: string;
 // }
 
-// interface ReglaArticuloGratis extends BaseRegla {
-//   tipo_beneficio: "ARTICULO_GRATIS";
-//   cantidad_minima: number;
-//   articulo_gratis: string;
-//   cantidad_regalo?: number;
-// }
+
 
 // interface ReglaCupon extends BaseRegla {
 //   tipo_beneficio: "CUPON";
@@ -81,9 +52,8 @@ export interface ICreateOrUpdateReglasOferta {
 //   valor?: number;
 // }
 
-// export type ICreateOrUpdateReglasOfertaOPCION =
-//   | ReglaPorcentaje
-//   | ReglaMontoFijo
-//   | ReglaXPorY
-//   | ReglaArticuloGratis
-//   | ReglaCupon;
+
+
+
+
+

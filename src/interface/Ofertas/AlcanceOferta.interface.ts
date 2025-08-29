@@ -8,11 +8,8 @@ export interface IAlcanceOferta{
 
 export interface ICreateOrUpdateAlcanceOferta{
     id_oferta: string;
-    tipo_alcance: string; 
+    tipo_alcance: string; //
     id_referencia: string | null; 
-    // nivel_aplicacion: string; 
-    // modo_alcance:string ; 
-    // prioridad_alcance?: number; 
-    // activo:boolean; 
+
 }
 
