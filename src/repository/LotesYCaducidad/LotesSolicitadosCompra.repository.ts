@@ -22,8 +22,8 @@ export const LotesSolicitadoCompraRepository = {
             const detalleRecibido = await Detalle_Compra_Recibido.findOne({
                 where: { id_detallecompr_solicitado: producto.id_detallecompr_solicitado },
             });
-            console.log(`Detalle recibido encontrado para producto ${producto.id_detallecompr_solicitado}:`, detalleRecibido);
-            console.log(detalleRecibido)
+            //console.log(`Detalle recibido encontrado para producto ${producto.id_detallecompr_solicitado}:`, detalleRecibido);
+            //console.log(detalleRecibido)
 
             if (detalleRecibido) {
                 detalleRecibidoMap.set(producto.id_detallecompr_solicitado, detalleRecibido.id_detcomprec);

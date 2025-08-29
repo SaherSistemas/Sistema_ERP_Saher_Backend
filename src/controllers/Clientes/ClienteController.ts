@@ -18,7 +18,7 @@ export class ClienteController {
                 try {
                     const { identificador_cliente } = req.params;
 
-                    console.log(identificador_cliente);
+                    //console.log(identificador_cliente);
                     const cliente = await ClienteService.getByIDFlexible(identificador_cliente)
                   // console.log(cliente)
                     res.status(200).json(cliente)

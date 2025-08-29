@@ -16,6 +16,6 @@ export const dbLocal = new Sequelize({
         ssl: false,
         useUTC: true,
     },
-    models: [path.join(__dirname, '/../models/**/*.ts')],
+    models: [path.resolve(__dirname, '..', 'models', '**', '*.{ts,js}')],
     logging: false,
 });

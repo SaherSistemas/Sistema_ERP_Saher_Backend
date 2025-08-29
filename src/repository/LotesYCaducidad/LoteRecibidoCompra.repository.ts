@@ -19,7 +19,7 @@ export const LoteRecibidoCompraRepository = {
 
 
     update: async (data: ILoteRecibidoChecado, options?: { transaction?: Transaction }) => {
-        console.log(data)
+       // console.log(data)
         return await LotesRecibidosCompra.update({
             numerolote_lote: data.numerolote_lote,
             motivo_ajuste: data.motivo_ajuste,

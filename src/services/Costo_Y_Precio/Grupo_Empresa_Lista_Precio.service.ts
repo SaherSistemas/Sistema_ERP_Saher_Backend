@@ -11,13 +11,13 @@ export const Grupo_Empresa_Lista_PrecioService = {
     getPorGrupo: async (id_grup_empresa: string) => {
         return await Grupo_Empresa_Lista_PrecioRepository.getByIDGrupo(id_grup_empresa)
     },
-    delete: async ( id_grupo_empresa_lista_precio: string) => {
-        return await Grupo_Empresa_Lista_PrecioRepository.delete( id_grupo_empresa_lista_precio);
+    delete: async (id_grupo_empresa_lista_precio: string) => {
+        return await Grupo_Empresa_Lista_PrecioRepository.delete(id_grupo_empresa_lista_precio);
     },
     create: async (data: ICreateOrUpdateGrupo_Empresa_Lista_Precio) => {
-        console.log(data)
+        //  console.log(data)
         const existe = await Grupo_Empresa_Lista_PrecioRepository.getOne(data);
-        console.log(existe)
+        //  console.log(existe)
         if (existe) {
             throw new Error("Esta lista ya esta asignada a otro grupo de empresas")
         }

@@ -37,7 +37,7 @@ export class ListaPrecioController {
       const nuevaLista = await ListaPrecioService.create(req.body);
       res.status(201).json(nuevaLista);
     } catch (error) {
-      console.log(error);
+     // console.log(error);
       res.status(500).json({ message: "Error al crear la Lista de precios" });
     }
   }

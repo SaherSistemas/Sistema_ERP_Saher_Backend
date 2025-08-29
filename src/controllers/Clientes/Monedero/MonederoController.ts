@@ -18,7 +18,7 @@ export class MonederoController {
   static getByID = async (req: Request, res: Response) => {
     try {
       const { id_monedero } = req.params;
-      console.log(id_monedero);
+      //console.log(id_monedero);
       const monedero = await MonederoService.getByIDFlexible(id_monedero);
       // console.log(cliente)
       res.status(200).json(monedero);

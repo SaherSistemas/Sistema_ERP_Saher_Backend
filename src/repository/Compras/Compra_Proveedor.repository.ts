@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Op, Transaction } from 'sequelize';
+import { fn, literal, Op, Transaction } from 'sequelize';
 import Detalle_Compra_Solicitado from "../../models/Compra/Detalle_Compra_Solicitado";
 import Articulo from '../../models/Articulos/Articulo';
 import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
@@ -9,9 +9,10 @@ import Compra_General from '../../models/Compra/Compra_General';
 import { Factura_Compra_ProveedorRepository } from '../Proveedor/Factura_Compra_Proveedor.repository';
 import { EmpleadoRepository } from '../Usuarios/Empleado.repository';
 import { Sequelize } from 'sequelize-typescript';
-import { CompraRepository } from './Compra.repository';
+import { CompraGeneralRepository } from './Compra_General.repository';
 import { Detalle_Compra_RecibidosRepository } from './Detalle_Compra_Recibido.repository';
-
+import { round2 } from '../../utils/validaciones'
+export type KpiEstados = { R: number; A: number; F: number; D: number };
 export const Compra_ProveedorRepository = {
 
     /*
@@ -34,25 +35,23 @@ export const Compra_ProveedorRepository = {
      * ***********************************************************
      */
 
-    getAllCompra_ProveedorPorIdCompGener: async (id_compra_general: string | string[]) => {
-        if (Array.isArray(id_compra_general) && id_compra_general.length === 0) {
-            return [];
-        }
-
-        const where = Array.isArray(id_compra_general)
-            ? { id_compra_general: { [Op.in]: id_compra_general } }
-            : { id_compra_general };
-
+    getAllCompra_ProveedorPorIdCompGener: async (id_compra_general: string) => {
         return await Compra_Proveedor.findAll({
-            where,
+            where: { id_compra_general },
             include: [{
                 model: Proveedor,
-            }], // agrega alias si tu asociación lo usa: as: 'proveedor'
+            }],
+        });
+    },
+    getDevolucionesPendientesPorIdCompGener: async (id_compra_general: string) => {
+        return await Compra_Proveedor.findAll({
+            where: { id_compra_general, estado_comp: 'D' },
+            include: [{ model: Proveedor }],
         });
     },
 
     getAllCompras_ProveedorParaRecibir: async (id_empresa_sucursal: string) => {
-        const comprasGenerales = await CompraRepository.getAllCompra_GeneralSinPaginar(id_empresa_sucursal)
+        const comprasGenerales = await CompraGeneralRepository.getAllCompra_GeneralSinPaginar(id_empresa_sucursal)
         return await Compra_Proveedor.findAll({
             include: [Proveedor],
             where: {
@@ -132,13 +131,11 @@ export const Compra_ProveedorRepository = {
             actualizado: seActualizoCompra,
         };
     },
-    finalizarAcomodoDeCompraProveedor: async (id_comp: string, id_empleado: string) => {
+    finalizarAcomodoDeCompraProveedor: async (id_comp: string, id_empleado: string, options?: { transaction?: Transaction }) => {
         const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp);
         const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado);
 
-        if (!compraProveedor) {
-            throw new Error('Compra del proveedor no encontrada');
-        }
+        if (!compraProveedor) throw new Error('Compra del proveedor no encontrada');
         if (compraProveedor.id_empleado_acomodo !== empleado.id_empleado) {
             throw new Error('No es el mismo empleado que acomodo.');
         }
@@ -146,23 +143,35 @@ export const Compra_ProveedorRepository = {
         let seActualizoCompra = false;
 
         if (compraProveedor.fin_acomodo_mercancia == null) {
-            // 👇 si los totales no coinciden → estado "D"
-            const nuevoEstado =
-                compraProveedor.total_comp_recibido !== compraProveedor.total_comp_factura
-                    ? 'D'
-                    : 'F';
+            // Normaliza a número por si vienen como string
+            const totalRecibido = Number(compraProveedor.total_comp_recibido ?? 0);
+            const totalFactura = Number(compraProveedor.total_comp_factura ?? 0);
 
-            await compraProveedor.update({
+            const cuadran = totalRecibido === totalFactura;
+            const nuevoEstado: 'F' | 'D' = cuadran ? 'F' : 'D';
+
+            // Base de actualización
+            const updateData: any = {
                 fin_acomodo_mercancia: new Date(),
                 estado_comp: nuevoEstado,
-            });
+            };
+
+            // SOLO si cuadran, también cerramos final_compra_acomodada
+            if (cuadran) {
+                updateData.final_compra_acomodada = new Date();
+            }
+
+            await compraProveedor.update(
+                updateData,
+                { transaction: options?.transaction }
+            );
+
             seActualizoCompra = true;
         }
 
-        return {
-            actualizado: seActualizoCompra,
-        };
+        return { actualizado: seActualizoCompra };
     },
+
 
 
     findCompraProveedor_CapturandoByProveedor: async (id_proveedor: string, id_empresa: string) => {
@@ -201,13 +210,13 @@ export const Compra_ProveedorRepository = {
             totalIva += cantidad * iva;
         }
 
-        // await CompraRepository.updateTotalCompraGeneral(id_compra_general, subtotal, totalIva)
+        // await CompraGeneralRepository.updateTotalCompraGeneral(id_compra_general, subtotal, totalIva)
 
         await facturaProveedor.update({
             total_factura_proveedor: subtotal,
             total_iva_factura: totalIva
         })
-
+        //  console.log(subtotal)
 
         return await compraProveedor.update({
             total_comp_factura: subtotal,
@@ -236,7 +245,7 @@ export const Compra_ProveedorRepository = {
             totalIva += cantidad * iva;
         }
 
-        await CompraRepository.updateTotalCompraGeneral(id_compra_general, subtotal, totalIva)
+        await CompraGeneralRepository.updateTotalCompraGeneral(id_compra_general, subtotal, totalIva)
 
         await facturaProveedor.update({
             total_factura_proveedor: subtotal,
@@ -256,9 +265,9 @@ export const Compra_ProveedorRepository = {
             ]
         });
     },
-    getByID: async (id_comp: string) => {
-        const compraProveedor = await Compra_Proveedor.findByPk(id_comp)
-        return compraProveedor
+    getByID: async (id_comp: string, options?: { transaction?: Transaction }) => {
+        const compraProveedor = await Compra_Proveedor.findByPk(id_comp, options);
+        return compraProveedor;
     },
     addDetallesCompraSolicitado: async (id_compra: string, detalles: any[]) => {
         const detallesProcesados = await Promise.all(
@@ -367,23 +376,61 @@ export const Compra_ProveedorRepository = {
     compraProveedorTerminarRecibida: async (id_comp: string, totalCompra: number, ivaRecibido: number, options?: { transaction?: Transaction }) => {
 
         const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp)
-        const esCompleta = Number(compraProveedor.total_comp_factura) === Number(totalCompra);
+        const esCompleta = Number(compraProveedor.total_comp_factura) === round2(totalCompra);
 
-        //ACTUALIZAR TOTAL_COMPRA GENERAL PARA TENER EL TOTAL QUE SE COMPRO
+        //ACTUALIZAR TOTAL_COMPRA GENERAL PARA TENER EL TOTAL QUE SE COMPRO MOVER A COMPRA GENERAL
         const cambiarTotalFactura = await Compra_ProveedorRepository.cambiarTotalCompraGen(id_comp)
+
         return await Compra_Proveedor.update(
             {
                 total_comp_recibido: totalCompra,
                 total_iva_recibido: ivaRecibido,
-                fin_de_checado: new Date(),
-                fin_de_compra_proveedor: esCompleta ? new Date() : null,
-                estado_comp: 'Z',
+                fin_de_checado: new Date(),                      // ← siempre fecha de cierre de checado
+                fin_de_compra_proveedor: esCompleta ? new Date() : null, // ← fecha de cierre definitiva SOLO si completa
+                estado_comp: 'Z',                                // ojo: valida que 'Z' exista en tu catálogo de estados
             },
             {
                 where: { id_comp },
-                transaction: options?.transaction
+                transaction: options?.transaction,
             }
         );
-    }
+    },
 
+    comprasProveedorSinTerminar: async (id_compra_general: string, options?: { transaction?: Transaction }) => {
+        const pendientes = await Compra_Proveedor.count({
+            where: {
+                id_compra_general,
+                estado_comp: { [Op.ne]: 'F' }  // cualquier estado que NO sea F
+            },
+            transaction: options?.transaction
+        });
+
+        return {
+            pendientes,             // número de compras proveedor que faltan
+            todasTerminadas: pendientes === 0
+        };
+    },
+
+
+    //KPIS 
+    getHijosPorEstado: async (whereCP: any): Promise<KpiEstados> => {
+        const row = await Compra_Proveedor.findOne({
+            where: whereCP,
+            include: [{ association: 'proveedor', attributes: [] }],
+            attributes: [
+                [fn('SUM', literal(`CASE WHEN estado_comp = 'R' THEN 1 ELSE 0 END`)), 'R'],
+                [fn('SUM', literal(`CASE WHEN estado_comp = 'A' THEN 1 ELSE 0 END`)), 'A'],
+                [fn('SUM', literal(`CASE WHEN estado_comp = 'F' THEN 1 ELSE 0 END`)), 'F'],
+                [fn('SUM', literal(`CASE WHEN estado_comp = 'D' THEN 1 ELSE 0 END`)), 'D'],
+            ],
+            raw: true,
+        }) as unknown as { R?: number; A?: number; F?: number; D?: number } | null;
+        // console.log(row)
+        return {
+            R: Number(row?.R ?? 0),
+            A: Number(row?.A ?? 0),
+            F: Number(row?.F ?? 0),
+            D: Number(row?.D ?? 0),
+        };
+    }
 }

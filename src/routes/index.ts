@@ -43,7 +43,8 @@ import grupoEmpresaListaPrecioRouter from './Costo_y_Precio/Grupo_Empresa_Lista_
 import detalleCompraNegadoRouter from './Compras/detalle_Compra_NegadoRouter'
 import detalleCompraRecibidoRouter from './Compras/detalle_Compra_RecibidoRouter'
 import parametos_CompraRouter from './Compras/parametros_CompraRouter'
-import comprasRouter from './Compras/ComprasRouter'
+import comprasRouter from './Compras/ComprasGeneralRouter'
+import comprasProveedorRouter from './Compras/ComprasProveedorRouter'
 import detalle_CompraRouter from './Compras/detalle_CompraRouter'
 //Lotes y Caducidades
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
@@ -89,6 +90,7 @@ import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_Provee
 import Margen_Ganancia_ListaRouter from './Costo_y_Precio/Margen_Ganancia_ListaRouter'
 
 import DevolucionesRouter from './Devoluciones/DevolucionesRouter'
+import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
 const router = Router();
 
 
@@ -136,7 +138,9 @@ router.use('/grupo_empresa', grupo_EmpresaRouter)
 router.use('/grupo_empresa_lista_precio', grupoEmpresaListaPrecioRouter)
 
 router.use('/parametros_compra', parametos_CompraRouter)
+
 router.use('/compras', comprasRouter)
+router.use('/compras_proveedor', comprasProveedorRouter)
 router.use('/compras/detalle_compra', detalle_CompraRouter)
 
 router.use('/compras/detalle_compra_negado', detalleCompraNegadoRouter)
@@ -194,5 +198,8 @@ router.use('/reglaOferta', ReglaOfertaRouter)
 router.use('/facturas_proveedor', factura_compra_ProveedorRouter)
 
 router.use('/devoluciones', DevolucionesRouter)
+
+
+router.use('/dashboard', Dash_ComprasRouter)
 //router.use('/uploads/factura', uploadsRouter)
 export default router

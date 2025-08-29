@@ -7,7 +7,7 @@ export class DevolucionController {
             const listas = await DevolucionesService.getAllProductosDevolucion(req.params.id_comp);
             res.status(200).json(listas);
         } catch (error) {
-            console.log(error)
+          //  console.log(error)
             res.status(500).json({ message: "Error al obtener las devoluciones", error });
         }
     };

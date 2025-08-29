@@ -7,7 +7,6 @@ import Ciudad from "../../models/Ubicacion/Ciudad";
 import Estado from "../../models/Ubicacion/Estado";
 import Pais from "../../models/Ubicacion/Pais";
 import { Proveedor_EmpresaRepository } from "./Proveedor_Empresa.repository";
-import { CompraRepository } from "../Compras/Compra.repository";
 import { Compra_ProveedorRepository } from "../Compras/Compra_Proveedor.repository";
 export const ProveedorRepository = {
     getAll: async (): Promise<IProveedor[]> => {

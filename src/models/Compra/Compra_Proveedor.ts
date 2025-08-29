@@ -74,6 +74,14 @@ class Compra_Proveedor extends Model {
     })
     declare fin_de_compra_proveedor: Date
 
+    @Column({
+        type: DataType.DATE
+    })
+    declare final_compra_acomodada: Date
+
+
+
+
     // Quién generó la compra
     @ForeignKey(() => Empleado)
     @Column({ type: DataType.UUID })

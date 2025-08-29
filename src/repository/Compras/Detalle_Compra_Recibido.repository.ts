@@ -35,8 +35,8 @@ export const Detalle_Compra_RecibidosRepository = {
         })
     },
 
-    actualizarCantidadRecibidaReal: async ( id_detalleRecibido: string, cantidadRealEntrada: number) => {
-      
+    actualizarCantidadRecibidaReal: async (id_detalleRecibido: string, cantidadRealEntrada: number) => {
+
         const detalleRecibido = await Detalle_Compra_RecibidosRepository.getByPK(id_detalleRecibido);
 
         return await detalleRecibido.update({
