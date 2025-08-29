@@ -72,7 +72,7 @@ class Ofertas extends Model {
     @HasMany(() => AlcanceOfertas, {
         as: 'alcances'
     })
-    alcances?: AlcanceOfertas[];
+    alcances: AlcanceOfertas[];
 
     @HasMany(() => UsoOferta, {
         as: 'usos'

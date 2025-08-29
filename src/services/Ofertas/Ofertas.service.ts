@@ -13,13 +13,12 @@ import ReglaOferta from "../../models/Ofertas/ReglaOferta";
 export const OfertaService = {
   getOfertas: async (args: {
     id_empre: string;
-    fecha?: string | Date; // ISO o Date
-    canal?: string; // 'PDV' por defecto
-    id_cliente?: string; // para límites por cliente
+    fecha?: string | Date; 
+    canal?: 'PDV' | 'ECOM'; 
+    id_cliente?: string; 
   }) => {
-    const { id_empre, canal = "PDV" } = args;
+    const { id_empre, canal } = args;
       if (!id_empre) throw new Error("Faltan parámetros");
-
 
     const fecha =
       typeof args.fecha === "string"
@@ -89,7 +88,7 @@ export const OfertaService = {
           id_alcance: uuidv4(),
           id_oferta: oferta.id_oferta,
           tipo_alcance: a.tipo_alcance,
-          id_referencia: a.id_referencia,
+          id_referencia: a.id_referencia ?? null,
         })),
         { transaction: t }
       );

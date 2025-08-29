@@ -10,7 +10,7 @@ export const dbLocal = new Sequelize({
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: 5433, //5432,
+    port: 5432, //5432,
     timezone: '+00:00',
     dialectOptions: {
         ssl: false,

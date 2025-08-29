@@ -38,6 +38,8 @@ export const OfertaRepository = {
     const alcanceOR: WhereOptions[] = [
       { tipo_alcance: "EMPRESA",  id_referencia: id_empre  },
       { tipo_alcance: "GLOBAL",   id_referencia: {[Op.is]: null}},
+      { tipo_alcance: "ARTICULO",  id_referencia: {[Op.is]: null}},
+
     ];
     
      const candidatas = await Ofertas.findAll({
@@ -49,10 +51,10 @@ export const OfertaRepository = {
       include: [
         {
           model: OfertaAlcance,
-          as: "alcances",
-          required: true,
-          where: { [Op.or]: alcanceOR },
-          // attributes: [],
+          as: "alcances"
+          // ,
+          // required: true,
+          // where: { [Op.or]: alcanceOR },
         }, {
           model: OfertaRegla,
           as: "reglas"
@@ -92,8 +94,8 @@ export const OfertaRepository = {
       creada_por: data.creada_por,
       canal_oferta: data.canal_oferta,
       status_oferta: data.status_oferta,
-      alcances: data.alcances ?? [],
-      reglas: data.reglas ?? [],
+      // alcances: data.alcances ?? [],
+      // reglas: data.reglas ?? [],
     };
 
     return await Ofertas.create(

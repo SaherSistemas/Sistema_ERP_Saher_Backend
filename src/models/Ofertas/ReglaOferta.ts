@@ -49,8 +49,12 @@ class OfertaRegla extends Model {
 
 @Column({
     type: DataType.DECIMAL(10,2),
-  })
-  declare valor: string | null;
+    get(this: any) {
+    const raw = this.getDataValue("valor"); // lo que devuelve Postgres (string o null)
+    return raw === null ? null : Number(raw);
+  },
+})
+  declare valor: number | null;
 
 @Column({
     type: DataType.INTEGER,
@@ -82,6 +86,10 @@ class OfertaRegla extends Model {
 
 @Column({
     type: DataType.DECIMAL(10,2),
+    get(this: any) {
+    const raw = this.getDataValue("tope_desc"); // lo que devuelve Postgres (string o null)
+    return raw === null ? null : Number(raw);
+  },
   }) declare tope_desc: number | null;
 
 @Column({
