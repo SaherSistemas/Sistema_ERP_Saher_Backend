@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { NotaCreditoService } from "../../services/NotaCredito/NotaCredito.service";
 
 export class NotaCreditoController {
     static crearNotaCredito = async (req: Request, res: Response) => {
@@ -21,17 +20,17 @@ export class NotaCreditoController {
 
 
 
-            const notaCredito = await NotaCreditoService.crearNotaCredito({
-                compraId,
-                monto,
-                motivo,
-                timbrada,
-                tipo,
-                productos,
-                pdfFiles,
-                xmlFiles
-            });
-         
+            /* const notaCredito = await NotaCreditoService.crearNotaCredito({
+                 compraId,
+                 monto,
+                 motivo,
+                 timbrada,
+                 tipo,
+                 productos,
+                 pdfFiles,
+                 xmlFiles
+             });
+          */
 
             // Aquí puedes continuar con tu lógica (validar, guardar en DB, etc.)
             res.status(200).json({ ok: true, message: "Payload recibido y logueado." });
