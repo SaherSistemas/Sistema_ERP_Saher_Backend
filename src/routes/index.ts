@@ -89,7 +89,10 @@ import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_Provee
 
 import Margen_Ganancia_ListaRouter from './Costo_y_Precio/Margen_Ganancia_ListaRouter'
 
+
 import DevolucionesRouter from './Devoluciones/DevolucionesRouter'
+import notaCreditoRouter from './NotaCredito/notaCreditoRouter'
+
 import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
 const router = Router();
 
@@ -198,7 +201,7 @@ router.use('/reglaOferta', ReglaOfertaRouter)
 router.use('/facturas_proveedor', factura_compra_ProveedorRouter)
 
 router.use('/devoluciones', DevolucionesRouter)
-
+router.use('/nota_credito', notaCreditoRouter)
 
 router.use('/dashboard', Dash_ComprasRouter)
 //router.use('/uploads/factura', uploadsRouter)

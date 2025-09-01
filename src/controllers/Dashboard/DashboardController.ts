@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { ICompraKPISRequest } from "../../interface/Dashboard/Compras.interface";
 import { dashboardComprasService } from "../../services/Dashboard/dashboardCompras.service";
 import { CompraGeneralesService } from "../../services/Compras/Compras.service";
+import { compraProveedorService } from "../../services/Compras/compraProveedor.service";
 
 export class Dash_CompraController {
     static getAllKpisCompras = async (req: Request, res: Response) => {
@@ -49,8 +50,9 @@ export class Dash_CompraController {
                 id_empresa,
                 { start, end }
             );
+            const comprasPendientes = await compraProveedorService.getComprasPendientes();
             // console.log(comprasGeneralesConFiltro);
-            res.status(200).json(comprasGeneralesConFiltro);
+            res.status(200).json({ comprasGeneralesConFiltro, comprasPendientes });
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: "Error al obtener todas las compras." });

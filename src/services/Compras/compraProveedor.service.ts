@@ -21,13 +21,11 @@ export const compraProveedorService = {
         const plain = rows.map((r: any) => typeof r.get === 'function' ? r.get({ plain: true }) : r);
         return plain.map(mapCompraProveedor)
     },
-    //! FALTA 
-    compraProveedorService: async (id_comp: string) => {
-        const rows = await Compra_ProveedorRepository.getAllCompra_ProveedorPorIdCompGener(id_comp)
+    getComprasPendientes: async () => {
+        const rows = await Compra_ProveedorRepository.getComprasPendientes();
         const plain = rows.map((r: any) => typeof r.get === 'function' ? r.get({ plain: true }) : r);
-        return plain.map(mapCompraProveedor)
+        return plain.map(mapCompraProveedor);
     },
-
     createCompraProveedor: async (data: IEsctructuraCompra) => {
         const { id_empresa, id_listproveedor, detalle, tipo_compra } = data
 

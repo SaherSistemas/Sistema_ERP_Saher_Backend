@@ -43,6 +43,15 @@ export const Compra_ProveedorRepository = {
             }],
         });
     },
+    getComprasPendientes: async () => {
+        return await Compra_Proveedor.findAll({
+            where: {
+                estado_comp: 'D',
+            },
+            include: [{ model: Proveedor }],
+        });
+    },
+
     getDevolucionesPendientesPorIdCompGener: async (id_compra_general: string) => {
         return await Compra_Proveedor.findAll({
             where: { id_compra_general, estado_comp: 'D' },
