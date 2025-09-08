@@ -1,5 +1,5 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
-import Devoluciones_Compras from '../Devolucion/Devoluciones_Compras';
+import Compra_Proveedor from '../../Compra/Compra_Proveedor';
 
 
 @Table({
@@ -13,12 +13,12 @@ class NotasCreditoProveedor extends Model {
     })
     declare id_nc: string;
 
-    @ForeignKey(() => Devoluciones_Compras)
+    @ForeignKey(() => Compra_Proveedor)
     @Column({
         type: DataType.UUID,
         allowNull: false,
     })
-    declare id_devo: string;
+    declare id_compra_proveedor: string;
 
     @Column({
         type: DataType.STRING(50),
@@ -43,6 +43,13 @@ class NotasCreditoProveedor extends Model {
     })
     declare total_nc: number;
 
+    @Column({
+        type: DataType.DECIMAL(10, 2),
+        allowNull: false,
+    })
+    declare iva_total_nc: number;
+
+
 
     @Column({
         type: DataType.TEXT
@@ -54,7 +61,8 @@ class NotasCreditoProveedor extends Model {
     })
     declare url_xml_nc: string
 
-
+    @BelongsTo(() => Compra_Proveedor)
+    compraProveedor: Compra_Proveedor;
 
 }
 

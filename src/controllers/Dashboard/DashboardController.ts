@@ -27,8 +27,8 @@ export class Dash_CompraController {
         try {
             const { id_empresa } = req.params;
             // from/to en query; si no vienen, se ponen default (1er día del mes y hoy)
-            const { from, to, estadoHijo, q } = req.query as { from?: string; to?: string; estadoHijo?: string; q?: string };
-            console.log(estadoHijo, q)
+            const { from, to } = req.query as { from?: string; to?: string; };
+            //  console.log(estadoHijo, q)
             // Defaults (server timezone; si usas TZ, mejor con dayjs.tz/moment-timezone)
             const now = new Date();
             const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

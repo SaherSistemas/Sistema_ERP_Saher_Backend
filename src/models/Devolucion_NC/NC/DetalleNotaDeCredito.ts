@@ -1,61 +1,53 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
-import Devoluciones_Compras from '../Devolucion/Devoluciones_Compras';
+import NotasCreditoProveedor from './NotaDeCredito';
+import Articulo from '../../Articulos/Articulo';
 
 
 @Table({
     tableName: 'detalle_notas_credito',
     timestamps: true,
 })
-class NotasCreditoProveedor extends Model {
+class DetalleNotaDeCredito extends Model {
     @PrimaryKey
     @Column({
         type: DataType.UUID,
     })
-    declare id_nc: string;
+    declare id_detalle_nc: string;
 
-    @ForeignKey(() => Devoluciones_Compras)
+    @ForeignKey(() => NotasCreditoProveedor)
     @Column({
         type: DataType.UUID,
         allowNull: false,
     })
-    declare id_devo: string;
+    declare id_nc: string;
 
+    @ForeignKey(() => Articulo)
     @Column({
-        type: DataType.STRING(50),
+        type: DataType.UUID,
         allowNull: false,
     })
-    declare folio_nc: string;
+    declare id_artic: string;
 
     @Column({
-        type: DataType.TEXT
+        type: DataType.SMALLINT
     })
-    declare motivo_nc: string
-
-    @Column({
-        type: DataType.DATEONLY,
-        allowNull: false,
-    })
-    declare fecha_emision: string;
+    declare cantidad: number
 
     @Column({
         type: DataType.DECIMAL(10, 2),
         allowNull: false,
     })
-    declare total_nc: number;
-
-
-    @Column({
-        type: DataType.TEXT
-    })
-    declare url_pdf_nc: string
+    declare precio_unit: number;
 
     @Column({
-        type: DataType.TEXT
+        type: DataType.DECIMAL(10, 2),
+        allowNull: false,
     })
-    declare url_xml_nc: string
+    declare iva_unit: number;
 
-
+    @BelongsTo(() => NotasCreditoProveedor)
+    notaCredito: NotasCreditoProveedor;
 
 }
 
-export default NotasCreditoProveedor;
+export default DetalleNotaDeCredito;
