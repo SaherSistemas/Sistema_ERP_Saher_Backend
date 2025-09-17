@@ -12,6 +12,7 @@ import { LoteUsadoVentaRepository } from "../../repository/LotesYCaducidad/Lote_
 import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
 import { UsoOfertaRepository } from "../../repository/Ofertas/UsoOferta.repository";
 import { OfertaRepository } from "../../repository/Ofertas/Ofertas.repository";
+import { OfertaService } from "../Ofertas/Ofertas.service";
 
 export const VentaService = {
   getAll: async () => {
@@ -42,6 +43,15 @@ export const VentaService = {
 
       const id_venta = venta.id_venta;
 
+         // Calcula pricing de ofertas
+        const ctx = {
+        id_empre: data.id_empre,
+        id_cliente: data.id_cliente ?? null,
+        fecha: new Date(),
+        // canal: data.canal ?? "PDV",
+      };
+      
+
       for (const detalle of data.detalle_venta) {
         const { lote_usado = [], ...colsDetalle } = detalle;
 
@@ -49,12 +59,16 @@ export const VentaService = {
           { id_venta, ...detalle },
           { transaction: t }
         );
+
         if (lote_usado.length === 0) {
           throw new Error(
             `Faltan lotes usados para el artículo ${colsDetalle.id_artic}.`
           );
         }
         let acumulado = 0;
+
+       
+
         for (const lu of lote_usado) {
           if (!lu.id_lote_sucursal)
             throw new Error("Falta id_lote_sucursal en lote_usado.");
@@ -62,19 +76,19 @@ export const VentaService = {
             throw new Error(
               "cantidad_utilizada inválida en uno de los lotes usados."
             );
-          const lote =
-            await LotesArticuloSucursalRepository.findByPkInEmpresaArticulo(
+          const lote = await LotesArticuloSucursalRepository.findByPkInEmpresaArticulo(
               lu.id_lote_sucursal,
               data.id_empre,
               colsDetalle.id_artic,
-              { transaction: t }
+              { transaction: t, lock: t.LOCK.UPDATE, skipLocked: false }
             );
           if (!lote) {
             throw new Error(
               "El lote no existe o no pertenece a esa empresa/artículo."
             );
           }
-          const stock = Number(lote.cantidad_lote_sucursal);
+
+        const stock = Number(lote.cantidad_lote_sucursal);
           if (stock < lu.cantidad_utilizada) {
             throw new Error(
               `Stock insuficiente en el lote ${lote.numero_lote_sucursal}.`
@@ -108,7 +122,6 @@ export const VentaService = {
         //   },
         //   { transaction: t }
         // );
-
         // for (const ofe of ofertas) {
         //   await UsoOfertaRepository.create(
         //     {
@@ -119,7 +132,9 @@ export const VentaService = {
         //     { transaction: t }
         //   );
         // }
+
       }
+
       for (const p of data.venta_pago) {
         await VentaPagoRepository.create(
           {

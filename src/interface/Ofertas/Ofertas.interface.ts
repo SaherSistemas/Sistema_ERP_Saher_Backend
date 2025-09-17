@@ -5,10 +5,11 @@ import { IReglasOferta } from "./ReglasOferta.interface";
 
 
 
-type HHMM = `${number}:${number}`;                           // "16:00"
-type HHMMSS = `${number}:${number}:${number}`;               // "16:00:00"
-type Weekday = 'MON'|'TUE'|'WED'|'THU'|'FRI'|'SAT'|'SUN';
-type canal = 'PDV'|'ECOM';
+export type HHMM = `${number}:${number}`;                           // "16:00"
+export type HHMMSS = `${number}:${number}:${number}`;               // "16:00:00"
+// type Semana = 'MON'|'TUE'|'WED'|'THU'|'FRI'|'SAT'|'SUN';
+export type Semana = 'LUN'|'MAR'|'MIE'|'JUE'|'VIE'|'SAB'|'DOM';
+export type canal = 'PDV'|'ECOM' |'AMBOS';
 
 export interface IOferta{
     id_oferta: string; //DEFAULT
@@ -16,7 +17,7 @@ export interface IOferta{
     descripcion: string; //YA
     fecha_ini_oferta: string; //YA
     fecha_fin_oferta: string; //YA
-    dias_semana: Weekday;
+    dias_semana: Semana;
     hora_ini:  HHMM | HHMMSS; //YA
     hora_fin:  HHMM | HHMMSS; //YA
     creada_por: string;  //DEFAULT

@@ -7,7 +7,7 @@ export interface IReglasOferta {
     valor : number;             // Valor numérico asociado a la acción (ej: 10 = 10% desc, 50 = $50 cashback)
     cantidad_minima: number;       // Cantidad mínima de artículos para activar la regla (ej: compra 3 para 3x2)
     cantidad_regalo: number;       // Número de artículos gratis/regalo que da la oferta (ej: en 3x2 sería 1)
-    articulo_gratis: string;   // id del artículo que se dará gratis (ej: "GEL123" → Gel antibacterial de regalo)
+    articulo_gratis?: string;   // id del artículo que se dará gratis (ej: "GEL123" → Gel antibacterial de regalo)
     monto_minimo_total: number;      // Monto mínimo de compra requerido para aplicar la oferta ($500, por ejemplo)
     minimo_articulo: number;   // Cantidad mínima de cierto artículo específico para aplicar (ej: compra 2 Paracetamol)
     tope_desc: number;         // Límite máximo del descuento (ej: hasta $200 aunque sea 10%)

@@ -2,11 +2,10 @@ import { dbLocal } from "../../config/db";
 import {
   IOferta,
   ICreateOrUpdateOferta,
+  canal,
 } from "../../interface/Ofertas/Ofertas.interface";
-import { AlcanceOfertaRepository } from "../../repository/Ofertas/OfertaAlcance.repository";
 import { OfertaRepository } from "../../repository/Ofertas/Ofertas.repository";
 import { v4 as uuidv4 } from "uuid";
-import { ReglaOfertaRepository } from "../../repository/Ofertas/ReglaOferta.repository";
 import AlcanceOfertas from "../../models/Ofertas/OfertaAlcance";
 import ReglaOferta from "../../models/Ofertas/ReglaOferta";
 
@@ -14,7 +13,7 @@ export const OfertaService = {
   getOfertas: async (args: {
     id_empre: string;
     fecha?: string | Date; 
-    canal?: 'PDV' | 'ECOM'; 
+    canal?: canal; 
     id_cliente?: string; 
   }) => {
     const { id_empre, canal } = args;
@@ -89,9 +88,13 @@ export const OfertaService = {
           id_oferta: oferta.id_oferta,
           tipo_alcance: a.tipo_alcance,
           id_referencia: a.id_referencia ?? null,
+          params: a.params ?? null,
         })),
         { transaction: t }
       );
+
+      const norm = (v?: string | null) =>
+      (typeof v === 'string' && v.trim() === '') ? null : v ?? null;
 
       await ReglaOferta.bulkCreate(
         data.reglas.map((r) => ({
@@ -101,7 +104,7 @@ export const OfertaService = {
           tipo_beneficio: r.tipo_beneficio,
           cantidad_minima: r.cantidad_minima,
           cantidad_regalo: r.cantidad_regalo,
-          articulo_gratis: r.articulo_gratis,
+          articulo_gratis: norm(r.articulo_gratis),
           monto_minimo_total: r.monto_minimo_total,
           minimo_articulo: r.minimo_articulo,
           tope_desc: r.tope_desc,
