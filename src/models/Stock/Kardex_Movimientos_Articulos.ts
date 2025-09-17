@@ -1,12 +1,12 @@
 import { Column, Model, DataType, Table, PrimaryKey, Unique, ForeignKey, BelongsTo } from 'sequelize-typescript'
 
 @Table({
-    tableName: "movimientos_articulos",
+    tableName: "kardex_movimientos_articulos",
     timestamps: false
 })
 
 
-class Movimientos_Articulos extends Model {
+class Kardex_Movimientos_Articulos extends Model {
 
     @PrimaryKey
     @Column({
@@ -45,4 +45,4 @@ class Movimientos_Articulos extends Model {
     declare cantidad_movimiento: number
 }
 
-export default Movimientos_Articulos;
+export default Kardex_Movimientos_Articulos;

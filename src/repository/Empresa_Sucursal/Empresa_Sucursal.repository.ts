@@ -34,29 +34,29 @@ export const Empresa_SucursalRepository = {
     },
     getByID: async (id: string): Promise<IEmpresaSucursal | null> => {
         return await Empresa_Sucursal.findByPk(id, {
-            include: [
-                {
-                    model: Colonia,
-                    attributes: ['id_colonia', 'nom_colonia'],
-                    include: [
-                        {
-                            model: Ciudad,
-                            attributes: ['id_ciuda', 'nom_ciuda'],
-                            include: [
-                                {
-                                    model: Estado,
-                                    attributes: ['id_esta', 'nom_esta'],
-                                    include: [{
-                                        model: Pais,
-                                        attributes: ['id_pais', 'nom_pais']
-                                    }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
+            /* include: [
+                 {
+                     model: Colonia,
+                     attributes: ['id_colonia', 'nom_colonia'],
+                     include: [
+                         {
+                             model: Ciudad,
+                             attributes: ['id_ciuda', 'nom_ciuda'],
+                             include: [
+                                 {
+                                     model: Estado,
+                                     attributes: ['id_esta', 'nom_esta'],
+                                     include: [{
+                                         model: Pais,
+                                         attributes: ['id_pais', 'nom_pais']
+                                     }
+                                     ]
+                                 }
+                             ]
+                         }
+                     ]
+                 }
+             ]*/
         });
     },
     getByIDLista: async (id_empresa: string) => {

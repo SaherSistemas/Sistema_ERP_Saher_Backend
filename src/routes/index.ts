@@ -95,7 +95,7 @@ import notaCreditoRouter from './NotaCredito/notaCreditoRouter'
 
 import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
 
-import ProyecionRouter from './PROYECCION/ProyecionRouter'
+import ProyecionRouter from './Proyeccion/ProyecionRouter'
 const router = Router();
 
 
@@ -208,6 +208,6 @@ router.use('/nota_credito', notaCreditoRouter)
 router.use('/dashboard', Dash_ComprasRouter)
 
 
-router.use('/proyeccion_venta', ProyecionRouter)
+router.use('/proyeccion', ProyecionRouter)
 //router.use('/uploads/factura', uploadsRouter)
 export default router

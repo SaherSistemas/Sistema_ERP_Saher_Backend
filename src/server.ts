@@ -13,7 +13,7 @@ async function connectDatabases() {
         console.log(colors.blue.bold('Conexión exitosa a base LOCAL'));
         console.log(colors.green.bold('Conexión exitosa a base REMOTA'));
 
-        await dbLocal.sync({ alter: true });    // Sincroniza modelos si es necesario
+        await dbLocal.sync();    // Sincroniza modelos si es necesario
         //await dbRemota.sync();   // Solo si quieres sincronizar también la remota
     } catch (error) {
         console.error(colors.red.bold('Error al conectar a las bases de datos:'));
