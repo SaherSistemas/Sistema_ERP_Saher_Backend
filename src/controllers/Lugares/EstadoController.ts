@@ -61,7 +61,7 @@ export class EstadoController {
             const updateEstado = await EstadoService.updateEstado(id_esta, data);
             res.status(200).json({ mensaje: "Estado actualizado correctamente.", estado: updateEstado });
         } catch (error) {
-            console.log(error)
+         //   console.log(error)
             res.status(500).json({ message: "Error al modificar el estado." });
         }
     }

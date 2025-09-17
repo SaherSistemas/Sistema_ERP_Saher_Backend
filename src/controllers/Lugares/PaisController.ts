@@ -9,6 +9,7 @@ export class PaisController {
             const todosPaises = await PaisService.getAllPaises();
             res.status(201).json({ mensaje: todosPaises });
         } catch (error) {
+          //  console.log(error)
             res.status(500).json({ message: "Error al obtener todos los países." });
         }
     }
@@ -50,7 +51,7 @@ export class PaisController {
             const updatedPais = await PaisService.updatePais(id_pais, data); // Ya es string
             res.status(201).json({ mensaje: 'País actualizado correctamente.', pais: updatedPais });
         } catch (error) {
-            console.log(error)
+           // console.log(error)
             res.status(500).json({ mensaje: "Error al modificar el país." });
         }
     }

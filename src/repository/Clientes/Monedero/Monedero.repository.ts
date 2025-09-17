@@ -65,7 +65,7 @@ export const MonederoRepository = {
   },
 
   acumularSaldo: async (monedero: MonederoCliente, saldo: number) => {
-    console.log("Acumulando saldo:", saldo);
+  //  console.log("Acumulando saldo:", saldo);
     monedero.saldo_monedero += saldo;
     await monedero.save();
     return {

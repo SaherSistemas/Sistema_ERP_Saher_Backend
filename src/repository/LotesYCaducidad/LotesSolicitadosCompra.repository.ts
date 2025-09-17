@@ -4,6 +4,7 @@ import { IDataLotesRecibidos } from '../../interface/LotesYCaducidad/LotesSolici
 import Lotes_Solicitado_Compra from '../../models/LotesYCaducidad/LotesSolicitadoCompra';
 import { Compra_ProveedorRepository } from '../Compras/Compra_Proveedor.repository';
 import Detalle_Compra_Recibido from '../../models/Compra/Detalle_Compra_Recibido';
+import { LoteRecibidoCompraRepository } from './LoteRecibidoCompra.repository';
 
 export const LotesSolicitadoCompraRepository = {
     getAllLotes: async (id_empresa_sucursal: string, id_artic: string) => {
@@ -21,8 +22,8 @@ export const LotesSolicitadoCompraRepository = {
             const detalleRecibido = await Detalle_Compra_Recibido.findOne({
                 where: { id_detallecompr_solicitado: producto.id_detallecompr_solicitado },
             });
-            console.log(`Detalle recibido encontrado para producto ${producto.id_detallecompr_solicitado}:`, detalleRecibido);
-            console.log(detalleRecibido)
+            //console.log(`Detalle recibido encontrado para producto ${producto.id_detallecompr_solicitado}:`, detalleRecibido);
+            //console.log(detalleRecibido)
 
             if (detalleRecibido) {
                 detalleRecibidoMap.set(producto.id_detallecompr_solicitado, detalleRecibido.id_detcomprec);
@@ -58,8 +59,8 @@ export const LotesSolicitadoCompraRepository = {
         });
 
         await Compra_ProveedorRepository.actualizarEstadoAlGuardarLotes(id_comp, id_empleado_registro_lotes);
-
-        await LotesRecibidosCompra.bulkCreate(lotesRecibidos);
+        await LoteRecibidoCompraRepository.create(lotesRecibidos)
+        //await LotesRecibidosCompra.bulkCreate(lotesRecibidos);
         return await Lotes_Solicitado_Compra.bulkCreate(lotesSolicitados);
     }
 

@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Detalle_Compra_Solicitado from "../../models/Compra/Detalle_Compra_Solicitado";
 import Articulo from '../../models/Articulos/Articulo';
 import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
+import { ICreateOAcumularDetallesSolicitados } from '../../interface/Compras/Detalle_Compra_Solicitado.interface';
 
 export const Detalle_Compra_SolicitadoRepository = {
     getAllArticulosPorCompra: async (id_comp: string) => {
@@ -18,12 +19,12 @@ export const Detalle_Compra_SolicitadoRepository = {
             ]
         });
     },
-    addDetallesCompraSolicitado: async (id_compra: string, detalles: any[]) => {
+    addDetallesCompraSolicitado: async (data: ICreateOAcumularDetallesSolicitados) => {
         const detallesProcesados = await Promise.all(
-            detalles.map(async (detalle) => {
+            data.detalles.map(async (detalle) => {
                 const existente = await Detalle_Compra_Solicitado.findOne({
                     where: {
-                        idcompr_detcompsol: id_compra,
+                        idcompr_detcompsol: data.id_compra,
                         idarticulo_detcompsol: detalle.idarticulo_detcompsol,
                         precio_detcompsol: detalle.precio_detcompsol
                     }
@@ -38,7 +39,7 @@ export const Detalle_Compra_SolicitadoRepository = {
                     // Crear nuevo si no existe
                     return await Detalle_Compra_Solicitado.create({
                         id_detcompsol: uuidv4(),
-                        idcompr_detcompsol: id_compra,
+                        idcompr_detcompsol: data.id_compra,
                         ...detalle
                     });
                 }

@@ -20,6 +20,8 @@
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "mathjs": "^14.6.0",
+    "ml-regression-polynomial": "^3.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.2",
     "pdfkit": "^0.17.1",

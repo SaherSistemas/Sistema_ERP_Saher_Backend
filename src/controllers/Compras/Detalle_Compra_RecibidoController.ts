@@ -33,11 +33,4 @@ export class Detalle_Compra_RecibidoController {
         - AL COMPRA PASA A OTRO ESTADO O QUEDA TERMINADO 
     */
 
-    static ingresarProductosRecibidosEmpresa = async (req: Request, res: Response) => {
-        try {
-            console.log("HOLA")
-        } catch (error) {
-
-        }
-    }
 }

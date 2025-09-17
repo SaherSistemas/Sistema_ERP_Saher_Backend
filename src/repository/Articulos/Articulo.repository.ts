@@ -18,19 +18,11 @@ import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
 import Detalle_Compra_Solicitado from '../../models/Compra/Detalle_Compra_Solicitado';
 import Detalle_Compra_Negados from '../../models/Compra/Detalle_Compra_Negados';
 import DetalleListaPrecio from '../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio';
-import Stock_sucursal from '../../models/Stock/Stock_Sucursal';
-import Cliente from '../../models/Clientes/Cliente';
-import Empresa_Sucursal from '../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { Empresa_SucursalRepository } from '../Empresa_Sucursal/Empresa_Sucursal.repository';
-import LoteArticuloSucursal from '../../models/LotesYCaducidad/Lote_ArticuloSucursal';
 import { LotesArticuloSucursalRepository } from '../LotesYCaducidad/Lote_ArticuloSucursal.repository';
 import { Tipo_IVARepository } from './Tipo_IVA.repository';
 
 
-type DetalleConTotal = {
-    id_articulo_detcompsol: string;
-    total: number;
-};
 export const ArticuloRepository = {
 
     getAll: async () => {
@@ -122,7 +114,7 @@ export const ArticuloRepository = {
     getAllParaVenta: async (id_empresa: string, cantidad: number, cod_barr_artic: string) => {
         const articulo = await ArticuloRepository.getByIDFlexible(cod_barr_artic);
         if (!articulo) { throw new Error('Artículo no encontrado'); }
-        
+
 
         const empresa = await Empresa_SucursalRepository.getByIDLista(id_empresa);
         const Lista_precio_empresa = empresa?.id_listapreciodefault ?? null;
