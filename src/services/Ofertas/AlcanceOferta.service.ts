@@ -8,10 +8,10 @@ export const AlcanceOfertaService = {
     return await AlcanceOfertaRepository.getAll();
   },
 
-  getById: async (id_oferta: string) => {
-    const oferta = await AlcanceOfertaRepository.getById(id_oferta);
-    if (!oferta) throw new Error("Oferta no enocontrada1");
-    return oferta;
+  getById: async (id_alcance: string) => {
+    const alcance = await AlcanceOfertaRepository.getById(id_alcance);
+    if (!alcance) throw new Error("Alcance de oferta no encontrado");
+    return alcance;
   },
 
   create: async (data: ICreateOrUpdateAlcanceOferta) => {
@@ -19,9 +19,6 @@ export const AlcanceOfertaService = {
   },
 
   update: async (id: string, data: Partial<ICreateOrUpdateAlcanceOferta>) => {
-    const alcanceOferta = await AlcanceOfertaRepository.getById(id);
-    if (!alcanceOferta) return null;
-    await alcanceOferta.update(data);
-    return alcanceOferta;
+    return await AlcanceOfertaRepository.update(id, data);  
   },
 };

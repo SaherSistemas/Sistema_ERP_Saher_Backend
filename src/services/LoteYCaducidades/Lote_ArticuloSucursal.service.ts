@@ -37,7 +37,6 @@ export const LotesArticuloSucursalService = {
     const where: any = { id_empre, id_artic };
 
     if (opts?.estado) {
-      // p.ej. "B" = Bueno
       where.estado_lote_sucursal = opts.estado;
     }
     if (opts?.conStock) {
@@ -47,7 +46,6 @@ export const LotesArticuloSucursalService = {
       where.fecha_venci_lote_sucursal = { [Op.gte]: new Date() };
     }
 
-    // Orden por defecto: FEFO (más próximo a vencer primero)
     let order: any[] = [["fecha_venci_lote_sucursal", "ASC"]];
     if (opts?.ordenar === "fifo") order = [["createdAt", "ASC"]];
     if (opts?.ordenar === "recientes") order = [["createdAt", "DESC"]];

@@ -6,9 +6,22 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { isUUID } from "../../utils/validaciones";
 import AlcanceOfertas from "../../models/Ofertas/OfertaAlcance";
-import { Op, FindOptions, Transaction, WhereOptions } from "sequelize";
+import {
+  Op,
+  FindOptions,
+  Transaction,
+  WhereOptions,
+  Sequelize,
+  literal,
+} from "sequelize";
 import OfertaAlcance from "../../models/Ofertas/OfertaAlcance";
 import OfertaRegla from "../../models/Ofertas/ReglaOferta";
+import {
+  obtenerDiaSemanaISO,
+  parseDiasSemana,
+  getLocalTimeInTz,
+  getLocalDateInTz,
+} from "../../interface/Ofertas/Utils/Oferta.Utils";
 
 const OfertaIncludes = [
   {
@@ -16,64 +29,95 @@ const OfertaIncludes = [
     as: "alcances",
   },
   {
-  model: OfertaRegla,
+    model: OfertaRegla,
     as: "reglas",
-  }
+  },
 ];
 
 type RepoOpts = { transaction?: any };
 
-
 export const OfertaRepository = {
-   
-  getOfertasSucursal: async ( Params: { id_empre : string, fecha : Date },
-    opts: RepoOpts = {} 
-      ) => {
-      const { id_empre, fecha } = Params;    
-    if (!id_empre) throw new Error("getOfertas: falta id_empre");
-    if (!(fecha instanceof Date) || isNaN(fecha.getTime())) {
-      throw new Error("getOfertas: fecha inválida");
-    }
-     
-    const alcanceOR: WhereOptions[] = [
-      { tipo_alcance: "EMPRESA",  id_referencia: id_empre  },
-      { tipo_alcance: "GLOBAL",   id_referencia: {[Op.is]: null}},
-      { tipo_alcance: "ARTICULO",  id_referencia: {[Op.is]: null}},
 
-    ];
-    
-     const candidatas = await Ofertas.findAll({
-      where: {
-        status_oferta: "ACTIVA",
-        fecha_ini_oferta: { [Op.lte]: fecha },
-        fecha_fin_oferta: { [Op.gte]: fecha },
-      },
-      include: [
-        {
-          model: OfertaAlcance,
-          as: "alcances"
-          // ,
-          // required: true,
-          // where: { [Op.or]: alcanceOR },
-        }, {
-          model: OfertaRegla,
-          as: "reglas"
-        }
+ 
+
+  getOfertasSucursal: async (
+  Params: { id_empre: string; fecha: Date; canal?: "PDV" | "ONLINE" | "AMBOS" },
+  opts: RepoOpts = {}
+) => {
+  const { id_empre, fecha, canal } = Params;
+  if (!id_empre) throw new Error("getOfertas: falta id_empre");
+  if (!(fecha instanceof Date) || isNaN(fecha.getTime())) {
+    throw new Error("getOfertas: fecha inválida");
+  }
+
+  const tz = "America/Mazatlan";
+  const localDate  = getLocalDateInTz(fecha, tz);      
+  const localTime  = getLocalTimeInTz(fecha, tz);   
+  const weekdayIso = obtenerDiaSemanaISO(fecha, tz);   
+
+  const alcanceOR: WhereOptions[] = [
+    { tipo_alcance: "EMPRESA", id_referencia: id_empre },
+    { tipo_alcance: "GLOBAL",  id_referencia: { [Op.is]: null } },
+  ];
+
+  const candidatas = await Ofertas.findAll({
+    where: {
+      status_oferta: "ACTIVA",
+      [Op.and]: [
+        Sequelize.literal(`"fecha_ini_oferta"::date <= DATE '${localDate}'`),
+        Sequelize.literal(`"fecha_fin_oferta"::date >= DATE '${localDate}'`),
       ],
-      // distinct: true,
-      subQuery: false,
-      transaction: opts.transaction,
-    });
+      ...(canal ? { canal_oferta: { [Op.in]: ["AMBOS", canal] } } : {}),
+    },
+    include: [
+      {
+        model: OfertaAlcance,
+        as: "alcances",
+        required: true,
+        where: { [Op.or]: alcanceOR },
+      },
+      { model: OfertaRegla, as: "reglas", required: false },
+    ],
+    transaction: opts.transaction,
+  });
 
-    return candidatas;
-  },
+  function hhmmssToSec(t: string) {
+    const [h, m, s] = String(t).split(":").map(Number);
+    return (h || 0) * 3600 + (m || 0) * 60 + (isNaN(s) ? 0 : s);
+  }
+
+  const nowSec = hhmmssToSec(localTime);
+
+  const aplicables = (candidatas ?? []).filter((o) => {
+    const dias = parseDiasSemana(String(o.get("dias_semana") ?? "*")); 
+    if (!dias.includes(weekdayIso)) return false;
+
+    const iniSec = hhmmssToSec(String(o.get("hora_ini") ?? "00:00:00"));
+    const finSec = hhmmssToSec(String(o.get("hora_fin") ?? "23:59:59"));
+
+    if (iniSec === finSec) {
+      return nowSec >= iniSec; 
+    }
+    if (iniSec < finSec) {
+      return iniSec <= nowSec && nowSec <= finSec;
+    }
+    return nowSec >= iniSec || nowSec <= finSec;
+  });
+
+
+  return aplicables;
+},
+
+
   getAll: async () => {
     return await Ofertas.findAll({
       include: OfertaIncludes,
     });
   },
   getById: async (
-    id_oferta: string, options? : { transaction?: Transaction }) => {
+    id_oferta: string,
+    options?: { transaction?: Transaction }
+  ) => {
     if (isUUID(id_oferta)) {
       return Ofertas.findByPk(id_oferta, {
         include: OfertaIncludes,
@@ -81,33 +125,32 @@ export const OfertaRepository = {
       });
     }
   },
-  create: async (data: ICreateOrUpdateOferta, options? : {transaction? : Transaction}) => {
+  create: async (
+    data: ICreateOrUpdateOferta,
+    options?: { transaction?: Transaction }
+  ) => {
     const ofertaCore = {
       id_oferta: uuidv4(),
       nombre_oferta: data.nombre_oferta,
       descripcion: data.descripcion,
       fecha_ini_oferta: data.fecha_ini_oferta,
       fecha_fin_oferta: data.fecha_fin_oferta,
-      dias_semana: data.dias_semana, 
+      dias_semana: data.dias_semana,
       hora_ini: data.hora_ini,
       hora_fin: data.hora_fin,
       creada_por: data.creada_por,
       canal_oferta: data.canal_oferta,
       status_oferta: data.status_oferta,
-      // alcances: data.alcances ?? [],
-      // reglas: data.reglas ?? [],
+   
     };
 
-    return await Ofertas.create(
-      ofertaCore,
-      {
-        ...options, //usa la transaccion
-        inlcude : [ //crea hijos
-          {model: AlcanceOfertas, as: "alcances"},
-          {model: OfertaRegla, as: "reglas"},
-        ],
-    }
-  );
+    return await Ofertas.create(ofertaCore, {
+      ...options, 
+      include: [
+        { model: AlcanceOfertas, as: "alcances" },
+        { model: OfertaRegla, as: "reglas" },
+      ],
+    });
   },
 
   update: async (id: string, data: Partial<ICreateOrUpdateOferta>) => {
@@ -118,4 +161,4 @@ export const OfertaRepository = {
     await oferta.update(data);
     return oferta;
   },
-}
+};

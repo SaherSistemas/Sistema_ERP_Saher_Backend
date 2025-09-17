@@ -85,44 +85,7 @@ export const LotesArticuloSucursalRepository = {
     });
   },
 
-  // repartirCantidadEntreLotes: async (
-  //   cod_barr_artic: string,
-  //   cantidadSolicitada: number
-  // ) => {
-  //   const lotes = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(
-  //     cod_barr_artic
-  //   );
 
-  //   const lotesParaVenta = [];
-  //   let cantidadRestante = cantidadSolicitada;
-  //   let totalDisponible = 0;
-
-  //   for (const lote of lotes) {
-  //     if (cantidadRestante <= 0) break;
-
-  //     const disponible = lote.cantidad_lote_sucursal;
-  //     if (disponible <= 0) continue;
-
-  //     totalDisponible += disponible;
-
-  //     const cantidadTomada = Math.min(disponible, cantidadRestante);
-  //     lotesParaVenta.push({
-  //       numero_lote_sucursal: lote.numero_lote_sucursal,
-  //       fecha_venci_lote_sucursal: lote.fecha_venci_lote_sucursal,
-  //       cantidad_lote_sucursal: cantidadTomada,
-  //     });
-
-  //     cantidadRestante -= cantidadTomada;
-  //   }
-
-  //   if (totalDisponible < cantidadSolicitada) {
-  //     throw new Error(
-  //       "No hay suficiente stock total para cubrir la cantidad solicitada"
-  //     );
-  //   }
-
-  //   return lotesParaVenta;
-  // },
 
   descontarStockLotes: async (
     lotesVendidos: {

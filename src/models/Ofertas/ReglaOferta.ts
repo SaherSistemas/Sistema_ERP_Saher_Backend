@@ -69,10 +69,11 @@ class OfertaRegla extends Model {
 @ForeignKey(() => Articulo)
 @Column({
     type: DataType.UUID,
+    allowNull: true, 
   })
   declare articulo_gratis: string | null;
 @BelongsTo(() => Articulo)
-  regalo: Articulo;
+  regalo: Articulo | null;
 
 @Column({
     type: DataType.DECIMAL(10,2),

@@ -4,6 +4,25 @@ import { isUUID } from "../../utils/validaciones";
 import AlcanceOfertas from "../../models/Ofertas/OfertaAlcance";
 import { BulkCreateOptions, CreateOptions } from "sequelize";
 
+
+
+
+
+function normalizeParams(data: ICreateOrUpdateAlcanceOferta) {
+  let params = data.params ?? null;
+  
+if (params && (params as any).tipo === 'CADUCIDAD' && data.tipo_alcance != 'LOTE'){
+  throw new Error ("Alcance CADUCIDAD reuqiere tipo_alcance = 'LOTE'.")
+  }
+
+  if (params && (params as any).tipo === 'CADUCIDAD') {
+    const p = params as any;
+    if (typeof p.solo_stock_disponible === 'undefined') p.solo_stock_disponible = true;
+    if (typeof p.incluir_vencidos === 'undefined') p.incluir_vencidos = false;
+  }
+  return { ...data, params };
+}
+
 export const AlcanceOfertaRepository = {
   getAll: async () => {
     return await AlcanceOfertas.findAll();
@@ -16,19 +35,20 @@ export const AlcanceOfertaRepository = {
   },
 
   create: async (data: ICreateOrUpdateAlcanceOferta, options?: CreateOptions) => {
-    return await AlcanceOfertas.create({
-      id_alcance: uuidv4(),
-      ...data,
-    }, 
-    options
+    const normalizedData = normalizeParams(data);
+    return await AlcanceOfertas.create(
+      {id_alcance: uuidv4(), ...normalizedData}, 
+      options
   );
   },
+
   bulkCreate: async (
     rows: ICreateOrUpdateAlcanceOferta[],
     options?: BulkCreateOptions
   ) => {
-    return await AlcanceOfertas.bulkCreate(
-      rows.map(r => ({ id_alcance: uuidv4(), ...r })), 
+    const mapped = rows.map(r => ({id_alcance: uuidv4(), ...normalizeParams(r)}));
+    return await AlcanceOfertas.bulkCreate
+    (mapped, 
       options
     );
   },
@@ -37,9 +57,17 @@ export const AlcanceOfertaRepository = {
   update: async (id: string, data: Partial<ICreateOrUpdateAlcanceOferta>) => {
     if (!isUUID(id)) return null;
     const alcanceOferta = await AlcanceOfertas.findByPk(id);
-
     if (!alcanceOferta) return null;
-    await alcanceOferta.update(data);
+
+
+    const payload = normalizeParams({
+      id_oferta: alcanceOferta.id_oferta,
+      tipo_alcance: data.tipo_alcance ?? alcanceOferta.tipo_alcance,
+      id_referencia: (data.id_referencia ?? alcanceOferta.id_referencia) as any,
+      params: (data.params ?? alcanceOferta.params) as any,
+    });
+
+    await alcanceOferta.update(payload);
     return alcanceOferta;
   },
 };
