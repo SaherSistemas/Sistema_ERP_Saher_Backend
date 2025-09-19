@@ -74,6 +74,14 @@ class Ofertas extends Model {
     })
     alcances: AlcanceOfertas[];
 
+    @HasMany(() => AlcanceOfertas, {
+        as: 'alcances_filtro'
+    })
+    alcancesfiltro: AlcanceOfertas[];
+
+    // Ofertas.hasMany(OfertaAlcance, { as: "alcances_filtro", foreignKey: "id_oferta" });
+
+
     @HasMany(() => UsoOferta, {
         as: 'usos'
     })

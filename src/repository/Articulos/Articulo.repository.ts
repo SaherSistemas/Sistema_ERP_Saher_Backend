@@ -110,7 +110,7 @@ export const ArticuloRepository = {
             totalPages: Math.ceil(count / limit)
         };
     },
-
+    
     getAllParaVenta: async (id_empresa: string, cantidad: number, cod_barr_artic: string) => {
         const articulo = await ArticuloRepository.getByIDFlexible(cod_barr_artic);
         if (!articulo) { throw new Error('Artículo no encontrado'); }

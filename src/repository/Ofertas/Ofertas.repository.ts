@@ -69,15 +69,10 @@ export const OfertaRepository = {
       ],
       ...(canal ? { canal_oferta: { [Op.in]: ["AMBOS", canal] } } : {}),
     },
-    include: [
-      {
-        model: OfertaAlcance,
-        as: "alcances",
-        required: true,
-        where: { [Op.or]: alcanceOR },
-      },
-      { model: OfertaRegla, as: "reglas", required: false },
-    ],
+    // distinct: true,          
+    subQuery: false,
+
+    include:OfertaIncludes, 
     transaction: opts.transaction,
   });
 
