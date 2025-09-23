@@ -1,9 +1,5 @@
 import type { Request, Response } from "express";
 import { StockSucursalService } from "../../services/Stock/Stock_Sucursal.service";
-import Articulo from "../../models/Articulos/Articulo";
-import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
-import Stock_sucursal from "../../models/Stock/Stock_Sucursal";
-import { restore } from "pdfkit";
 
 
 export class StockSucursalController {

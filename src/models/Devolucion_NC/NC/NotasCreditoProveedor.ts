@@ -3,7 +3,7 @@ import Compra_Proveedor from '../../Compra/Compra_Proveedor';
 
 
 @Table({
-    tableName: 'notas_credito',
+    tableName: 'notas_credito_proveedor',
     timestamps: true,
 })
 class NotasCreditoProveedor extends Model {
@@ -42,24 +42,6 @@ class NotasCreditoProveedor extends Model {
         allowNull: false,
     })
     declare total_nc: number;
-
-    @Column({
-        type: DataType.DECIMAL(10, 2),
-        allowNull: false,
-    })
-    declare iva_total_nc: number;
-
-
-
-    @Column({
-        type: DataType.TEXT
-    })
-    declare url_pdf_nc: string
-
-    @Column({
-        type: DataType.TEXT
-    })
-    declare url_xml_nc: string
 
     @BelongsTo(() => Compra_Proveedor)
     compraProveedor: Compra_Proveedor;

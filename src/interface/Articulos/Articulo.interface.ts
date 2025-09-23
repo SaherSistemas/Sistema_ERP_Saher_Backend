@@ -14,6 +14,7 @@ export interface IArticulo {
     imagen_artic?: string | null;
     tempora_artic?: number | null;
     satclave_artic: string;
+    necesita_receta?: boolean
 }
 export interface ICreateOrUpdateArticulo {
     cod_barr_artic: string;
@@ -29,4 +30,5 @@ export interface ICreateOrUpdateArticulo {
     imagen_artic?: string | null;
     tempora_artic?: number | null;
     satclave_artic: string;
+    necesita_receta?: boolean
 }

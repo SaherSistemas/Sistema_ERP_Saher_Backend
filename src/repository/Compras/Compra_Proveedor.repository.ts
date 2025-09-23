@@ -383,7 +383,6 @@ export const Compra_ProveedorRepository = {
 
 
     compraProveedorTerminarRecibida: async (id_comp: string, totalCompra: number, ivaRecibido: number, options?: { transaction?: Transaction }) => {
-
         const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp)
         const esCompleta = Number(compraProveedor.total_comp_factura) === round2(totalCompra);
 
@@ -441,5 +440,15 @@ export const Compra_ProveedorRepository = {
             F: Number(row?.F ?? 0),
             D: Number(row?.D ?? 0),
         };
+    },
+
+    updateEstado: async (id_comp: string, estado: string, options?: { transaction?: Transaction }) => {
+        return await Compra_Proveedor.update(
+            { estado_comp: estado },
+            {
+                where: { id_comp },
+                transaction: options?.transaction,
+            }
+        );
     }
 }

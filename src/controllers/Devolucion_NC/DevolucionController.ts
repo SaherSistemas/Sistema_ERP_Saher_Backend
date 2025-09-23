@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { DevolucionesService } from "../../services/Devoluciones/Devoluciones.service";
+import { DevolucionesService } from "../../services/Devoluciones_NC/Devoluciones.service";
 
 export class DevolucionController {
     static getArticulosDeDevolucionPorID = async (req: Request, res: Response) => {

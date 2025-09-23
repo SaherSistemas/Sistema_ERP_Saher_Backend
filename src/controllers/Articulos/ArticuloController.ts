@@ -15,18 +15,18 @@ export class ArticuloController {
             res.status(500).json({ message: "Error al obtener los artículos." });
         }
     }
-    
+
     static getAllParaVenta = async (req: Request, res: Response) => {
         try {
 
-            const id_empresa =  req.query.id_empresa as string;
+            const id_empresa = req.query.id_empresa as string;
             const { cantidad, cod_barr_artic } = req.params;
 
             const resultado = await ArticuloService.getAllParaVenta(
                 id_empresa,
                 Number(cantidad),
                 cod_barr_artic
-              );
+            );
             res.status(200).json(resultado);
 
         } catch (error: any) {
@@ -90,6 +90,7 @@ export class ArticuloController {
     static create = async (req: Request, res: Response) => {
         try {
             const data = req.body;
+            console.log(data)
             const newArticulo = await ArticuloService.createArticulo(data);
             res.status(201).json({ mensaje: 'Articulo creado correctamente.', articulo: newArticulo })
         } catch (error) {

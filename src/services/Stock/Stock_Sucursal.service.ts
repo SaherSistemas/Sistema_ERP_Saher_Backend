@@ -11,12 +11,12 @@ import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducida
 import { StockSucursalRepository } from "../../repository/Stock/Stock_Sucursal.repository";
 import { ICreaterOrUdateLotesArticuloSucursal } from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
 import { ICreateOrUpdateIDetalleListaPrecio } from "../../interface/Articulos/Lista_Precios/Detalle_Lista_Pecios.interface";
-import { Devoluciones_ComprasRepository } from "../../repository/Devoluciones/Devoluciones_Compras.repository";
+import { Devoluciones_ComprasRepository } from "../../repository/Devoluciones_NC/Devoluciones_Compras.repository";
 import { EmpleadoRepository } from "../../repository/Usuarios/Empleado.repository";
-import { ICreateDevoluciones_Compra } from "../../interface/Devoluciones/Devoluciones_Compras.interface";
+import { ICreateDevoluciones_Compra } from "../../interface/Devolucion_NC/Devoluciones_Compras.interface";
 import { Detalle_Compra_RecibidosRepository } from "../../repository/Compras/Detalle_Compra_Recibido.repository";
 import { Console } from "console";
-import { Detalle_Devoluciones_CompraRepository } from "../../repository/Devoluciones/Detalles_Devoluciones_Compras.repository";
+import { Detalle_Devoluciones_CompraRepository } from "../../repository/Devoluciones_NC/Detalles_Devoluciones_Compras.repository";
 import { Detalle_Compra_NegadosRepository } from "../../repository/Compras/Detalle_Compra_Negado.repository";
 import { Compra_ProveedorRepository } from "../../repository/Compras/Compra_Proveedor.repository";
 import { LoteRecibidoCompraRepository } from "../../repository/LotesYCaducidad/LoteRecibidoCompra.repository";
@@ -39,9 +39,7 @@ export const StockSucursalService = {
 
         const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado)
         //console.log(productosDevolucion)
-        if (!productosEntrada || productosEntrada.length === 0) {
-            return { mensaje: "No se recibieron productos" };
-        }
+
 
         const t = await dbLocal.transaction({
             isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
@@ -206,7 +204,7 @@ export const StockSucursalService = {
 
         } catch (error) {
             await t.rollback();
-            console.error("❌ Error en transacción:", error);
+            console.error("Error en transacción:", error);
             throw new Error("Error al guardar stock o devoluciones");
         }
     }

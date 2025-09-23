@@ -90,8 +90,8 @@ import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_Provee
 import Margen_Ganancia_ListaRouter from './Costo_y_Precio/Margen_Ganancia_ListaRouter'
 
 
-import DevolucionesRouter from './Devoluciones/DevolucionesRouter'
-import notaCreditoRouter from './NotaCredito/notaCreditoRouter'
+import DevolucionesRouter from './Devoluciones_NC/DevolucionesRouter'
+import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter'
 
 import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
 

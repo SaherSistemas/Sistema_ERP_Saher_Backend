@@ -109,6 +109,14 @@ class Articulo extends Model {
         type: DataType.SMALLINT
     })
     declare prioridad_artic: number
+
+    @Default(false)
+    @Column({
+        type: DataType.BOOLEAN
+    })
+    declare necesita_receta: boolean
+
+
     //RELACIONES 
     @BelongsTo(() => UnidadMedida)
     unidadMedida: UnidadMedida;

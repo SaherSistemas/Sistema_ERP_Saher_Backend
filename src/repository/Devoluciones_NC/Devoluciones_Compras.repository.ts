@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
 import { Op, Transaction } from "sequelize";
-import { ICreateDevoluciones_Compra } from "../../interface/Devoluciones/Devoluciones_Compras.interface";
+import { ICreateDevoluciones_Compra } from "../../interface/Devolucion_NC/Devoluciones_Compras.interface";
 import Devoluciones_Compras from "../../models/Devolucion_NC/Devolucion/Devoluciones_Compras";
 import { Factura_Compra_ProveedorRepository } from "../Proveedor/Factura_Compra_Proveedor.repository";
 

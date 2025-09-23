@@ -68,39 +68,6 @@ export const ArticuloRepository = {
             offset,
             limit,
             order: [['cod_int_artic', 'ASC']],
-            include: [
-                {
-                    model: Temporabilidad,
-                    required: false,
-                    attributes: ['id_tempo', 'descrip_tempo', 'mesinicio_tempo', 'mesfin_tempo']
-                },
-                {
-                    model: Tipo_IVA,
-                    attributes: ['id_iva', 'descripcion_iva']
-                },
-                {
-                    model: UnidadMedida,
-                    attributes: ['id_medida', 'descrip_medida']
-                },
-                {
-                    model: Presentacion_Articulo,
-                    attributes: ['id_presentacion', 'nom_presentacion']
-                },
-                {
-                    model: Categoria_Articulo,
-                    attributes: ['id_categoria', 'nom_categoria'],
-                    include: [
-                        {
-                            model: Tipo_Articulo,
-                            attributes: ['id_tipo_art', 'nom_tipo_art']
-                        }
-                    ]
-                },
-                {
-                    model: Prioridad_Articulo,
-                    attributes: ['id_prioridad', 'descrip_prioridad']
-                }
-            ]
         });
 
         return {
@@ -110,7 +77,7 @@ export const ArticuloRepository = {
             totalPages: Math.ceil(count / limit)
         };
     },
-    
+
     getAllParaVenta: async (id_empresa: string, cantidad: number, cod_barr_artic: string) => {
         const articulo = await ArticuloRepository.getByIDFlexible(cod_barr_artic);
         if (!articulo) { throw new Error('Artículo no encontrado'); }

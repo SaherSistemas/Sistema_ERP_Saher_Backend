@@ -12,17 +12,17 @@ export interface ICompra_Proveedor {
     estado_comp: string;
     id_compra_general: string;
 
-    inicio_de_compra_proveedor: string | null;
-    fin_de_compra_proveedor: string | null;
+    inicio_de_compra_proveedor: Date | null;
+    fin_de_compra_proveedor: Date | null;
     id_empleado_compra: string | null;
-    fecha_enviada_proveedor: string | null;
-    fecha_mercancia_recibida_proveedor: string | null;
-    inicio_de_registro_lotes: string | null;
-    fin_de_registro_lotes: string | null;
-    inicio_de_checado: string | null;
-    fin_de_checado: string | null;
-    inicio_acomodo_mercancia: string | null;
-    fin_acomodo_mercancia: string | null;
+    fecha_enviada_proveedor: Date | null;
+    fecha_mercancia_recibida_proveedor: Date | null;
+    inicio_de_registro_lotes: Date | null;
+    fin_de_registro_lotes: Date | null;
+    inicio_de_checado: Date | null;
+    fin_de_checado: Date | null;
+    inicio_acomodo_mercancia: Date | null;
+    fin_acomodo_mercancia: Date | null;
     proveedor: IProveedor;
 }
 

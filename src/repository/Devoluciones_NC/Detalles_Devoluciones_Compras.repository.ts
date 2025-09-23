@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
 import { Transaction } from "sequelize";
-import { ICreateDetalleDevolucionCompra } from "../../interface/Devoluciones/Devoluciones_Compras.interface";
+import { ICreateDetalleDevolucionCompra } from "../../interface/Devolucion_NC/Devoluciones_Compras.interface";
 import { ArticuloRepository } from "../Articulos/Articulo.repository";
 import Detalle_Devoluciones_Compras from "../../models/Devolucion_NC/Devolucion/Detalle_Devoluciones_Compras";
 import { Devoluciones_ComprasRepository } from "./Devoluciones_Compras.repository";
@@ -10,7 +10,7 @@ export const Detalle_Devoluciones_CompraRepository = {
     create: async (data: ICreateDetalleDevolucionCompra[], options?: { transaction?: Transaction }) => {
         let costoTotal = 0;
         let ivaTotal = 0;
-
+        console.log(data)
         for (const det of data) {
             const subtotal = det.cantidad * det.costo_unitario;
             costoTotal += subtotal
