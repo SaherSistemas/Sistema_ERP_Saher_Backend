@@ -110,10 +110,6 @@ import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
 
 import ProyecionRouter from './Proyeccion/ProyecionRouter'
 
-<<<<<<< HEAD
-
-=======
->>>>>>> db04f13f40e49ec555c9a79b77cf997bcf9f2c1d
 const router = Router();
 
 
