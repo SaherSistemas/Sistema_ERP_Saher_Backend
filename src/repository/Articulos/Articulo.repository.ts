@@ -101,9 +101,11 @@ export const ArticuloRepository = {
             cantidad,
             descripcion: articulo.des_artic,
             precio_unitario,
-            total: precio_unitario * cantidad
+            total: precio_unitario * cantidad,
+            necesita_receta: articulo.necesita_receta ?? false 
         };
     },
+
     getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string) => {
         const offset = (page - 1) * limit;
 
@@ -248,14 +250,12 @@ export const ArticuloRepository = {
         if (isUUID(id)) {
             return await Articulo.findByPk(id);
         }
-        // Si es un número entero → buscar por código interno
         if (!isNaN(Number(id)) && Number.isInteger(Number(id))) {
             const foundByCodInt = await Articulo.findOne({
                 where: { cod_int_artic: Number(id) }
             });
             if (foundByCodInt) return foundByCodInt;
         }
-        // Si no es UUID ni número entero → se intenta como código de barras
         return await Articulo.findOne({
             where: { cod_barr_artic: id }
         });

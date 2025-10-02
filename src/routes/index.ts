@@ -46,6 +46,9 @@ import parametos_CompraRouter from './Compras/parametros_CompraRouter'
 import comprasRouter from './Compras/ComprasGeneralRouter'
 import comprasProveedorRouter from './Compras/ComprasProveedorRouter'
 import detalle_CompraRouter from './Compras/detalle_CompraRouter'
+
+
+
 //Lotes y Caducidades
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
 
@@ -85,6 +88,13 @@ import UsoOfertasRouter from "./Ofertas/UsoOfertaRouter";
 import ReglaOfertaRouter from "./Ofertas/ReglaOfertaRouter";
 
 
+//Recetas Medicas
+import RecetaMedicaRouter from './RecetaMedica/RecetaMedicaRouter'
+import MedicoRouter from "./RecetaMedica/MedicoRouter";
+import RecetaArticuloRouter from "./RecetaMedica/RecetaArticuloRouter";
+
+
+
 import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
 
 import Margen_Ganancia_ListaRouter from './Costo_y_Precio/Margen_Ganancia_ListaRouter'
@@ -96,6 +106,7 @@ import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter'
 import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
 
 import ProyecionRouter from './Proyeccion/ProyecionRouter'
+
 const router = Router();
 
 
@@ -163,6 +174,16 @@ router.use('/beneficio', BeneficioClienteRouter)
 
 
 router.use('/monedero', MonederoRouter)
+
+
+
+//Recetas Medicas
+router.use('/recetamedica', RecetaMedicaRouter)
+router.use('/medico', MedicoRouter)
+router.use('/receta_articulo', RecetaArticuloRouter)
+
+
+
 
 
 

@@ -13,7 +13,10 @@ import {
 import Venta from "./Venta";
 import Metodo_de_Pago from "../Caja/Metodo_de_Pago";
 
-@Table({ tableName: "venta_pago", timestamps: true })
+@Table({ 
+  tableName: "venta_pago"
+
+})
 class Venta_Pago extends Model {
   @PrimaryKey
   @Column({

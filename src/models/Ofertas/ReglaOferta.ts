@@ -26,7 +26,7 @@ export type TipoBeneficio = (typeof TIPO_BENEFICIO)[number];
 @Table({
   tableName: "regla_oferta",
 })
-class OfertaRegla extends Model {
+class ReglaOferta extends Model {
 @PrimaryKey  
 @Column({
     type: DataType.UUID,
@@ -38,7 +38,8 @@ class OfertaRegla extends Model {
     type: DataType.UUID,
   })
   declare id_oferta: string;
-@BelongsTo(() => Ofertas)
+@BelongsTo(() => Ofertas, {
+  as :'ofertas'})
   oferta: Ofertas;
 
 @Column({
@@ -113,4 +114,4 @@ class OfertaRegla extends Model {
   }) declare exclusiva:boolean | null;
 
 }
-export default OfertaRegla;
+export default ReglaOferta;

@@ -3,6 +3,7 @@ import AlcanceOfertas from "./OfertaAlcance";
 import Empleado from "../Usuarios/Empleado";
 import UsoOferta from "./UsoOferta";
 import ReglaOferta from "./ReglaOferta";
+import OfertaRegla from "./ReglaOferta";
 
 @Table({
     tableName: "ofertas"
@@ -74,23 +75,19 @@ class Ofertas extends Model {
     })
     alcances: AlcanceOfertas[];
 
-    @HasMany(() => AlcanceOfertas, {
-        as: 'alcances_filtro'
+    @HasMany(() => ReglaOferta, {
+        // foreignKey: 'id_oferta',
+        as: 'reglas'
     })
-    alcancesfiltro: AlcanceOfertas[];
+    reglas!: ReglaOferta[];
 
-    // Ofertas.hasMany(OfertaAlcance, { as: "alcances_filtro", foreignKey: "id_oferta" });
-
-
+   
     @HasMany(() => UsoOferta, {
         as: 'usos'
     })
     usos?: UsoOferta[];
 
-    @HasMany(() => ReglaOferta, {
-        as: 'reglas'
-    })
-    reglas?: ReglaOferta[];
+   
 
 }
 export default Ofertas;

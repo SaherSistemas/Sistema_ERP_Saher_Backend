@@ -41,7 +41,7 @@ class Venta extends Model{
     idempre: Empresa_Sucursal; 
 
     @Column({
-        type : DataType.STRING(1)
+        type : DataType.STRING
     }) declare tipo_venta: string;
     
 

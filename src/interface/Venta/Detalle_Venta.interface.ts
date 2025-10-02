@@ -8,7 +8,9 @@ export interface IDetalleVenta{
     cantidad: number;
     precio_unitario: number;
     lote_usado: ILoteUsadoVenta[];
+
 }
+
 
 export interface ICreateOrUpdateDetalleVenta{
     id_venta: string;
@@ -16,6 +18,7 @@ export interface ICreateOrUpdateDetalleVenta{
     cantidad: number;
     precio_unitario: number;
     lote_usado: ICreateOrUpdateLoteUsadoVenta[];
+    temp_line_id?: string;
 }
 
 export interface IDetalleVentaInput {
@@ -23,5 +26,7 @@ export interface IDetalleVentaInput {
   id_artic: string;
   cantidad: number;
   precio_unitario: number;
-  lote_usado:  ILoteUsadoVentaInput[]; 
+  temp_line_id?: string | null; 
+    lote_usado:  ILoteUsadoVentaInput[];
+
 }
