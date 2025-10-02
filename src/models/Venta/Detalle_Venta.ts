@@ -14,7 +14,7 @@ class DetalleVenta extends Model{
         type : DataType.UUID
     })declare id_detalle_venta:string;
 
-   @ForeignKey(() => Venta)
+    @ForeignKey(() => Venta)
     @Column({
         type : DataType.UUID
     }) declare id_venta: string;

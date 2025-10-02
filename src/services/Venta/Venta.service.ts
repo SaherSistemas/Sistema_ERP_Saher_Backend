@@ -10,9 +10,14 @@ import { dbLocal } from "../../config/db";
 import { VentaPagoRepository } from "../../repository/Venta/Venta_Pago.repository";
 import { LoteUsadoVentaRepository } from "../../repository/LotesYCaducidad/Lote_Usado_Venta.repository";
 import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
-import { UsoOfertaRepository } from "../../repository/Ofertas/UsoOferta.repository";
-import { OfertaRepository } from "../../repository/Ofertas/Ofertas.repository";
-import { OfertaService } from "../Ofertas/Ofertas.service";
+import { RecetaMedicaService } from "../RecetaMedica/RecetaMedica.service";
+
+export type DetalleLookupInfo = {
+  id_detalle_venta: string;
+  id_articulo: string;
+};
+
+export type DetalleLookupMap = Map<string, DetalleLookupInfo>;
 
 export const VentaService = {
   getAll: async () => {
@@ -43,23 +48,33 @@ export const VentaService = {
 
       const id_venta = venta.id_venta;
 
-         // Calcula pricing de ofertas
         const ctx = {
         id_empre: data.id_empre,
         id_cliente: data.id_cliente ?? null,
         fecha: new Date(),
         // canal: data.canal ?? "PDV",
       };
-      
+   
+
+    const tempToDetalle: DetalleLookupMap = new Map();
 
       for (const detalle of data.detalle_venta) {
-        const { lote_usado = [], ...colsDetalle } = detalle;
-
+        const { lote_usado = [], temp_line_id, ...colsDetalle } = detalle;
+        
         const detalle_venta = await DetalleVentaRepository.create(
           { id_venta, ...detalle },
           { transaction: t }
         );
 
+        if(temp_line_id){
+          const id_articulo = (colsDetalle as any).id_artic ?? (colsDetalle as any).id_articulo;
+          if(!id_articulo) throw new Error("Falta id_articulo en detalle_venta.");
+
+          tempToDetalle.set(String(temp_line_id),{
+            id_detalle_venta: detalle_venta.id_detalle_venta,
+            id_articulo,
+         });
+        }
         if (lote_usado.length === 0) {
           throw new Error(
             `Faltan lotes usados para el artículo ${colsDetalle.id_artic}.`
@@ -70,10 +85,8 @@ export const VentaService = {
        
 
         for (const lu of lote_usado) {
-          if (!lu.id_lote_sucursal)
-            throw new Error("Falta id_lote_sucursal en lote_usado.");
-          if (lu.cantidad_utilizada == null || lu.cantidad_utilizada <= 0)
-            throw new Error(
+          if (!lu.id_lote_sucursal)throw new Error("Falta id_lote_sucursal en lote_usado.");
+          if (lu.cantidad_utilizada == null || lu.cantidad_utilizada <= 0) throw new Error(
               "cantidad_utilizada inválida en uno de los lotes usados."
             );
           const lote = await LotesArticuloSucursalRepository.findByPkInEmpresaArticulo(
@@ -107,6 +120,7 @@ export const VentaService = {
             },
             { transaction: t }
           );
+
           acumulado += lu.cantidad_utilizada;
         }
         if (acumulado !== colsDetalle.cantidad) {
@@ -114,25 +128,6 @@ export const VentaService = {
             `La suma de lotes usados (${acumulado}) no coincide con la cantidad vendida (${colsDetalle.cantidad}).`
           );
         }
-        // const ofertas = await OfertaRepository.getOfertas(
-        //   {
-        //     id_artic: colsDetalle.id_artic,
-        //     id_empre: data.id_empre,
-        //     fecha: new Date(),
-        //   },
-        //   { transaction: t }
-        // );
-        // for (const ofe of ofertas) {
-        //   await UsoOfertaRepository.create(
-        //     {
-        //       id_venta,
-        //       id_oferta: ofe.id_oferta,
-        //       id_cliente: data.id_cliente ?? null,
-        //     },
-        //     { transaction: t }
-        //   );
-        // }
-
       }
 
       for (const p of data.venta_pago) {
@@ -146,6 +141,21 @@ export const VentaService = {
             transaction: t,
           }
         );
+      }
+
+      const recetaPayload = (data as any).recetaPayload;
+      const debeCrearReceta = 
+        venta.status_venta === "CONFIRMADA" &&
+        recetaPayload &&
+        recetaPayload.receta &&
+        Array.isArray(recetaPayload.articulos) &&
+        recetaPayload.articulos.length > 0;
+
+      if (debeCrearReceta) {
+        await RecetaMedicaService.createFromVenta(
+        { id_venta, recetaPayload: (data as any).recetaPayload, tempToDetalle },
+        { transaction: t }
+          );
       }
 
       const ventaCompleta = await VentaRepository.getById(id_venta, {

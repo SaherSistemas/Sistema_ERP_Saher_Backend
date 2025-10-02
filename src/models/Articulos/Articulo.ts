@@ -1,10 +1,12 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, BelongsToMany } from "sequelize-typescript";
 import UnidadMedida from "./UnidadMedida";
 import Temporabilidad from "./Temporabilidad";
 import Tipo_IVA from "./Tipo_IVA";
 import Prioridad_Articulo from "./Prioridad_Articulo";
 import Categoria_Articulo from "./Categoria_Articulo";
 import Presentacion_Articulo from "./Presentacion_Articulo";
+import RecetaMedica from "../RecetaMedica/RecetaMedica";
+import RecetaArticulo from "../RecetaMedica/Receta_Articulo";
 
 @Table({
     tableName: "articulo"
@@ -136,6 +138,11 @@ class Articulo extends Model {
 
     @BelongsTo(() => Categoria_Articulo)
     categoria: Categoria_Articulo
+
+
+    @BelongsToMany(() => RecetaMedica, () => RecetaArticulo)
+    recetas!: Array<RecetaMedica & { RecetaArticulo: RecetaArticulo }>;
+
 
 
 

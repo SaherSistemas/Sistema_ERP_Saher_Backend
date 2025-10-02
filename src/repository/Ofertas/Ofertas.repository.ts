@@ -14,8 +14,7 @@ import {
   Sequelize,
   literal,
 } from "sequelize";
-import OfertaAlcance from "../../models/Ofertas/OfertaAlcance";
-import OfertaRegla from "../../models/Ofertas/ReglaOferta";
+import ReglaOferta from "../../models/Ofertas/ReglaOferta";
 import {
   obtenerDiaSemanaISO,
   parseDiasSemana,
@@ -30,7 +29,7 @@ const OfertaIncludes = [
     as: "alcances",
   },
   {
-    model: OfertaRegla,
+    model: ReglaOferta,
     as: "reglas",
   },
 ];
@@ -144,7 +143,7 @@ export const OfertaRepository = {
       ...options, 
       include: [
         { model: AlcanceOfertas, as: "alcances" },
-        { model: OfertaRegla, as: "reglas" },
+        { model: ReglaOferta, as: "reglas" },
       ],
     });
   },
