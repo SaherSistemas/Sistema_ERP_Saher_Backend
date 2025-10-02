@@ -26,6 +26,9 @@ import permisoRouter from './Usuarios/PermisoRouter'
 import permisoRolRouter from './Usuarios/Permiso_RolRouter'
 
 
+import agenteRouter from './Usuarios/Agente_De_Venta/AgenteRouterController'
+
+
 import cat_Regimen_fiscalRouter from './Catalogos/Cat_Regimen_FiscalRouter'
 import cat_Tipo_ContratoRouter from './Catalogos/Cat_Tipo_ContratoRouter'
 import cat_Tipo_JornadaRouter from './Catalogos/Cat_Tipo_JornadaRouter'
@@ -96,6 +99,8 @@ import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter'
 import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
 
 import ProyecionRouter from './Proyeccion/ProyecionRouter'
+
+
 const router = Router();
 
 
@@ -123,6 +128,7 @@ router.use('/cat_bancos', cat_BancoRouter)
 router.use('/empleado', empleadoRouter)
 router.use('/rol', rolRouter)
 router.use('/usuario', usuarioRouter)
+router.use('/agente', agenteRouter)
 router.use('/permiso', permisoRouter)
 router.use('/permiso_rol', permisoRolRouter)
 

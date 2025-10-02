@@ -2,16 +2,17 @@ import express from 'express';
 import colors from 'colors';
 import morgan from 'morgan';
 import cors from 'cors';
-import { dbLocal,/* dbRemota */ } from './config/db'; // Ambas conexiones
+import { dbLocal, dbVieja/* dbRemota */ } from './config/db'; // Ambas conexiones
 import router from './routes';
 
 async function connectDatabases() {
     try {
         await dbLocal.authenticate();
+        await dbVieja.authenticate();
         // await dbRemota.authenticate();
 
         console.log(colors.blue.bold('Conexión exitosa a base LOCAL'));
-        console.log(colors.green.bold('Conexión exitosa a base REMOTA'));
+        console.log(colors.green.bold('Conexión exitosa a base VIEJA'));
 
         await dbLocal.sync({ alter: true });    // Sincroniza modelos si es necesario
         //await dbRemota.sync();   // Solo si quieres sincronizar también la remota

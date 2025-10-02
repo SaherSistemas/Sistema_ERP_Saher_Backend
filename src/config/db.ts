@@ -19,3 +19,19 @@ export const dbLocal = new Sequelize({
     models: [path.resolve(__dirname, '..', 'models', '**', '*.{ts,js}')],
     logging: false,
 });
+
+
+export const dbVieja = new Sequelize({
+    dialect: 'postgres',
+    host: process.env.HOST || 'localhost',
+    username: 'postgres',
+    password: 'Ir711511#',
+    database: 'PolyDB', // ⚡ en tu .env pones DB_NAME_OLD
+    port: 5432,
+    timezone: '+00:00',
+    dialectOptions: {
+        ssl: false,
+        useUTC: true,
+    },
+    logging: false,
+});

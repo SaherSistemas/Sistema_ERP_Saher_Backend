@@ -11,7 +11,7 @@ class Prioridad_Agente_Reglas extends Model {
     @Column({
         type: DataType.UUID,
     })
-    declare id_agente_agente: string;
+    declare id_regla_agente: string;
 
 
     @ForeignKey(() => Agente_de_Venta)
@@ -28,32 +28,16 @@ class Prioridad_Agente_Reglas extends Model {
     @Column({
         type: DataType.TIME
     })
-    declare hora_inicio: string
+    declare hora_recibo_max: string
 
     @Column({
         type: DataType.TIME
     })
-    declare hora_fin: string
-
-    @Column({
-        type: DataType.SMALLINT
-    })
-    declare prioridad: number
-
-    @Column({
-        type: DataType.DATE
-    })
-    declare vigente_desde: Date
-
-    @Column({
-        type: DataType.DATE
-    })
-    declare vigente_hasta: Date
+    declare hora_entrega_max: string
 
     @Column({
         type: DataType.BOOLEAN
     })
     declare activa: boolean
-
 }
 export default Prioridad_Agente_Reglas;

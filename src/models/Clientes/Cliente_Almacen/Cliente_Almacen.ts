@@ -4,7 +4,7 @@ import Cat_Regimen_Fiscal from "../../Catalogos/Cat_Regimen_Fiscal";
 import Metodo_de_Pago from "../../Caja/Metodo_de_Pago";
 import Cat_Tipo_De_Pago from "../../Catalogos/Cat_Tipo_De_Pago";
 import Cat_uso_CFDI from "../../Catalogos/Cat_Uso_CFDI";
-import Agente_de_Venta from "../../Agente_De_Ventas/Agente_De_Venta";
+import Agente_de_Venta from "../../Usuarios/Agente_De_Ventas/Agente_De_Venta";
 
 @Table({
     tableName: "cliente_almacen"
