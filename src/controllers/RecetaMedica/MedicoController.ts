@@ -37,4 +37,17 @@ export class MedicoController {
       res.status(500).json({ mensaje: "Error al crear medico." });
     }
   };
+  
+  static BuscarMedicoCedula = async (req: Request, res: Response) => {
+    try {
+      const { cedula_medico } = req.params;
+      const medico = await MedicoService.BuscarMedicoCedula(cedula_medico);
+      res.status(200).json(medico);
+    } catch (error) {
+      console.error(error);
+      res
+        .status(500)
+        .json({ mensaje: "Error al encontrar Medico." });
+    }
+  }
 }

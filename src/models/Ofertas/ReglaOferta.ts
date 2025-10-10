@@ -51,7 +51,7 @@ class ReglaOferta extends Model {
 @Column({
     type: DataType.DECIMAL(10,2),
     get(this: any) {
-    const raw = this.getDataValue("valor"); // lo que devuelve Postgres (string o null)
+    const raw = this.getDataValue("valor"); 
     return raw === null ? null : Number(raw);
   },
 })

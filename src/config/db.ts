@@ -6,7 +6,7 @@ dotenv.config();
 
 export const dbLocal = new Sequelize({
     dialect: 'postgres',
-    host: process.env.HOST || 'localhost',
+    host: process.env.DB_HOST || '127.0.0.1',
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
@@ -21,9 +21,9 @@ export const dbLocal = new Sequelize({
 });
 
 
-export const dbVieja = new Sequelize({
+export const dbVieja =  new Sequelize({
     dialect: 'postgres',
-    host: process.env.HOST || 'localhost',
+    host: process.env.DB_OLD_HOST || 'localhost',
     username: 'postgres',
     password: 'Ir711511#',
     database: 'PolyDB', // ⚡ en tu .env pones DB_NAME_OLD
