@@ -1,6 +1,6 @@
 import { ICrearEmpleado, IEmpleado, IUpdateEmpleado } from "../../interface/Usuarios/Empleado.interface";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
-import Empleado from "../../models/Usuarios/Empleado";
+import Empleado from "../../models/Usuarios/Empleado/Empleado";
 import { isUUID } from "../../utils/validaciones";
 import { Op, Sequelize, UniqueConstraintError, where } from "sequelize";
 import { v4 as uuidv4 } from 'uuid';

@@ -2,7 +2,7 @@ import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, Belongs
 import Colonia from "../Ubicacion/Colonia"
 import Tipo_Cliente from "./Tipo_Cliente";
 import ListaPrecio from "../Costo_Y_Precio/Lista_Precios/Lista_Precio";
-import Empleado from "../Usuarios/Empleado";
+import Empleado from "../Usuarios/Empleado/Empleado";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 import Monedero from "./Monedero/Monedero";
 

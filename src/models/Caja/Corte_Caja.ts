@@ -1,10 +1,10 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
-import Caja from "./Caja"; 
-import Empleado from "../Usuarios/Empleado";
+import Caja from "./Caja";
+import Empleado from "../Usuarios/Empleado/Empleado";
 
 @Table({
     tableName: "corte_caja"
-})  
+})
 
 class CorteCaja extends Model {
     @PrimaryKey
@@ -56,7 +56,7 @@ class CorteCaja extends Model {
         type: DataType.DECIMAL(10, 2),
     })
     declare total_venta: number;
-    
+
 
     @Column({
         type: DataType.BOOLEAN,
