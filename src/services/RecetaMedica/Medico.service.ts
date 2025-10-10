@@ -12,5 +12,8 @@ export const MedicoService = {
   getByIDFlexible: async(id_medico  : string ) => {
     return await MedicoRepository.getByIDFlexible(id_medico );
   },
+  BuscarMedicoCedula: async(cedula_medico : string ) => {
+    return await MedicoRepository.BuscarMedicoCedula(cedula_medico);
+  }
 
 };

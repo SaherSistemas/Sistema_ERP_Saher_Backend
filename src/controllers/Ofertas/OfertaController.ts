@@ -2,26 +2,39 @@ import type { Request, Response } from "express";
 import { OfertaService } from "../../services/Ofertas/Ofertas.service";
 
 export class OfertaController {
-  static getOfertasAplicables = async (req, res) => {
-    try {
-      const {
-        empresa: id_empre,
-        fecha,
-        canal = "PDV",
-      } = req.query;
-      if (!id_empre)
-        return res.status(400).json({ error: "Faltan parámetros" });
 
-      const dt = new Date(fecha ?? Date.now());
-      const ofertas = await OfertaService.getOfertas({id_empre, fecha: dt });
+  static getOfertasAplicables = async (req: Request, res: Response) => {
+  try {
+    const { empresa: id_empre, fecha, canal = "PDV" } = req.query;
 
-      const filtradas = ofertas.filter((o) => !o.canal_oferta || o.canal_oferta === canal );
-
-      return res.json(filtradas);
-    } catch (e) {
-      return res.status(500).json({ error: String(e) });
+    if (!id_empre) {
+      res.status(400).json({ error: "Faltan parámetros: empresa" });
     }
-  };
+
+    const dt = fecha ? new Date(String(fecha)) : new Date();
+    if (isNaN(dt.getTime())) {
+      res.status(400).json({ error: "Fecha inválida" });
+    }
+
+    const canalStr = Array.isArray(canal) ? canal[0] : canal;
+
+    const ofertas = await OfertaService.getOfertas({
+      id_empre: String(id_empre),
+      fecha: dt,
+      canal: canalStr === "PDV" ? "PDV" : undefined,
+    });
+
+    const filtradas = ofertas.filter(
+      (o: any) => !o.canal_oferta || o.canal_oferta === canalStr
+    );
+
+    res.json(filtradas);
+  } catch (e) {
+    console.error("[getOfertasAplicables] Error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+};
+
 
   static getAll = async (req: Request, res: Response) => {
     try {

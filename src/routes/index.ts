@@ -51,6 +51,22 @@ import comprasProveedorRouter from './Compras/ComprasProveedorRouter'
 import detalle_CompraRouter from './Compras/detalle_CompraRouter'
 
 
+import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
+
+import Margen_Ganancia_ListaRouter from './Costo_y_Precio/Margen_Ganancia_ListaRouter'
+
+
+import DevolucionesRouter from './Devoluciones_NC/DevolucionesRouter'
+import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter'
+
+import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
+
+import ProyecionRouter from './Proyeccion/ProyecionRouter'
+
+
+
+
+
 
 //Lotes y Caducidades
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter'
@@ -61,6 +77,7 @@ import ClienteMostradorRouter from './Clientes/ClienteRouter'
 import TipoClienteRouter from './Clientes/TipoClienteRouter'
 import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter'
 import MonederoRouter from './Clientes/Monedero/MonederoRouter'
+
 //Caja
 import MetodoPagoRouter from './Caja/Metodo_de_PagoRouter'
 import Movimiento_CajaRouter from './Caja/Movimiento_CajaRouter';
@@ -97,18 +114,14 @@ import MedicoRouter from "./RecetaMedica/MedicoRouter";
 import RecetaArticuloRouter from "./RecetaMedica/RecetaArticuloRouter";
 
 
+//Calendario_Horario
+import Asignacion_TurnoRouter from "./Calendario_Horario/Asignacion_TurnoRouter";
+import Periodo_CalendarioRouter from './Calendario_Horario/Periodo_CalendarioRouter'
+import Turno_ProgramadoRouter from './Calendario_Horario/Turno_ProgramadoRouter'
 
-import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
-
-import Margen_Ganancia_ListaRouter from './Costo_y_Precio/Margen_Ganancia_ListaRouter'
 
 
-import DevolucionesRouter from './Devoluciones_NC/DevolucionesRouter'
-import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter'
 
-import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
-
-import ProyecionRouter from './Proyeccion/ProyecionRouter'
 
 const router = Router();
 
@@ -170,6 +183,16 @@ router.use('/margen_ganancia_lista', Margen_Ganancia_ListaRouter)
 
 router.use('/lotes_solicitados', lotesSolicitadoRouter)
 
+
+
+
+//HORARIOS
+router.use('/periodo_calendario', Periodo_CalendarioRouter)
+router.use('/asignacion_turno', Asignacion_TurnoRouter)
+router.use('/turno_programado', Turno_ProgramadoRouter)
+
+
+// CLIENTES
 
 router.use('/cliente', ClienteRouter)
 router.use('/cliente', ClienteMostradorRouter)

@@ -1,4 +1,4 @@
-import { Table, Column, Model, DataType, PrimaryKey, Default, ForeignKey, AllowNull, BelongsTo, Unique } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, PrimaryKey, Default, HasMany, ForeignKey, AllowNull, BelongsTo, Unique } from 'sequelize-typescript';
 import Cat_Regimen_Fiscal from '../Catalogos/Cat_Regimen_Fiscal';
 import Cat_Tipo_Contrato from '../Catalogos/Cat_Tipo_Contrato';
 import Cat_Tipo_Jornada from '../Catalogos/Cat_Tipo_Jornada';
@@ -7,6 +7,7 @@ import Cat_Periodicidad_Pago from '../Catalogos/Cat_Periodicidad_Pago';
 import Cat_Bancos from '../Catalogos/Cat_Bancos';
 import Ciudad from '../Ubicacion/Ciudad';
 import Empresa from '../Empresa_Sucursal/Empresa_Sucursal';
+import Asignacion_Turno from '../Calendario_Horario/Asignacion_Turno';
 
 @Table({
     tableName: 'empleado'
@@ -128,6 +129,14 @@ class Empleado extends Model {
     @Default(true)
     @Column(DataType.BOOLEAN)
     declare estatus_empleado: boolean;
+
+    @HasMany(() => Asignacion_Turno, { 
+        as: 'asignaciones', 
+        foreignKey: 'id_empleado',
+        onDelete: 'RESTRICT' })
+    asignaciones!: Asignacion_Turno[];
+
+
 }
 
 export default Empleado;

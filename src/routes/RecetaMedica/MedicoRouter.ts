@@ -4,6 +4,7 @@ import { MedicoController } from "../../controllers/RecetaMedica/MedicoControlle
 const router = Router();
 
 router.get('/:identificador_medico', MedicoController.getByID);
+router.get('/cedula/:cedula_medico', MedicoController.BuscarMedicoCedula);
 router.get('/', MedicoController.getAll);
 router.post('/', MedicoController.create);
 
