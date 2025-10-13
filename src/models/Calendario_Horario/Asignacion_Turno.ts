@@ -1,11 +1,12 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
-import Empleado from "../Usuarios/Empleado";
+
 import Turno_Programado from "./Turno_Programado";
+import Empleado from "../Usuarios/Empleado/Empleado";
 
 
 @Table({
     tableName: "asignacion_turno"
-})  
+})
 
 class Asignacion_Turno extends Model {
 
@@ -37,7 +38,7 @@ class Asignacion_Turno extends Model {
     id_turno!: string; // qué turno cubre 
     @BelongsTo(() => Turno_Programado, 'id_turno')
     turno!: Turno_Programado;
-      
+
 
     @Column({
         type: DataType.ENUM('asignado', 'reemplazado', 'ausente', 'completado'),
@@ -61,7 +62,7 @@ class Asignacion_Turno extends Model {
         allowNull: false,
         field: 'fecha_asignacion'
     })
-    fecha_asignacion!: Date;    
+    fecha_asignacion!: Date;
 
     @Column({
         type: DataType.TEXT,

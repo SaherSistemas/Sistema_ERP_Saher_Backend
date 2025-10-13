@@ -1,11 +1,12 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, HasMany } from "sequelize-typescript";
-import Empleado from "../Usuarios/Empleado";
+
 import Turno_Programado from "./Turno_Programado";
+import Empleado from "../Usuarios/Empleado/Empleado";
 
 
 @Table({
     tableName: "periodo_calendario"
-})  
+})
 
 class Calendario_Horario extends Model {
 
@@ -61,9 +62,10 @@ class Calendario_Horario extends Model {
 
 
     @HasMany(() => Turno_Programado, {
-         as: 'turnos', 
-         foreignKey: 'id_periodo',
-         onDelete: 'CASCADE' })
+        as: 'turnos',
+        foreignKey: 'id_periodo',
+        onDelete: 'CASCADE'
+    })
     turnos!: Turno_Programado[];
 
 }

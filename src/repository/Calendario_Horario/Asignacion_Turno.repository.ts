@@ -3,13 +3,14 @@ import { isUUID } from "../../utils/validaciones";
 import { Op } from "sequelize";
 import { Transaction } from "sequelize";
 import Asignacion_Turno from "../../models/Calendario_Horario/Asignacion_Turno";
-import Empleado from "../../models/Usuarios/Empleado";
+
 import { ICreateOrUpdateAsignacion_Turno } from "../../interface/Calendario_horario/Asignacion_Turno.interface";
 import Turno_Programado from "../../models/Calendario_Horario/Turno_Programado";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
+import Empleado from "../../models/Usuarios/Empleado/Empleado";
 
 export const Asignacion_TurnoRepository = {
-  
+
   TurnosAsignadosEmpleado: async (
     id_empleado: string,
     fecha_inicio: string,

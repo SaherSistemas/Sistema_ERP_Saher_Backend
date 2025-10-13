@@ -1,5 +1,4 @@
-<<<<<<< HEAD:src/models/Usuarios/Empleado/Empleado.ts
-import { Table, Column, Model, DataType, PrimaryKey, Default, ForeignKey, AllowNull, BelongsTo, Unique } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, PrimaryKey, Default, ForeignKey, AllowNull, BelongsTo, Unique, HasMany } from 'sequelize-typescript';
 import Cat_Regimen_Fiscal from '../../Catalogos/Cat_Regimen_Fiscal';
 import Cat_Tipo_Contrato from '../../Catalogos/Cat_Tipo_Contrato';
 import Cat_Tipo_Jornada from '../../Catalogos/Cat_Tipo_Jornada';
@@ -8,18 +7,7 @@ import Cat_Periodicidad_Pago from '../../Catalogos/Cat_Periodicidad_Pago';
 import Cat_Bancos from '../../Catalogos/Cat_Bancos';
 import Ciudad from '../../Ubicacion/Ciudad';
 import Empresa from '../../Empresa_Sucursal/Empresa_Sucursal';
-=======
-import { Table, Column, Model, DataType, PrimaryKey, Default, HasMany, ForeignKey, AllowNull, BelongsTo, Unique } from 'sequelize-typescript';
-import Cat_Regimen_Fiscal from '../Catalogos/Cat_Regimen_Fiscal';
-import Cat_Tipo_Contrato from '../Catalogos/Cat_Tipo_Contrato';
-import Cat_Tipo_Jornada from '../Catalogos/Cat_Tipo_Jornada';
-import Cat_Riesgo_Puesto from '../Catalogos/Cat_Riesgo_Puesto';
-import Cat_Periodicidad_Pago from '../Catalogos/Cat_Periodicidad_Pago';
-import Cat_Bancos from '../Catalogos/Cat_Bancos';
-import Ciudad from '../Ubicacion/Ciudad';
-import Empresa from '../Empresa_Sucursal/Empresa_Sucursal';
-import Asignacion_Turno from '../Calendario_Horario/Asignacion_Turno';
->>>>>>> 9dde6d17dbb2a33a3fa1cedff4454266db28731e:src/models/Usuarios/Empleado.ts
+import Asignacion_Turno from '../../Calendario_Horario/Asignacion_Turno';
 
 @Table({
     tableName: 'empleado'
@@ -142,10 +130,11 @@ class Empleado extends Model {
     @Column(DataType.BOOLEAN)
     declare estatus_empleado: boolean;
 
-    @HasMany(() => Asignacion_Turno, { 
-        as: 'asignaciones', 
+    @HasMany(() => Asignacion_Turno, {
+        as: 'asignaciones',
         foreignKey: 'id_empleado',
-        onDelete: 'RESTRICT' })
+        onDelete: 'RESTRICT'
+    })
     asignaciones!: Asignacion_Turno[];
 
 

@@ -8,7 +8,7 @@ import router from './routes';
 async function connectDatabases() {
     try {
         await dbLocal.authenticate();
-        // await dbVieja.authenticate();
+        await dbVieja.authenticate();
         // await dbRemota.authenticate();
 
         console.log(colors.blue.bold('Conexión exitosa a base LOCAL'));

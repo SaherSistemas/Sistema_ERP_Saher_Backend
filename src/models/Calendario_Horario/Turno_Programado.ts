@@ -1,13 +1,12 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
-import Empleado from "../Usuarios/Empleado";
 import Calendario_Horario from "./Periodo_Calendario";
 import Rol from "../Usuarios/Rol";
 
 
 @Table({
     tableName: "turno_programado"
-})  
+})
 
 class Turno_Programado extends Model {
     @PrimaryKey
@@ -29,13 +28,13 @@ class Turno_Programado extends Model {
 
     @BelongsTo(() => Calendario_Horario, 'id_periodo')
     periodo_calendario!: Calendario_Horario;
-    
+
     @Column({
         type: DataType.DATE,
         allowNull: false,
         field: 'fecha'
     })
-    fecha!: Date; 
+    fecha!: Date;
 
     @Column({
         type: DataType.STRING,
@@ -68,10 +67,10 @@ class Turno_Programado extends Model {
         allowNull: false,
         field: 'rol_requerido'
     })
-    rol_requerido!: number; 
+    rol_requerido!: number;
     @BelongsTo(() => Rol, 'rol_requerido')
     rol!: Rol;
-    
+
     @Column({
         type: DataType.ENUM('vacante', 'asignado', 'cancelado'),
         allowNull: false,
@@ -84,7 +83,7 @@ class Turno_Programado extends Model {
         allowNull: true,
         field: 'observaciones'
     })
-    observaciones?: string; 
+    observaciones?: string;
 
 }
 export default Turno_Programado;
