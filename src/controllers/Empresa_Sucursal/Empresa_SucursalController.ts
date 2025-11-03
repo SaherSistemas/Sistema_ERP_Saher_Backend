@@ -6,7 +6,7 @@ export class Empresa_SucursalController {
     static getAllEmpresas = async (req: Request, res: Response) => {
         try {
             const todasLasEmpresas = await Empresa_SucursalService.getAllEmpresas()
-            res.status(201).json({ mensaje: todasLasEmpresas })
+            res.status(200).json( todasLasEmpresas)
         } catch (error) {
             // console.error(error)
             res.status(500).json({ message: "Error al obtener todas las empresas." })
