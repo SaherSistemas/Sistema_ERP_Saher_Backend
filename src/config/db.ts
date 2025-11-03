@@ -6,11 +6,11 @@ dotenv.config();
 
 export const dbLocal = new Sequelize({
     dialect: 'postgres',
-    host: 'localhost',
-    username: 'postgres',
-    password: '1234',
-    database: 'LOCAL',
-    port: 5432,
+    host: process.env.HOST,                  // ← del .env
+    username: process.env.DB_USER,           // ← del .env
+    password: process.env.DB_PASSWORD,       // ← del .env
+    database: process.env.DB_NAME,           // ← del .env
+    port: Number(process.env.DB_PORT),       // ← del .env
     timezone: '+00:00',
     dialectOptions: {
         ssl: false,
@@ -19,6 +19,7 @@ export const dbLocal = new Sequelize({
     models: [path.resolve(__dirname, '..', 'models', '**', '*.{ts,js}')],
     logging: false,
 });
+
 
 /*
 
