@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { Transaction } from "sequelize";
 import Presupuesto_Empresa from "../../models/Presupuestos/Presupuesto_Empresa";
-import Empleado from "../../models/Usuarios/Empleado";
+import Empleado from "../../models/Usuarios/Empleado/Empleado";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 import Asignacion_Empleado_Sucursal from "../../models/Presupuestos/Asignacion_Empleado_Sucursal";
 
@@ -18,10 +18,10 @@ export const Presupuesto_EmpleadoRepository = {
           {
             model: Empleado,
             attributes: [
-              "nombre_empleado",  
-              "ap_pat_empleado", 
+              "nombre_empleado",
+              "ap_pat_empleado",
               "ap_mat_empleado"
-              ],
+            ],
           },
           {
             model: Empresa_Sucursal,
@@ -49,7 +49,7 @@ export const Presupuesto_EmpleadoRepository = {
     );
   },
 
-  
+
   // getPresupuestoPorEmpleado: async (id_empleado: string, id_empre: string, id_presupuesto: string) => {
   //   return await Presupuesto_Empleado.findAll({
   //     where: { id_empleado, id_empre, id_presupuesto },
@@ -63,7 +63,7 @@ export const Presupuesto_EmpleadoRepository = {
     });
 
     const idsAsignados = asignados.map((a) => a.id_empleado);
-    
+
 
 
     const disponibles = await Empleado.findAll({
@@ -73,18 +73,18 @@ export const Presupuesto_EmpleadoRepository = {
           as: "asignaciones",
           where: {
             id_empre,
-            activo:true,
-          }, 
-          required: true, 
+            activo: true,
+          },
+          required: true,
         },
       ],
       where: idsAsignados.length
         ? { id_empleado: { [Op.notIn]: idsAsignados } }
         : {},
-         attributes: [
-        "id_empleado", 
-        "nombre_empleado", 
-        "ap_pat_empleado", 
+      attributes: [
+        "id_empleado",
+        "nombre_empleado",
+        "ap_pat_empleado",
         "ap_mat_empleado",
         "id_sucursal_empleado"
       ],
@@ -95,7 +95,7 @@ export const Presupuesto_EmpleadoRepository = {
 
   findByPresupuesto: async (
     id_presupuesto: string,
-    transaction?: Transaction ) => {
+    transaction?: Transaction) => {
     return await Presupuesto_Empleado.findAll({
       where: { id_presupuesto },
       transaction,
@@ -146,7 +146,7 @@ export const Presupuesto_EmpleadoRepository = {
 
   update: async (
     id_presupuesto_empleado: string,
-    data: ICreateOrUpdatePresupuestoEmpleado ) => {
+    data: ICreateOrUpdatePresupuestoEmpleado) => {
     if (!isUUID(id_presupuesto_empleado)) return null;
     const presupuesto_empleado = await Presupuesto_Empleado.findByPk(
       id_presupuesto_empleado

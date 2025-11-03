@@ -1,7 +1,7 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, BelongsToMany, HasMany } from "sequelize-typescript";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 import Presupuesto_Empresa from "./Presupuesto_Empresa";
-import Empleado from "../Usuarios/Empleado";
+import Empleado from "../Usuarios/Empleado/Empleado";
 
 @Table({
     tableName: "presupuesto_empleado"
@@ -14,16 +14,16 @@ class Presupuesto_Empleado extends Model {
         type: DataType.UUID,
     })
     declare id_presupuesto_empleado: string;
-    
+
     @ForeignKey(() => Empresa_Sucursal)
     @Column({
         type: DataType.UUID,
     })
     declare id_empre: string;
-    
+
     @BelongsTo(() => Empresa_Sucursal)
     declare empresa_sucursal?: Empresa_Sucursal;
-   
+
     @ForeignKey(() => Presupuesto_Empresa)
     @Column({
         type: DataType.UUID,
@@ -59,7 +59,7 @@ class Presupuesto_Empleado extends Model {
         type: DataType.DECIMAL(12, 2),
     })
     declare monto_real?: number;
-       
+
 
 }
 export default Presupuesto_Empleado;

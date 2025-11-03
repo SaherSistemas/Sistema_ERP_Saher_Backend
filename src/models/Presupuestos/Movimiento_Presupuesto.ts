@@ -1,7 +1,7 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, BelongsToMany } from "sequelize-typescript";
 import Presupuesto_empresa from "./Presupuesto_Empresa";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
-import Empleado from "../Usuarios/Empleado";
+import Empleado from "../Usuarios/Empleado/Empleado";
 
 
 @Table({
@@ -9,7 +9,7 @@ import Empleado from "../Usuarios/Empleado";
 })
 
 class Movimiento_Presupuesto extends Model {
-@PrimaryKey
+    @PrimaryKey
     @Column({
         type: DataType.UUID,
     })

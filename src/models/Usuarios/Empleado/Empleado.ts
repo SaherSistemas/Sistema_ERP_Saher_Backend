@@ -7,28 +7,12 @@ import Cat_Periodicidad_Pago from '../../Catalogos/Cat_Periodicidad_Pago';
 import Cat_Bancos from '../../Catalogos/Cat_Bancos';
 import Ciudad from '../../Ubicacion/Ciudad';
 import Empresa from '../../Empresa_Sucursal/Empresa_Sucursal';
-<<<<<<< HEAD
 import Asignacion_Turno from '../../Calendario_Horario/Asignacion_Turno';
-=======
-=======
-import { Table, Column, Model, DataType, PrimaryKey, Default, HasMany, ForeignKey, AllowNull, BelongsTo, Unique } from 'sequelize-typescript';
-import Cat_Regimen_Fiscal from '../Catalogos/Cat_Regimen_Fiscal';
-import Cat_Tipo_Contrato from '../Catalogos/Cat_Tipo_Contrato';
-import Cat_Tipo_Jornada from '../Catalogos/Cat_Tipo_Jornada';
-import Cat_Riesgo_Puesto from '../Catalogos/Cat_Riesgo_Puesto';
-import Cat_Periodicidad_Pago from '../Catalogos/Cat_Periodicidad_Pago';
-import Cat_Bancos from '../Catalogos/Cat_Bancos';
-import Ciudad from '../Ubicacion/Ciudad';
-import Empresa from '../Empresa_Sucursal/Empresa_Sucursal';
-<<<<<<< HEAD:src/models/Usuarios/Empleado.ts
-import Presupuesto_Empleado from '../Presupuestos/Presupuesto_Empleado';
-import Movimiento_Presupuesto from '../Presupuestos/Movimiento_Presupuesto';
-import Asignacion_Empleado_Sucursal from '../Presupuestos/Asignacion_Empleado_Sucursal';
-=======
-import Asignacion_Turno from '../Calendario_Horario/Asignacion_Turno';
->>>>>>> 9dde6d17dbb2a33a3fa1cedff4454266db28731e:src/models/Usuarios/Empleado.ts
->>>>>>> 4fed8405390dba4a541b6c8f636c9856155a8113:src/models/Usuarios/Empleado/Empleado.ts
->>>>>>> 737844a7df95ff4e1925a7499e9cf3536969e116
+import Presupuesto_Empleado from '../../Presupuestos/Presupuesto_Empleado';
+import Movimiento_Presupuesto from '../../Presupuestos/Movimiento_Presupuesto';
+import Asignacion_Empleado_Sucursal from '../../Presupuestos/Asignacion_Empleado_Sucursal';
+
+
 
 @Table({
     tableName: 'empleado'
@@ -151,15 +135,7 @@ class Empleado extends Model {
     @Column(DataType.BOOLEAN)
     declare estatus_empleado: boolean;
 
-<<<<<<< HEAD
-    @HasMany(() => Asignacion_Turno, {
-        as: 'asignaciones',
-        foreignKey: 'id_empleado',
-        onDelete: 'RESTRICT'
-    })
-    asignaciones!: Asignacion_Turno[];
-=======
- 
+
     @HasMany(() => Presupuesto_Empleado)
     declare presupuestos_empleado?: Presupuesto_Empleado[];
 
@@ -169,7 +145,6 @@ class Empleado extends Model {
 
     @HasMany(() => Asignacion_Empleado_Sucursal)
     declare asignaciones?: Asignacion_Empleado_Sucursal[];
->>>>>>> 737844a7df95ff4e1925a7499e9cf3536969e116
 
 
 }
