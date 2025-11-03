@@ -1,5 +1,5 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, BelongsTo, Unique } from 'sequelize-typescript';
-import Empleado from './Empleado';
+import Empleado from './Empleado/Empleado';
 import Rol from './Rol';
 
 @Table({

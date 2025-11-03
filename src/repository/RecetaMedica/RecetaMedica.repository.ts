@@ -5,7 +5,7 @@ import {
   IRecetaMedica,
   IRecetaDesdeVenta,
 } from "../../interface/RecetaMedica/RecetaMedica.interface";
-import Empleado from "../../models/Usuarios/Empleado";
+import Empleado from "../../models/Usuarios/Empleado/Empleado";
 import { Transaction } from "sequelize";
 import Medico from "../../models/RecetaMedica/Medico";
 
@@ -17,14 +17,14 @@ export const RecetaMedicaRepository = {
         {
           model: Empleado,
           as: "creadoPor",
-          attributes: ["id_empleado","nombre_empleado"],
+          attributes: ["id_empleado", "nombre_empleado"],
         },
         {
           model: Medico,
           as: "medico",
-          attributes: ["id_medico","nombre_completo","cedula_profesional","especialidad","telefono","correo","direccion"],
+          attributes: ["id_medico", "nombre_completo", "cedula_profesional", "especialidad", "telefono", "correo", "direccion"],
         },
-      ], order:[['createdAt','DESC']],
+      ], order: [['createdAt', 'DESC']],
     });
   },
 
@@ -53,7 +53,7 @@ export const RecetaMedicaRepository = {
         folio: args.data.folio ?? null,
         fuente: args.data.fuente ?? null,
         creada_por_usuario: args.data.creada_por_usuario,
-        id_venta: args.id_venta ?? null, 
+        id_venta: args.id_venta ?? null,
       },
       { transaction: t }
     );

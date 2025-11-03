@@ -3,7 +3,7 @@ import Proveedor from "../Proveedor/Proveedor";
 import Detalle_Compra_Solicitado from "./Detalle_Compra_Solicitado";
 import Compra_General from "./Compra_General";
 import Factura_Compra_Proveedor from "../Proveedor/Factura_Compra_Proveedor";
-import Empleado from "../Usuarios/Empleado";
+import Empleado from "../Usuarios/Empleado/Empleado";
 
 @Table({
     tableName: 'compra_proveedor',

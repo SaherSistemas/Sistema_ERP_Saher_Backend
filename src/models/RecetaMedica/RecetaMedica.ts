@@ -13,7 +13,7 @@ import {
 } from "sequelize-typescript";
 import Articulo from "../Articulos/Articulo";
 import Medico from "./Medico";
-import Empleado from "../Usuarios/Empleado";
+import Empleado from "../Usuarios/Empleado/Empleado";
 import RecetaArticulo from "./Receta_Articulo";
 import Venta from "../Venta/Venta";
 
@@ -28,21 +28,21 @@ class RecetaMedica extends Model {
   declare id_receta: string;
 
   @ForeignKey(() => Venta)
-  @Column({ 
-    type: DataType.UUID, 
-    }) 
-    declare id_venta: string;
-  @BelongsTo(() => Venta)    
+  @Column({
+    type: DataType.UUID,
+  })
+  declare id_venta: string;
+  @BelongsTo(() => Venta)
   venta!: Venta;
 
 
   @ForeignKey(() => Medico)
-  @Column({ 
-    type: DataType.UUID, 
-    allowNull: false 
-    }) 
-    declare id_medico: string;
-  @BelongsTo(() => Medico)    
+  @Column({
+    type: DataType.UUID,
+    allowNull: false
+  })
+  declare id_medico: string;
+  @BelongsTo(() => Medico)
   medico!: Medico;
 
 
@@ -89,22 +89,23 @@ class RecetaMedica extends Model {
   // })
   // declare archivo_bytes?: number | null;
 
-@ForeignKey(() => Empleado)
+  @ForeignKey(() => Empleado)
   @Column({
     type: DataType.UUID,
   })
   declare id_empleado: string;
- @BelongsTo(() => Empleado)
- creadoPor!: Empleado;
-
- 
-@BelongsToMany(() => Articulo, () => RecetaArticulo)
-articulos!: Array<Articulo & { 
-ArticuloReceta: RecetaArticulo }>;
+  @BelongsTo(() => Empleado)
+  creadoPor!: Empleado;
 
 
-@HasMany(() => RecetaArticulo, { foreignKey: 'id_receta', as: 'lineas' })
-lineas!: RecetaArticulo[];
+  @BelongsToMany(() => Articulo, () => RecetaArticulo)
+  articulos!: Array<Articulo & {
+    ArticuloReceta: RecetaArticulo
+  }>;
+
+
+  @HasMany(() => RecetaArticulo, { foreignKey: 'id_receta', as: 'lineas' })
+  lineas!: RecetaArticulo[];
 
 
 }

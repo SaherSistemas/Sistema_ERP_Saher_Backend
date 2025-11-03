@@ -1,9 +1,9 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, HasMany } from "sequelize-typescript";
 import AlcanceOfertas from "./OfertaAlcance";
-import Empleado from "../Usuarios/Empleado";
+import Empleado from "../Usuarios/Empleado/Empleado";
 import UsoOferta from "./UsoOferta";
 import ReglaOferta from "./ReglaOferta";
-import OfertaRegla from "./ReglaOferta";
+
 
 @Table({
     tableName: "ofertas"
@@ -81,13 +81,13 @@ class Ofertas extends Model {
     })
     reglas!: ReglaOferta[];
 
-   
+
     @HasMany(() => UsoOferta, {
         as: 'usos'
     })
     usos?: UsoOferta[];
 
-   
+
 
 }
 export default Ofertas;

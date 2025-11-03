@@ -102,7 +102,7 @@ export const ArticuloRepository = {
             descripcion: articulo.des_artic,
             precio_unitario,
             total: precio_unitario * cantidad,
-            necesita_receta: articulo.necesita_receta ?? false 
+            necesita_receta: articulo.necesita_receta ?? false
         };
     },
 
@@ -138,10 +138,12 @@ export const ArticuloRepository = {
                 id_categoria: { [Op.notIn]: idsCategoriasExcluidas },
                 status_artic: true
             },
+            order: [['cod_int_artic', 'ASC']],
             offset,
             limit
         });
 
+        //console.log(rows)
         const compraGeneral = await Compra_General.findOne({
             where: {
                 id_empresa_sucursal: id_empresasucursal,
