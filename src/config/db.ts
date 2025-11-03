@@ -6,6 +6,24 @@ dotenv.config();
 
 export const dbLocal = new Sequelize({
     dialect: 'postgres',
+    host: 'localhost',
+    username: 'postgres',
+    password: '1234',
+    database: 'LOCAL',
+    port: 5432,
+    timezone: '+00:00',
+    dialectOptions: {
+        ssl: false,
+        useUTC: true,
+    },
+    models: [path.resolve(__dirname, '..', 'models', '**', '*.{ts,js}')],
+    logging: false,
+});
+
+/*
+
+export const dbLocal = new Sequelize({
+    dialect: 'postgres',
     host: 'salazar-server',
     username: 'postgres',
     password: 'Saher2025#',
@@ -20,7 +38,8 @@ export const dbLocal = new Sequelize({
     logging: false,
 });
 
-
+*/
+/*
 export const dbVieja = new Sequelize({
     dialect: 'postgres',
     host: 'salazar-server',
@@ -34,4 +53,4 @@ export const dbVieja = new Sequelize({
         useUTC: true,
     },
     logging: false,
-});
+});*/

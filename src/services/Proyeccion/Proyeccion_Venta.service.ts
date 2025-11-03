@@ -36,7 +36,7 @@ export const Proyeccion_VentaService = {
         };
     },
     getProyeccionVentaPrueba: async (ids_empresas: string[], cod_int_artic: string, ventana_dias: number, K_TOP = 10) => {
-        const rangoTiempo = await Kardex_Movimiento_ArticuloRepository.getTotalesPorPeriodosPrueba({
+        /*const rangoTiempo = await Kardex_Movimiento_ArticuloRepository.getTotalesPorPeriodosPrueba({
             articulo: cod_int_artic,
             dias: ventana_dias,
         });
@@ -171,6 +171,7 @@ export const Proyeccion_VentaService = {
             ultimo_periodo: idxMasActual >= 0 ? detallePorPeriodo[idxMasActual] : null,
             salida_real_ultimo,
         };
+    }*/
     }
 }
 

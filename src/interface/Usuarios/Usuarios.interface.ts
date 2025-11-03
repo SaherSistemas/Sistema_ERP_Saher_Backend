@@ -3,7 +3,7 @@ import { IRol } from './Rol.interface';
 
 export interface IUsuario {
     id_user: string;
-    id_empleado_user: string;
+    id_referencia_persona: string;
     username: string;
     password_user: string;
     status_user: boolean;
@@ -12,12 +12,6 @@ export interface IUsuario {
     rol?: IRol;            // cuando hagas include
 }
 
-export interface ICreateUsuario {
-    id_empleado_user: string;
-    password_user: string;
-    idrol_user: string;
-    status_user?: boolean;  // opcional porque tiene default en DB
-}
 
 export interface IUpdateUsuario {
     username?: string;
@@ -26,8 +20,4 @@ export interface IUpdateUsuario {
     status_user?: boolean;
 }
 
-export interface IIniciarSesion {
-    username?: string;
-    idinterno_empleado?: number
-    password_user: string;
-}
+

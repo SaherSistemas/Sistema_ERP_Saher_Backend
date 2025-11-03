@@ -1,33 +1,36 @@
 import type { Request, Response } from "express";
 import { UsuarioService } from "../../services/Usuarios/Usuario.service";
+import Usuario from "../../models/Usuarios/Usuario";
+
 
 export class UsuarioController {
-    static createUsuario = async (req: Request, res: Response) => {
+    static getByID = async (req: Request, res: Response) => {
         try {
-            const usuario = await UsuarioService.createEmpleado(req.body)
-            res.status(201).json({
-                mensaje: "Usuario creado exitosamente",
-                usuario: usuario
-            });
+            const { idrol_user, claveUsuario } = req.query;
+            //console.log("HOLA")
+            //console.log("📦 Params recibidos por query:", req.query);
+            const perfil = await UsuarioService.getByID(String(claveUsuario), String(idrol_user));
+            res.status(200).json(perfil);
         } catch (error) {
-            //console.log(error)
-            res.status(500).json({ mensaje: error.message })
+            console.error("Error al obtener el perfil:", error);
+            res.status(500).json({ message: "Error interno del servidor" });
         }
+
     }
-    static iniciarSesion = async (req: Request, res: Response) => {
+
+    static getByIDUser = async (req: Request, res: Response) => {
         try {
-            const loginUser = await UsuarioService.iniciarSesion(req.body);
-
-            res.status(201).json({
-                mensaje: "Inicio de sesión exitoso",
-                usuario: loginUser
-            });
-        } catch (error: any) {
-            // console.error(error);
-            res.status(401).json({
-                mensaje: error.message || "Error al iniciar sesión"
-            });
+            const { claveUsuario } = req.query;
+            //console.log(claveUsuario)
+            //console.log("HOLA")
+            //  console.log("📦 Params recibidos por query:", req.query);
+            const usuario = await UsuarioService.getByIDUser(String(claveUsuario));
+            // console.log(usuario)
+            res.status(200).json(usuario);
+        } catch (error) {
+            console.error("Error al obtener el perfil:", error);
+            res.status(500).json({ message: "Error interno del servidor" });
         }
-    }
 
+    }
 }

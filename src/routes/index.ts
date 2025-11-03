@@ -22,6 +22,7 @@ import tipo_ArticuloRouter from '../routes/Articulos/Prioridad_ArticuloRouter'
 import empleadoRouter from './Usuarios/EmpleadoRouter'
 import rolRouter from './Usuarios/RolRouter'
 import usuarioRouter from './Usuarios/UsuarioRouter'
+import authRouter from './Usuarios/AuthRouter'
 import permisoRouter from './Usuarios/PermisoRouter'
 import permisoRolRouter from './Usuarios/Permiso_RolRouter'
 
@@ -118,6 +119,7 @@ import RecetaArticuloRouter from "./RecetaMedica/RecetaArticuloRouter";
 import Asignacion_TurnoRouter from "./Calendario_Horario/Asignacion_TurnoRouter";
 import Periodo_CalendarioRouter from './Calendario_Horario/Periodo_CalendarioRouter'
 import Turno_ProgramadoRouter from './Calendario_Horario/Turno_ProgramadoRouter'
+import { authLimiter, generalLimiter } from "../config/limiter";
 
 
 
@@ -125,6 +127,7 @@ import Turno_ProgramadoRouter from './Calendario_Horario/Turno_ProgramadoRouter'
 
 const router = Router();
 
+router.use(generalLimiter)
 
 router.use('/pais', paisRouter)
 router.use('/estado', estadoRouter)
@@ -153,7 +156,7 @@ router.use('/usuario', usuarioRouter)
 router.use('/agente', agenteRouter)
 router.use('/permiso', permisoRouter)
 router.use('/permiso_rol', permisoRolRouter)
-
+router.use('/auth', authLimiter, authRouter)
 
 
 router.use('/tipo_iva', tipoIVARouter)

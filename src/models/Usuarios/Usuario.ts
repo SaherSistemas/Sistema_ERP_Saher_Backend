@@ -1,6 +1,7 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, BelongsTo, Unique } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, BelongsTo, Unique, Default } from 'sequelize-typescript';
 import Empleado from './Empleado/Empleado';
 import Rol from './Rol';
+import { column } from 'mathjs';
 
 @Table({
     tableName: 'usuario',
@@ -16,7 +17,7 @@ class Usuario extends Model {
     @Column({
         type: DataType.UUID
     })
-    declare id_empleado_user: string
+    declare id_referencia_persona: string
 
     @Unique
     @Column({
