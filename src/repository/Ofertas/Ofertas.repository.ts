@@ -102,8 +102,6 @@ export const OfertaRepository = {
 
   return aplicables;
 },
-
-
   getAll: async () => {
     return await Ofertas.findAll({
       include: OfertaIncludes,

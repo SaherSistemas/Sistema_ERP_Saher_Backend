@@ -10,7 +10,7 @@ import Ciudad from "../../models/Ubicacion/Ciudad";
 export interface IEmpleado {
     id_empleado: string;
     idinterno_empleado: number;
-    idempresa_empleado: string;
+    id_sucursal_empleado: string;
     nombre_empleado: string;
     ap_pat_empleado: string;
     ap_mat_empleado: string;
@@ -36,12 +36,16 @@ export interface IEmpleado {
     clabe_interbancaria: string;
     salario_diario_integrado: number;
     estatus_empleado: boolean;
+
+    asignacionSucursal?: Empresa_Sucursal;
 }
+
+
 
 // Interface para crear un nuevo empleado
 export interface ICrearEmpleado {
     idinterno_empleado: number;
-    idempresa_empleado: string;
+    id_sucursal_empleado: string;
     nombre_empleado: string;
     ap_pat_empleado: string;
     ap_mat_empleado: string;
@@ -71,7 +75,7 @@ export interface ICrearEmpleado {
 // Interface para actualizar un empleado
 export interface IUpdateEmpleado {
     idinterno_empleado?: number;
-    idempresa_empleado?: string;
+    id_sucursal_empleado?: string;
     nombre_empleado?: string;
     ap_pat_empleado?: string;
     ap_mat_empleado?: string;

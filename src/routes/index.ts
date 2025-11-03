@@ -107,17 +107,17 @@ import AlcanceOfertasRouter from "./Ofertas/AlcanceOfertasRouter";
 import UsoOfertasRouter from "./Ofertas/UsoOfertaRouter";
 import ReglaOfertaRouter from "./Ofertas/ReglaOfertaRouter";
 
-
 //Recetas Medicas
 import RecetaMedicaRouter from './RecetaMedica/RecetaMedicaRouter'
 import MedicoRouter from "./RecetaMedica/MedicoRouter";
 import RecetaArticuloRouter from "./RecetaMedica/RecetaArticuloRouter";
 
 
-//Calendario_Horario
-import Asignacion_TurnoRouter from "./Calendario_Horario/Asignacion_TurnoRouter";
-import Periodo_CalendarioRouter from './Calendario_Horario/Periodo_CalendarioRouter'
-import Turno_ProgramadoRouter from './Calendario_Horario/Turno_ProgramadoRouter'
+
+//Presupuesto
+import Presupuesto_EmpresaRouter from "./Presupuestos/Presupuesto_EmpresaRouter";
+import Presupuesto_EmpleadoRouter from "./Presupuestos/Presupuesto_EmpleadoRouter";
+import Asignacion_Empleado_SucursalRouter from "./Presupuestos/Asignacion_Empleado_SucursalRouter";
 
 
 
@@ -186,10 +186,6 @@ router.use('/lotes_solicitados', lotesSolicitadoRouter)
 
 
 
-//HORARIOS
-router.use('/periodo_calendario', Periodo_CalendarioRouter)
-router.use('/asignacion_turno', Asignacion_TurnoRouter)
-router.use('/turno_programado', Turno_ProgramadoRouter)
 
 
 // CLIENTES
@@ -244,6 +240,21 @@ router.use('/oferta', OfertasRouter)
 router.use('/alcanceOferta', AlcanceOfertasRouter)
 router.use('/usoOferta', UsoOfertasRouter)
 router.use('/reglaOferta', ReglaOfertaRouter)
+
+
+//Presupuesto
+router.use('/presupuesto_empresa', Presupuesto_EmpresaRouter)
+router.use('/presupuesto_empleado', Presupuesto_EmpleadoRouter)
+router.use('/asignacion_empleado_sucursal', Asignacion_Empleado_SucursalRouter)
+
+
+
+
+
+
+
+
+
 
 
 

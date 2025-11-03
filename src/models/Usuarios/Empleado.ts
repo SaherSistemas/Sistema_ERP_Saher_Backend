@@ -7,7 +7,9 @@ import Cat_Periodicidad_Pago from '../Catalogos/Cat_Periodicidad_Pago';
 import Cat_Bancos from '../Catalogos/Cat_Bancos';
 import Ciudad from '../Ubicacion/Ciudad';
 import Empresa from '../Empresa_Sucursal/Empresa_Sucursal';
-import Asignacion_Turno from '../Calendario_Horario/Asignacion_Turno';
+import Presupuesto_Empleado from '../Presupuestos/Presupuesto_Empleado';
+import Movimiento_Presupuesto from '../Presupuestos/Movimiento_Presupuesto';
+import Asignacion_Empleado_Sucursal from '../Presupuestos/Asignacion_Empleado_Sucursal';
 
 @Table({
     tableName: 'empleado'
@@ -29,7 +31,7 @@ class Empleado extends Model {
     @Column({
         type: DataType.UUID
     })
-    declare idempresa_empleado: string;
+    declare id_sucursal_empleado: string;
     @BelongsTo(() => Empresa)
     declare empresa?: Empresa;
 
@@ -130,11 +132,16 @@ class Empleado extends Model {
     @Column(DataType.BOOLEAN)
     declare estatus_empleado: boolean;
 
-    @HasMany(() => Asignacion_Turno, { 
-        as: 'asignaciones', 
-        foreignKey: 'id_empleado',
-        onDelete: 'RESTRICT' })
-    asignaciones!: Asignacion_Turno[];
+ 
+    @HasMany(() => Presupuesto_Empleado)
+    declare presupuestos_empleado?: Presupuesto_Empleado[];
+
+    @HasMany(() => Movimiento_Presupuesto)
+    declare movimiento_presupuesto?: Movimiento_Presupuesto[];
+
+
+    @HasMany(() => Asignacion_Empleado_Sucursal)
+    declare asignaciones?: Asignacion_Empleado_Sucursal[];
 
 
 }

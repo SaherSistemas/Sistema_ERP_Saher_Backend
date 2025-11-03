@@ -2,7 +2,7 @@ export interface IEmpresaSucursal {
     id_empre: string;
     nom_empre: string;
     rfc_empre: string;
-    tipo_empre: string;            // 'M' = Matriz, 'S' = Sucursal
+    tipo_empre: string;    // 'M' = Matriz, 'S' = Sucursal
     idgrup_empre: string;   //GRUPO EMPRESA
     calle_empre: string;
     id_colonia_empre: string;
