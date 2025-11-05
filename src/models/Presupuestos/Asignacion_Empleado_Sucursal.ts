@@ -46,6 +46,13 @@ class Asignacion_Empleado_Sucursal extends Model {
     declare tipo: "FIJO" | "TEMPORAL" | "COBERTURA";
 
     @Column({
+        type: DataType.ENUM("AM", "PM", "COMPLETO"),
+        allowNull: false,
+        defaultValue: "COMPLETO",
+    })
+    declare turno: "AM" | "PM";
+
+    @Column({
         type: DataType.STRING,
     })
     declare motivo: string;

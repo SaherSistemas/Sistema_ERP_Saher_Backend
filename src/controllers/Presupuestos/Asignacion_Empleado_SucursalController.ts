@@ -6,32 +6,64 @@ export class Asignacion_Empleado_SucursalController {
     try {
       const result = await Asignacion_Empleado_SucursalService.getAll();
       res.status(200).json(result);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      console.error("[Asignacion_Empleado_SucursalController.getAll]", error);
+      res.status(500).json({ error: error.message || "Error al obtener asignaciones" });
     }
   };
+
+  static getEmpleadosSinAsignacionEmpresa = async (req: Request, res: Response) => {
+    try {
+      const { id_empre } = req.params;
+      const data = await Asignacion_Empleado_SucursalService.getEmpleadosSinAsignacionEmpresa(id_empre);
+      res.status(200).json(data);
+    } catch (error) {
+      console.error("[Asignacion_Empleado_SucursalController.getEmpleadosSinAsignacionEmpresa]", error);
+      res.status(500).json({
+        error: error.message || "Error al obtener empleados sin asignación.",
+      });
+    }
+  };
+
+  static getResumenPorEmpleado = async (req: Request, res: Response) => {
+    try {
+      const result = await Asignacion_Empleado_SucursalService.getResumenPorEmpleado();
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("[Asignacion_Empleado_SucursalController.getResumenPorEmpleado]", error);
+      res.status(500).json({
+        error: error.message || "Error al obtener el resumen de asignaciones por empleado",
+      });
+    }
+  };
+
+  static getAllByEmpleado = async (req: Request, res: Response) => {
+    try {
+      const { id_empleado } = req.params;
+      const result = await Asignacion_Empleado_SucursalService.getAllByEmpleado(id_empleado);
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  };
+
+
 
   static create = async (req: Request, res: Response) => {
     try {
       const data = req.body;
 
-      if (
-        !data.id_empleado ||
-        !data.id_empre ||
-        !data.fecha_inicio ||
-        !data.tipo
-      ) {
+      if (!data.id_empleado || !data.id_empre || !data.fecha_inicio || !data.tipo) {
         res.status(400).json({
-          error:
-            "Campos obligatorios faltantes: id_empleado, id_empre, fecha_inicio, tipo",
+          error: "Campos obligatorios faltantes: id_empleado, id_empre, fecha_inicio, tipo",
         });
       }
 
       const result = await Asignacion_Empleado_SucursalService.create(data);
-
       res.status(201).json(result);
-    } catch (error) {
-      res.status(500).json({
+    } catch (error: any) {
+      console.error("[Asignacion_Empleado_SucursalController.create]", error);
+      res.status(400).json({
         error: error.message || "Error al crear la asignación del empleado",
       });
     }
@@ -40,12 +72,19 @@ export class Asignacion_Empleado_SucursalController {
   static getByID = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+
+      if (!id) {
+        res.status(400).json({ error: "Falta el parámetro ID." });
+      }
+
       const data = await Asignacion_Empleado_SucursalService.getByID(id);
       res.status(200).json(data);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+    } catch (error: any) {
+      console.error("[Asignacion_Empleado_SucursalController.getByID]", error);
+      res.status(404).json({ error: error.message || "Asignación no encontrada" });
     }
   };
+
 
   static update = async (req: Request, res: Response) => {
     try {
@@ -53,22 +92,20 @@ export class Asignacion_Empleado_SucursalController {
       const data = req.body;
 
       if (!id) {
-        res
-          .status(400)
-          .json({ error: "Falta el ID del presupuesto empleado." });
+        res.status(400).json({ error: "Falta el ID de la asignación." });
       }
 
       const result = await Asignacion_Empleado_SucursalService.update(id, data);
 
       res.status(200).json({
-        mensaje: "Presupuesto de empleado actualizado correctamente",
+        mensaje: "Asignación actualizada correctamente",
         data: result,
       });
-    } catch (error) {
-      console.error("[Presupuesto_EmpleadoController.update]", error);
-      res
-        .status(500)
-        .json({ error: error.message || "Error interno del servidor" });
+    } catch (error: any) {
+      console.error("[Asignacion_Empleado_SucursalController.update]", error);
+      res.status(400).json({
+        error: error.message || "Error al actualizar la asignación del empleado",
+      });
     }
   };
 }

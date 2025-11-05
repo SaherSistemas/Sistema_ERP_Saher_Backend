@@ -142,7 +142,6 @@ class Empleado extends Model {
     @HasMany(() => Movimiento_Presupuesto)
     declare movimiento_presupuesto?: Movimiento_Presupuesto[];
 
-
     @HasMany(() => Asignacion_Empleado_Sucursal)
     declare asignaciones?: Asignacion_Empleado_Sucursal[];
 
