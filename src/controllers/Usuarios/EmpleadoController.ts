@@ -34,7 +34,6 @@ export class EmpleadoController {
             const empleado = await EmpleadoService.getEmpledoById(id_empleado)
             res.status(201).json(empleado)
         } catch (error) {
-            // console.error(error);
             res.status(500).json({ message: "No se encontro el empleado" })
         }
     }

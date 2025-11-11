@@ -1,21 +1,24 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
+import Caja from "./Caja";
 
 @Table({
     tableName: "parametro_caja"
-})  
+})
 
 class ParametroCaja extends Model {
     @PrimaryKey
-    @Column({ 
+    @Column({
         type: DataType.UUID,
-     })
-     declare id_parametro_caja: string;
+    })
+    declare id_parametro_caja: string;
 
-    //@ForeignKey(() => Caja)
+    @ForeignKey(() => Caja)
     @Column({
         type: DataType.UUID
     })
     declare id_caja: string;
+    @BelongsTo(() => Caja)
+    idcaja: Caja;
 
     @Column({
         type: DataType.DECIMAL(10, 2)

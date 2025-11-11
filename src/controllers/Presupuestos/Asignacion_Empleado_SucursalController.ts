@@ -53,21 +53,30 @@ export class Asignacion_Empleado_SucursalController {
     try {
       const data = req.body;
 
+      // Validación de campos obligatorios
       if (!data.id_empleado || !data.id_empre || !data.fecha_inicio || !data.tipo) {
         res.status(400).json({
           error: "Campos obligatorios faltantes: id_empleado, id_empre, fecha_inicio, tipo",
         });
       }
 
+      // Crear asignación
       const result = await Asignacion_Empleado_SucursalService.create(data);
+
+      // Respuesta exitosa
       res.status(201).json(result);
+
     } catch (error: any) {
       console.error("[Asignacion_Empleado_SucursalController.create]", error);
+
+      // Respuesta de error controlada
       res.status(400).json({
         error: error.message || "Error al crear la asignación del empleado",
       });
     }
   };
+
+
 
   static getByID = async (req: Request, res: Response) => {
     try {

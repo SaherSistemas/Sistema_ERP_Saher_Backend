@@ -24,20 +24,25 @@ export class VentaController {
   };
 
   static create = async (req: Request, res: Response) => {
-
-    const data =  req.body;
-
-
     try {
-      const nuevaVenta = await VentaService.create(data);
-      // console.log(data);
+      const data = req.body;
+      const result = await VentaService.create(data);
+      res.status(201).json(result);
+    } catch (e: any) {
+      console.error("Error al crear venta:", e);
 
-      res.status(201).json(nuevaVenta);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ mensaje: "Error al crear la Venta." });
+      if (e.status === 404) {
+        res.status(404).json({ message: e.message || "Empleado no encontrado" });
+      }
+
+      if (e.status === 400) {
+        res.status(400).json({ message: e.message || "Datos inválidos" });
+      }
+
+      res.status(500).json({ message: "Error interno del servidor" });
     }
   };
+
 
   static update = async (req: Request, res: Response) => {
     try {

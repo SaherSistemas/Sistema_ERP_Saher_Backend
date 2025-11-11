@@ -4,7 +4,7 @@ import LoteUsadoVenta from "../../models/LotesYCaducidad/Lote_Usado_Venta";
 import { Transaction } from "sequelize";
 import { dbLocal } from "../../config/db";
 
-import {ICreateOrUpdateVenta,IVentaInput} from "../../interface/Venta/Venta.interface";
+import { ICreateOrUpdateVenta, IVentaInput } from "../../interface/Venta/Venta.interface";
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from "uuid";
 import { DetalleVentaRepository } from "./Detalle_Venta.repository";
@@ -43,7 +43,7 @@ export const VentaRepository = {
     return await Venta.findAll({ include: ventaIncludes });
   },
 
-  getById: async ( id_venta: string, options?: { transaction?: Transaction }) => {
+  getById: async (id_venta: string, options?: { transaction?: Transaction }) => {
     if (!isUUID(id_venta)) return null;
     return Venta.findByPk(id_venta, {
       include: ventaIncludes,
@@ -63,26 +63,27 @@ export const VentaRepository = {
 
       // crear venta
       const id_venta = uuidv4();
-      const venta = await Venta.create({...ventaData, id_venta}, { transaction: t });
+      const venta = await Venta.create({ ...ventaData, id_venta }, { transaction: t });
 
       // crear detalle
       let createdDetalleModels: DetalleVenta[] = [];
       if (detalle_venta.length) {
         const payloadDetalles = detalle_venta.map((d: any) => ({
-          id_venta, 
+          id_venta,
           id_artic: d.id_artic,
           cantidad: d.cantidad,
           precio_unitario: d.precio_unitario,
-          temp_line_id: d.temp_line_id ?? null 
-         }));
+          temp_line_id: d.temp_line_id ?? null
+        }));
 
         createdDetalleModels = await DetalleVenta.bulkCreate(payloadDetalles, {
-           transaction: t,  
-           returning: true,});
+          transaction: t,
+          returning: true,
+        });
       }
 
       const tempMap: DetalleLookupMap = new Map();
-      
+
       for (const d of createdDetalleModels) {
         const temp = (d as any).temp_line_id as string | null;
         if (!temp) continue;
@@ -96,11 +97,10 @@ export const VentaRepository = {
           id_articulo,
         });
       }
- 
 
       if (venta_pago.length) {
         const payloadPagos = venta_pago.map((p: any) => ({
-          id_venta,                        
+          id_venta,
           id_metodo_pago: p.id_metodo_pago,
           monto: p.monto,
         }));
@@ -117,11 +117,11 @@ export const VentaRepository = {
 
       if (debeCrearReceta) {
         await RecetaMedicaService.createFromVenta({
-               
+
           id_venta,
           recetaPayload,
           tempToDetalle: tempMap,
-        }, { transaction: t } );
+        }, { transaction: t });
       }
 
       await venta.reload({ include: ventaIncludes, transaction: t });

@@ -16,6 +16,7 @@ import ListaPrecio from "../Costo_Y_Precio/Lista_Precios/Lista_Precio";
 import Presupuesto_Empresa from "../Presupuestos/Presupuesto_Empresa";
 import Movimiento_Presupuesto from "../Presupuestos/Movimiento_Presupuesto";
 import Asignacion_Empleado_Sucursal from "../Presupuestos/Asignacion_Empleado_Sucursal";
+import Caja from "../Caja/Caja";
 
 @Table({
   tableName: "empresa_sucursal",
@@ -36,6 +37,17 @@ class Empresa_Sucursal extends Model {
     type: DataType.STRING(20),
   })
   declare rfc_empre: string;
+
+  @ForeignKey(() => Caja)
+  @Column({
+    type: DataType.UUID,
+  })
+  declare id_caja: string;
+
+  @BelongsTo(() => Caja)
+  declare caja?: Caja;
+
+
 
   @Column({
     type: DataType.STRING(1),

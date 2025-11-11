@@ -1,6 +1,7 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
 import Metodo_de_Pago from "./Metodo_de_Pago";
 import Empleado from "../Usuarios/Empleado/Empleado";
+import Caja from "./Caja";
 
 @Table({
     tableName: "movimiento_caja"
@@ -13,10 +14,13 @@ class Movimiento_Caja extends Model {
     })
     declare id_movimiento: string;
 
+    @ForeignKey(() => Caja)
     @Column({
         type: DataType.UUID,
     })
-    declare id_corte: string;
+    declare id_caja: string;
+    @BelongsTo(() => Caja)
+    idcaja: Caja;
 
     @ForeignKey(() => Metodo_de_Pago)
     @Column({
@@ -43,7 +47,6 @@ class Movimiento_Caja extends Model {
 
     @Column({
         type: DataType.STRING(100),
-        allowNull: true,
     })
     declare referencia_pago?: string;
 

@@ -1,13 +1,41 @@
 import { UUID } from "crypto";
 import Caja from "../../models/Caja/Caja";
 import { isUUID } from "../../utils/validaciones";
-import { ICaja } from "../../interface/Caja/Caja.interface"; 
+import { ICaja } from "../../interface/Caja/Caja.interface";
 import { v4 as uuidv4 } from "uuid";
 import { get } from "http";
+import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 
 export const CajaRepository = {
     getAll: async () => {
-        return await Caja.findAll();
+        return await Caja.findAll({
+            include: [
+                {
+                    model: Empresa_Sucursal,
+                    attributes: [
+                        "nom_empre",
+                    ],
+                },
+            ],
+        });
+    },
+
+    getAllCajasSucursal: async (id_empre: string) => {
+        return await Caja.findAll({
+            where: { id_empre: id_empre, activa: false },
+        });
+    },
+
+    activarCaja: async (id_caja: string) => {
+        return await Caja.update({ activa: true }, {
+            where: { id_caja }
+        });
+    },
+
+    desactivarCaja: async (id_caja: string) => {
+        return await Caja.update({ activa: false }, {
+            where: { id_caja }
+        });
     },
 
     getByIDFlexible: async (id_caja: string) => {
@@ -21,11 +49,11 @@ export const CajaRepository = {
             });
         }
     },
-    
+
     getCantidadCajasPorSucursal: async (id_empre: string) => {
-    return await Caja.count({
-        where: { id_empre }
-    });
+        return await Caja.count({
+            where: { id_empre }
+        });
     },
 
 

@@ -39,6 +39,7 @@ class Presupuesto_empresa extends Model {
 
     @Column({
         type: DataType.INTEGER,
+        defaultValue: 0,
     })
     declare turnos_planeados: number;
 

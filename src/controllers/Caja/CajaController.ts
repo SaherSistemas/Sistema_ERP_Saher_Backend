@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { CajaService } from "../../services/Caja/Caja.service"; 
+import { CajaService } from "../../services/Caja/Caja.service";
 
 export class CajaController {
 
@@ -10,6 +10,38 @@ export class CajaController {
         } catch (error) {
             console.error(error);
             res.status(500).json({ mensaje: "Error al encontrar todas las cajas." });
+        }
+    }
+
+    static getAllCajasSucursal = async (req: Request, res: Response) => {
+        try {
+            const { id_empre } = req.params;
+            const cajas = await CajaService.getAllCajasSucursal(id_empre);
+            res.status(200).json(cajas);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: "Error al encontrar las cajas de la sucursal." });
+        }
+    }
+
+    static activarCaja = async (req: Request, res: Response) => {
+        try {
+            const { id_caja } = req.params;
+            await CajaService.activarCaja(id_caja);
+            res.status(200).json({ mensaje: "Caja activada correctamente." });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: "Error al activar la caja." });
+        }
+    }
+    static desactivarCaja = async (req: Request, res: Response) => {
+        try {
+            const { id_caja } = req.params;
+            await CajaService.desactivarCaja(id_caja);
+            res.status(200).json({ mensaje: "Caja desactivada correctamente." });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: "Error al desactivar la caja." });
         }
     }
 

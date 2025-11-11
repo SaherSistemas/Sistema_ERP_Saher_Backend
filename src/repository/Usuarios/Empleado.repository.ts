@@ -56,8 +56,8 @@ export const EmpleadoRepository = {
         }
         return null
     },
+
     crearEmpleadoNuevo: async (data: ICrearEmpleado) => {
-        //console.log(data)
         const nuevoUUID = uuidv4();
         const ultimoID = await EmpleadoRepository.ultimoId();
         const nuevoID = ultimoID ? ultimoID.idinterno_empleado + 1 : 1;

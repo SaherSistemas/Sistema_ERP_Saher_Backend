@@ -4,13 +4,12 @@ import {
 } from "../../interface/Venta/Venta.interface";
 import { VentaRepository } from "../../repository/Venta/Venta.repository";
 import { DetalleVentaRepository } from "../../repository/Venta/Detalle_Venta.repository";
-import { v4 as uuidv4 } from "uuid";
 import { dbLocal } from "../../config/db";
-// import { LoteUsadoVentaRepository } from "../../repository/LotesYCaducidad/Lote_Usado_Venta.repository";
 import { VentaPagoRepository } from "../../repository/Venta/Venta_Pago.repository";
 import { LoteUsadoVentaRepository } from "../../repository/LotesYCaducidad/Lote_Usado_Venta.repository";
 import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
 import { RecetaMedicaService } from "../RecetaMedica/RecetaMedica.service";
+import Empleado from "../../models/Usuarios/Empleado/Empleado";
 
 export type DetalleLookupInfo = {
   id_detalle_venta: string;
@@ -33,10 +32,40 @@ export const VentaService = {
   create: async (data: IVentaInput) => {
     const t = await dbLocal.transaction();
     try {
+      // --- Resolver empleado flexible ---
+      let idEmpleadoUUID: string | null = null;
+
+      if (data.id_empleado) {
+        if (data.id_empleado.includes("-")) {
+          idEmpleadoUUID = data.id_empleado;
+        } else {
+          const empleado = await Empleado.findOne({
+            where: { idinterno_empleado: Number(data.id_empleado) },
+            attributes: ["id_empleado"],
+          });
+
+          if (!empleado) {
+            const err = new Error(`Empleado no encontrado`);
+            (err as any).status = 404; // marcar el tipo de error
+            throw err;
+          }
+
+          idEmpleadoUUID = empleado.id_empleado;
+        }
+      } else {
+        const err = new Error("id_empleado no enviado en la venta.");
+        (err as any).status = 400;
+        throw err;
+      }
+
+
+      console.log("UUID del empleado resuelto:", idEmpleadoUUID);
+
+      // --- Crear la venta principal ---
       const venta = await VentaRepository.create(
         {
-          id_cliente: data.id_cliente,
-          id_empleado: data.id_empleado,
+          id_cliente: data.id_cliente ?? null,
+          id_empleado: idEmpleadoUUID, // << usa el UUID real aquí
           id_empre: data.id_empre,
           tipo_venta: data.tipo_venta,
           status_venta: data.status_venta,
@@ -46,34 +75,35 @@ export const VentaService = {
         { transaction: t }
       );
 
+
       const id_venta = venta.id_venta;
 
-        const ctx = {
+      const ctx = {
         id_empre: data.id_empre,
         id_cliente: data.id_cliente ?? null,
         fecha: new Date(),
         // canal: data.canal ?? "PDV",
       };
-   
 
-    const tempToDetalle: DetalleLookupMap = new Map();
+
+      const tempToDetalle: DetalleLookupMap = new Map();
 
       for (const detalle of data.detalle_venta) {
         const { lote_usado = [], temp_line_id, ...colsDetalle } = detalle;
-        
+
         const detalle_venta = await DetalleVentaRepository.create(
           { id_venta, ...detalle },
           { transaction: t }
         );
 
-        if(temp_line_id){
+        if (temp_line_id) {
           const id_articulo = (colsDetalle as any).id_artic ?? (colsDetalle as any).id_articulo;
-          if(!id_articulo) throw new Error("Falta id_articulo en detalle_venta.");
+          if (!id_articulo) throw new Error("Falta id_articulo en detalle_venta.");
 
-          tempToDetalle.set(String(temp_line_id),{
+          tempToDetalle.set(String(temp_line_id), {
             id_detalle_venta: detalle_venta.id_detalle_venta,
             id_articulo,
-         });
+          });
         }
         if (lote_usado.length === 0) {
           throw new Error(
@@ -82,26 +112,26 @@ export const VentaService = {
         }
         let acumulado = 0;
 
-       
+
 
         for (const lu of lote_usado) {
-          if (!lu.id_lote_sucursal)throw new Error("Falta id_lote_sucursal en lote_usado.");
+          if (!lu.id_lote_sucursal) throw new Error("Falta id_lote_sucursal en lote_usado.");
           if (lu.cantidad_utilizada == null || lu.cantidad_utilizada <= 0) throw new Error(
-              "cantidad_utilizada inválida en uno de los lotes usados."
-            );
+            "cantidad_utilizada inválida en uno de los lotes usados."
+          );
           const lote = await LotesArticuloSucursalRepository.findByPkInEmpresaArticulo(
-              lu.id_lote_sucursal,
-              data.id_empre,
-              colsDetalle.id_artic,
-              { transaction: t, lock: t.LOCK.UPDATE, skipLocked: false }
-            );
+            lu.id_lote_sucursal,
+            data.id_empre,
+            colsDetalle.id_artic,
+            { transaction: t, lock: t.LOCK.UPDATE, skipLocked: false }
+          );
           if (!lote) {
             throw new Error(
               "El lote no existe o no pertenece a esa empresa/artículo."
             );
           }
 
-        const stock = Number(lote.cantidad_lote_sucursal);
+          const stock = Number(lote.cantidad_lote_sucursal);
           if (stock < lu.cantidad_utilizada) {
             throw new Error(
               `Stock insuficiente en el lote ${lote.numero_lote_sucursal}.`
@@ -144,7 +174,7 @@ export const VentaService = {
       }
 
       const recetaPayload = (data as any).recetaPayload;
-      const debeCrearReceta = 
+      const debeCrearReceta =
         venta.status_venta === "CONFIRMADA" &&
         recetaPayload &&
         recetaPayload.receta &&
@@ -153,9 +183,9 @@ export const VentaService = {
 
       if (debeCrearReceta) {
         await RecetaMedicaService.createFromVenta(
-        { id_venta, recetaPayload: (data as any).recetaPayload, tempToDetalle },
-        { transaction: t }
-          );
+          { id_venta, recetaPayload: (data as any).recetaPayload, tempToDetalle },
+          { transaction: t }
+        );
       }
 
       const ventaCompleta = await VentaRepository.getById(id_venta, {

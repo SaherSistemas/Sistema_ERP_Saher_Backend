@@ -49,13 +49,6 @@ export const Presupuesto_EmpleadoRepository = {
     );
   },
 
-
-  // getPresupuestoPorEmpleado: async (id_empleado: string, id_empre: string, id_presupuesto: string) => {
-  //   return await Presupuesto_Empleado.findAll({
-  //     where: { id_empleado, id_empre, id_presupuesto },
-  //   });
-  // },
-
   getEmpleadosNoAsignados: async (id_empre: string, id_presupuesto: string) => {
     const asignados = await Presupuesto_Empleado.findAll({
       where: { id_presupuesto },

@@ -1,5 +1,6 @@
 export interface IEmpresaSucursal {
     id_empre: string;
+    id_caja: string;
     nom_empre: string;
     rfc_empre: string;
     tipo_empre: string;    // 'M' = Matriz, 'S' = Sucursal
@@ -12,6 +13,7 @@ export interface IEmpresaSucursal {
     status_empre: boolean;
 }
 export interface ICrearEmpresaSucursal {
+    id_caja: string;
     nom_empre: string;
     rfc_empre: string;
     tipo_empre: string;            // 'M' o 'S'
@@ -24,6 +26,7 @@ export interface ICrearEmpresaSucursal {
     status_empre: boolean;
 }
 export interface IUpdateEmpresaSucursal {
+    id_caja?: string;
     nom_empre?: string;
     rfc_empre?: string;
     tipo_empre?: string;

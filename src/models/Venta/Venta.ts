@@ -1,11 +1,11 @@
 import { Table, HasOne, Column, Model, HasMany, PrimaryKey, DataType, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
-import LoteUsadoVenta from '../LotesYCaducidad/Lote_Usado_Venta';
 import Cliente from '../Clientes/Cliente';
 import Empresa_Sucursal from '../Empresa_Sucursal/Empresa_Sucursal';
 import DetalleVenta from './Detalle_Venta';
 import Empleado from '../Usuarios/Empleado/Empleado';
 import Venta_Pago from './Venta_Pago';
 import UsoOferta from '../Ofertas/UsoOferta';
+import Caja from '../Caja/Caja';
 
 @Table({
     tableName: "venta"
@@ -17,6 +17,14 @@ class Venta extends Model {
     @Column({
         type: DataType.UUID
     }) declare id_venta: string;
+
+
+    @ForeignKey(() => Caja)
+    @Column({
+        type: DataType.UUID
+    }) declare id_caja: string;
+    @BelongsTo(() => Caja)
+    idcaja: Caja;
 
 
     @ForeignKey(() => Cliente)
