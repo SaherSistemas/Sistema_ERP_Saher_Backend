@@ -9,7 +9,7 @@ import Cliente_Almacen from "../Clientes/Cliente_Almacen/Cliente_Almacen";
 class Pedido_Almacen extends Model {
     @PrimaryKey
     @Column({
-        type: DataType.STRING(3),
+        type: DataType.UUID,
     })
     declare id_pedido_alm: string;
 
@@ -30,14 +30,25 @@ class Pedido_Almacen extends Model {
     declare status_pedido_alm: string
 
     @Column({
-        type: DataType.SMALLINT
+        type: DataType.DATE
     })
-    declare prioridad_pedido_alm: number
+    declare fecha_entrega_alm: Date
+
+    
+    @Column({
+        type: DataType.DATE
+    })
+    declare fecha_max_entrega_alm: Date
 
     @Column({
         type: DataType.CHAR(4)
     })
     declare tipo_pedido_alm: string
+
+    @Column({
+        type:DataType.DATE
+    })
+    declare entrega_al_cliente: Date
 
     @ForeignKey(() => Cliente_Almacen)
     @Column({

@@ -1,49 +1,70 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, HasOne } from "sequelize-typescript";
-import Cliente_Almacen from "../Clientes/Cliente_Almacen/Cliente_Almacen";
+import Pedido_Almacen from "./Pedido_Almacen";
+import Articulo from "../Articulos/Articulo";
 
 @Table({
-    tableName: "pedido_almacen"
+    tableName: "detalle_pedido_almacen"
 })
 
 
-class Pedido_Almacen extends Model {
+class Detalle_Pedido_Almacen extends Model {
     @PrimaryKey
     @Column({
-        type: DataType.STRING(3),
+        type: DataType.UUID,
     })
-    declare id_pedido_alm: string;
+    declare id_detalle_pedido_almacen: string;
 
-    @Unique
-    @Column({
-        type: DataType.BIGINT,
-    })
-    declare cod_int_pedido_alm: number;
 
+    @ForeignKey(() => Pedido_Almacen)
     @Column({
-        type: DataType.DATEONLY
+        type: DataType.UUID
     })
-    declare fecha_facturado_pedido_alm: Date
+    declare id_pedido_almacen: string
 
+      @ForeignKey(() => Articulo)
     @Column({
-        type: DataType.CHAR(1)
+        type: DataType.UUID
     })
-    declare status_pedido_alm: string
+    declare id_articulo: string
 
     @Column({
-        type: DataType.SMALLINT
+        type: DataType.SMALLINT,
     })
-    declare prioridad_pedido_alm: number
+    declare cant_pedida: number;
+
+
+    @Column({
+        type: DataType.SMALLINT,
+    })
+    declare cantidad_surtida: number;
+
+
+    @Column({
+        type: DataType.SMALLINT,
+    })
+    declare cantidad_checada: number;
+
+    @Column({
+        type: DataType.DECIMAL(12,2)
+    })
+    declare precio_venta: number
+
+    @Column({
+        type: DataType.BOOLEAN
+    })
+    declare es_oferta: boolean
+
+    @Column({
+        type: DataType.DATE
+    })
+    declare fecha_max_entrega: number
 
     @Column({
         type: DataType.CHAR(4)
     })
     declare tipo_pedido_alm: string
 
-    @ForeignKey(() => Cliente_Almacen)
-    @Column({
-        type: DataType.UUID
-    })
-    declare id_cliente_pedido_alm: string
+  
 
 }
-export default Pedido_Almacen;
+export default Detalle_Pedido_Almacen;

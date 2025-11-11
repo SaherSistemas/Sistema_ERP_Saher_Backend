@@ -3,13 +3,6 @@ import { ICreateOrUpdateArticulo } from "../../interface/Articulos/Articulo.inte
 import Articulo from "../../models/Articulos/Articulo";
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from 'uuid';
-import Temporabilidad from "../../models/Articulos/Temporabilidad";
-import Prioridad_Articulo from '../../models/Articulos/Prioridad_Articulo';
-import Tipo_Articulo from '../../models/Articulos/Tipo_Articulo';
-import Categoria_Articulo from '../../models/Articulos/Categoria_Articulo';
-import Presentacion_Articulo from '../../models/Articulos/Presentacion_Articulo';
-import UnidadMedida from '../../models/Articulos/UnidadMedida';
-import Tipo_IVA from '../../models/Articulos/Tipo_IVA';
 import ArticuloExcluidoCompra from '../../models/Compra/Parametros_Compra/ArticuloExcluidoCompra';
 import CategoriaExcluidaCompra from '../../models/Compra/Parametros_Compra/CategoriaExcluidaCompra';
 import Parametros_Compra from '../../models/Compra/Parametros_Compra/Parametros_Compra';

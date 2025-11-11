@@ -46,10 +46,10 @@ import grupoEmpresaListaPrecioRouter from './Costo_y_Precio/Grupo_Empresa_Lista_
 
 import detalleCompraNegadoRouter from './Compras/detalle_Compra_NegadoRouter'
 import detalleCompraRecibidoRouter from './Compras/detalle_Compra_RecibidoRouter'
-import parametos_CompraRouter from './Compras/parametros_CompraRouter'
+import parametos_CompraRouter from './Compras/Parametros_CompraRouter'
 import comprasRouter from './Compras/ComprasGeneralRouter'
 import comprasProveedorRouter from './Compras/ComprasProveedorRouter'
-import detalle_CompraRouter from './Compras/detalle_CompraRouter'
+import detalle_CompraRouter from './Compras/Detalle_CompraRouter'
 
 
 import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter'
@@ -62,7 +62,7 @@ import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter'
 
 import Dash_ComprasRouter from "./Dashboards/DashboardRouter";
 
-import ProyecionRouter from './Proyeccion/ProyecionRouter'
+import ProyecionRouter from './PROYECCION/ProyecionRouter'
 
 
 
