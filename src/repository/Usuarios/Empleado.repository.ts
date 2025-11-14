@@ -48,14 +48,29 @@ export const EmpleadoRepository = {
             order: [["idinterno_empleado", "DESC"]]
         })
     },
-    getByIdFlexible: async (id: string): Promise<Empleado | null> => {
-        if (isUUID(id)) {
-            return await Empleado.findByPk(id)
-        } else if (!isNaN(Number(id))) {
-            return await Empleado.findOne({ where: { idinterno_empleado: Number(id) } })
-        }
-        return null
-    },
+    // getByIdFlexible: async (id: string): Promise<Empleado | null> => {
+    //     if (isUUID(id)) {
+    //         return await Empleado.findByPk(id)
+    //     } else if (!isNaN(Number(id))) {
+    //         return await Empleado.findOne({ where: { idinterno_empleado: Number(id) } })
+    //     }
+    //     return null
+    // },
+
+    getByIdFlexible: async (id: string | number): Promise<Empleado | null> => {
+    const idStr = String(id);
+
+    if (isUUID(idStr)) {
+        return await Empleado.findByPk(idStr);
+    }
+
+    const idNum = Number(idStr);
+    if (!isNaN(idNum)) {
+        return await Empleado.findOne({ where: { idinterno_empleado: idNum } });
+    }
+
+    return null;
+},
 
     crearEmpleadoNuevo: async (data: ICrearEmpleado) => {
         const nuevoUUID = uuidv4();

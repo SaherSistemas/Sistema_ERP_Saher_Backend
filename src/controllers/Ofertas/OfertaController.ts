@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { OfertaService } from "../../services/Ofertas/Ofertas.service";
+import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 
 export class OfertaController {
 
@@ -28,7 +29,15 @@ export class OfertaController {
       (o: any) => !o.canal_oferta || o.canal_oferta === canalStr
     );
 
-    res.json(filtradas);
+    const empresa = await Empresa_Sucursal.findByPk(String(id_empre), {
+      attributes: ["nom_empre"], 
+    });
+    const nombreEmpresa = empresa ? empresa.nom_empre : "Empresa desconocida";
+
+   res.json({
+      ofertas_aplicables_para_empresa: nombreEmpresa,
+      ofertas: filtradas,
+    });
   } catch (e) {
     console.error("[getOfertasAplicables] Error:", e);
     res.status(500).json({ error: String(e) });

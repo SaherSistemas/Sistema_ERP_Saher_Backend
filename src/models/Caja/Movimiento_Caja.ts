@@ -2,6 +2,7 @@ import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, Belongs
 import Metodo_de_Pago from "./Metodo_de_Pago";
 import Empleado from "../Usuarios/Empleado/Empleado";
 import Caja from "./Caja";
+import CorteCaja from "./Corte_Caja";
 
 @Table({
     tableName: "movimiento_caja"
@@ -22,13 +23,14 @@ class Movimiento_Caja extends Model {
     @BelongsTo(() => Caja)
     idcaja: Caja;
 
-    @ForeignKey(() => Metodo_de_Pago)
+
+    @ForeignKey(() => CorteCaja)
     @Column({
         type: DataType.UUID,
     })
-    declare id_metodo_pago: string;
-    @BelongsTo(() => Metodo_de_Pago)
-    metodo_pago: Metodo_de_Pago;
+    declare id_corte: string;
+    @BelongsTo(() => CorteCaja)
+    idcorte: CorteCaja;
 
     @Column({
         type: DataType.STRING(30),
@@ -36,9 +38,17 @@ class Movimiento_Caja extends Model {
     declare tipo_movimiento: string;
 
     @Column({
-        type: DataType.STRING(15),
+        type: DataType.STRING(50),
     })
     declare concepto_movimiento: string;
+
+    @ForeignKey(() => Metodo_de_Pago)
+    @Column({
+        type: DataType.UUID,
+    })
+    declare id_metodo_pago: string;
+    @BelongsTo(() => Metodo_de_Pago)
+    metodo_pago: Metodo_de_Pago;
 
     @Column({
         type: DataType.DECIMAL(10, 2),
@@ -57,8 +67,6 @@ class Movimiento_Caja extends Model {
     declare id_empleado: string;
     @BelongsTo(() => Empleado)
     idempleado: Empleado;
-
-
 
 
 }

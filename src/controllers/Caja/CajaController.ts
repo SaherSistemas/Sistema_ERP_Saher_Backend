@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { CajaService } from "../../services/Caja/Caja.service";
+import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 
 export class CajaController {
 
@@ -13,16 +14,25 @@ export class CajaController {
         }
     }
 
-    static getAllCajasSucursal = async (req: Request, res: Response) => {
-        try {
-            const { id_empre } = req.params;
-            const cajas = await CajaService.getAllCajasSucursal(id_empre);
-            res.status(200).json(cajas);
-        } catch (error) {
-            console.error(error);
-            res.status(500).json({ mensaje: "Error al encontrar las cajas de la sucursal." });
-        }
-    }
+static getAllCajasSucursal = async (req: Request, res: Response) => {
+  try {
+    const { id_empre } = req.params; 
+    const cajas = await CajaService.getAllCajasSucursal(String(id_empre));
+
+     const empresa = await Empresa_Sucursal.findByPk(String(id_empre), {
+          attributes: ["nom_empre"], 
+        });
+        const nombreEmpresa = empresa ? empresa.nom_empre : "Empresa desconocida";
+
+    res.status(200).json({
+     empresa: nombreEmpresa,
+      cajas
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensaje: "Error al encontrar las cajas de la sucursal." });
+  }    
+}
 
     static activarCaja = async (req: Request, res: Response) => {
         try {

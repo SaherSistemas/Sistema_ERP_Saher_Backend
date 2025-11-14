@@ -19,8 +19,8 @@ export type DetalleLookupInfo = {
 export type DetalleLookupMap = Map<string, DetalleLookupInfo>;
 
 export const VentaService = {
-  getAll: async () => {
-    return await VentaRepository.getAll();
+  getAll: async (id_caja: string) => {
+    return await VentaRepository.getAll(id_caja);
   },
 
   getById: async (id: string) => {
@@ -58,15 +58,16 @@ export const VentaService = {
         throw err;
       }
 
-
       console.log("UUID del empleado resuelto:", idEmpleadoUUID);
 
       // --- Crear la venta principal ---
       const venta = await VentaRepository.create(
         {
           id_cliente: data.id_cliente ?? null,
-          id_empleado: idEmpleadoUUID, // << usa el UUID real aquí
+          id_empleado: idEmpleadoUUID,
+          id_caja: data.id_caja,
           id_empre: data.id_empre,
+          total_venta: data.total_venta,
           tipo_venta: data.tipo_venta,
           status_venta: data.status_venta,
           detalle_venta: [],
@@ -74,7 +75,6 @@ export const VentaService = {
         },
         { transaction: t }
       );
-
 
       const id_venta = venta.id_venta;
 
@@ -84,7 +84,6 @@ export const VentaService = {
         fecha: new Date(),
         // canal: data.canal ?? "PDV",
       };
-
 
       const tempToDetalle: DetalleLookupMap = new Map();
 
@@ -97,8 +96,10 @@ export const VentaService = {
         );
 
         if (temp_line_id) {
-          const id_articulo = (colsDetalle as any).id_artic ?? (colsDetalle as any).id_articulo;
-          if (!id_articulo) throw new Error("Falta id_articulo en detalle_venta.");
+          const id_articulo =
+            (colsDetalle as any).id_artic ?? (colsDetalle as any).id_articulo;
+          if (!id_articulo)
+            throw new Error("Falta id_articulo en detalle_venta.");
 
           tempToDetalle.set(String(temp_line_id), {
             id_detalle_venta: detalle_venta.id_detalle_venta,
@@ -112,19 +113,20 @@ export const VentaService = {
         }
         let acumulado = 0;
 
-
-
         for (const lu of lote_usado) {
-          if (!lu.id_lote_sucursal) throw new Error("Falta id_lote_sucursal en lote_usado.");
-          if (lu.cantidad_utilizada == null || lu.cantidad_utilizada <= 0) throw new Error(
-            "cantidad_utilizada inválida en uno de los lotes usados."
-          );
-          const lote = await LotesArticuloSucursalRepository.findByPkInEmpresaArticulo(
-            lu.id_lote_sucursal,
-            data.id_empre,
-            colsDetalle.id_artic,
-            { transaction: t, lock: t.LOCK.UPDATE, skipLocked: false }
-          );
+          if (!lu.id_lote_sucursal)
+            throw new Error("Falta id_lote_sucursal en lote_usado.");
+          if (lu.cantidad_utilizada == null || lu.cantidad_utilizada <= 0)
+            throw new Error(
+              "cantidad_utilizada inválida en uno de los lotes usados."
+            );
+          const lote =
+            await LotesArticuloSucursalRepository.findByPkInEmpresaArticulo(
+              lu.id_lote_sucursal,
+              data.id_empre,
+              colsDetalle.id_artic,
+              { transaction: t, lock: t.LOCK.UPDATE, skipLocked: false }
+            );
           if (!lote) {
             throw new Error(
               "El lote no existe o no pertenece a esa empresa/artículo."
@@ -183,7 +185,11 @@ export const VentaService = {
 
       if (debeCrearReceta) {
         await RecetaMedicaService.createFromVenta(
-          { id_venta, recetaPayload: (data as any).recetaPayload, tempToDetalle },
+          {
+            id_venta,
+            recetaPayload: (data as any).recetaPayload,
+            tempToDetalle,
+          },
           { transaction: t }
         );
       }
