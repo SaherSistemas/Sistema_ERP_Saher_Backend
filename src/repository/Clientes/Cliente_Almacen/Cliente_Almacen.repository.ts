@@ -1,15 +1,20 @@
-import Cliente_Almacen from "../../../models/Clientes/Cliente_Almacen/Cliente_Almacen";
-import { v4 as uuidv4 } from "uuid";
-import { Op } from "sequelize";
-import { isUUID } from "../../../utils/validaciones";
-import { ICreateClienteAlmacen } from "../../../interface/Clientes/Cliente_Almacen/Cliente_Almacen.interface";
+import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
+import { v4 as uuidv4 } from 'uuid';
+import { Op } from 'sequelize';
+import { isUUID } from '../../../utils/validaciones';
+import { ICreateClienteAlmacen } from '../../../interface/Clientes/Cliente_Almacen/Cliente_Almacen.interface';
 export const Cliente_AlmacenRepository = {
-  getAll: async () => {
-    return await Cliente_Almacen.findAll();
+  getAllPaginado: async (limit: number, offset: number) => {
+    const { count, rows } = await Cliente_Almacen.findAndCountAll({
+      limit,
+      offset,
+      order: [['id_interno_cliente_alm', 'DESC']]
+    });
+    return { total: count, data: rows };
   },
   getAllByAgente: async (id_agente: string) => {
     return await Cliente_Almacen.findAll({
-      where: { id_agente_cliente_alm: id_agente },
+      where: { id_agente_cliente_alm: id_agente }
     });
   },
 
@@ -18,11 +23,11 @@ export const Cliente_AlmacenRepository = {
       where: {
         [Op.or]: [
           { razon_social_cliente_alm: { [Op.iLike]: `%${term_serch}%` } },
-          { nom_corto_cliente_alm: { [Op.iLike]: `%${term_serch}%` } },
-        ],
+          { nom_corto_cliente_alm: { [Op.iLike]: `%${term_serch}%` } }
+        ]
       },
       limit: 20,
-      order: [["razon_social_cliente_alm", "ASC"]],
+      order: [['razon_social_cliente_alm', 'ASC']]
     });
   },
 
@@ -32,8 +37,8 @@ export const Cliente_AlmacenRepository = {
     } else {
       return await Cliente_Almacen.findOne({
         where: {
-          id_interno_cliente_alm: id_cliente_alm,
-        },
+          id_interno_cliente_alm: id_cliente_alm
+        }
       });
     }
   },
@@ -43,7 +48,7 @@ export const Cliente_AlmacenRepository = {
 
     return await Cliente_Almacen.create({
       id_cliente_alm: nuevoUUID,
-      ...data,
+      ...data
     });
-  },
+  }
 };
