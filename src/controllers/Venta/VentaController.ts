@@ -4,8 +4,9 @@ import { VentaService } from "../../services/Venta/Venta.service";
 export class VentaController {
   static getAll = async (req: Request, res: Response) => {
     try {
-      const cajas = await VentaService.getAll();
-      res.status(200).json(cajas);
+      const { id_caja } = req.params;
+      const ventas = await VentaService.getAll(id_caja);
+      res.status(200).json(ventas);
     } catch (error) {
       console.error(error);
       res.status(500).json({ mensaje: "Error al encontrar todas las Ventas." });
@@ -32,7 +33,9 @@ export class VentaController {
       console.error("Error al crear venta:", e);
 
       if (e.status === 404) {
-        res.status(404).json({ message: e.message || "Empleado no encontrado" });
+        res
+          .status(404)
+          .json({ message: e.message || "Empleado no encontrado" });
       }
 
       if (e.status === 400) {
@@ -42,7 +45,6 @@ export class VentaController {
       res.status(500).json({ message: "Error interno del servidor" });
     }
   };
-
 
   static update = async (req: Request, res: Response) => {
     try {

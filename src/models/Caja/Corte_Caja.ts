@@ -1,6 +1,8 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, HasMany } from "sequelize-typescript";
 import Caja from "./Caja";
 import Empleado from "../Usuarios/Empleado/Empleado";
+import Movimiento_Caja from "./Movimiento_Caja";
+import Venta from "../Venta/Venta";
 
 @Table({
     tableName: "corte_caja"
@@ -26,7 +28,7 @@ class CorteCaja extends Model {
         type: DataType.UUID,
     })
     declare id_usuario_apertura: string;
-    @BelongsTo(() => Empleado, 'id_usuario_apertura')
+    @BelongsTo(() => Empleado)
     empleado_apertura: Empleado;
 
     @Column({
@@ -39,13 +41,18 @@ class CorteCaja extends Model {
         type: DataType.UUID,
     })
     declare id_usuario_cierre: string;
-    @BelongsTo(() => Empleado, 'id_usuario_cierre')
+    @BelongsTo(() => Empleado)
     empleado_cierre: Empleado;
 
     @Column({
         type: DataType.DATE,
     })
     declare fecha_cierre: Date;
+
+    @Column({
+        type: DataType.DECIMAL(10, 2),
+    })
+    declare monto_inicial: number;
 
     @Column({
         type: DataType.DECIMAL(10, 2),
@@ -57,10 +64,24 @@ class CorteCaja extends Model {
     })
     declare total_venta: number;
 
+    @Column({
+        type: DataType.DECIMAL(10, 2),
+    })
+    declare monto_declarado: number;
+
 
     @Column({
         type: DataType.BOOLEAN,
     })
     declare status_corte: boolean;
+
+
+    @HasMany(() => Movimiento_Caja)
+    declare movimientos?: Movimiento_Caja[];
+
+    @HasMany(() => Venta)
+    declare ventas?: Venta[];
+
+
 }
 export default CorteCaja;

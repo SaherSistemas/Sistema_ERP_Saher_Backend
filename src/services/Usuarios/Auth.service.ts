@@ -10,7 +10,7 @@ import jwt from "jsonwebtoken"
 
 export const AuthService = {
     createEmpleado: async (data: ICreateUsuario) => {
-        const empleado = await EmpleadoRepository.getByIdFlexible(data.id_referencia_persona)
+    const empleado = await EmpleadoRepository.getByIdFlexible(String(data.id_referencia_persona))
         if (!empleado) throw new Error("Empleado no encontrado")
         if (!isUUID(data.id_referencia_persona)) {
             data.id_referencia_persona = empleado.id_empleado

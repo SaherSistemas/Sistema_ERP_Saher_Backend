@@ -5,9 +5,9 @@ const router = Router();
 
 router.get('/:id_corte', CorteCajaController.getByID);
 router.get('/', CorteCajaController.getAll);
-router.post('/', CorteCajaController.create);
+router.post('/abrir/:id_caja', CorteCajaController.create);
+router.patch('/cerrar/:id_caja', CorteCajaController.update);
 router.get('/cantidad/:id_caja', CorteCajaController.getCantidadCortesPorCaja);
-router.patch('/cierre/:id_corte', CorteCajaController.updateCierreCorteCaja);
 
 export default router;
 

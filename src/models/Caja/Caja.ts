@@ -2,8 +2,7 @@ import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, Belongs
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 import Venta from "../Venta/Venta";
 import CorteCaja from "./Corte_Caja";
-import { MovimientoCajaController } from "../../controllers/Caja/Movimiento_CajaController";
-import Movimiento_Caja from "./Movimiento_Caja";
+
 
 
 @Table({
@@ -43,9 +42,7 @@ class Caja extends Model {
     @HasMany(() => CorteCaja)
     declare cortes?: CorteCaja[];
 
-    @HasMany(() => Movimiento_Caja)
-    declare movimientos?: Movimiento_Caja[];
-
+  
 
 }
 

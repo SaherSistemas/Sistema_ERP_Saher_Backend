@@ -1,4 +1,4 @@
-import { ICorteCaja, ICorteCajaCreate, ICorteCajaUpdate } from "../../interface/Caja/Corte_Caja.interface";
+import { ICorteCaja, ICreateOrUpdateCorteCaja } from "../../interface/Caja/Corte_Caja.interface";
 import { CorteCajaRepository } from "../../repository/Caja/Corte_Caja.repository";
 
 export const CorteCajaService = {
@@ -14,15 +14,13 @@ export const CorteCajaService = {
         return await CorteCajaRepository.getCantidadCortesPorCaja(id_caja);
     },
 
-    createCorteCaja: async (data: ICorteCajaCreate) => {
-        return await CorteCajaRepository.createCorteCaja(data);
+    createCorteCaja: async (id_caja : string, id_usuario_apertura: string, monto_inicial: number) => {
+        return await CorteCajaRepository.createCorteCaja(id_caja, id_usuario_apertura, monto_inicial);
     },
 
-    updateCorteCaja: async (id_corte: string, data: ICorteCaja) => {
-        return await CorteCajaRepository.updateCorteCaja(id_corte, data);
+    updateCorteCaja: async (id_caja: string, id_usuario_cierre: string, monto_declarado:number) => {
+        return await CorteCajaRepository.updateCorteCaja(id_caja, id_usuario_cierre, monto_declarado);
     },
 
-    updateCierreCorteCaja: async (id_corte: string, data: ICorteCajaUpdate) => {
-        return await CorteCajaRepository.updateCierreCorteCaja(id_corte, data);
-    }
+   
 };

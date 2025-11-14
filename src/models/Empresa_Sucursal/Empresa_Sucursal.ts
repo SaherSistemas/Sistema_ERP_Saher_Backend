@@ -38,17 +38,6 @@ class Empresa_Sucursal extends Model {
   })
   declare rfc_empre: string;
 
-  @ForeignKey(() => Caja)
-  @Column({
-    type: DataType.UUID,
-  })
-  declare id_caja: string;
-
-  @BelongsTo(() => Caja)
-  declare caja?: Caja;
-
-
-
   @Column({
     type: DataType.STRING(1),
     allowNull: false,
@@ -112,6 +101,11 @@ class Empresa_Sucursal extends Model {
 
   @HasMany(() => Asignacion_Empleado_Sucursal)
   declare asignaciones?: Asignacion_Empleado_Sucursal[];
+
+  @HasMany(() => Caja)
+  declare cajas?: Caja[];
+
+
 }
 
 export default Empresa_Sucursal;

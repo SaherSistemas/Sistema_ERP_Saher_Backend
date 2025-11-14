@@ -7,7 +7,6 @@ import Cat_Periodicidad_Pago from '../../Catalogos/Cat_Periodicidad_Pago';
 import Cat_Bancos from '../../Catalogos/Cat_Bancos';
 import Ciudad from '../../Ubicacion/Ciudad';
 import Empresa from '../../Empresa_Sucursal/Empresa_Sucursal';
-import Asignacion_Turno from '../../Calendario_Horario/Asignacion_Turno';
 import Presupuesto_Empleado from '../../Presupuestos/Presupuesto_Empleado';
 import Movimiento_Presupuesto from '../../Presupuestos/Movimiento_Presupuesto';
 import Asignacion_Empleado_Sucursal from '../../Presupuestos/Asignacion_Empleado_Sucursal';
