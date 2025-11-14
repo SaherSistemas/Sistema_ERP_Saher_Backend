@@ -8,9 +8,11 @@ import {
   Unique,
   BelongsTo,
   Default,
-  HasOne
+  HasOne,
+  HasMany
 } from 'sequelize-typescript';
 import Empleado from '../Empleado/Empleado';
+import Presupuesto_Agente from './Presupuesto_Agente/Presupuesto_Agente';
 
 @Table({
   tableName: 'agente_de_venta'
@@ -58,5 +60,8 @@ class Agente_de_Venta extends Model {
 
   @BelongsTo(() => Empleado)
   declare empleado: Empleado;
+
+  @HasMany(() => Presupuesto_Agente)
+  presupuestos: Presupuesto_Agente[];
 }
 export default Agente_de_Venta;

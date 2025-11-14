@@ -24,7 +24,6 @@ export interface IClienteAlmacen {
 }
 
 export interface ICreateClienteAlmacen {
-  id_interno_cliente_alm: number;
   razon_social_cliente_alm: string;
   nom_corto_cliente_alm: string;
   nombre_cliente_alm: string;

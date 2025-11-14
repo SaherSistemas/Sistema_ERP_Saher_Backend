@@ -2,50 +2,76 @@ import type { Request, Response } from 'express';
 import { Cliente_AlmacenService } from '../../../services/Clientes/Cliente_Almacen/cliente_Almacen.service';
 
 export class Cliente_AlmacenController {
+  // GET paginado
   static getAllPaginado = async (req: Request, res: Response) => {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
-      const clientes_almacen = await Cliente_AlmacenService.getAllPaginado(page, limit);
-      res.status(200).json(clientes_almacen);
+      const clientes = await Cliente_AlmacenService.getAllPaginado(page, limit);
+      res.status(200).json(clientes);
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ mensaje: 'Error al encontrar todos los clientes.' });
+      console.log(error);
+      res.status(500).json({ mensaje: 'Error al obtener clientes.' });
     }
   };
 
+  // GET por ID flexible
   static getByIDFlexible = async (req: Request, res: Response) => {
     try {
       const { id_cliente_alm } = req.params;
-
-      //console.log(identificador_cliente);
       const cliente = await Cliente_AlmacenService.getByIDFlexible(id_cliente_alm);
-      // console.log(cliente)
       res.status(200).json(cliente);
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ mensaje: 'Error al encontrar todos los clientes.' });
+      res.status(500).json({ mensaje: 'Error al obtener cliente.' });
     }
   };
 
+  // GET por término de búsqueda
   static getClienteByTermSearch = async (req: Request, res: Response) => {
     try {
       const { term_search } = req.params;
-      const clientesFiltro = await Cliente_AlmacenService.getClienteByTermSerch(term_search);
-      res.status(200).json(clientesFiltro);
+      const clientes = await Cliente_AlmacenService.getClienteByTermSerch(term_search);
+      res.status(200).json(clientes);
     } catch (error) {
-      //console.error(error);
-      res.status(500).json({ mensaje: 'Error al encontrar los clientes por filtro.' });
+      res.status(500).json({ mensaje: 'Error al buscar clientes.' });
     }
   };
 
+  // GET por agente
   static getAllByAgente = async (req: Request, res: Response) => {
     try {
       const { id_agente } = req.params;
-      const clientesDeAgente = await Cliente_AlmacenService.getAllByAgente(id_agente);
-      res.status(200).json(clientesDeAgente);
+      const clientes = await Cliente_AlmacenService.getAllByAgente(id_agente);
+      res.status(200).json(clientes);
     } catch (error) {
-      res.status(500).json({ mensaje: 'Error al encontrar a los clientes del agente.' });
+      res.status(500).json({ mensaje: 'Error al obtener clientes del agente.' });
+    }
+  };
+
+  // POST crear
+  static create = async (req: Request, res: Response) => {
+    try {
+      const data = req.body;
+      const nuevo = await Cliente_AlmacenService.create(data);
+      res.status(201).json(nuevo);
+    } catch (error) {
+      res.status(500).json({ mensaje: 'Error al crear cliente.' });
+    }
+  };
+
+  // PUT actualizar
+  static update = async (req: Request, res: Response) => {
+    try {
+      const { id_cliente_alm } = req.params;
+      const data = req.body;
+
+      const actualizado = await Cliente_AlmacenService.update(id_cliente_alm, data);
+
+      if (!actualizado) res.status(404).json({ mensaje: 'No existe el cliente.' });
+
+      res.status(200).json(actualizado);
+    } catch (error) {
+      res.status(500).json({ mensaje: 'Error al actualizar cliente.' });
     }
   };
 }

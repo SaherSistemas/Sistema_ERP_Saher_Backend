@@ -24,7 +24,9 @@ import authRouter from './Usuarios/AuthRouter';
 import permisoRouter from './Usuarios/PermisoRouter';
 import permisoRolRouter from './Usuarios/Permiso_RolRouter';
 
-import agenteRouter from './Usuarios/Agente_De_Venta/AgenteRouterController';
+import agenteRouter from './Usuarios/Agente_De_Venta/AgenteRouter';
+import Presupuesto_AgenteRouter from './Usuarios/Agente_De_Venta/Presupuesto_AgenteRouter';
+import PrioridadAgenteRouter from './Usuarios/Agente_De_Venta/PrioridadAgenteReglasRouter';
 
 import cat_Regimen_fiscalRouter from './Catalogos/Cat_Regimen_FiscalRouter';
 import cat_Tipo_ContratoRouter from './Catalogos/Cat_Tipo_ContratoRouter';
@@ -136,7 +138,11 @@ router.use('/cat_bancos', cat_BancoRouter);
 router.use('/empleado', empleadoRouter);
 router.use('/rol', rolRouter);
 router.use('/usuario', usuarioRouter);
+
 router.use('/agente', agenteRouter);
+router.use('/presupuesto_agente', Presupuesto_AgenteRouter);
+router.use('/prioridad_agente', PrioridadAgenteRouter);
+
 router.use('/permiso', permisoRouter);
 router.use('/permiso_rol', permisoRolRouter);
 router.use('/auth', authLimiter, authRouter);
