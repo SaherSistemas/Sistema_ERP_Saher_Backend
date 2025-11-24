@@ -1,5 +1,8 @@
 import { ICreateClienteAlmacen } from '../../../interface/Clientes/Cliente_Almacen/Cliente_Almacen.interface';
 import { Cliente_AlmacenRepository } from '../../../repository/Clientes/Cliente_Almacen/Cliente_Almacen.repository';
+import { AgenteRepository } from '../../../repository/Usuarios/Agente_De_Ventas/Agente.repository';
+import { EmpleadoRepository } from '../../../repository/Usuarios/Empleado.repository';
+import { UsuarioRepository } from '../../../repository/Usuarios/Usuario.repository';
 
 export const Cliente_AlmacenService = {
   getAllPaginado: async (page: number, limit: number) => {
@@ -7,8 +10,24 @@ export const Cliente_AlmacenService = {
     return await Cliente_AlmacenRepository.getAllPaginado(limit, offset);
   },
 
-  getAllByAgente: async (id_agente: string) => {
-    return await Cliente_AlmacenRepository.getAllByAgente(id_agente);
+  getAllByUsuarioAgente: async (params: {
+    id_empleado: string;
+    page: number;
+    limit: number;
+    nombre: string;
+    estado: string;
+  }) => {
+    const agente = await AgenteRepository.getByIdEmpleado(params.id_empleado);
+    // console.log('AGENTE');
+    //console.log(agente);
+    const newParams = {
+      id_agente: agente.id_agente, // el que necesita el repository
+      page: params.page,
+      limit: params.limit,
+      nombre: params.nombre,
+      estado: params.estado
+    };
+    return await Cliente_AlmacenRepository.getAllByAgente(newParams);
   },
 
   getClienteByTermSerch: async (term_serch: string) => {
@@ -26,6 +45,7 @@ export const Cliente_AlmacenService = {
   update: async (id: string, data: Partial<ICreateClienteAlmacen>) => {
     return await Cliente_AlmacenRepository.update(id, data);
   },
-
-
+  getUltimoID: async () => {
+    return await Cliente_AlmacenRepository.ultimoIdInterno();
+  }
 };

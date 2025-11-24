@@ -9,10 +9,12 @@ import {
   BelongsTo,
   Default,
   HasOne,
-  HasMany
+  HasMany,
+  AllowNull
 } from 'sequelize-typescript';
 import Empleado from '../Empleado/Empleado';
 import Presupuesto_Agente from './Presupuesto_Agente/Presupuesto_Agente';
+import { UUID } from 'crypto';
 
 @Table({
   tableName: 'agente_de_venta'
@@ -51,11 +53,17 @@ class Agente_de_Venta extends Model {
   })
   declare comision_agente: number;
 
+  @Default(true)
   @Column({
     type: DataType.BOOLEAN
   })
   declare estatus_agente: boolean;
 
+  @AllowNull(true)
+  @Column({
+    type: DataType.UUID
+  })
+  declare id_bodega_local: string | null;
   //BELONGS TO
 
   @BelongsTo(() => Empleado)

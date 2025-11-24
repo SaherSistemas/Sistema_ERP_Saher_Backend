@@ -10,6 +10,7 @@ export const UsuarioRepository = {
         // console.log(user)
         return user;
     },
+   
     usuarioPorUser: async (username: string) => {
         const user = await Usuario.findOne({ where: { username } });
         return user || null;

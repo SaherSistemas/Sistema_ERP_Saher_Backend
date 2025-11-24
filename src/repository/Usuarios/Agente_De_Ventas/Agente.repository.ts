@@ -15,6 +15,14 @@ export const AgenteRepository = {
   getByID: async (id_agente: string) => {
     return await Agente_de_Venta.findByPk(id_agente);
   },
+  getByIdEmpleado: async (id_empleado: string) => {
+    return await Agente_de_Venta.findOne({
+      where: {
+        id_empleado
+      }
+    });
+  },
+
   createAgente: async (data: IAgenteDeVentaCreate) => {
     const nuevoUUID = uuidv4();
     return await Agente_de_Venta.create({

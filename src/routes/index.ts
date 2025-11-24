@@ -34,6 +34,11 @@ import cat_Tipo_JornadaRouter from './Catalogos/Cat_Tipo_JornadaRouter';
 import cat_Periodicidad_PagoRouter from './Catalogos/Cat_Periodicidad_PagoRouter';
 import cat_BancoRouter from './Catalogos/Cat_BancoRouter';
 import cat_RiesgoPuestoRouter from './Catalogos/Cat_Riesgo_Puesto';
+import cat_forma_de_pagoRouter from './Catalogos/Cat_Forma_De_PagoRouter';
+import cat_uso_CFDIRouter from './Catalogos/Cat_Uso_CFDIRouter';
+import cat_metodo_pagoRouter from './Catalogos/Cat_Metodo_De_PagoRouter';
+
+import catalogosRouter from './Catalogos/CatalagosRouter';
 
 import tipoIVARouter from './Articulos/Tipo_IVARouter';
 
@@ -63,7 +68,6 @@ import ProyecionRouter from './PROYECCION/ProyecionRouter';
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter';
 
 //Clientes
-import ClienteRouter from './Clientes/ClienteRouter';
 import ClienteMostradorRouter from './Clientes/ClienteRouter';
 import TipoClienteRouter from './Clientes/TipoClienteRouter';
 import BeneficioClienteRouter from './Clientes/BeneficioClienteRouter';
@@ -133,7 +137,11 @@ router.use('/cat_tipo_jornada', cat_Tipo_JornadaRouter);
 router.use('/cat_periodicidad_pago', cat_Periodicidad_PagoRouter);
 router.use('/cat_riesgo_puesto', cat_RiesgoPuestoRouter);
 router.use('/cat_bancos', cat_BancoRouter);
+router.use('/cat_forma_de_pago', cat_forma_de_pagoRouter);
+router.use('/cat_usoCFDI', cat_uso_CFDIRouter);
+router.use('/cat_metodo_de_pago', cat_metodo_pagoRouter);
 
+router.use('/catalogos', catalogosRouter);
 //Usuario
 router.use('/empleado', empleadoRouter);
 router.use('/rol', rolRouter);
@@ -175,7 +183,9 @@ router.use('/lotes_solicitados', lotesSolicitadoRouter);
 
 // CLIENTES
 
-router.use('/cliente', ClienteRouter);
+
+router.use('/cliente', ClienteMostradorRouter);
+router.use('/cliente_almacen', Cliente_AlmacenRouter);
 router.use('/tipo_cliente', TipoClienteRouter);
 router.use('/beneficio', BeneficioClienteRouter);
 
@@ -231,7 +241,5 @@ router.use('/nota_credito', notaCreditoRouter);
 router.use('/dashboard', Dash_ComprasRouter);
 
 router.use('/proyeccion', ProyecionRouter);
-
-router.use('/cliente_almacen', Cliente_AlmacenRouter);
 //router.use('/uploads/factura', uploadsRouter)
 export default router;

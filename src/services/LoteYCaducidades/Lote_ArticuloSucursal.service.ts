@@ -1,9 +1,9 @@
 import {
   ILotesArticuloSucursal,
-  ICreaterOrUdateLotesArticuloSucursal,
-} from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
-import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
-import { Op } from "sequelize";
+  ICreaterOrUdateLotesArticuloSucursal
+} from '../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface';
+import { LotesArticuloSucursalRepository } from '../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository';
+import { Op } from 'sequelize';
 
 export const LotesArticuloSucursalService = {
   getAll: async (): Promise<ILotesArticuloSucursal[]> => {
@@ -11,14 +11,11 @@ export const LotesArticuloSucursalService = {
   },
   getById: async (id: string): Promise<ILotesArticuloSucursal> => {
     const loteartic = await LotesArticuloSucursalRepository.getById(id);
-    if (!loteartic) throw new Error("Lote Articulo Sucursal no enocontrado");
+    if (!loteartic) throw new Error('Lote Articulo Sucursal no enocontrado');
     return loteartic;
   },
-  getLotesPorCodigoBarra: async (id_empresa:string, cod_barr_artic: string) => {
-    return await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(
-      id_empresa,
-      cod_barr_artic
-    );
+  getLotesPorCodigoBarra: async (id_empresa: string, cod_barr_artic: string) => {
+    return await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(id_empresa, cod_barr_artic);
   },
   getAllByEmpresaArticulo: async (
     id_empre: string,
@@ -27,11 +24,11 @@ export const LotesArticuloSucursalService = {
       conStock?: boolean;
       estado?: string;
       noVencidos?: boolean;
-      ordenar?: "fefo" | "fifo" | "recientes";
+      ordenar?: 'fefo' | 'fifo' | 'recientes';
     }
   ) => {
     if (!id_empre || !id_artic) {
-      throw new Error("Faltan id_empre o id_artic");
+      throw new Error('Faltan id_empre o id_artic');
     }
 
     const where: any = { id_empre, id_artic };
@@ -46,30 +43,26 @@ export const LotesArticuloSucursalService = {
       where.fecha_venci_lote_sucursal = { [Op.gte]: new Date() };
     }
 
-    let order: any[] = [["fecha_venci_lote_sucursal", "ASC"]];
-    if (opts?.ordenar === "fifo") order = [["createdAt", "ASC"]];
-    if (opts?.ordenar === "recientes") order = [["createdAt", "DESC"]];
+    let order: any[] = [['fecha_venci_lote_sucursal', 'ASC']];
+    if (opts?.ordenar === 'fifo') order = [['createdAt', 'ASC']];
+    if (opts?.ordenar === 'recientes') order = [['createdAt', 'DESC']];
 
-    return await LotesArticuloSucursalRepository.listByEmpresaArticulo(
-      id_empre,
-      id_artic,
-      {
-        where,
-        order,
-      }
-    );
+    return await LotesArticuloSucursalRepository.listByEmpresaArticulo(id_empre, id_artic, {
+      where,
+      order
+    });
   },
-  // repartirCantidadEntreLotes: async (
-  //   cod_barr_artic: string,
-  //   cantidadSolicitada: number
-  // ) => {
-  //   return await LotesArticuloSucursalRepository.repartirCantidadEntreLotes(
-  //     cod_barr_artic,
-  //     cantidadSolicitada
-  //   );
-  // },
+
+  getResumen: async (filters: {
+    nombre: string;
+    id_sucursal: string;
+    grupoPrecio: string;
+    page: number;
+    limit: number;
+  }) => {
+    return await LotesArticuloSucursalRepository.getResumen(filters);
+  },
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     return LotesArticuloSucursalRepository.create(data);
   }
-
 };

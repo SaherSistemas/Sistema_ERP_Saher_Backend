@@ -12,4 +12,5 @@ export interface IAgenteDeVentaCreate {
   id_empleado: string;
   cod_identi_agente: string;
   comision_agente: number;
+  id_bodega_local: string;
 }

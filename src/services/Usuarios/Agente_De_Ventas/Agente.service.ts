@@ -18,6 +18,10 @@ export const AgenteService = {
       if (!empleado) throw new Error('El empleado proporcionado no existe');
       data.id_empleado = empleado.id_empleado;
     }
+    if (data.id_bodega_local === '' || data.id_bodega_local === undefined) {
+      data.id_bodega_local = null;
+    }
+
     return await AgenteRepository.createAgente(data);
   },
   updateAgente: async (id: string, data: IAgenteDeVentaCreate) => {

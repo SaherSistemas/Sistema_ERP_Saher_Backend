@@ -31,12 +31,44 @@ export const Cliente_AlmacenRepository = {
   },
 
   // POR AGENTE
-  getAllByAgente: async (id_agente: string) => {
-    return await Cliente_Almacen.findAll({
-      where: { id_agente_cliente_alm: id_agente }
-    });
-  },
+  getAllByAgente: async ({ id_agente, page, limit, nombre, estado }) => {
+    const offset = (page - 1) * limit;
 
+    const where: any = {
+      id_agente_cliente_alm: id_agente
+    };
+
+    if (nombre && nombre.trim() !== '') {
+      const term = `%${nombre.trim()}%`;
+
+      where[Op.or] = [
+        { nombre_cliente_alm: { [Op.iLike]: term } },
+        { razon_social_cliente_alm: { [Op.iLike]: term } },
+        { num_telefono_cliente_alm: { [Op.iLike]: term } },
+        { rfc_cliente_alm: { [Op.iLike]: term } }
+      ];
+    }
+
+    if (estado === 'A') {
+      where.activo_cliente_alm = true;
+    } else if (estado === 'L') {
+      where.activo_cliente_alm = false;
+    }
+
+    const { rows, count } = await Cliente_Almacen.findAndCountAll({
+      where,
+      limit,
+      offset,
+      order: [['createdAt', 'DESC']]
+    });
+
+    return {
+      items: rows,
+      totalItems: count,
+      page,
+      totalPages: Math.ceil(count / limit)
+    };
+  },
   // BUSCAR POR TERMINO
   getClienteByTermSerch: async (term_serch: string) => {
     return await Cliente_Almacen.findAll({
@@ -75,7 +107,7 @@ export const Cliente_AlmacenRepository = {
     const siguienteIdInterno = await Cliente_AlmacenRepository.ultimoIdInterno();
     const sig = siguienteIdInterno + 1;
     return await Cliente_Almacen.create({
-      id_ciente_alm: newUUID,
+      id_cliente_alm: newUUID,
       id_interno_cliente_alm: sig,
       ...data
     });

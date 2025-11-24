@@ -1,5 +1,5 @@
-import type { Request, Response } from "express";
-import { LotesArticuloSucursalService } from "../../services/LoteYCaducidades/Lote_ArticuloSucursal.service";
+import type { Request, Response } from 'express';
+import { LotesArticuloSucursalService } from '../../services/LoteYCaducidades/Lote_ArticuloSucursal.service';
 
 export class LotesArticuloSucursalController {
   static getAll = async (req: Request, res: Response) => {
@@ -8,11 +8,9 @@ export class LotesArticuloSucursalController {
       res.status(200).json(cajas);
     } catch (error) {
       console.error(error);
-      res
-        .status(500)
-        .json({
-          mensaje: "Error al encontrar todas los Lotes Articulo sucursal.",
-        });
+      res.status(500).json({
+        mensaje: 'Error al encontrar todas los Lotes Articulo sucursal.'
+      });
     }
   };
 
@@ -20,16 +18,17 @@ export class LotesArticuloSucursalController {
     try {
       const { id_empre, id_artic } = req.params;
 
-      const conStock = String(req.query.conStock ?? "false").toLowerCase() === "true";
-      const noVencidos = String(req.query.noVencidos ?? "false").toLowerCase() === "true";
+      const conStock = String(req.query.conStock ?? 'false').toLowerCase() === 'true';
+      const noVencidos = String(req.query.noVencidos ?? 'false').toLowerCase() === 'true';
       const estado = req.query.estado ? String(req.query.estado) : undefined;
-      const ordenar = (req.query.ordenar as "fefo" | "fifo" | "recientes") || "fefo";
+      const ordenar = (req.query.ordenar as 'fefo' | 'fifo' | 'recientes') || 'fefo';
 
-      const lotes = await LotesArticuloSucursalService.getAllByEmpresaArticulo(
-        id_empre,
-        id_artic,
-        { conStock, estado, noVencidos, ordenar }
-      );
+      const lotes = await LotesArticuloSucursalService.getAllByEmpresaArticulo(id_empre, id_artic, {
+        conStock,
+        estado,
+        noVencidos,
+        ordenar
+      });
 
       res.status(200).json(lotes);
     } catch (error: any) {
@@ -41,7 +40,6 @@ export class LotesArticuloSucursalController {
     }
   };
 
-
   static getByID = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -49,9 +47,7 @@ export class LotesArticuloSucursalController {
       res.status(200).json(caja);
     } catch (error) {
       console.error(error);
-      res
-        .status(500)
-        .json({ mensaje: "Error al encontrar Lotes Articulo sucursal." });
+      res.status(500).json({ mensaje: 'Error al encontrar Lotes Articulo sucursal.' });
     }
   };
   static getLotesPorCodigoBarra = async (req: Request, res: Response) => {
@@ -62,15 +58,33 @@ export class LotesArticuloSucursalController {
         cod_barr_artic
       );
       res.status(200).json({
-        cantidad: lotes,
+        cantidad: lotes
       });
     } catch (error) {
-      console.error("Error en getLotesPorCodigoBarra:", error);
-      res
-        .status(500)
-        .json({ mensaje: "Error al obtener la cantidad de lotes por codigo." });
+      console.error('Error en getLotesPorCodigoBarra:', error);
+      res.status(500).json({ mensaje: 'Error al obtener la cantidad de lotes por codigo.' });
     }
   };
+
+  static getResumenLotes = async (req: Request, res: Response) => {
+    try {
+      const { nombre, grupoPrecio, id_sucursal, page, limit } = req.query;
+      console.log(nombre);
+      const data = await LotesArticuloSucursalService.getResumen({
+        nombre: nombre.toString(),
+        grupoPrecio: grupoPrecio?.toString(),
+        id_sucursal: id_sucursal.toString(),
+        page: Number(page),
+        limit: Number(limit)
+      });
+
+      res.status(200).json(data);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ mensaje: 'Error al obtener resumen de lotes' });
+    }
+  };
+
   // static repartirCantidadEntreLotes = async (req: Request, res: Response) => {
   //   try {
   //     const { cod_barr_artic } = req.params;
@@ -103,12 +117,9 @@ export class LotesArticuloSucursalController {
       res.status(201).json(nuevoLote);
     } catch (error) {
       console.error(error);
-      res
-        .status(500)
-        .json({ mensaje: "Error al crear Lotes Articulo sucursal." });
+      res.status(500).json({ mensaje: 'Error al crear Lotes Articulo sucursal.' });
     }
   };
-
 
   /*
     static updateByID = async (req: Request, res: Response) => {

@@ -1,11 +1,13 @@
-import { ICreateOrUpdateIDetalleListaPrecio, IDetalleListaDePrecio } from "../../../interface/Articulos/Lista_Precios/Detalle_Lista_Pecios.interface";
-import DetalleListaPrecio from "../../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio";
-import { v4 as uuidv4 } from "uuid";
-import ListaPrecio from "../../../models/Costo_Y_Precio/Lista_Precios/Lista_Precio";
-import { Transaction } from "sequelize"; // Asegúrate de importar Transaction
+import {
+  ICreateOrUpdateIDetalleListaPrecio,
+  IDetalleListaDePrecio
+} from '../../../interface/Articulos/Lista_Precios/Detalle_Lista_Pecios.interface';
+import DetalleListaPrecio from '../../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio';
+import { v4 as uuidv4 } from 'uuid';
+import ListaPrecio from '../../../models/Costo_Y_Precio/Lista_Precios/Lista_Precio';
+import { Transaction } from 'sequelize'; // Asegúrate de importar Transaction
 
 export const DetalleListaPreciosRepository = {
-
   getAll: async () => {
     return await DetalleListaPrecio.findAll({
       include: [
@@ -21,14 +23,21 @@ export const DetalleListaPreciosRepository = {
     return await DetalleListaPrecio.findByPk(id);
   },
 
+  getByArticulo: async (id_artic: string, id_lista_precio: string) => {
+    return await DetalleListaPrecio.findOne({
+      where: {
+        id_lista_precio,
+        id_artic
+      }
+    });
+  },
 
   create: async (data: ICreateOrUpdateIDetalleListaPrecio) => {
     const nuevoUUID = uuidv4();
 
-
     return await DetalleListaPrecio.create({
       id_detalle_lista_precio: nuevoUUID,
-      ...data,
+      ...data
     });
   },
 
@@ -51,7 +60,5 @@ export const DetalleListaPreciosRepository = {
     }
 
     return registro;
-  },
-
-
+  }
 };
