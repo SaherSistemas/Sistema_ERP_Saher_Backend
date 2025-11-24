@@ -13,7 +13,7 @@ import {
 import Venta from "./Venta";
 import Metodo_de_Pago from "../Caja/Metodo_de_Pago";
 
-@Table({ 
+@Table({
   tableName: "venta_pago"
 
 })
@@ -33,12 +33,11 @@ class Venta_Pago extends Model {
   venta: Venta;
 
   @ForeignKey(() => Metodo_de_Pago)
-  @Column({
-    type: DataType.UUID,
-  })
+  @Column(DataType.UUID)
   declare id_metodo_pago: string;
-  @BelongsTo(() => Metodo_de_Pago, { as: "metodo_pago" })
-  metodo_pago: Metodo_de_Pago;
+
+  @BelongsTo(() => Metodo_de_Pago)
+  declare metodo_pago: Metodo_de_Pago;
 
   @Column({
     type: DataType.DECIMAL(12, 2),

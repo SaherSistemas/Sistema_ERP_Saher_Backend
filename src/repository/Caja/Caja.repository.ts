@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 import { get } from "http";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 import Corte_Caja from "../../models/Caja/Corte_Caja";
+import { Transaction } from "sequelize";
 
 export const CajaRepository = {
   getAll: async () => {
@@ -60,23 +61,23 @@ export const CajaRepository = {
     );
   },
 
-  getByIDFlexible: async (id_caja: string) => {
-    if (isUUID(id_caja)) {
-      return await Caja.findByPk(id_caja);
-    } else {
-      return await Caja.findOne({
-        where: {
-          nombre_caja: id_caja,
-        },
-      });
-    }
-  },
-
-  getCantidadCajasPorSucursal: async (id_empre: string) => {
-    return await Caja.count({
-      where: { id_empre },
+  getByIDFlexible: async (id_caja: string, options?: { transaction?: Transaction }) => {
+  if (isUUID(id_caja)) {
+    return await Caja.findByPk(id_caja);
+  } else {
+    return await Caja.findOne({
+      where: {
+        nombre_caja: id_caja,
+      },
     });
-  },
+  }
+},
+
+getCantidadCajasPorSucursal: async (id_empre: string) => {
+  return await Caja.count({
+    where: { id_empre },
+  });
+},
 
   createCaja: async (data: ICaja) => {
     return await Caja.create({
@@ -85,9 +86,9 @@ export const CajaRepository = {
     });
   },
 
-  updateCaja: async (id_caja: string, data: ICaja) => {
-    return await Caja.update(data, {
-      where: { id_caja },
-    });
-  },
+    updateCaja: async (id_caja: string, data: ICaja) => {
+      return await Caja.update(data, {
+        where: { id_caja },
+      });
+    },
 };

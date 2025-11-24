@@ -7,10 +7,8 @@ import {
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from "uuid";
 import LoteUsadoVenta from "../../models/LotesYCaducidad/Lote_Usado_Venta";
-import { LoteUsadoVentaRepository } from "../LotesYCaducidad/Lote_Usado_Venta.repository";
 import Articulo from "../../models/Articulos/Articulo";
 import { CreateOptions, Transaction } from "sequelize";
-import { DetalleVentaService } from "../../services/Venta/Detalle_Venta.service";
 
 export const DetalleVentaRepository = {
   getAll: async () => {
@@ -21,6 +19,8 @@ export const DetalleVentaRepository = {
       ],
     });
   },
+
+  
 
   getById: async (id_detalle_venta: string) => {
     if (isUUID(id_detalle_venta)) {

@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import { MonederoService } from "../../../services/Clientes/Monedero/Monedero.service";
-import { MonederoRepository } from "../../../repository/Clientes/Monedero/Monedero.repository";
 
 export class MonederoController {
   static getAll = async (req: Request, res: Response) => {
@@ -17,16 +16,26 @@ export class MonederoController {
 
   static getByID = async (req: Request, res: Response) => {
     try {
-      const { id_monedero } = req.params;
-      //console.log(id_monedero);
-      const monedero = await MonederoService.getByIDFlexible(id_monedero);
-      // console.log(cliente)
+      const { telefono } = req.params;
+      const monedero = await MonederoService.getByTelefono(telefono);
+
+      if (!monedero) {
+        res.status(404).json({
+          mensaje: "Monedero no encontrado"
+        });
+      }
+
       res.status(200).json(monedero);
+
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ mensaje: "Error al encontrar todos monederos." });
+      console.error("Error en getByID:", error);
+      res.status(500).json({
+        mensaje: "Error al obtener monedero"
+      });
     }
   };
+
+
   static create = async (req: Request, res: Response) => {
     try {
       const data = req.body;

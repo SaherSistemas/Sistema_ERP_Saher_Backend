@@ -16,7 +16,9 @@ export interface IVenta {
   total_venta: number;
   tipo_venta: string;
   id_metodo_pago: string;
-  status_venta: string;
+  status_venta: "CONFIRMADA" | "PENDIENTE" | "CANCELADA";
+  motivo_cancelacion?: string | null;
+  fecha_cancelacion?: Date | null;
   detalle_venta: IDetalleVenta[];
   venta_pago: ICreateOrUpdateVentaPago[];
 }
@@ -30,16 +32,20 @@ export interface ICreateOrUpdateVenta {
   total_venta: number;
   tipo_venta: string;
   id_metodo_pago: string;
-  status_venta?: string;
+  status_venta: "CONFIRMADA" | "PENDIENTE" | "CANCELADA";
+  motivo_cancelacion?: string | null;
+  fecha_cancelacion?: Date | null;
   detalle_venta: IDetalleVenta[];
   venta_pago: IVentaPagoInput[];
 }
 
 export interface IVentaInput {
+
   id_cliente?: string;
   id_empleado?: string;
   id_empre: string;
   id_caja: string;
+  id_corte: string | null;
   total_venta: number;
   tipo_venta: string;
   status_venta: "CONFIRMADA" | "PENDIENTE" | "CANCELADA";

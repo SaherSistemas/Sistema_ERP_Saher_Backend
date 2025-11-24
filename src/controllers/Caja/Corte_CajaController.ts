@@ -14,6 +14,28 @@ export class CorteCajaController {
     }
   };
 
+
+  static getTotalCaja = async (req: Request, res: Response) => {
+    try {
+      const { id_corte } = req.params;
+
+      if (!id_corte) {
+        res.status(400).json({ mensaje: "id_corte es requerido." });
+      }
+
+      const total = await CorteCajaService.calcularTotalCaja(id_corte);
+
+      res.status(200).json({ total });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({
+        mensaje: "Error al obtener el total de la caja",
+        error: error.message,
+      });
+    }
+  };
+
+
   static getByID = async (req: Request, res: Response) => {
     try {
       const { id_corte } = req.params;
@@ -44,10 +66,11 @@ export class CorteCajaController {
     try {
       const { id_caja } = req.params;
       const { id_usuario_apertura, monto_inicial } = req.body;
-      const nuevoCorte = await CorteCajaService.createCorteCaja(
+      const nuevoCorte = await CorteCajaService.createCorteCaja({
         id_caja,
         id_usuario_apertura,
         monto_inicial
+      }
       );
       res.status(200).json(nuevoCorte);
     } catch (error) {

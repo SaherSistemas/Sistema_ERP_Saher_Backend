@@ -176,7 +176,6 @@ router.use('/lotes_solicitados', lotesSolicitadoRouter);
 // CLIENTES
 
 router.use('/cliente', ClienteRouter);
-router.use('/cliente', ClienteMostradorRouter);
 router.use('/tipo_cliente', TipoClienteRouter);
 router.use('/beneficio', BeneficioClienteRouter);
 
@@ -193,6 +192,9 @@ router.use('/movimiento_caja', Movimiento_CajaRouter);
 router.use('/parametro_caja', ParametroCajaRouter);
 router.use('/caja', CajaRouter);
 router.use('/corte_caja', Corte_CajaRouter);
+
+router.use('/movimiento_caja', Movimiento_CajaRouter);
+
 
 //Stock
 router.use('/stock', Stock_SucursalRouter);

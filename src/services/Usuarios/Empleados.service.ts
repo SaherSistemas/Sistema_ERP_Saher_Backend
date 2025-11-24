@@ -3,11 +3,32 @@ import { EmpleadoRepository, } from "../../repository/Usuarios/Empleado.reposito
 import { v4 as uuidv4 } from 'uuid'
 import { isUUID } from "../../utils/validaciones";
 import { CiudadRepository } from "../../repository/Lugares/Ciudad.repository";
+import { Transaction } from "sequelize";
 
 export const EmpleadoService = {
     getAllEmpleados: async (page: number = 1, limit: number, query: string = '') => {
         return await EmpleadoRepository.getAll(page, limit, query);
     },
+
+    async obtenerEmpleado(id_empleado: string | number, t?: Transaction) {
+
+        if (!id_empleado) {
+            throw new Error("id_empleado no enviado en la venta.");
+        }
+
+        const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado, {
+            transaction: t
+        });
+
+        if (!empleado) {
+            const err = new Error("Empleado no encontrado.");
+            (err as any).status = 404;
+            throw err;
+        }
+
+        return empleado;
+    },
+
     getEmpledoById: async (id: string): Promise<IEmpleado> => {
         const empleado = await EmpleadoRepository.getByIdFlexible(id)
         if (!empleado) throw new Error("Empleado no enocontrado")

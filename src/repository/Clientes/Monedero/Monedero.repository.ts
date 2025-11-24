@@ -1,11 +1,9 @@
-import { UUID } from "crypto";
 import MonederoCliente from "../../../models/Clientes/Monedero/Monedero";
 import {
-  IMonedero,
   ICreateOrUpdateMonedero,
 } from "../../../interface/Clientes/Monedero/Modenero.interface";
 import { v4 as uuidv4 } from "uuid";
-import { Op, literal } from "sequelize";
+import { Op, Transaction, literal } from "sequelize";
 import { isUUID } from "../../../utils/validaciones";
 import Cliente from "../../../models/Clientes/Cliente";
 
@@ -18,34 +16,53 @@ export const MonederoRepository = {
     return await MonederoCliente.findOne({ where: { id_cliente } });
   },
 
-  getByIDFlexible: async (id_monedero: string) => {
-    if (isUUID(id_monedero)) {
-      return await MonederoCliente.findByPk(id_monedero);
-    } else {
-      return await MonederoCliente.findAll({
-        where: {
-          [Op.or]: [{ id_cliente: id_monedero }],
-        },
-      });
+  getByTelefono: async (telefono: string) => {
+    if (!telefono || telefono.trim() === "") {
+      return null;
     }
+    const cliente = await Cliente.findOne({
+      where: { telefono_cliente: telefono },
+      attributes: ["id_cliente", "nombre_cliente", "telefono_cliente"],
+    });
+
+    if (!cliente) {
+      return null;
+    }
+
+    const monedero = await MonederoCliente.findOne({
+      where: { id_cliente: cliente.id_cliente }
+    });
+
+    return {
+      cliente,
+      monedero
+    };
   },
-  createMonedero: async (data: ICreateOrUpdateMonedero) => {
-    const clienteExiste = await Cliente.findByPk(data.id_cliente?.trim());
-    if (!clienteExiste) {
-      throw new Error("El cliente no existe");
-    }
+
+
+  createMonedero: async (
+    data: ICreateOrUpdateMonedero,
+    options?: { transaction?: Transaction }
+  ) => {
+
     if (!data.fecha_creacion || !data.fecha_expiro) {
       throw new Error("Fechas incompletas para crear el monedero.");
     }
 
-    return await MonederoCliente.create({
-      id_monedero: uuidv4(),
-      saldo_monedero: 0,
-      id_cliente: data.id_cliente.trim(),
-      fecha_creacion: new Date(data.fecha_creacion),
-      fecha_expiro: new Date(data.fecha_expiro),
-    });
+    return await MonederoCliente.create(
+      {
+        id_monedero: uuidv4(),
+        saldo_monedero: 0,
+        id_cliente: data.id_cliente.trim(),
+        fecha_creacion: new Date(data.fecha_creacion),
+        fecha_expiro: new Date(data.fecha_expiro),
+      },
+      {
+        transaction: options?.transaction
+      }
+    );
   },
+
 
   deleteMonedero: async (id_monedero: string) => {
     if (!isUUID(id_monedero)) {
@@ -65,7 +82,6 @@ export const MonederoRepository = {
   },
 
   acumularSaldo: async (monedero: MonederoCliente, saldo: number) => {
-  //  console.log("Acumulando saldo:", saldo);
     monedero.saldo_monedero += saldo;
     await monedero.save();
     return {

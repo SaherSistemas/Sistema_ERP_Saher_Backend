@@ -2,7 +2,7 @@ import { ICrearEmpleado, IEmpleado, IUpdateEmpleado } from "../../interface/Usua
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 import Empleado from "../../models/Usuarios/Empleado/Empleado";
 import { isUUID } from "../../utils/validaciones";
-import { Op, Sequelize, UniqueConstraintError, where } from "sequelize";
+import { Op, Sequelize, Transaction, UniqueConstraintError, where } from "sequelize";
 import { v4 as uuidv4 } from 'uuid';
 export const EmpleadoRepository = {
     getAll: async (page: number, limit: number, query: string) => {
@@ -48,29 +48,26 @@ export const EmpleadoRepository = {
             order: [["idinterno_empleado", "DESC"]]
         })
     },
-    // getByIdFlexible: async (id: string): Promise<Empleado | null> => {
-    //     if (isUUID(id)) {
-    //         return await Empleado.findByPk(id)
-    //     } else if (!isNaN(Number(id))) {
-    //         return await Empleado.findOne({ where: { idinterno_empleado: Number(id) } })
-    //     }
-    //     return null
-    // },
 
-    getByIdFlexible: async (id: string | number): Promise<Empleado | null> => {
-    const idStr = String(id);
+    getByIdFlexible: async (id: string | number, options?: { transaction?: Transaction }) => {
+        const idStr = String(id);
 
-    if (isUUID(idStr)) {
-        return await Empleado.findByPk(idStr);
-    }
+        if (isUUID(idStr)) {
+            return await Empleado.findByPk(idStr, {
+                transaction: options?.transaction
+            });
+        }
 
-    const idNum = Number(idStr);
-    if (!isNaN(idNum)) {
-        return await Empleado.findOne({ where: { idinterno_empleado: idNum } });
-    }
+        const idNum = Number(idStr);
+        if (!isNaN(idNum)) {
+            return await Empleado.findOne({
+                where: { idinterno_empleado: idNum },
+                transaction: options?.transaction
+            });
+        }
 
-    return null;
-},
+        return null;
+    },
 
     crearEmpleadoNuevo: async (data: ICrearEmpleado) => {
         const nuevoUUID = uuidv4();

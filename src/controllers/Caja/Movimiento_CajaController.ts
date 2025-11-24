@@ -24,6 +24,29 @@ export class MovimientoCajaController {
         }
     }
 
+    static getAllByCaja = async (req: Request, res: Response) => {
+        try {
+            const { id_caja } = req.params;
+            const movimientosCaja = await MovimientoCajaService.getAllByCaja(id_caja);
+            res.status(200).json(movimientosCaja);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: "Error al encontrar los movimientos de caja por caja." });
+        }
+    }
+
+
+    static getAllByCorte = async (req: Request, res: Response) => {
+        try {
+            const { id_corte } = req.params;
+            const movimientosCaja = await MovimientoCajaService.getAllByCorte(id_corte);
+            res.status(200).json(movimientosCaja);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: "Error al encontrar los movimientos de caja por corte." });
+        }
+    }
+
     static create = async (req: Request, res: Response) => {
         try {
             const data = req.body;

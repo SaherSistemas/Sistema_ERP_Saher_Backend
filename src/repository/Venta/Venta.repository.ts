@@ -10,27 +10,59 @@ import {
 } from "../../interface/Venta/Venta.interface";
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from "uuid";
-import { DetalleVentaRepository } from "./Detalle_Venta.repository";
 import Metodo_de_Pago from "../../models/Caja/Metodo_de_Pago";
 import Venta_Pago from "../../models/Venta/Venta_Pago";
-import sequelize from "sequelize/lib/sequelize";
 import { RecetaMedicaService } from "../../services/RecetaMedica/RecetaMedica.service";
-import Medico from "../../models/RecetaMedica/Medico";
-import RecetaMedica from "../../models/RecetaMedica/RecetaMedica";
-import Receta_Articulo from "../../models/RecetaMedica/Receta_Articulo";
-import { RecetaMedicaRepository } from "../RecetaMedica/RecetaMedica.repository";
 import { DetalleLookupMap } from "../../services/Venta/Venta.service";
+import Articulo from "../../models/Articulos/Articulo";
+import Empleado from "../../models/Usuarios/Empleado/Empleado";
+import Lote_Usado_Venta from "../../models/LotesYCaducidad/Lote_Usado_Venta";
+import Detalle_Venta from "../../models/Venta/Detalle_Venta";
 
 const ventaIncludes = [
   {
     model: DetalleVenta,
     as: "detalle_venta",
-    include: [{ model: LoteUsadoVenta, as: "lote_usado" }],
+    required: false,
+    include: [
+      {
+        model: LoteUsadoVenta,
+        as: "lote_usado",
+        required: false,
+      },
+    ],
   },
   {
     model: Venta_Pago,
     as: "venta_pago",
-    attributes: ["id_metodo_pago", "monto"],
+    required: false,
+    include: [
+      {
+        model: Metodo_de_Pago,
+        as: "metodo_pago",
+        required: false,
+      },
+    ],
+  },
+];
+
+const ListaVentas = [
+  {
+    model: DetalleVenta,
+    as: "detalle_venta",
+    attributes: ["id_venta", "cantidad", "precio_unitario"],
+    include: [
+      {
+        model: Articulo,
+        as: "articulo",
+        attributes: ["des_artic"],
+      },
+    ],
+  },
+  {
+    model: Venta_Pago,
+    as: "venta_pago",
+    attributes: ["monto"],
     include: [
       {
         model: Metodo_de_Pago,
@@ -39,13 +71,74 @@ const ventaIncludes = [
       },
     ],
   },
-];
+]
+
+
 
 export const VentaRepository = {
-  getAll: async (id_caja: string) => {
+
+
+  getAll: async () => {
+    return await Venta.findAll({});
+  },
+
+
+  getVentaCompleta: async (id_venta: string, options: any = {}) => {
+    return await Venta.findOne({
+      where: { id_venta },
+      include: [
+        {
+          model: Detalle_Venta,
+          as: "detalle_venta",
+          include: [
+            {
+              model: Lote_Usado_Venta,
+              as: "lote_usado",
+            },
+          ],
+        },
+        {
+          model: Venta_Pago,
+          as: "venta_pago",
+        },
+      ],
+      transaction: options.transaction,
+      lock: options.lock,
+    });
+  },
+
+
+  cancelarVenta: async (id_venta: string, motivo: string, options: any = {}) => {
+    return await Venta.update(
+      {
+        status_venta: "CANCELADA",
+        motivo_cancelacion: motivo,
+        fecha_cancelacion: new Date(),
+      },
+      {
+        where: { id_venta },
+        transaction: options.transaction,
+      }
+    );
+  },
+
+  getResumenCorte: async (id_corte: string) => {
     return await Venta.findAll({
-      where: { id_caja },
-      include: ventaIncludes,
+      where: {
+        id_corte,
+        status_venta: 'CONFIRMADA'
+      },
+      attributes: [
+        "id_venta",
+        "total_venta"
+      ],
+      include: [
+        ...ListaVentas,
+        {
+          model: Empleado,
+          attributes: ["id_empleado", "nombre_empleado", "ap_pat_empleado", "ap_mat_empleado"]
+        }
+      ],
     });
   },
 
@@ -73,7 +166,6 @@ export const VentaRepository = {
       } = input as any;
       if (ventaData.id_venta == null) delete (ventaData as any).id_venta;
 
-      // crear venta
       const id_venta = uuidv4();
       const venta = await Venta.create(
         {

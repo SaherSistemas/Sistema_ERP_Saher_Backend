@@ -3,7 +3,7 @@ import { MonederoController } from "../../../controllers/Clientes/Monedero/Moned
 const router = Router();
 
 
-router.get('/:identificador_cliente', MonederoController.getByID);
+router.get('/:telefono', MonederoController.getByID);
 router.get('/', MonederoController.getAll);
 router.post('/', MonederoController.create);
 router.delete("/:id", MonederoController.deleteMonedero);

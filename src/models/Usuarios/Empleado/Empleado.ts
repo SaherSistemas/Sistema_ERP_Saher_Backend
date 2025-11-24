@@ -23,6 +23,7 @@ import Presupuesto_Empleado from '../../Presupuestos/Presupuesto_Empleado';
 import Movimiento_Presupuesto from '../../Presupuestos/Movimiento_Presupuesto';
 import Asignacion_Empleado_Sucursal from '../../Presupuestos/Asignacion_Empleado_Sucursal';
 import Agente_de_Venta from '../Agente_De_Ventas/Agente_De_Venta';
+import Venta from '../../Venta/Venta';
 
 @Table({
   tableName: 'empleado'
@@ -154,6 +155,9 @@ class Empleado extends Model {
 
   @HasMany(() => Agente_de_Venta)
   declare agente_de_venta?: Agente_de_Venta[];
+
+  @HasMany(() => Venta)
+  declare ventas?: Venta[];
 }
 
 export default Empleado;

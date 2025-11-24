@@ -3,10 +3,10 @@ import { VentaController } from "../../controllers/Venta/VentaController";
 
 const router = Router();
 
-// router.get("/", VentaController.getAll);
-router.get("/resumen/:id_caja", VentaController.getAll);
+router.get("/", VentaController.getAll);
+router.get("/resumen/:id_corte", VentaController.getResumenCorte);
+router.patch("/cancelar/:id", VentaController.cancelar)
 router.get("/:id", VentaController.getByID);
 router.post("/", VentaController.create);
-//router.put('/id_detalle_venta/:id', VentaController.update);
 
 export default router;

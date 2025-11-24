@@ -8,8 +8,6 @@ import {
   Default,
   BelongsTo,
 } from "sequelize-typescript";
-import Cliente from "../Cliente"; 
-import Empresa_Sucursal from "../../Empresa_Sucursal/Empresa_Sucursal";
 import Monedero from "./Monedero";
 
 @Table({
@@ -25,44 +23,33 @@ class MovimientoMonederoCliente extends Model {
   @ForeignKey(() => Monedero)
   @Column({
     type: DataType.UUID,
+    allowNull: false,
   })
-  declare id_monedero: string;
+  id_monedero!: string;
+
   @BelongsTo(() => Monedero)
-  monedero : Monedero;
+  monedero!: Monedero;
 
   @Column({
-    type: DataType.FLOAT,
+    type: DataType.DECIMAL(10, 2),
+    allowNull: false,
   })
-  declare cantidad_mov: number;
+  cantidad_mov!: number;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.STRING(20),
+    allowNull: false,
   })
-  declare tipo_mov: string; 
+  tipo_mov!: string;
+
+  @Column({
+    type: DataType.STRING(255),
+    allowNull: true,
+  })
+  referencia!: string;
 
   @Default(DataType.NOW)
-  @Column({
-    type: DataType.DATE,
-  })
-  declare fecha_mov: Date;
-
-  @ForeignKey(() => Empresa_Sucursal)
-  @Column({
-    type: DataType.UUID,
-  })
-  declare id_empre: string;
-
-  @BelongsTo(() => Empresa_Sucursal)
-  empresaSucursal: Empresa_Sucursal;
-
-  @ForeignKey(() => Cliente)
-  @Column({
-    type: DataType.UUID,
-  })
-  declare id_cliente: string;
-
-  @BelongsTo(() => Cliente)
-  cliente: Cliente;
+  @Column(DataType.DATE)
+  fecha_mov!: Date;
 }
-
 export default MovimientoMonederoCliente;

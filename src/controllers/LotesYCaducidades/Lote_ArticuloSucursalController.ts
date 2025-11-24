@@ -15,6 +15,7 @@ export class LotesArticuloSucursalController {
         });
     }
   };
+
   static getAllByEmpresaArticulo = async (req: Request, res: Response) => {
     try {
       const { id_empre, id_artic } = req.params;
@@ -30,13 +31,13 @@ export class LotesArticuloSucursalController {
         { conStock, estado, noVencidos, ordenar }
       );
 
-       res.status(200).json(lotes);
+      res.status(200).json(lotes);
     } catch (error: any) {
       if (error?.message?.includes("Faltan id_empre o id_artic")) {
-         res.status(400).json({ mensaje: error.message });
+        res.status(400).json({ mensaje: error.message });
       }
       console.error("getAllByEmpresaArticulo:", error);
-       res.status(500).json({ mensaje: "Error al obtener lotes." });
+      res.status(500).json({ mensaje: "Error al obtener lotes." });
     }
   };
 
@@ -57,7 +58,7 @@ export class LotesArticuloSucursalController {
     try {
       const { id_empresa, cod_barr_artic } = req.params;
       const lotes = await LotesArticuloSucursalService.getLotesPorCodigoBarra(
-       id_empresa,
+        id_empresa,
         cod_barr_artic
       );
       res.status(200).json({

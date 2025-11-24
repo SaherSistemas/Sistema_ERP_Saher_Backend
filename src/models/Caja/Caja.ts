@@ -30,7 +30,7 @@ class Caja extends Model {
     @BelongsTo(() => Empresa_Sucursal)
     Sucursal: Empresa_Sucursal;
 
-    @Default(false)
+    @Default(true)
     @Column({
         type: DataType.BOOLEAN,
     })
@@ -42,7 +42,7 @@ class Caja extends Model {
     @HasMany(() => CorteCaja)
     declare cortes?: CorteCaja[];
 
-  
+
 
 }
 

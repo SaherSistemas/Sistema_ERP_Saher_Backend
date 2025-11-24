@@ -1,5 +1,5 @@
 import { promises } from "dns";
-import { ICliente, ICreateUpdateCliente} from "../../interface/Clientes/Cliente.interface"
+import { ICliente, ICreateUpdateCliente } from "../../interface/Clientes/Cliente.interface"
 import { ClienteRepository } from "../../repository/Clientes/Cliente.repository";
 import { TipoClienteRepository } from "../../repository/Clientes/Tipo_Cliente.repository";
 import { ColoniaRepository } from "../../repository/Lugares/Colonia.respository";
@@ -7,44 +7,74 @@ import Cliente from "../../models/Clientes/Cliente";
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import dayjs from "dayjs";
+import { MonederoRepository } from "../../repository/Clientes/Monedero/Monedero.repository";
+import { dbLocal } from "../../config/db";
 
 
 export const ClienteService = {
 
-    getAll:async () => {
+    getAll: async () => {
         return await ClienteRepository.getAll();
     },
 
-    getByIDFlexible: async(identificador_cliente  : string ) => {
-        return await ClienteRepository.getByIDFlexible(identificador_cliente );
+    getByIDFlexible: async (identificador_cliente: string) => {
+        return await ClienteRepository.getByIDFlexible(identificador_cliente);
     },
 
-    createCliente: async(data:ICliente) =>{
-        if(!data.id_tipo_cliente && !data.id_lista_precio){
-            data.id_lista_precio = "e3b85da4-6ec9-440d-983e-e060d69dc6b1";
-            data.id_tipo_cliente = "d2a20360-ae70-4271-8929-2d8d0a26c896";
+    createCliente: async (data: ICliente) => {
+        const t = await dbLocal.transaction();
+        try {
+            if (!data.id_tipo_cliente && !data.id_lista_precio) {
+                data.id_lista_precio = "e3b85da4-6ec9-440d-983e-e060d69dc6b1";
+                data.id_tipo_cliente = "d2a20360-ae70-4271-8929-2d8d0a26c896";
+            }
+
+            const nuevoCliente = await ClienteRepository.createCliente(
+                data,
+                { transaction: t }
+            );
+
+            await MonederoRepository.createMonedero(
+                {
+                    id_cliente: nuevoCliente.id_cliente,
+                    saldo_monedero: 0,
+                    activo: true,
+                    fecha_creacion: new Date(),
+                    fecha_expiro: dayjs().add(1, 'year').toDate(),
+                },
+                { transaction: t }
+            );
+
+            await t.commit();
+            return nuevoCliente;
+
+        } catch (error) {
+            await t.rollback();
+            throw error;
         }
-        return await ClienteRepository.createCliente(data);
     },
 
-    getDatosBeneficiado: async (telefono_cliente:string)=>{
+
+
+
+    getDatosBeneficiado: async (telefono_cliente: string) => {
         const cliente = await ClienteRepository.getDatosBeneficiado(telefono_cliente);
         return cliente;
     },
 
-    generarPDFListado: async () : Promise<Buffer> => {
+    generarPDFListado: async (): Promise<Buffer> => {
         const clientes = await ClienteService.getAll();
 
-        const doc = new PDFDocument ({margin: 30, size:'letter'});
+        const doc = new PDFDocument({ margin: 30, size: 'letter' });
         const buffers: Buffer[] = [];
 
         doc.on('data', buffers.push.bind(buffers));
 
-        const drawEncabezadoTablaClientes = ( ) => { 
+        const drawEncabezadoTablaClientes = () => {
             const y = doc.y;
             doc.rect(20, y, 550, 20).fill('#E0E0E0')
             doc.fillColor('black').font('Helvetica-Bold').fontSize(10);
-    
+
             doc.text('ID', 32, y + 5);                            // id_cliente
             doc.text('Nombre Completo', 80, y + 5);                        // nombre + apellidos
             doc.text('Teléfono', 180, y + 5);                     // telefono_cliente
@@ -68,48 +98,48 @@ export const ClienteService = {
         doc.moveDown().moveTo(30, doc.y).lineTo(580, doc.y).strokeColor('#CCCCCC').stroke();
         doc.moveDown();
 
-        drawEncabezadoTablaClientes();    
+        drawEncabezadoTablaClientes();
 
         // Contenido
         for (const cliente of clientes) {
-        const espacioNecesario = 25;
+            const espacioNecesario = 25;
 
-        if (doc.y + espacioNecesario > doc.page.height - doc.page.margins.bottom) {
-            doc.addPage();
-            drawEncabezadoTablaClientes();
+            if (doc.y + espacioNecesario > doc.page.height - doc.page.margins.bottom) {
+                doc.addPage();
+                drawEncabezadoTablaClientes();
+            }
+
+            const startY = doc.y;
+
+            const nombreCompleto = `${cliente.nombre_cliente} ${cliente.apellido_pat_cliente} ${cliente.apellido_mat_cliente ?? ''}`;
+
+            doc.fontSize(8);
+            doc.text(cliente.id_cliente, 32, startY, { width: 40 });
+            doc.text(nombreCompleto, 80, startY, { width: 90 });
+            doc.text(cliente.telefono_cliente, 180, startY, { width: 70 });
+            doc.text(dayjs(cliente.fec_nac_cliente).format('DD/MM/YYYY'), 260, startY, { width: 70 });
+            doc.text(cliente.genero_cliente, 340, startY, { width: 50 });
+            doc.text(cliente.email_cliente || '-', 400, startY, { width: 90 });
+            doc.text(cliente.id_colonia, 500, startY, { width: 60 });
+
+            doc.moveDown(1);
         }
 
-        const startY = doc.y;
+        //doc.end();
 
-        const nombreCompleto = `${cliente.nombre_cliente} ${cliente.apellido_pat_cliente} ${cliente.apellido_mat_cliente ?? ''}`;
-
-        doc.fontSize(8);
-        doc.text(cliente.id_cliente, 32, startY, { width: 40 });
-        doc.text(nombreCompleto, 80, startY, { width: 90 });
-        doc.text(cliente.telefono_cliente, 180, startY, { width: 70 });
-        doc.text(dayjs(cliente.fec_nac_cliente).format('DD/MM/YYYY'), 260, startY, { width: 70 });
-        doc.text(cliente.genero_cliente, 340, startY, { width: 50 });
-        doc.text(cliente.email_cliente || '-', 400, startY, { width: 90 });
-        doc.text(cliente.id_colonia, 500, startY, { width: 60 });
-
-        doc.moveDown(1);
+        return new Promise((resolve, reject) => {
+            doc.on('data', (chunk) => buffers.push(chunk));
+            doc.on('end', () => {
+                const pdfBuffer = Buffer.concat(buffers);
+                resolve(pdfBuffer);
+            });
+            doc.on('error', (err) => {
+                reject(err);
+            });
+            doc.end();
+        });
     }
 
-    //doc.end();
-
-    return new Promise((resolve, reject) => {
-    doc.on('data', (chunk) => buffers.push(chunk));
-    doc.on('end', () => {
-        const pdfBuffer = Buffer.concat(buffers);
-        resolve(pdfBuffer);
-    });
-    doc.on('error', (err) => {
-        reject(err);
-    });
-    doc.end(); 
-    });
-    }
-    
     // updateCliente: async(id_cliente_o_telefono: string, data: ICreateUpdateCliente) => {
     //     return await ClienteRepository.updateCliente(id_cliente_o_telefono, data);
     // },

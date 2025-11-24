@@ -8,6 +8,7 @@ import {
   ForeignKey,
   Default,
   BelongsTo,
+  HasMany,
 } from "sequelize-typescript";
 import Articulo from "../Articulos/Articulo";
 import LoteUsadoVenta from "../LotesYCaducidad/Lote_Usado_Venta";
@@ -36,7 +37,7 @@ class DetalleVenta extends Model {
     type: DataType.UUID,
   })
   declare id_artic: string;
-  @BelongsTo(() => Articulo)
+  @BelongsTo(() => Articulo, { as: "articulo" })
   articulo: Articulo;
 
   @Column({
@@ -54,8 +55,9 @@ class DetalleVenta extends Model {
   })
   declare total_renglon: number;
 
-  @HasOne(() => LoteUsadoVenta)
-  declare lote_usado: LoteUsadoVenta;
+  @HasMany(() => LoteUsadoVenta, { as: "lote_usado" })
+  declare lote_usado: LoteUsadoVenta[];
+
 }
 
 export default DetalleVenta;

@@ -59,7 +59,7 @@ class Venta extends Model {
   })
   declare id_empleado: string;
   @BelongsTo(() => Empleado)
-  idempleado: Empleado;
+  empleado: Empleado;
 
   @ForeignKey(() => Empresa_Sucursal)
   @Column({
@@ -84,14 +84,16 @@ class Venta extends Model {
   })
   declare status_venta: String;
 
-  @HasMany(() => DetalleVenta)
-  declare detalle_venta: DetalleVenta[];
-
-  @HasMany(() => Venta_Pago)
-  declare venta_pago: Venta_Pago[];
-
   @HasMany(() => UsoOferta)
   usooferta?: UsoOferta[];
+
+
+  @HasMany(() => DetalleVenta, { as: "detalle_venta" })
+  declare detalle_venta: DetalleVenta[];
+
+  @HasMany(() => Venta_Pago, { as: "venta_pago" })
+  declare venta_pago: Venta_Pago[];
+
 }
 
 export default Venta;

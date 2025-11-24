@@ -58,15 +58,15 @@ class Movimiento_Caja extends Model {
     @Column({
         type: DataType.STRING(100),
     })
-    declare referencia_pago?: string;
+    declare referencia?: string;
 
     @ForeignKey(() => Empleado)
     @Column({
         type: DataType.UUID,
     })
     declare id_empleado: string;
-    @BelongsTo(() => Empleado)
-    idempleado: Empleado;
+    @BelongsTo(() => Empleado, { as: 'empleado' })
+    empleado: Empleado;
 
 
 }

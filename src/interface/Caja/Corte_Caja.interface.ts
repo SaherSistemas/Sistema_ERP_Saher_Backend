@@ -8,6 +8,7 @@ export interface ICorteCaja {
   monto_inicial: number;
   monto_final?: number;
   total_venta?: number;
+  // total_movimientos?: number;
   monto_declarado?: number;
   status_corte: boolean;
 }
@@ -21,6 +22,7 @@ export interface ICreateOrUpdateCorteCaja {
   monto_inicial: number;
   monto_final: number;
   total_venta: number;
+  // total_movimientos?: number;
   monto_declarado?: number;
   status_corte: boolean;
 }
