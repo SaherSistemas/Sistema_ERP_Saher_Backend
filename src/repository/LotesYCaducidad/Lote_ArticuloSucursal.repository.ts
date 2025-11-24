@@ -3,7 +3,7 @@ import {
   ILotesArticuloSucursal,
   ICreaterOrUdateLotesArticuloSucursal,
   IResumenArticulo,
-  ICompraAgrupada
+  ICompraAgrupada,
 } from '../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface';
 
 import { isUUID } from '../../utils/validaciones';
@@ -11,11 +11,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { ArticuloRepository } from '../Articulos/Articulo.repository';
 import { Op, Sequelize, Transaction, FindOptions, fn, col, literal } from 'sequelize';
 import Articulo from '../../models/Articulos/Articulo';
-import { DetalleListaPreciosRepository } from '../Costo_Y_Precio/Lista_Precio/Detalle_Lista_Precio.repository';
 import { Pedido_AlmacenRepository } from '../Pedido_Almacen/Pedido_Almacen.repository';
 import { Detalle_Pedido_AlmacenRepository } from '../Pedido_Almacen/Detalle_Pedido_Almacen.repository';
 import { Detalle_Compra_RecibidosRepository } from '../Compras/Detalle_Compra_Recibido.repository';
 import { Detalle_Compra_SolicitadoRepository } from '../Compras/Detalle_Compra_Solicitado.repository';
+import DetalleListaPrecio from '../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio';
+import { DetalleListaPreciosRepository } from '../Costo_Y_Precio/Lista_Precio/Detalle_Lista_Precio.repository';
 type RepoOpts = FindOptions;
 
 export const LotesArticuloSucursalRepository = {
@@ -36,7 +37,6 @@ export const LotesArticuloSucursalRepository = {
       raw: true
     });
   },
-
   getExistencia: async (id_artic: string, id_sucursal: string) => {
     // 1. Consulta principal: totales
     const result: any = await Lote_sucursal_articulo.findOne({
@@ -88,6 +88,7 @@ export const LotesArticuloSucursalRepository = {
   getResumen: async ({ nombre, grupoPrecio, id_sucursal, page, limit }) => {
     const offset = (page - 1) * limit;
 
+    // 1. Total de artículos (DISTINCT)
     const total = await Lote_sucursal_articulo.count({
       distinct: true,
       col: 'id_artic',
@@ -209,6 +210,7 @@ export const LotesArticuloSucursalRepository = {
 
     // 1. Últimos 3 pedidos facturados
     const pedidos = await Pedido_AlmacenRepository.getPedidosByClienteFacturados(id_cliente);
+    console.log(pedidos)
     const ids = pedidos.map(p => p.id_pedido_alm);
 
     if (ids.length === 0) {

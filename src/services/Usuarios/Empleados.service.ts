@@ -10,6 +10,7 @@ export const EmpleadoService = {
     return await EmpleadoRepository.getAll(page, limit, query);
   },
   getAllEmpleadosQuePuedenSerAgente: async () => {
+    console.log("HOLA")
     return await EmpleadoRepository.getAllEmpleadosQuePuedenSerAgente();
   },
 

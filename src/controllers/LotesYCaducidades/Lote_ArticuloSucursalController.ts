@@ -107,7 +107,7 @@ export class LotesArticuloSucursalController {
   static getResumenLotes = async (req: Request, res: Response) => {
     try {
       const { nombre, grupoPrecio, id_sucursal, page, limit } = req.query;
-      //console.log(nombre);
+      console.log(nombre);
       const data = await LotesArticuloSucursalService.getResumen({
         nombre: nombre.toString(),
         grupoPrecio: grupoPrecio?.toString(),
@@ -122,6 +122,13 @@ export class LotesArticuloSucursalController {
       res.status(500).json({ mensaje: 'Error al obtener resumen de lotes' });
     }
   };
+
+  // static repartirCantidadEntreLotes = async (req: Request, res: Response) => {
+  //   try {
+  //     const { cod_barr_artic } = req.params;
+  //     const cantidadSolicitada = Number(req.query.cantidad); // o puede ser req.body.cantidad, según cómo quieras
+
+ 
   static getResumenPromocion = async (req: Request, res: Response) => {
     try {
       const { id_cliente, grupoPrecio, id_sucursal, page, limit } = req.query;
@@ -153,4 +160,26 @@ export class LotesArticuloSucursalController {
     }
   };
 
+  /*
+    static updateByID = async (req: Request, res: Response) => {
+      try {
+        const { id_lote_sucursal } = req.params;
+        const data = req.body;
+        const updateLote = await LotesArticuloSucursalService.update(
+          id_lote_sucursal,
+          data
+        );
+        res
+          .status(201)
+          .json({
+            mensaje: "Lotes Articulo sucursal actualizado correctamente.",
+            id_lote_sucursal: updateLote,
+          });
+      } catch (error) {
+        console.error(error);
+        res
+          .status(500)
+          .json({ mensaje: "Error al actualizar Lotes Articulo sucursal." });
+      }
+    };*/
 }

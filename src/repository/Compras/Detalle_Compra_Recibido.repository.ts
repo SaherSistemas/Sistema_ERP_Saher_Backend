@@ -10,7 +10,7 @@ export const Detalle_Compra_RecibidosRepository = {
     // console.log('Detalles recibidos a crear:', detallesRecibidos);
     return await Detalle_Compra_Recibidos.bulkCreate(detallesRecibidos);
   },
-  getCantidadTransitoPorArticulo: async (id_artic: string) => {
+   getCantidadTransitoPorArticulo: async (id_artic: string) => {
     const rows = await Detalle_Compra_Recibidos.findOne({
       attributes: [[fn('SUM', col('cantidad_detcomprec')), 'total_transito']],
       include: [
@@ -29,7 +29,6 @@ export const Detalle_Compra_RecibidosRepository = {
     // console.log(rows);
     return Number((rows as any)?.total_transito ?? 0);
   },
-
   getByPK: async (id_detalle_recibido: string) => {
     return await Detalle_Compra_Recibidos.findByPk(id_detalle_recibido);
   },

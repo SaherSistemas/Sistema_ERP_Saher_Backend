@@ -144,6 +144,8 @@ class Articulo extends Model {
   @BelongsTo(() => Presentacion_Articulo)
   presentacion: Presentacion_Articulo;
 
+  //RELACIONES
+
   @BelongsTo(() => Temporabilidad)
   temporabilidad: Temporabilidad;
 
