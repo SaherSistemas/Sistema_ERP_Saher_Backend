@@ -26,8 +26,10 @@ class LoteUsadoVenta extends Model {
     @Column({
         type: DataType.UUID
     }) declare id_lote_sucursal: string;
-    @BelongsTo(() => LoteArticuloSucursal)
+    @BelongsTo(() => LoteArticuloSucursal, { as: "lote" })
     loteArticuloSucursal!: LoteArticuloSucursal;
+
+
 
     @Column({
         type: DataType.INTEGER

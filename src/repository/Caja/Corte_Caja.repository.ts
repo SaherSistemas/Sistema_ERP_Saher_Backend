@@ -10,11 +10,26 @@ import { Transaction } from "sequelize";
 import { dbLocal } from "../../config/db";
 import Metodo_de_Pago from "../../models/Caja/Metodo_de_Pago";
 import Movimiento_Caja from "../../models/Caja/Movimiento_Caja";
+import Caja from "../../models/Caja/Caja";
 
 export const CorteCajaRepository = {
   getAll: async () => {
     return await CorteCaja.findAll();
   },
+
+  getAllByCaja: async (id_caja: string) => {
+    return await CorteCaja.findAll({
+      where: { id_caja },
+      include: [
+        {
+          model: Caja,
+          attributes: ["nombre_caja", "id_empre"],
+        },
+      ],
+      order: [["fecha_cierre", "DESC"]],
+    });
+  },
+
 
   getCorteAbiertoByCaja: async (id_caja: string) => {
     return await CorteCaja.findOne({

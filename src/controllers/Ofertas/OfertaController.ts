@@ -5,44 +5,44 @@ import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 export class OfertaController {
 
   static getOfertasAplicables = async (req: Request, res: Response) => {
-  try {
-    const { empresa: id_empre, fecha, canal = "PDV" } = req.query;
+    try {
+      const { empresa: id_empre, fecha, canal = "PDV" } = req.query;
 
-    if (!id_empre) {
-      res.status(400).json({ error: "Faltan parámetros: empresa" });
+      if (!id_empre) {
+        res.status(400).json({ error: "Faltan parámetros: empresa" });
+      }
+
+      const dt = fecha ? new Date(String(fecha)) : new Date();
+      if (isNaN(dt.getTime())) {
+        res.status(400).json({ error: "Fecha inválida" });
+      }
+
+      const canalStr = Array.isArray(canal) ? canal[0] : canal;
+
+      const ofertas = await OfertaService.getOfertas({
+        id_empre: String(id_empre),
+        fecha: dt,
+        canal: canalStr === "PDV" ? "PDV" : undefined,
+      });
+
+      const filtradas = ofertas.filter(
+        (o: any) => !o.canal_oferta || o.canal_oferta === canalStr
+      );
+
+      const empresa = await Empresa_Sucursal.findByPk(String(id_empre), {
+        attributes: ["nom_empre"],
+      });
+      const nombreEmpresa = empresa ? empresa.nom_empre : "Empresa desconocida";
+
+      res.json({
+        ofertas_aplicables_para_empresa: nombreEmpresa,
+        ofertas: filtradas,
+      });
+    } catch (e) {
+      console.error("[getOfertasAplicables] Error:", e);
+      res.status(500).json({ error: String(e) });
     }
-
-    const dt = fecha ? new Date(String(fecha)) : new Date();
-    if (isNaN(dt.getTime())) {
-      res.status(400).json({ error: "Fecha inválida" });
-    }
-
-    const canalStr = Array.isArray(canal) ? canal[0] : canal;
-
-    const ofertas = await OfertaService.getOfertas({
-      id_empre: String(id_empre),
-      fecha: dt,
-      canal: canalStr === "PDV" ? "PDV" : undefined,
-    });
-
-    const filtradas = ofertas.filter(
-      (o: any) => !o.canal_oferta || o.canal_oferta === canalStr
-    );
-
-    const empresa = await Empresa_Sucursal.findByPk(String(id_empre), {
-      attributes: ["nom_empre"], 
-    });
-    const nombreEmpresa = empresa ? empresa.nom_empre : "Empresa desconocida";
-
-   res.json({
-      ofertas_aplicables_para_empresa: nombreEmpresa,
-      ofertas: filtradas,
-    });
-  } catch (e) {
-    console.error("[getOfertasAplicables] Error:", e);
-    res.status(500).json({ error: String(e) });
-  }
-};
+  };
 
 
   static getAll = async (req: Request, res: Response) => {
@@ -70,14 +70,24 @@ export class OfertaController {
 
   static create = async (req: Request, res: Response) => {
     try {
-      const data = req.body;
-      const nuevaoferta = await OfertaService.createOferta(data);
-      res.status(201).json(nuevaoferta);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ mensaje: "Error al crear Nueva Oferta." });
+      const nuevaOferta = await OfertaService.createOferta(req.body);
+      res.status(201).json(nuevaOferta);
+
+    } catch (error: any) {
+
+      if (error.message?.includes("Debes enviar")) {
+        res.status(400).json({ error: true, message: error.message });
+      }
+
+      if (error.status) {
+        res.status(error.status).json({ error: true, message: error.message });
+      }
+
+      console.error("Error en create Oferta:", error);
+      res.status(500).json({ error: true, message: "Error interno del servidor." });
     }
   };
+
 
   static update = async (req: Request, res: Response) => {
     try {

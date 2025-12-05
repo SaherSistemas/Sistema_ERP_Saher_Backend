@@ -31,7 +31,6 @@ export const ClienteRepository = {
         }
     },
 
-
     getDatosBeneficiado: async (telefono_cliente: string) => {
         return await Cliente.findOne({
             where: { telefono_cliente },
@@ -77,18 +76,5 @@ export const ClienteRepository = {
             where: { id_cliente }
         });
     },
-
-
-    // updateStatusCliente: async(id_cliente: string) => {
-    //    const cliente = await ClienteRepository.getByIDFlexible(id_cliente);
-    //    let statusActualCliente = cliente?.status_cliente;
-    //     statusActualCliente =! statusActualCliente;
-    //     console.log(statusActualCliente)
-    //     return await cliente.update({
-    //         status_cliente:statusActualCliente
-    //     })
-    // }
-
-
 
 }

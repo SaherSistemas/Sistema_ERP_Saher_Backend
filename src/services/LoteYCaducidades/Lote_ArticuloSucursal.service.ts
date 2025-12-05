@@ -20,6 +20,8 @@ export const LotesArticuloSucursalService = {
   getLotesPorCodigoBarra: async (id_empresa: string, cod_barr_artic: string) => {
     return await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(id_empresa, cod_barr_artic);
   },
+
+
   getAllByEmpresaArticulo: async (
     id_empre: string,
     id_artic: string,
@@ -55,6 +57,20 @@ export const LotesArticuloSucursalService = {
       order
     });
   },
+  getExistenciaTotal: async (id_empre: string, id_artic: string): Promise<number> => {
+    const lotes = await LotesArticuloSucursalService.getAllByEmpresaArticulo(
+      id_empre,
+      id_artic,
+      { conStock: true, noVencidos: true, ordenar: 'fefo' }
+    );
+
+    const total = lotes.reduce(
+      (sum, lote) => sum + Number(lote.cantidad_lote_sucursal || 0),
+      0
+    );
+    return total;
+  },
+
 
   getResumen: async (filters: {
     nombre: string;

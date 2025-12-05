@@ -88,7 +88,6 @@ export const LotesArticuloSucursalRepository = {
   getResumen: async ({ nombre, grupoPrecio, id_sucursal, page, limit }) => {
     const offset = (page - 1) * limit;
 
-    // 1. Total de artículos (DISTINCT)
     const total = await Lote_sucursal_articulo.count({
       distinct: true,
       col: 'id_artic',
@@ -107,10 +106,9 @@ export const LotesArticuloSucursalRepository = {
       ],
       where: { id_empre: id_sucursal }
     });
-    // console.log(total);
     const totalPages = Math.ceil(total / limit);
 
-    // 2. Query principal
+
     const items: any[] = await Lote_sucursal_articulo.findAll({
       attributes: [
         'id_artic',
@@ -135,17 +133,16 @@ export const LotesArticuloSucursalRepository = {
         }
       ],
       group: [
-        'LoteArticuloSucursal.id_artic', // NO Lote_sucursal_articulo
-        'articulo.id_artic' // NO Articulo
+        'LoteArticuloSucursal.id_artic',
+        'articulo.id_artic'
       ],
       offset,
       limit
     });
 
-    // console.log(items);
-    // 3. Obtener lote correspondiente a cada fecha mínima
+
     for (const item of items) {
-      const fechaMin = item.get('fecha_caduca_mas_corta'); // ← manera correcta
+      const fechaMin = item.get('fecha_caduca_mas_corta');
 
       if (!fechaMin) {
         item.setDataValue('lote_mas_corto', null);

@@ -5,7 +5,7 @@ export class ReglaOfertaController {
   static getAll = async (req: Request, res: Response) => {
     try {
       const regla = await ReglaOfertaService.getAll();
-        res.status(200).json(regla);
+      res.status(200).json(regla);
     } catch (error) {
       console.error(error);
       res.status(500).json({ mensaje: "Error al encontrar Reglas de Oferta." });
@@ -25,14 +25,15 @@ export class ReglaOfertaController {
 
   static create = async (req: Request, res: Response) => {
     try {
-      const data = req.body;
-      const nuevaRegla = await ReglaOfertaService.create(data);
+      const nuevaRegla = await ReglaOfertaService.create(req.body);
       res.status(201).json(nuevaRegla);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ mensaje: "Error al crear Regla Oferta." });
+
+    } catch (error: any) {
+      console.error("Error creando regla:", error);
+      res.status(400).json({ mensaje: error.message });
     }
   };
+
 
   static update = async (req: Request, res: Response) => {
     try {

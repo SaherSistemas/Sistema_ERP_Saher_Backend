@@ -15,12 +15,6 @@ import { AlcanceParams, TipoAlcance, TIPOS_ALCANCE } from "../../interface/Ofert
 
 
 
-// export const NIVEL_APLICACION_VALUES = ["ITEM", "TICKET", "BUNDLE"] as const;
-// export type NivelAplicacion = (typeof NIVEL_APLICACION_VALUES)[number];
-
-// export const MODO_ALCANCE_VALUES = ["INCLUDE", "EXCLUDE"] as const;
-// export type ModoAlcance = (typeof MODO_ALCANCE_VALUES)[number];
-
 @Table({
   tableName: "alcance_oferta",
 })

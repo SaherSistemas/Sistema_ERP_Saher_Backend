@@ -14,6 +14,19 @@ export class CorteCajaController {
     }
   };
 
+  static getAllByCaja = async (req: Request, res: Response) => {
+    try {
+      const { id_caja } = req.params;
+
+      const cortes = await CorteCajaService.getAllByCaja(id_caja);
+
+      res.status(200).json(cortes);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ mensaje: "Error obteniendo los cortes de la caja." });
+    }
+  };
+
 
   static getTotalCaja = async (req: Request, res: Response) => {
     try {

@@ -33,19 +33,19 @@ export const MedicoRepository = {
       });
     }
   },
-   BuscarMedicoCedula: async(cedula_medico : string ) => {
-        return await Medico.findOne({
-            where: { cedula_profesional: { [Op.eq]: cedula_medico } },
-                attributes: [
-                    'id_medico',
-                    'nombre_completo',
-                    'especialidad',
-                    'telefono',
-                    'correo',
-                    'direccion'
-                ],
-              });     
-            },
+  BuscarMedicoCedula: async (cedula_medico: string) => {
+    return await Medico.findOne({
+      where: { cedula_profesional: { [Op.eq]: cedula_medico } },
+      attributes: [
+        'id_medico',
+        'nombre_completo',
+        'especialidad',
+        'telefono',
+        'correo',
+        'direccion'
+      ],
+    });
+  },
 
   resolveOrCreate: async (
     t: Transaction,
@@ -70,7 +70,6 @@ export const MedicoRepository = {
     const ced = m.cedula_profesional?.trim();
     if (!ced) throw new Error("Médico no resuelto: falta cédula_profesional.");
 
-    // 1) buscar por cédula (evita duplicados)
     const existing = await Medico.findOne({
       where: { cedula_profesional: ced },
       transaction: t,

@@ -16,6 +16,8 @@ import { EmpleadoService } from "../Usuarios/Empleados.service";
 import { Transaction } from "sequelize";
 import { MovimientoCajaService } from "../Caja/Movimiento_Caja.service";
 import { MonederoService } from "../Clientes/Monedero/Monedero.service";
+import { MetodoPagoService } from "../Caja/Metodo_de_Pago.service";
+import { IDetalleVentaInput } from "../../interface/Venta/Detalle_Venta.interface";
 
 export type DetalleLookupInfo = {
   id_detalle_venta: string;
@@ -75,6 +77,24 @@ export const VentaService = {
       );
 
       await registrarPagosVenta(id_venta, data.venta_pago, t);
+
+      const idMetodoMonedero = await MetodoPagoService.getIdByClave("MONEDERO", t);
+
+      const pagoMonedero = data.venta_pago.find(
+        (p) => p.id_metodo_pago === idMetodoMonedero
+      );
+
+      if (pagoMonedero && pagoMonedero.monto > 0 && venta.id_cliente) {
+        await MonederoService.descontarSaldoPorVenta(
+          venta.id_cliente,
+          venta.id_empre,
+          pagoMonedero.monto,
+          t
+        );
+      }
+
+
+
       if (venta.status_venta === "CONFIRMADA") {
         for (const p of data.venta_pago) {
           await MovimientoCajaService.createMovimientoCaja(
@@ -95,16 +115,25 @@ export const VentaService = {
 
       if (venta.status_venta === "CONFIRMADA" && venta.id_cliente) {
 
-        const PORCENTAJE_CASHBACK = 0.03;
-        const montoACumular = Number(venta.total_venta) * PORCENTAJE_CASHBACK;
+        const idMetodoMonedero = await MetodoPagoService.getIdByClave("MONEDERO", t);
 
-        await MonederoService.acumularSaldoPorVenta(
-          venta.id_cliente,
-          venta.id_empre,
-          montoACumular,
-          t
-        );
+        const totalPagadoNoMonedero = data.venta_pago
+          .filter(p => p.id_metodo_pago !== idMetodoMonedero)
+          .reduce((sum, p) => sum + Number(p.monto), 0);
+
+        const PORCENTAJE_CASHBACK = 0.03;
+        const montoACumular = totalPagadoNoMonedero * PORCENTAJE_CASHBACK;
+
+        if (montoACumular > 0) {
+          await MonederoService.acumularSaldoPorVenta(
+            venta.id_cliente,
+            venta.id_empre,
+            montoACumular,
+            t
+          );
+        }
       }
+
 
 
       const recetaPayload = (data as any).recetaPayload;
@@ -261,10 +290,32 @@ async function procesarInventarioVenta(
 
     const { lote_usado = [], temp_line_id, ...colsDetalle } = detalle;
 
+    // const detalleVenta = await DetalleVentaRepository.create(
+    //   { id_venta, ...detalle },
+    //   { transaction: t }
+    // );
+
+    const columnasValidas: IDetalleVentaInput = {
+      id_venta,
+      id_artic: colsDetalle.id_artic,
+      cantidad: colsDetalle.cantidad,
+      precio_unitario: colsDetalle.precio_unitario,
+      total_renglon:
+        colsDetalle.total_renglon ??
+        colsDetalle.total ??
+        colsDetalle.cantidad * colsDetalle.precio_unitario,
+
+      temp_line_id: temp_line_id ?? null,
+
+      lote_usado: lote_usado ?? [],
+    };
+
+
     const detalleVenta = await DetalleVentaRepository.create(
-      { id_venta, ...detalle },
+      columnasValidas,
       { transaction: t }
     );
+
 
     if (temp_line_id) {
       const id_articulo =

@@ -15,6 +15,9 @@ export const CorteCajaService = {
         return await CorteCajaRepository.getByIDFlexible(id_corte);
     },
 
+    getAllByCaja: async (id_caja: string) => {
+        return await CorteCajaRepository.getAllByCaja(id_caja);
+    },
 
     calcularTotalCaja: async (id_corte: string) => {
         const movimientos = await Movimiento_Caja.findAll({

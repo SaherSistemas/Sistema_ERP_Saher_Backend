@@ -17,8 +17,15 @@ export const ReglaOfertaService = {
   },
 
   create: async (data: ICreateOrUpdateReglasOferta) => {
+    if (!data.id_oferta)
+      throw new Error("id_oferta es obligatorio.");
+
+    if (!data.tipo_beneficio)
+      throw new Error("tipo_beneficio es obligatorio.");
+
     return await ReglaOfertaRepository.create(data);
   },
+
 
   update: async (id: string, data: Partial<ICreateOrUpdateReglasOferta>) => {
     const alcanceOferta = await ReglaOfertaRepository.getById(id);

@@ -7,7 +7,6 @@ router.get('/:identificador_cliente', ClienteController.getByID);
 router.get('/', ClienteController.getAll)
 router.post('/', ClienteController.create);
 router.get("/datos-beneficiado/:telefono", ClienteController.getDatosBeneficiado);
-
-// router.get('/clienteGenerarPDF/', ClienteController.generarPDFListado)
+router.put("/:id_cliente", ClienteController.updateCliente);
 
 export default router;

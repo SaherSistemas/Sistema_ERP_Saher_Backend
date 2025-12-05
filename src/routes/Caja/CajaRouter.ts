@@ -9,7 +9,10 @@ router.get('/empresa/:id_empre', CajaController.getAllCajasSucursal);
 
 router.post('/', CajaController.create);
 router.get('/cantidad/:id_empre', CajaController.getCantidadCajasPorSucursal);
+
 router.put('/activar/:id_caja', CajaController.activarCaja);
 router.put('/desactivar/:id_caja', CajaController.desactivarCaja);
+
+router.put("/actualizar/:id_caja", CajaController.actualizarCaja);
 
 export default router;

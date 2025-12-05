@@ -18,6 +18,7 @@ import Venta_Pago from "./Venta_Pago";
 import UsoOferta from "../Ofertas/UsoOferta";
 import Caja from "../Caja/Caja";
 import CorteCaja from "../Caja/Corte_Caja";
+import LoteUsadoVenta from "../LotesYCaducidad/Lote_Usado_Venta";
 
 @Table({
   tableName: "venta",
@@ -87,12 +88,12 @@ class Venta extends Model {
   @HasMany(() => UsoOferta)
   usooferta?: UsoOferta[];
 
-
   @HasMany(() => DetalleVenta, { as: "detalle_venta" })
   declare detalle_venta: DetalleVenta[];
 
   @HasMany(() => Venta_Pago, { as: "venta_pago" })
   declare venta_pago: Venta_Pago[];
+
 
 }
 
