@@ -14,9 +14,11 @@ export const MovimientoMonederoService = {
         return await MovimientoMonederoRepository.create(
             {
                 id_monedero,
-                tipo_movimiento: tipo,
-                monto,
+                tipo_mov: tipo,
+                cantidad_mov: monto,
                 referencia,
+                fecha_mov: new Date(),
+                id_empre: "SYSTEM",
             },
             { transaction: t }
         );
@@ -42,13 +44,25 @@ export const MovimientoMonederoService = {
         await MovimientoMonederoRepository.create(
             {
                 id_monedero: monedero.id_monedero,
-                tipo_movimiento: "ACUMULO",
-                monto,
+                tipo_mov: "ACUMULO",
+                cantidad_mov: monto,
                 referencia: `ACUMULO VENTA`,
+                fecha_mov: new Date(),
+                id_empre: "SYSTEM",
             },
             { transaction: t }
         );
 
         return nuevoSaldo;
     },
+
+    getMovimientosByMonedero: async (id_monedero: string) => {
+        if (!id_monedero) {
+            throw new Error("id_monedero es requerido");
+        }
+        const movimientos = await MovimientoMonederoRepository.getByMonedero(id_monedero);
+        return movimientos;
+    },
+
+
 };

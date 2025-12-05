@@ -115,5 +115,53 @@ export const MonederoService = {
     return { nuevoSaldo };
   },
 
+  descontarSaldoPorVenta: async (
+    id_cliente: string,
+    id_empre: string,
+    monto: number,
+    t: Transaction
+  ) => {
+
+    if (!id_cliente) return;
+    if (monto <= 0) return;
+
+    const monedero = await MonederoCliente.findOne({
+      where: { id_cliente },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!monedero) {
+      throw new Error("El cliente no tiene monedero registrado.");
+    }
+
+    const saldoActual = Number(monedero.saldo_monedero);
+
+    if (saldoActual < monto) {
+      throw new Error("Saldo insuficiente en el monedero.");
+    }
+
+    const nuevoSaldo = saldoActual - monto;
+
+    await monedero.update(
+      { saldo_monedero: nuevoSaldo },
+      { transaction: t }
+    );
+
+    await MovimientoMonederoRepository.create(
+      {
+        id_monedero: monedero.id_monedero,
+        id_empre,
+        cantidad_mov: monto,
+        tipo_mov: "DESCUENTO",
+        referencia: "USO EN VENTA",
+        fecha_mov: new Date(),
+      },
+      { transaction: t }
+    );
+
+    return { nuevoSaldo };
+  },
+
 
 };

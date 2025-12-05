@@ -18,6 +18,7 @@ import Articulo from "../../models/Articulos/Articulo";
 import Empleado from "../../models/Usuarios/Empleado/Empleado";
 import Lote_Usado_Venta from "../../models/LotesYCaducidad/Lote_Usado_Venta";
 import Detalle_Venta from "../../models/Venta/Detalle_Venta";
+import LoteArticuloSucursal from "../../models/LotesYCaducidad/Lote_ArticuloSucursal";
 
 const ventaIncludes = [
   {
@@ -55,9 +56,27 @@ const ListaVentas = [
       {
         model: Articulo,
         as: "articulo",
-        attributes: ["des_artic"],
+        attributes: ["des_artic", "id_artic",],
+      },
+      {
+        model: LoteUsadoVenta,
+        as: "lote_usado",
+        include: [
+          {
+            model: LoteArticuloSucursal,
+            as: "lote",
+            attributes: [
+              "id_lote_sucursal",
+              "numero_lote_sucursal",
+              "fecha_venci_lote_sucursal",
+              "cantidad_lote_sucursal"
+            ],
+          },
+        ],
+
       },
     ],
+
   },
   {
     model: Venta_Pago,
@@ -139,6 +158,7 @@ export const VentaRepository = {
           attributes: ["id_empleado", "nombre_empleado", "ap_pat_empleado", "ap_mat_empleado"]
         }
       ],
+      order: [['createdAt', 'DESC']],
     });
   },
 

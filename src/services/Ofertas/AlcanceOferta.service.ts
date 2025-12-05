@@ -15,10 +15,13 @@ export const AlcanceOfertaService = {
   },
 
   create: async (data: ICreateOrUpdateAlcanceOferta) => {
+    if (!data.tipo_alcance)
+      throw new Error("El tipo de alcance es obligatorio.");
+
     return await AlcanceOfertaRepository.create(data);
   },
 
   update: async (id: string, data: Partial<ICreateOrUpdateAlcanceOferta>) => {
-    return await AlcanceOfertaRepository.update(id, data);  
+    return await AlcanceOfertaRepository.update(id, data);
   },
 };

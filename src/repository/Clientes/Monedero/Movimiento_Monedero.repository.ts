@@ -4,6 +4,18 @@ import { v4 as uuidv4 } from "uuid";
 import { ICreateOrUpdateMovMonederoCliente } from "../../../interface/Clientes/Monedero/Movimiento_Monedero.interface";
 
 export const MovimientoMonederoRepository = {
+    getall: async (options?: { transaction?: Transaction }) => {
+        return await MovimientoMonederoCliente.findAll(options);
+    },
+
+    getByMonedero: async (id_monedero: string) => {
+        return await MovimientoMonederoCliente.findAll({
+            where: { id_monedero },
+            order: [["createdAt", "DESC"]],
+        });
+    },
+
+
     create: async (
         data: ICreateOrUpdateMovMonederoCliente,
         options?: { transaction?: Transaction }
@@ -23,11 +35,4 @@ export const MovimientoMonederoRepository = {
         );
     },
 
-
-    getByMonedero: async (id_monedero: string) => {
-        return await MovimientoMonederoCliente.findAll({
-            where: { id_monedero },
-            order: [["createdAt", "DESC"]],
-        });
-    },
 };

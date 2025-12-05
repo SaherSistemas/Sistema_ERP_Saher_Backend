@@ -190,6 +190,7 @@ router.use('/tipo_cliente', TipoClienteRouter);
 router.use('/beneficio', BeneficioClienteRouter);
 
 router.use('/monedero', MonederoRouter);
+// router.use('/MovimientoMonedero', MonederoRouter);
 
 //Recetas Medicas
 router.use('/recetamedica', RecetaMedicaRouter);

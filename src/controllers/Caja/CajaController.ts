@@ -14,25 +14,25 @@ export class CajaController {
         }
     }
 
-static getAllCajasSucursal = async (req: Request, res: Response) => {
-  try {
-    const { id_empre } = req.params; 
-    const cajas = await CajaService.getAllCajasSucursal(String(id_empre));
+    static getAllCajasSucursal = async (req: Request, res: Response) => {
+        try {
+            const { id_empre } = req.params;
+            const cajas = await CajaService.getAllCajasSucursal(String(id_empre));
 
-     const empresa = await Empresa_Sucursal.findByPk(String(id_empre), {
-          attributes: ["nom_empre"], 
-        });
-        const nombreEmpresa = empresa ? empresa.nom_empre : "Empresa desconocida";
+            const empresa = await Empresa_Sucursal.findByPk(String(id_empre), {
+                attributes: ["nom_empre"],
+            });
+            const nombreEmpresa = empresa ? empresa.nom_empre : "Empresa desconocida";
 
-    res.status(200).json({
-     empresa: nombreEmpresa,
-      cajas
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ mensaje: "Error al encontrar las cajas de la sucursal." });
-  }    
-}
+            res.status(200).json({
+                empresa: nombreEmpresa,
+                cajas
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: "Error al encontrar las cajas de la sucursal." });
+        }
+    }
 
     static activarCaja = async (req: Request, res: Response) => {
         try {
@@ -54,7 +54,6 @@ static getAllCajasSucursal = async (req: Request, res: Response) => {
             res.status(500).json({ mensaje: "Error al desactivar la caja." });
         }
     }
-
     static getByID = async (req: Request, res: Response) => {
         try {
             const { id_caja } = req.params;
@@ -65,7 +64,6 @@ static getAllCajasSucursal = async (req: Request, res: Response) => {
             res.status(500).json({ mensaje: "Error al encontrar la caja." });
         }
     }
-
     static getCantidadCajasPorSucursal = async (req: Request, res: Response) => {
         try {
             const { id_empre } = req.params;
@@ -76,8 +74,6 @@ static getAllCajasSucursal = async (req: Request, res: Response) => {
             res.status(500).json({ mensaje: "Error al obtener la cantidad de cajas por sucursal." });
         }
     }
-
-
     static create = async (req: Request, res: Response) => {
         try {
             const data = req.body;
@@ -89,5 +85,19 @@ static getAllCajasSucursal = async (req: Request, res: Response) => {
         }
     }
 
+
+    static actualizarCaja = async (req: Request, res: Response) => {
+        try {
+            const { id_caja } = req.params;
+            const data = req.body;
+
+            await CajaService.updateCaja(id_caja, data);
+
+            res.status(200).json({ mensaje: "Caja actualizada correctamente." });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: "Error al actualizar la caja." });
+        }
+    };
 
 }

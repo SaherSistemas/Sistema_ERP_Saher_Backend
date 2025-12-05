@@ -39,6 +39,34 @@ export class LotesArticuloSucursalController {
       res.status(500).json({ mensaje: "Error al obtener lotes." });
     }
   };
+  static validarExistencia = async (req: Request, res: Response) => {
+    try {
+      const { id_empre, id_artic } = req.params;
+      const cantidadSolicitada = Number(req.query.cantidad);
+
+      if (!cantidadSolicitada || cantidadSolicitada <= 0) {
+        res.status(400).json({ mensaje: "Cantidad solicitada inválida." });
+      }
+
+      const existencia = await LotesArticuloSucursalService.getExistenciaTotal(
+        id_empre,
+        id_artic
+      );
+
+      const puedeVender = existencia >= cantidadSolicitada;
+
+      res.json({
+        id_artic,
+        cantidadSolicitada,
+        existenciaDisponible: existencia,
+        puedeVender
+      });
+
+    } catch (error) {
+      console.error("validarExistencia:", error);
+      res.status(500).json({ mensaje: "Error al validar existencia." });
+    }
+  };
 
   static getByID = async (req: Request, res: Response) => {
     try {
@@ -85,31 +113,7 @@ export class LotesArticuloSucursalController {
     }
   };
 
-  // static repartirCantidadEntreLotes = async (req: Request, res: Response) => {
-  //   try {
-  //     const { cod_barr_artic } = req.params;
-  //     const cantidadSolicitada = Number(req.query.cantidad); // o puede ser req.body.cantidad, según cómo quieras
 
-  //     if (
-  //       !cod_barr_artic ||
-  //       isNaN(cantidadSolicitada) ||
-  //       cantidadSolicitada <= 0
-  //     ) {
-  //       res.status(400).json({ mensaje: "Parámetros inválidos" });
-  //     }
-
-  //     const lotesParaVenta =
-  //       await LotesArticuloSucursalService.repartirCantidadEntreLotes(
-  //         cod_barr_artic,
-  //         cantidadSolicitada
-  //       );
-
-  //     res.status(200).json(lotesParaVenta);
-  //   } catch (error: any) {
-  //     console.error("Error en repartirCantidadEntreLotes:", error.message);
-  //     res.status(500).json({ mensaje: error.message });
-  //   }
-  // };
   static create = async (req: Request, res: Response) => {
     try {
       const data = req.body;
@@ -121,26 +125,4 @@ export class LotesArticuloSucursalController {
     }
   };
 
-  /*
-    static updateByID = async (req: Request, res: Response) => {
-      try {
-        const { id_lote_sucursal } = req.params;
-        const data = req.body;
-        const updateLote = await LotesArticuloSucursalService.update(
-          id_lote_sucursal,
-          data
-        );
-        res
-          .status(201)
-          .json({
-            mensaje: "Lotes Articulo sucursal actualizado correctamente.",
-            id_lote_sucursal: updateLote,
-          });
-      } catch (error) {
-        console.error(error);
-        res
-          .status(500)
-          .json({ mensaje: "Error al actualizar Lotes Articulo sucursal." });
-      }
-    };*/
 }

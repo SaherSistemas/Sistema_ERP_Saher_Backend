@@ -9,6 +9,14 @@ export const MetodoPagoRepository = {
         return await Metodo_de_Pago.findAll();
     },
 
+    getByClave: async (clave_metodo_pago: string, transaction?: any) => {
+        return await Metodo_de_Pago.findOne({
+            where: { clave_metodo_pago },
+            transaction
+        });
+    },
+
+
     getByIDFlexible: async (id_metodo_pago: string) => {
         if (isUUID(id_metodo_pago)) {
             return await Metodo_de_Pago.findByPk(id_metodo_pago);

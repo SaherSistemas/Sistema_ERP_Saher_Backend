@@ -17,10 +17,11 @@ import {
 import ReglaOferta from "../../models/Ofertas/ReglaOferta";
 import {
   obtenerDiaSemanaISO,
-  parseDiasSemana,
   getLocalTimeInTz,
   getLocalDateInTz,
+  parseDiasSemana,
 } from "../../interface/Ofertas/Utils/Oferta.Utils";
+import { dbLocal } from "../../config/db";
 
 
 const OfertaIncludes = [
@@ -38,70 +39,70 @@ type RepoOpts = { transaction?: any };
 
 export const OfertaRepository = {
 
- 
+
 
   getOfertasSucursal: async (
-  Params: { id_empre: string; fecha: Date; canal?: "PDV" | "ONLINE" | "AMBOS" },
-  opts: RepoOpts = {}
-) => {
-  const { id_empre, fecha, canal } = Params;
-  if (!id_empre) throw new Error("getOfertas: falta id_empre");
-  if (!(fecha instanceof Date) || isNaN(fecha.getTime())) {
-    throw new Error("getOfertas: fecha inválida");
-  }
-
-  const tz = "America/Mazatlan";
-  const localDate  = getLocalDateInTz(fecha, tz);      
-  const localTime  = getLocalTimeInTz(fecha, tz);   
-  const weekdayIso = obtenerDiaSemanaISO(fecha, tz);   
-
-  const alcanceOR: WhereOptions[] = [
-    { tipo_alcance: "EMPRESA", id_referencia: id_empre },
-    { tipo_alcance: "GLOBAL",  id_referencia: { [Op.is]: null } },
-  ];
-
-  const candidatas = await Ofertas.findAll({
-    where: {
-      status_oferta: "ACTIVA",
-      [Op.and]: [
-        Sequelize.literal(`"fecha_ini_oferta"::date <= DATE '${localDate}'`),
-        Sequelize.literal(`"fecha_fin_oferta"::date >= DATE '${localDate}'`),
-      ],
-      ...(canal ? { canal_oferta: { [Op.in]: ["AMBOS", canal] } } : {}),
-    },
-    // distinct: true,          
-    subQuery: false,
-
-    include:OfertaIncludes, 
-    transaction: opts.transaction,
-  });
-
-  function hhmmssToSec(t: string) {
-    const [h, m, s] = String(t).split(":").map(Number);
-    return (h || 0) * 3600 + (m || 0) * 60 + (isNaN(s) ? 0 : s);
-  }
-
-  const nowSec = hhmmssToSec(localTime);
-
-  const aplicables = (candidatas ?? []).filter((o) => {
-    const dias = parseDiasSemana(String(o.get("dias_semana") ?? "*")); 
-    if (!dias.includes(weekdayIso)) return false;
-
-    const iniSec = hhmmssToSec(String(o.get("hora_ini") ?? "00:00:00"));
-    const finSec = hhmmssToSec(String(o.get("hora_fin") ?? "23:59:59"));
-
-    if (iniSec === finSec) {
-      return nowSec >= iniSec; 
+    Params: { id_empre: string; fecha: Date; canal?: "PDV" | "ONLINE" | "AMBOS" },
+    opts: RepoOpts = {}
+  ) => {
+    const { id_empre, fecha, canal } = Params;
+    if (!id_empre) throw new Error("getOfertas: falta id_empre");
+    if (!(fecha instanceof Date) || isNaN(fecha.getTime())) {
+      throw new Error("getOfertas: fecha inválida");
     }
-    if (iniSec < finSec) {
-      return iniSec <= nowSec && nowSec <= finSec;
+
+    const tz = "America/Mazatlan";
+    const localDate = getLocalDateInTz(fecha, tz);
+    const localTime = getLocalTimeInTz(fecha, tz);
+    const weekdayIso = obtenerDiaSemanaISO(fecha, tz);
+
+    const alcanceOR: WhereOptions[] = [
+      { tipo_alcance: "EMPRESA", id_referencia: id_empre },
+      { tipo_alcance: "GLOBAL", id_referencia: { [Op.is]: null } },
+    ];
+
+    const candidatas = await Ofertas.findAll({
+      where: {
+        status_oferta: "ACTIVA",
+        [Op.and]: [
+          Sequelize.literal(`"fecha_ini_oferta"::date <= DATE '${localDate}'`),
+          Sequelize.literal(`"fecha_fin_oferta"::date >= DATE '${localDate}'`),
+        ],
+        ...(canal ? { canal_oferta: { [Op.in]: ["AMBOS", canal] } } : {}),
+      },
+      // distinct: true,          
+      subQuery: false,
+
+      include: OfertaIncludes,
+      transaction: opts.transaction,
+    });
+
+    function hhmmssToSec(t: string) {
+      const [h, m, s] = String(t).split(":").map(Number);
+      return (h || 0) * 3600 + (m || 0) * 60 + (isNaN(s) ? 0 : s);
     }
-    return nowSec >= iniSec || nowSec <= finSec;
-  });
+
+    const nowSec = hhmmssToSec(localTime);
+
+    const aplicables = (candidatas ?? []).filter((o) => {
+      const dias = parseDiasSemana(String(o.get("dias_semana") ?? "*"));
+      if (!dias.includes(weekdayIso)) return false;
+
+      const iniSec = hhmmssToSec(String(o.get("hora_ini") ?? "00:00:00"));
+      const finSec = hhmmssToSec(String(o.get("hora_fin") ?? "23:59:59"));
+
+      if (iniSec === finSec) {
+        return nowSec >= iniSec;
+      }
+      if (iniSec < finSec) {
+        return iniSec <= nowSec && nowSec <= finSec;
+      }
+      return nowSec >= iniSec || nowSec <= finSec;
+    });
 
 
-  return aplicables;
-},
+    return aplicables;
+  },
   getAll: async () => {
     return await Ofertas.findAll({
       include: OfertaIncludes,
@@ -118,33 +119,69 @@ export const OfertaRepository = {
       });
     }
   },
+
   create: async (
     data: ICreateOrUpdateOferta,
     options?: { transaction?: Transaction }
   ) => {
-    const ofertaCore = {
-      id_oferta: uuidv4(),
-      nombre_oferta: data.nombre_oferta,
-      descripcion: data.descripcion,
-      fecha_ini_oferta: data.fecha_ini_oferta,
-      fecha_fin_oferta: data.fecha_fin_oferta,
-      dias_semana: data.dias_semana,
-      hora_ini: data.hora_ini,
-      hora_fin: data.hora_fin,
-      creada_por: data.creada_por,
-      canal_oferta: data.canal_oferta,
-      status_oferta: data.status_oferta,
-   
+    const run = async (t: Transaction) => {
+      const { alcances = [], reglas = [], ...ofertaBase } = data;
+      const id_oferta = uuidv4();
+
+      await Ofertas.create({ ...ofertaBase, id_oferta }, { transaction: t });
+
+      const norm = (v?: string | null) =>
+        (!v || v.trim?.() === "") ? null : v;
+
+      const normNum = (v: any) =>
+        (v === "" || v == null) ? null : Number(v);
+
+      if (alcances.length) {
+        await AlcanceOfertas.bulkCreate(
+          alcances.map(a => ({
+            id_oferta,
+            id_alcance: uuidv4(),
+            tipo_alcance: a.tipo_alcance,
+            id_referencia: a.id_referencia || null,
+            params: a.params || null,
+          })),
+          { transaction: t }
+        );
+      }
+
+      if (reglas.length) {
+        await ReglaOferta.bulkCreate(
+          reglas.map(r => ({
+            id_oferta,
+            id_regla: uuidv4(),
+            tipo_beneficio: r.tipo_beneficio,
+            valor: normNum(r.valor),
+            cantidad_minima: normNum(r.cantidad_minima),
+            cantidad_regalo: normNum(r.cantidad_regalo),
+            articulo_gratis: norm(r.articulo_gratis),
+            monto_minimo_total: normNum(r.monto_minimo_total),
+            minimo_articulo: normNum(r.minimo_articulo),
+            tope_desc: normNum(r.tope_desc),
+            cantidad_max_dias: normNum(r.cantidad_max_dias),
+            codigo_cupon: norm(r.codigo_cupon),
+            max_usos_cliente: normNum(r.max_usos_cliente),
+            max_usos_global: normNum(r.max_usos_global),
+            exclusiva: r.exclusiva ?? false,
+          })),
+          { transaction: t }
+        );
+      }
+
+      return Ofertas.findByPk(id_oferta, {
+        include: ["alcances", "reglas"],
+        transaction: t,
+      });
     };
 
-    return await Ofertas.create(ofertaCore, {
-      ...options, 
-      include: [
-        { model: AlcanceOfertas, as: "alcances" },
-        { model: ReglaOferta, as: "reglas" },
-      ],
-    });
+    if (options?.transaction) return run(options.transaction);
+    return dbLocal.transaction(run);
   },
+
 
   update: async (id: string, data: Partial<ICreateOrUpdateOferta>) => {
     if (!isUUID(id)) return null;

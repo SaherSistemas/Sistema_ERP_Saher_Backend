@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from "uuid";
 import { isUUID } from "../../utils/validaciones";
 import AlcanceOfertas from "../../models/Ofertas/OfertaAlcance";
 import { BulkCreateOptions, CreateOptions } from "sequelize";
+import ReglaOferta from "../../models/Ofertas/ReglaOferta";
+import Ofertas from "../../models/Ofertas/Ofertas";
 
 
 
@@ -10,9 +12,9 @@ import { BulkCreateOptions, CreateOptions } from "sequelize";
 
 function normalizeParams(data: ICreateOrUpdateAlcanceOferta) {
   let params = data.params ?? null;
-  
-if (params && (params as any).tipo === 'CADUCIDAD' && data.tipo_alcance != 'LOTE'){
-  throw new Error ("Alcance CADUCIDAD reuqiere tipo_alcance = 'LOTE'.")
+
+  if (params && (params as any).tipo === 'CADUCIDAD' && data.tipo_alcance != 'LOTE') {
+    throw new Error("Alcance CADUCIDAD reuqiere tipo_alcance = 'LOTE'.")
   }
 
   if (params && (params as any).tipo === 'CADUCIDAD') {
@@ -25,7 +27,16 @@ if (params && (params as any).tipo === 'CADUCIDAD' && data.tipo_alcance != 'LOTE
 
 export const AlcanceOfertaRepository = {
   getAll: async () => {
-    return await AlcanceOfertas.findAll();
+    return await AlcanceOfertas.findAll({
+      include: [
+        {
+          model: Ofertas,
+          attributes: ["nombre_oferta"],
+        },
+      ],
+    }
+
+    );
   },
 
   getById: async (id_alcance: string) => {
@@ -37,20 +48,20 @@ export const AlcanceOfertaRepository = {
   create: async (data: ICreateOrUpdateAlcanceOferta, options?: CreateOptions) => {
     const normalizedData = normalizeParams(data);
     return await AlcanceOfertas.create(
-      {id_alcance: uuidv4(), ...normalizedData}, 
+      { id_alcance: uuidv4(), ...normalizedData },
       options
-  );
+    );
   },
 
   bulkCreate: async (
     rows: ICreateOrUpdateAlcanceOferta[],
     options?: BulkCreateOptions
   ) => {
-    const mapped = rows.map(r => ({id_alcance: uuidv4(), ...normalizeParams(r)}));
+    const mapped = rows.map(r => ({ id_alcance: uuidv4(), ...normalizeParams(r) }));
     return await AlcanceOfertas.bulkCreate
-    (mapped, 
-      options
-    );
+      (mapped,
+        options
+      );
   },
 
 

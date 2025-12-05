@@ -7,11 +7,9 @@ router.get('/', LotesArticuloSucursalController.getAll);
 router.get('/resumen', LotesArticuloSucursalController.getResumenLotes);
 router.get('/:id', LotesArticuloSucursalController.getByID);
 router.get('/empresa/:id_empre/articulo/:id_artic', LotesArticuloSucursalController.getAllByEmpresaArticulo);
+router.get('/:id_empre/:id_artic/validar', LotesArticuloSucursalController.validarExistencia);
 
 router.get('/codigoBarra/:cod_barr_artic', LotesArticuloSucursalController.getLotesPorCodigoBarra);
 router.post('/', LotesArticuloSucursalController.create);
-
-//* AGENTE CONSUME ESTE PARA VER LAS EXISTENCIAS POR SUCURSAL  */
-// router.get('/lotes/repartir/:cod_barr_artic', LotesArticuloSucursalController.repartirCantidadEntreLotes);
 
 export default router;

@@ -26,14 +26,17 @@ export class AlcanceOfertaController {
 
   static create = async (req: Request, res: Response) => {
     try {
-      const data = req.body;
-      const nuevaoferta = await AlcanceOfertaService.create(data);
-      res.status(201).json(nuevaoferta);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ mensaje: "Error al crear Alcance." });
+      const nuevaOferta = await AlcanceOfertaService.create(req.body);
+      res.status(201).json(nuevaOferta);
+    } catch (error: any) {
+      console.error("Error creando alcance:", error);
+      res.status(error?.status || 400).json({
+        error: true,
+        message: error?.message || "Error al crear alcance"
+      });
     }
-  };
+  }
+
 
   static update = async (req: Request, res: Response) => {
     try {

@@ -12,21 +12,21 @@ import ReglaOferta from "../../models/Ofertas/ReglaOferta";
 export const OfertaService = {
   getOfertas: async (args: {
     id_empre: string;
-    fecha?: string | Date; 
-    canal?: canal; 
-    id_cliente?: string; 
+    fecha?: string | Date;
+    canal?: canal;
+    id_cliente?: string;
   }) => {
     const { id_empre, canal } = args;
-      if (!id_empre) throw new Error("Faltan parámetros");
+    if (!id_empre) throw new Error("Faltan parámetros");
 
     const fecha =
       typeof args.fecha === "string"
         ? new Date(args.fecha)
         : args.fecha instanceof Date
-        ? args.fecha
-        : new Date();
+          ? args.fecha
+          : new Date();
 
-    const candidatasSucursal = await OfertaRepository.getOfertasSucursal({id_empre,fecha});
+    const candidatasSucursal = await OfertaRepository.getOfertasSucursal({ id_empre, fecha });
     return candidatasSucursal;
   },
 
@@ -41,92 +41,14 @@ export const OfertaService = {
   create: async (data: ICreateOrUpdateOferta) => {
     return await OfertaRepository.create(data);
   },
+
   createOferta: async (data: ICreateOrUpdateOferta) => {
-    const t = await dbLocal.transaction();
-    try {
-      if (!data.alcances?.length)
-        throw new Error("Debes enviar al menos un alcance.");
-      if (!data.reglas?.length)
-        throw new Error("Debes enviar al menos una regla.");
-      const {
-        alcances,
-        reglas,
-        nombre_oferta,
-        descripcion,
-        fecha_ini_oferta,
-        fecha_fin_oferta,
-        dias_semana,
-        hora_ini,
-        hora_fin,
-        creada_por,
-        canal_oferta,
-        status_oferta,
-      } = data;
+    if (!data.alcances?.length) throw new Error("Debes enviar al menos un alcance.");
+    if (!data.reglas?.length) throw new Error("Debes enviar al menos una regla.");
 
-      const oferta = await OfertaRepository.create(
-        {
-          nombre_oferta,
-          descripcion,
-          fecha_ini_oferta,
-          fecha_fin_oferta,
-          dias_semana,
-          hora_ini,
-          hora_fin,
-          creada_por,
-          canal_oferta,
-          status_oferta,
-          alcances,
-          reglas,
-        },
-        { transaction: t }
-      );
-      const id_oferta = oferta.id_oferta;
-
-      await AlcanceOfertas.bulkCreate(
-        data.alcances.map((a) => ({
-          id_alcance: uuidv4(),
-          id_oferta: oferta.id_oferta,
-          tipo_alcance: a.tipo_alcance,
-          id_referencia: a.id_referencia ?? null,
-          params: a.params ?? null,
-        })),
-        { transaction: t }
-      );
-
-      const norm = (v?: string | null) =>
-      (typeof v === 'string' && v.trim() === '') ? null : v ?? null;
-
-      await ReglaOferta.bulkCreate(
-        data.reglas.map((r) => ({
-          id_oferta: oferta.id_oferta,
-          id_regla: uuidv4(),
-          valor: r.valor,
-          tipo_beneficio: r.tipo_beneficio,
-          cantidad_minima: r.cantidad_minima,
-          cantidad_regalo: r.cantidad_regalo,
-          articulo_gratis: norm(r.articulo_gratis),
-          monto_minimo_total: r.monto_minimo_total,
-          minimo_articulo: r.minimo_articulo,
-          tope_desc: r.tope_desc,
-          cantidad_max_dias: r.cantidad_max_dias,
-          codigo_cupon: r.codigo_cupon,
-          max_usos_cliente: r.max_usos_cliente,
-          max_usos_global: r.max_usos_global,
-          exclusiva: r.exclusiva,
-        })),
-        { transaction: t }
-      );
-      const OfertaCreada = await OfertaRepository.getById(id_oferta, {
-        transaction: t,
-      });
-
-      await t.commit();
-      return { message: "Oferta creada exitosamente", oferta: OfertaCreada };
-    } catch (e) {
-      await t.rollback();
-      throw e;
-    }
+    return await OfertaRepository.create(data);
   },
+
   update: async (id: string, data: Partial<ICreateOrUpdateOferta>) => {
     const oferta = await OfertaRepository.getById(id);
     if (!oferta) return null;

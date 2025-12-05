@@ -53,40 +53,21 @@ export class ClienteController {
     }
   };
 
-  static generarPDFListado = async (req: Request, res: Response) => {
+
+  static updateCliente = async (req: Request, res: Response) => {
     try {
       const { id_cliente } = req.params;
-      const pdfBuffer = await ClienteService.generarPDFListado();
+      const data = req.body;
+      const resultado = await ClienteService.updateCliente(id_cliente, data);
 
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename="Listado_Clientes.pdf"');
-
-      res.send(pdfBuffer);
+      if (resultado.error) {
+        res.status(resultado.status).json({ mensaje: resultado.error });
+      } else {
+        res.status(resultado.status).json({ mensaje: resultado.mensaje });
+      }
     } catch (error) {
-      console.error('Error al generar PDF:', error);
-      res.status(500).json({ error: 'No se pudo generar el PDF' });
+      console.error(error);
+      res.status(500).json({ mensaje: 'Error al actualizar el cliente.' });
     }
   };
-
-  // static actualizarByID = async (req: Request, res: Response) => {
-  //         try {
-  //             const { id_cliente } = req.params;
-  //             const data = req.body;
-  //             const clienteActualizado = await ClienteService.updateCliente(id_cliente, data);
-  //             res.status(200).json(clienteActualizado);
-  //         } catch (error) {
-  //             console.error(error);
-  //             res.status(500).json({ mensaje: "Error al actualizar el cliente." });
-  //         }
-  //     }
-  // static actualizarStatusByID = async (req: Request, res: Response) => {
-  //         try {
-  //             const { id_cliente } = req.params;
-  //             const clienteActualizado = await ClienteService.updateStatusCliente(id_cliente);
-  //             res.status(200).json(clienteActualizado);
-  //         } catch (error) {
-  //             console.error(error);
-  //             res.status(500).json({ mensaje: "Error al actualizar el estado del cliente." });
-  //         }
-  //     }
 }
