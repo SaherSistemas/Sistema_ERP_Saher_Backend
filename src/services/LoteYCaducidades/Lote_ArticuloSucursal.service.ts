@@ -9,6 +9,9 @@ export const LotesArticuloSucursalService = {
   getAll: async (): Promise<ILotesArticuloSucursal[]> => {
     return await LotesArticuloSucursalRepository.getAll();
   },
+  getExistencia: async (id_artic: string, id_sucursal: string) => {
+    return await LotesArticuloSucursalRepository.getExistencia(id_artic, id_sucursal);
+  },
   getById: async (id: string): Promise<ILotesArticuloSucursal> => {
     const loteartic = await LotesArticuloSucursalRepository.getById(id);
     if (!loteartic) throw new Error('Lote Articulo Sucursal no enocontrado');
@@ -61,6 +64,15 @@ export const LotesArticuloSucursalService = {
     limit: number;
   }) => {
     return await LotesArticuloSucursalRepository.getResumen(filters);
+  },
+  getResumenPromocion: async (filters: {
+    id_cliente: string;
+    id_sucursal: string;
+    grupoPrecio: string;
+    page: number;
+    limit: number;
+  }) => {
+    return await LotesArticuloSucursalRepository.getResumenPromocionados(filters);
   },
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     return LotesArticuloSucursalRepository.create(data);

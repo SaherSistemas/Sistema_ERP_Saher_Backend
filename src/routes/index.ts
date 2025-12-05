@@ -116,7 +116,7 @@ import Presupuesto_EmpleadoRouter from './Presupuestos/Presupuesto_EmpleadoRoute
 import Asignacion_Empleado_SucursalRouter from './Presupuestos/Asignacion_Empleado_SucursalRouter';
 
 import Cliente_AlmacenRouter from './Clientes/Cliente_Almacen/Cliente_AlmacenRouter';
-
+import Pedido_AlmacenRouter from './Pedido_Almacen/Pedido_AlmecenRouter';
 const router = Router();
 
 router.use(generalLimiter);
@@ -183,7 +183,6 @@ router.use('/lotes_solicitados', lotesSolicitadoRouter);
 
 // CLIENTES
 
-
 router.use('/cliente', ClienteMostradorRouter);
 router.use('/cliente_almacen', Cliente_AlmacenRouter);
 router.use('/tipo_cliente', TipoClienteRouter);
@@ -204,7 +203,6 @@ router.use('/caja', CajaRouter);
 router.use('/corte_caja', Corte_CajaRouter);
 
 router.use('/movimiento_caja', Movimiento_CajaRouter);
-
 
 //Stock
 router.use('/stock', Stock_SucursalRouter);
@@ -241,5 +239,8 @@ router.use('/nota_credito', notaCreditoRouter);
 router.use('/dashboard', Dash_ComprasRouter);
 
 router.use('/proyeccion', ProyecionRouter);
+
+//! ALMACEN
+router.use('/pedido_almacen', Pedido_AlmacenRouter);
 //router.use('/uploads/factura', uploadsRouter)
 export default router;

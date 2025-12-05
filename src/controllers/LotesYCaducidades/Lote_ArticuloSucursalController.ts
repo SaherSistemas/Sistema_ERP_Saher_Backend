@@ -14,6 +14,19 @@ export class LotesArticuloSucursalController {
     }
   };
 
+  static getExistencia = async (req: Request, res: Response) => {
+    try {
+      const { id_artic, id_sucursal } = req.params;
+
+      const existencia = await LotesArticuloSucursalService.getExistencia(id_artic, id_sucursal);
+
+      res.status(200).json(existencia);
+    } catch (error: any) {
+      console.error('getExistencia:', error);
+      res.status(500).json({ mensaje: 'Error al obtener existencia.' });
+    }
+  };
+
   static getAllByEmpresaArticulo = async (req: Request, res: Response) => {
     try {
       const { id_empre, id_artic } = req.params;
@@ -32,11 +45,11 @@ export class LotesArticuloSucursalController {
 
       res.status(200).json(lotes);
     } catch (error: any) {
-      if (error?.message?.includes("Faltan id_empre o id_artic")) {
+      if (error?.message?.includes('Faltan id_empre o id_artic')) {
         res.status(400).json({ mensaje: error.message });
       }
-      console.error("getAllByEmpresaArticulo:", error);
-      res.status(500).json({ mensaje: "Error al obtener lotes." });
+      console.error('getAllByEmpresaArticulo:', error);
+      res.status(500).json({ mensaje: 'Error al obtener lotes.' });
     }
   };
 
@@ -53,10 +66,7 @@ export class LotesArticuloSucursalController {
   static getLotesPorCodigoBarra = async (req: Request, res: Response) => {
     try {
       const { id_empresa, cod_barr_artic } = req.params;
-      const lotes = await LotesArticuloSucursalService.getLotesPorCodigoBarra(
-        id_empresa,
-        cod_barr_artic
-      );
+      const lotes = await LotesArticuloSucursalService.getLotesPorCodigoBarra(id_empresa, cod_barr_artic);
       res.status(200).json({
         cantidad: lotes
       });
@@ -69,7 +79,7 @@ export class LotesArticuloSucursalController {
   static getResumenLotes = async (req: Request, res: Response) => {
     try {
       const { nombre, grupoPrecio, id_sucursal, page, limit } = req.query;
-      console.log(nombre);
+      //console.log(nombre);
       const data = await LotesArticuloSucursalService.getResumen({
         nombre: nombre.toString(),
         grupoPrecio: grupoPrecio?.toString(),
@@ -78,6 +88,24 @@ export class LotesArticuloSucursalController {
         limit: Number(limit)
       });
 
+      res.status(200).json(data);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ mensaje: 'Error al obtener resumen de lotes' });
+    }
+  };
+  static getResumenPromocion = async (req: Request, res: Response) => {
+    try {
+      const { id_cliente, grupoPrecio, id_sucursal, page, limit } = req.query;
+      //console.log(nombre);
+      const data = await LotesArticuloSucursalService.getResumenPromocion({
+        id_cliente: id_cliente.toString(),
+        grupoPrecio: grupoPrecio?.toString(),
+        id_sucursal: id_sucursal.toString(),
+        page: Number(page),
+        limit: Number(limit)
+      });
+      console.log(data);
       res.status(200).json(data);
     } catch (error) {
       console.error(error);

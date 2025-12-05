@@ -20,6 +20,7 @@ import Presentacion_Articulo from './Presentacion_Articulo';
 import RecetaMedica from '../RecetaMedica/RecetaMedica';
 import RecetaArticulo from '../RecetaMedica/Receta_Articulo';
 import DetalleListaPrecio from '../Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio';
+import Detalle_Pedido_Almacen from '../PedidosAlmacen/Detalle_Pedido_Almacen';
 
 @Table({
   tableName: 'articulo'
@@ -132,6 +133,10 @@ class Articulo extends Model {
 
   @HasMany(() => DetalleListaPrecio)
   detalle_lista_precio: DetalleListaPrecio;
+
+  @HasMany(() => Detalle_Pedido_Almacen, { foreignKey: 'id_articulo' })
+  detalles_pedido: Detalle_Pedido_Almacen[];
+
   //RELACIONES
   @BelongsTo(() => UnidadMedida)
   unidadMedida: UnidadMedida;

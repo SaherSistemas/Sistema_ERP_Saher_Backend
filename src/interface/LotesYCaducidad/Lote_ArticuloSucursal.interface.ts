@@ -17,6 +17,7 @@ export interface ICreaterOrUdateLotesArticuloSucursal {
   cantidad_lote_sucursal: number;
   precio_costo_lote_sucursal: number;
   estado_lote_sucursal: string;
+  id_loterecibido_lote_sucursal: string;
 }
 
 export interface IResumenArticulo {
@@ -26,4 +27,10 @@ export interface IResumenArticulo {
   existencia_disponible: number;
   fecha_caduca_mas_corta: Date | null;
   lote_mas_corto?: string | null;
+}
+
+export interface ICompraAgrupada {
+  articulo: any; // puedes tiparlo mejor si quieres
+  cantidad_total: number;
+  cantidad_total_checada: number;
 }

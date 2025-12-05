@@ -21,6 +21,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^8.1.0",
+    "facturapi": "^4.10.0",
     "jsonwebtoken": "^9.0.2",
     "mathjs": "^14.9.1",
     "ml-regression-polynomial": "^3.0.2",

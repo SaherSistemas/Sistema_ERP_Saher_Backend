@@ -11,6 +11,7 @@ import {
 } from 'sequelize-typescript';
 import Articulo from '../Articulos/Articulo';
 import Empresa_Sucursal from '../Empresa_Sucursal/Empresa_Sucursal';
+import LotesRecibidosCompra from './LotesRecibidosCompra';
 
 @Table({
   tableName: 'lote_sucursal_articulo'
@@ -58,6 +59,13 @@ class LoteArticuloSucursal extends Model {
     type: DataType.INTEGER
   })
   declare cantidad_apartada_lote: number;
+
+  //CAMPO PARA SABER DE QUE LOTE FUE RECIBIDO
+  @ForeignKey(() => LotesRecibidosCompra)
+  @Column({
+    type: DataType.UUID
+  })
+  declare id_loterecibido_lote_sucursal: number;
 
   //NUEVO CAMPO PARA COSTO DEL LOTE
   @Column({

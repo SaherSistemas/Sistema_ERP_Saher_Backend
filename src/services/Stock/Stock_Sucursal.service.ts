@@ -116,6 +116,7 @@ export const StockSucursalService = {
                         cantidad_lote_sucursal: lote.cantidad_lote,
                         precio_costo_lote_sucursal: costoNuevo,
                         estado_lote_sucursal: 'A',
+                        id_loterecibido_lote_sucursal:lote.id_loterecibido
                     };
                     await LotesArticuloSucursalRepository.updateOrCreateLoteSucursal(loteData, { transaction: t });
                 }
