@@ -1,3 +1,5 @@
+import { CarritoItem } from "./Pedido_Almacen";
+
 export interface ICreateDetallePedidoAlmacen {
   id_pedido_almacen: string;
   id_articulo: string;
@@ -10,4 +12,12 @@ export interface IDetallePedidoAlmacen extends ICreateDetallePedidoAlmacen {
   id_detalle_pedido_almacen: string;
   cantidad_surtida: number;
   cantidad_checada: number;
+}
+
+
+//ACTUALIZAR DETALLE 
+export interface IUpdateDetallePedidoAlmacen {
+  id_pedido_almacen: string;
+  id_articulo: string;
+  cant_pedido: number;
 }

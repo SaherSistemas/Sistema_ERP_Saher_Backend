@@ -1,25 +1,23 @@
 import { Transaction } from 'sequelize';
 
-import {
-  ICreateDetallePedidoAlmacens,
-  ICreatePedidoAlmacen,
-  ICreatePedidoAlmacenCompleto,
-  IUpdatePedidoAlmacen
-} from '../../interface/Pedidos_Almacen/Pedido_Almacen';
-import { Pedido_AlmacenRepository } from '../../repository/Pedido_Almacen/Pedido_Almacen.repository';
-import { AgenteRepository } from '../../repository/Usuarios/Agente_De_Ventas/Agente.repository';
-import { dbLocal } from '../../config/db';
-import Prioridad_Agente_Reglas from '../../models/Usuarios/Agente_De_Ventas/Prioridad_Agente_Regla';
-import Detalle_Pedido_Almacen from '../../models/PedidosAlmacen/Detalle_Pedido_Almacen';
-import { Detalle_Pedido_AlmacenRepository } from '../../repository/Pedido_Almacen/Detalle_Pedido_Almacen.repository';
+import { AgenteRepository } from '../../../repository/Usuarios/Agente_De_Ventas/Agente.repository';
+import { dbLocal } from '../../../config/db';
+import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacenCompleto } from '../interface/Pedido_Almacen';
+import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.repository';
+import { Detalle_Pedido_AlmacenRepository } from '../repositories/Detalle_Pedido_Almacen.repository';
+import { Pedido_Almacen_Flujo_LogRepository } from '../repositories/Pedido_Almacen_Flujo_Log.repository';
 
 export const Pedido_AlmacenService = {
-  getAll: async () => {
-    return await Pedido_AlmacenRepository.getAll();
+  getAllDiaAgente: async (fecha: string, id_agente: string) => {
+    const agente = await AgenteRepository.getByIdEmpleado(id_agente)
+
+    return await Pedido_AlmacenRepository.getAllDiaAgente(fecha, agente.id_agente);
   },
   getDetallesPedido: async (id_pedido_alm: string) => {
     return Detalle_Pedido_AlmacenRepository.findByIDPedido(id_pedido_alm);
   },
+
+
 
   pedidosEnCaptura: async (id_cliente_alm: string) => {
     return await Pedido_AlmacenRepository.pedidosEnCaptura(id_cliente_alm);
@@ -51,18 +49,28 @@ export const Pedido_AlmacenService = {
       const encabezado = data.encabezado;
       encabezado.id_agente_pedido_alm = agente.id_agente;
 
-      //FECHA DE ENTREGA
-      const fechaPedido = new Date();
-      const fechaMaxEntrega = await Pedido_AlmacenRepository.getFechaMaxEntrega(agente.id_agente, fechaPedido);
+
       // 3. Crear pedido
       const nuevoPedido = await Pedido_AlmacenRepository.create(
         {
           ...encabezado,
           cod_int_pedido_alm: folioPedido,
-          fecha_max_entrega_alm: fechaMaxEntrega
+
         },
         { transaction: t }
       );
+
+      //INICIAR LOG
+      const id_pedido = nuevoPedido.id_pedido_alm;
+      const captura_agente = nuevoPedido.id_agente_pedido_alm;
+      await Pedido_Almacen_Flujo_LogRepository.iniciarLogPedido(
+        {
+          id_pedido,
+          captura_agente
+        },
+        { transaction: t }
+      );
+
       // 5. Crear / acumular detalles
       for (const item of data.detalle) {
         await Detalle_Pedido_AlmacenRepository.addOrAccumulate(
@@ -70,7 +78,7 @@ export const Pedido_AlmacenService = {
             ...item,
             id_pedido_almacen: nuevoPedido.id_pedido_alm
           },
-          t // <-- muy importante, pasamos la transacción
+          t
         );
       }
 
@@ -85,11 +93,32 @@ export const Pedido_AlmacenService = {
     }
   },
 
-  update: async (id: string, data: IUpdatePedidoAlmacen) => {
-    return 'await Pedido_AlmacenRepository.update(id, data)';
+  actualizarDetallesPedidoServ: async (data: ActualizarDetallesPedidoRequest) => {
+
+
+    return await Detalle_Pedido_AlmacenRepository.sincronizarCarrito(data);
   },
 
-  delete: async (id: string) => {
-    return await Pedido_AlmacenRepository.delete(id);
+ 
+
+
+  finalizarCaptura: async (id_pedido: string) => {
+    const t = await dbLocal.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
+    //REGISTRAR LOG
+    const log = await Pedido_Almacen_Flujo_LogRepository.finalizarLogCapturado(id_pedido, t)
+    if (!log) throw new Error('No existe log activo del pedido');
+
+    //CAMBIAR A CA= CAPTURADO 
+
+    const capturado = await Pedido_AlmacenRepository.actualizarFinCapturado(id_pedido, t)
+    if (!capturado) throw new Error('No se pudo actualizar el pedido');
+    await t.commit();
+
+    return capturado
   }
+
+
+
 };

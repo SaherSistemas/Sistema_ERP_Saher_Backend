@@ -8,7 +8,8 @@ import {
   Unique,
   BelongsTo,
   Default,
-  HasOne
+  HasOne,
+  HasMany
 } from 'sequelize-typescript';
 import Colonia from '../../Ubicacion/Colonia';
 import Cat_Regimen_Fiscal from '../../Catalogos/Cat_Regimen_Fiscal';
@@ -18,6 +19,7 @@ import Cat_uso_CFDI from '../../Catalogos/Cat_Uso_CFDI';
 import Agente_de_Venta from '../../Usuarios/Agente_De_Ventas/Agente_De_Venta';
 import Cat_Metodo_Pago from '../../Catalogos/Cat_Metodo_Pago';
 import ListaPrecio from '../../Costo_Y_Precio/Lista_Precios/Lista_Precio';
+import Pedido_Almacen from '../../../modules/Pedido_Almacen/model/Pedido_Almacen';
 
 @Table({
   tableName: 'cliente_almacen'
@@ -148,5 +150,8 @@ class Cliente_Almacen extends Model {
 
   @BelongsTo(() => Agente_de_Venta)
   Agente: Agente_de_Venta;
+
+  @HasMany(() => Pedido_Almacen)
+  pedido_almacen: Pedido_Almacen;
 }
 export default Cliente_Almacen;

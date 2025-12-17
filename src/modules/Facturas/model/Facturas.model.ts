@@ -15,8 +15,9 @@ import Cat_Metodo_Pago from '../../../models/Catalogos/Cat_Metodo_Pago';
 import Cat_Forma_De_Pago from '../../../models/Catalogos/Cat_Forma_De_Pago';
 import Cat_uso_CFDI from '../../../models/Catalogos/Cat_Uso_CFDI';
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
-import Pedido_Almacen from '../../../models/PedidosAlmacen/Pedido_Almacen';
+
 import Detalle_Factura from './Detalle_Factura.model';
+import Pedido_Almacen from '../../Pedido_Almacen/model/Pedido_Almacen';
 
 @Table({
     tableName: 'facturas'

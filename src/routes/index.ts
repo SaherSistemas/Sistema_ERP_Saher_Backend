@@ -116,7 +116,7 @@ import Presupuesto_EmpleadoRouter from './Presupuestos/Presupuesto_EmpleadoRoute
 import Asignacion_Empleado_SucursalRouter from './Presupuestos/Asignacion_Empleado_SucursalRouter';
 
 import Cliente_AlmacenRouter from './Clientes/Cliente_Almacen/Cliente_AlmacenRouter';
-import Pedido_AlmacenRouter from './Pedido_Almacen/Pedido_AlmecenRouter';
+import Pedido_AlmacenRouter from '../modules/Pedido_Almacen/routes/Pedido_AlmecenRouter';
 const router = Router();
 
 router.use(generalLimiter);

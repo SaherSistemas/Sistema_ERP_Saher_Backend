@@ -128,7 +128,7 @@ export class LotesArticuloSucursalController {
   //     const { cod_barr_artic } = req.params;
   //     const cantidadSolicitada = Number(req.query.cantidad); // o puede ser req.body.cantidad, según cómo quieras
 
- 
+
   static getResumenPromocion = async (req: Request, res: Response) => {
     try {
       const { id_cliente, grupoPrecio, id_sucursal, page, limit } = req.query;
@@ -140,7 +140,7 @@ export class LotesArticuloSucursalController {
         page: Number(page),
         limit: Number(limit)
       });
-      console.log(data);
+      // console.log(data);
       res.status(200).json(data);
     } catch (error) {
       console.error(error);

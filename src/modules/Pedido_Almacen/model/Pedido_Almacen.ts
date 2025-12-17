@@ -1,9 +1,9 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo } from 'sequelize-typescript';
+import Cat_Status_Pedido_Almacen from '../../../models/Catalogos/Pedidos_Almacen/Cat_Status_Pedido_Almacen';
+import Cat_Tipo_Pedido_Almacen from '../../../models/Catalogos/Pedidos_Almacen/Cat_Tipo_Pedido_Almacen';
+import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
+import Agente_de_Venta from '../../../models/Usuarios/Agente_De_Ventas/Agente_De_Venta';
 
-import Cliente_Almacen from '../Clientes/Cliente_Almacen/Cliente_Almacen';
-import Cat_Tipo_Pedido_Almacen from '../Catalogos/Pedidos_Almacen/Cat_Tipo_Pedido_Almacen';
-import Cat_Status_Pedido_Almacen from '../Catalogos/Pedidos_Almacen/Cat_Status_Pedido_Almacen';
-import Agente_de_Venta from '../Usuarios/Agente_De_Ventas/Agente_De_Venta';
 
 @Table({
   tableName: 'pedido_almacen'

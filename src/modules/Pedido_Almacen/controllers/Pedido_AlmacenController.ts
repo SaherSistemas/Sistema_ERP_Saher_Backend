@@ -1,11 +1,16 @@
 import type { Request, Response } from 'express';
-import { Pedido_AlmacenService } from '../../services/Pedido_Almacen/Pedido_Almacen.service';
+import { Pedido_AlmacenService } from '../services/Pedido_Almacen.service';
+import { ActualizarDetallesPedidoRequest } from '../interface/Pedido_Almacen';
 
 export class Pedido_AlmacenController {
   // GET paginado (si lo necesitas)
-  static getAllPaginado = async (req: Request, res: Response) => {
+  static getAllPorDiaAgente = async (req: Request, res: Response) => {
     try {
-      const data = await Pedido_AlmacenService.getAll();
+      const { fecha, id_user } = req.query as {
+        fecha: string;
+        id_user: string;
+      };
+      const data = await Pedido_AlmacenService.getAllDiaAgente(fecha, id_user);
       res.status(200).json(data);
     } catch (error) {
       console.log(error);
@@ -31,21 +36,35 @@ export class Pedido_AlmacenController {
       const data = await Pedido_AlmacenService.pedidosEnCotizacion(id_cliente_alm);
       res.status(200).json(data);
     } catch (error) {
-      console.log(error);
+      // console.log(error);
       res.status(500).json({ mensaje: 'Error al obtener pedidos.' });
     }
   };
 
-  // GET todos
-  static getAll = async (req: Request, res: Response) => {
+  static actualizarDetalles = async (req: Request, res: Response) => {
+    const data: ActualizarDetallesPedidoRequest = req.body;
+
+    const pedidoAActualizar = await Pedido_AlmacenService.actualizarDetallesPedidoServ(data);
+
+    res.status(200).json("HOLA");
+  }
+
+
+
+  //FINALIZAR CAPUTRA
+  static finalizarCaptura = async (req: Request, res: Response) => {
     try {
-      const data = await Pedido_AlmacenService.getAll();
-      res.status(200).json(data);
+      const { id_pedido } = req.body
+
+      const finalizarPedido = await Pedido_AlmacenService.finalizarCaptura(id_pedido);
+      res.status(200).json(finalizarPedido);
     } catch (error) {
-      console.log(error);
-      res.status(500).json({ mensaje: 'Error al obtener pedidos.' });
+      //console.log(error);
+      res.status(500).json({ mensaje: 'Error al finalizar pedidos.' });
     }
-  };
+
+
+  }
 
   // GET por ID
   static getByID = async (req: Request, res: Response) => {
@@ -77,45 +96,14 @@ export class Pedido_AlmacenController {
       const nuevo = await Pedido_AlmacenService.create(data);
       res.status(201).json(nuevo);
     } catch (error) {
-      console.log(error);
+      //  console.log(error);
       res.status(500).json({ mensaje: 'Error al crear pedido.' });
     }
   };
 
-  // PUT actualizar
-  static update = async (req: Request, res: Response) => {
-    try {
-      const { id_pedido_alm } = req.params;
-      const data = req.body;
 
-      const actualizado = await Pedido_AlmacenService.update(id_pedido_alm, data);
 
-      if (!actualizado) {
-        res.status(404).json({ mensaje: 'No existe el pedido.' });
-      }
 
-      res.status(200).json(actualizado);
-    } catch (error) {
-      res.status(500).json({ mensaje: 'Error al actualizar pedido.' });
-    }
-  };
-
-  // DELETE eliminar
-  static delete = async (req: Request, res: Response) => {
-    try {
-      const { id_pedido_alm } = req.params;
-
-      const eliminado = await Pedido_AlmacenService.delete(id_pedido_alm);
-
-      if (!eliminado) {
-        return res.status(404).json({ mensaje: 'No existe el pedido.' });
-      }
-
-      res.status(200).json({ eliminado });
-    } catch (error) {
-      res.status(500).json({ mensaje: 'Error al eliminar pedido.' });
-    }
-  };
 
   static getDetalles = async (req: Request, res: Response) => {
     try {
@@ -128,14 +116,5 @@ export class Pedido_AlmacenController {
       res.status(500).json({ mensaje: 'Error al eliminar pedido.' });
     }
   };
-  // GET último consecutivo (si aplica)
-  /* static ultimoID = async (_req: Request, res: Response) => {
-    try {
-      const ultimo = await Pedido_AlmacenService.getUltimoID();
-      const siguiente = ultimo + 1;
-      res.status(200).json(siguiente);
-    } catch (error) {
-      res.status(500).json({ mensaje: 'Error al obtener consecutivo.' });
-    }
-  };*/
+
 }

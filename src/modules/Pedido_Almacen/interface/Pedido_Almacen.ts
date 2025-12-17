@@ -56,3 +56,17 @@ export interface ICreatePedidoAlmacenCompleto {
   encabezado: ICreatePedidoAlmacen;
   detalle: ICreateDetallePedidoAlmacen[];
 }
+
+
+//ACTUALIZAR 
+export interface CarritoItem {
+  cant_pedido: number;
+  id_articulo: string;
+  iva: number;
+  precio_venta: number;
+}
+
+export interface ActualizarDetallesPedidoRequest {
+  id_pedido: string;
+  carrito: CarritoItem[];
+}

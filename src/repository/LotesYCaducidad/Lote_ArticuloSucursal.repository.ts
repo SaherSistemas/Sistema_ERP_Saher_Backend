@@ -11,12 +11,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { ArticuloRepository } from '../Articulos/Articulo.repository';
 import { Op, Sequelize, Transaction, FindOptions, fn, col, literal } from 'sequelize';
 import Articulo from '../../models/Articulos/Articulo';
-import { Pedido_AlmacenRepository } from '../Pedido_Almacen/Pedido_Almacen.repository';
-import { Detalle_Pedido_AlmacenRepository } from '../Pedido_Almacen/Detalle_Pedido_Almacen.repository';
 import { Detalle_Compra_RecibidosRepository } from '../Compras/Detalle_Compra_Recibido.repository';
 import { Detalle_Compra_SolicitadoRepository } from '../Compras/Detalle_Compra_Solicitado.repository';
 import DetalleListaPrecio from '../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio';
 import { DetalleListaPreciosRepository } from '../Costo_Y_Precio/Lista_Precio/Detalle_Lista_Precio.repository';
+import { Pedido_AlmacenRepository } from '../../modules/Pedido_Almacen/repositories/Pedido_Almacen.repository';
+import { Detalle_Pedido_AlmacenRepository } from '../../modules/Pedido_Almacen/repositories/Detalle_Pedido_Almacen.repository';
 type RepoOpts = FindOptions;
 
 export const LotesArticuloSucursalRepository = {
@@ -210,7 +210,7 @@ export const LotesArticuloSucursalRepository = {
 
     // 1. Últimos 3 pedidos facturados
     const pedidos = await Pedido_AlmacenRepository.getPedidosByClienteFacturados(id_cliente);
-    console.log(pedidos)
+    // console.log(pedidos)
     const ids = pedidos.map(p => p.id_pedido_alm);
 
     if (ids.length === 0) {

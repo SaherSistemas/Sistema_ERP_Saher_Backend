@@ -1,20 +1,40 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Transaction } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
+import Pedido_Almacen from '../model/Pedido_Almacen';
+import Prioridad_Agente_Reglas from '../../../models/Usuarios/Agente_De_Ventas/Prioridad_Agente_Regla';
+import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacen } from '../interface/Pedido_Almacen';
 
-import Pedido_Almacen from '../../models/PedidosAlmacen/Pedido_Almacen';
-import { ICreatePedidoAlmacen, IPedidoAlmacen } from '../../interface/Pedidos_Almacen/Pedido_Almacen';
-import Prioridad_Agente_Reglas from '../../models/Usuarios/Agente_De_Ventas/Prioridad_Agente_Regla';
+import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
+
 
 export const Pedido_AlmacenRepository = {
-  getAll: async () => {
-    return await Pedido_Almacen.findAll();
+  getAllDiaAgente: async (fecha: string, id_agente: string) => {
+    const inicioDia = new Date(`${fecha}T00:00:00.000`);
+    const finDia = new Date(`${fecha}T23:59:59.999`);
+
+    return await Pedido_Almacen.findAll({
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'id_cliente_pedido_alm', 'status_pedido_alm'],
+      where: {
+        id_agente_pedido_alm: id_agente,
+        createdAt: {
+          [Op.between]: [inicioDia, finDia]
+        }
+      },
+      include: [
+        {
+          model: Cliente_Almacen,
+          attributes: ['nom_corto_cliente_alm'],
+        }
+      ],
+      order: [['createdAt', 'ASC']]
+    });
   },
   getPedidosByClienteFacturados: async (id_cliente: string) => {
     return await Pedido_Almacen.findAll({
       attributes: ['id_pedido_alm'],
       where: {
         id_cliente_pedido_alm: id_cliente,
-        status_pedido_alm: 'FA'
+        status_pedido_alm: { [Op.in]: ['FA', 'CA'] }
       },
       order: [['createdAt', 'DESC']],
       limit: 3,
@@ -29,7 +49,8 @@ export const Pedido_AlmacenRepository = {
       }
     });
   },
-  getFechaMaxEntrega: async (id_agente: string, fechaPedido: Date): Promise<Date> => {
+  getFechaMaxEntrega: async (id_agente: string): Promise<Date> => {
+    const fechaPedido = new Date();
     const diaSemana = fechaPedido.getDay(); // 0=domingo
     const horaActual = fechaPedido.toTimeString().substring(0, 8); // HH:MM:SS
 
@@ -89,6 +110,20 @@ export const Pedido_AlmacenRepository = {
 
     return fechaEntrega;
   },
+  actualizarFinCapturado: async (id_pedido: string, transaction?: Transaction) => {
+    const pedido = await Pedido_AlmacenRepository.getByID(id_pedido)
+    if (!pedido) return null
+
+
+    //OBTENER FECHA MAXIMA DE ENTRAGA ALMACEN 
+    const fechaMaxEntrega = await Pedido_AlmacenRepository.getFechaMaxEntrega(pedido.id_agente_pedido_alm)
+
+    return await pedido.update({
+      fecha_max_entrega_alm: fechaMaxEntrega,
+      status_pedido_alm: 'CA'
+    },
+      { transaction })
+  },
 
   pedidosEnCotizacion: async (id_cliente_alm: string) => {
     return await Pedido_Almacen.findAll({
@@ -134,18 +169,10 @@ export const Pedido_AlmacenRepository = {
     );
   },
 
-  update: async (id_pedido_alm: string, data: Partial<ICreatePedidoAlmacen>): Promise<boolean> => {
-    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm);
-    if (!pedido) return false;
-
-    await pedido.update(data);
+  actualizarDetallesPedidoRepo: async (data: ActualizarDetallesPedidoRequest) => {
+    console.log("DATA DESDE REPO:", data)
     return true;
   },
 
-  delete: async (id_pedido_alm: string): Promise<boolean> => {
-    const deleted = await Pedido_Almacen.destroy({
-      where: { id_pedido_alm }
-    });
-    return deleted > 0;
-  }
+
 };
