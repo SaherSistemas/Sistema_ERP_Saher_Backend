@@ -6,6 +6,7 @@ const router = Router();
 router.get('/dia/agente', Pedido_AlmacenController.getAllPorDiaAgente)
 router.get('/enCaptura', Pedido_AlmacenController.pedidosEnCaptura);
 router.get('/enCotizacion', Pedido_AlmacenController.pedidosEnCotizacion);
+router.get('/surtir', Pedido_AlmacenController.porSurtir);
 
 router.put('/actualizar_detalles', Pedido_AlmacenController.actualizarDetalles)
 router.put('/finalizar_pedido', Pedido_AlmacenController.finalizarCaptura)

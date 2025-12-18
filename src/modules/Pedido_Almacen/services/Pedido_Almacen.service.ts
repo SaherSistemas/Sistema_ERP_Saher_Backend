@@ -14,7 +14,11 @@ export const Pedido_AlmacenService = {
     return await Pedido_AlmacenRepository.getAllDiaAgente(fecha, agente.id_agente);
   },
   getDetallesPedido: async (id_pedido_alm: string) => {
-    return Detalle_Pedido_AlmacenRepository.findByIDPedido(id_pedido_alm);
+    return await Detalle_Pedido_AlmacenRepository.findByIDPedido(id_pedido_alm);
+  },
+
+  porSurtir: async () => {
+    return await Pedido_AlmacenRepository.porSurtir();
   },
 
 
@@ -99,7 +103,7 @@ export const Pedido_AlmacenService = {
     return await Detalle_Pedido_AlmacenRepository.sincronizarCarrito(data);
   },
 
- 
+
 
 
   finalizarCaptura: async (id_pedido: string) => {

@@ -5,6 +5,8 @@ import Prioridad_Agente_Reglas from '../../../models/Usuarios/Agente_De_Ventas/P
 import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacen } from '../interface/Pedido_Almacen';
 
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
+import Empleado from '../../../models/Usuarios/Empleado/Empleado';
+import Agente_de_Venta from '../../../models/Usuarios/Agente_De_Ventas/Agente_De_Venta';
 
 
 export const Pedido_AlmacenRepository = {
@@ -27,6 +29,28 @@ export const Pedido_AlmacenRepository = {
         }
       ],
       order: [['createdAt', 'ASC']]
+    });
+  },
+  porSurtir: async () => {
+    return await Pedido_Almacen.findAll({
+      attributes: ['id_pedido_alm', 'status_pedido_alm', 'fecha_max_entrega_alm', 'id_agente_pedido_alm'],
+      where: { status_pedido_alm: 'CA' },
+      include: [
+        {
+          model: Agente_de_Venta,                   // Relación desde Pedido -> Agente
+          attributes: ['id_agente', 'id_empleado'], // Campos que quieres del agente
+          include: [
+            {
+              model: Empleado,        // Relación Agente -> Empleado
+              attributes: ['id_empleado', 'ap_pat_empleado', 'nombre_empleado'] // Campos del empleado
+            }
+          ]
+        }
+      ],
+      order: [
+        ['fecha_max_entrega_alm', 'ASC'],
+        ['id_cliente_pedido_alm', 'ASC']
+      ]
     });
   },
   getPedidosByClienteFacturados: async (id_cliente: string) => {

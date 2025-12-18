@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { Pedido_AlmacenService } from '../services/Pedido_Almacen.service';
 import { ActualizarDetallesPedidoRequest } from '../interface/Pedido_Almacen';
+import { io } from '../../../server_ws';
 
 export class Pedido_AlmacenController {
   // GET paginado (si lo necesitas)
@@ -41,6 +42,17 @@ export class Pedido_AlmacenController {
     }
   };
 
+  static porSurtir = async (req: Request, res: Response) => {
+    try {
+      const pedidosPorSurtir = await Pedido_AlmacenService.porSurtir();
+      res.status(200).json(pedidosPorSurtir);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ mensaje: 'Error al obtener pedidos.' });
+    }
+
+
+  }
   static actualizarDetalles = async (req: Request, res: Response) => {
     const data: ActualizarDetallesPedidoRequest = req.body;
 
@@ -57,6 +69,8 @@ export class Pedido_AlmacenController {
       const { id_pedido } = req.body
 
       const finalizarPedido = await Pedido_AlmacenService.finalizarCaptura(id_pedido);
+      // Emitir el pedido a todos los surtidores conectados
+      io.emit('pedido_nuevo_surtir', finalizarPedido);
       res.status(200).json(finalizarPedido);
     } catch (error) {
       //console.log(error);
@@ -94,6 +108,7 @@ export class Pedido_AlmacenController {
       const data = req.body;
       // console.log(data);
       const nuevo = await Pedido_AlmacenService.create(data);
+
       res.status(201).json(nuevo);
     } catch (error) {
       //  console.log(error);
