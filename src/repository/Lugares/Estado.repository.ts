@@ -44,9 +44,7 @@ export const EstadoRepository = {
     },
 
     getEstadosPorPais: async (id_pais: string): Promise<IEstado[]> => {
-        const pais = await PaisRepository.findByIdFlexible(id_pais)
-        if (!pais) return [];
-        return await Estado.findAll({ where: { id_pais_esta: pais.id_pais } });
+        return await Estado.findAll({ where: { id_pais_esta: id_pais } });
     },
 
     ultimoID: async () => {

@@ -37,6 +37,20 @@ export const LotesArticuloSucursalRepository = {
       raw: true
     });
   },
+  apartarCantidad: async (id_lote_sucursal: string, cantidad_apartar: number, transaction?: Transaction) => {
+    // Actualiza el lote sumando a cantidad_apartada_lote
+    return await Lote_sucursal_articulo.update(
+      {
+        cantidad_apartada_lote:
+          // Sequelize permite hacer operaciones incrementales
+          Sequelize.literal(`cantidad_apartada_lote + ${cantidad_apartar}`)
+      },
+      {
+        where: { id_lote_sucursal },
+        transaction
+      }
+    );
+  },
   getExistencia: async (id_artic: string, id_sucursal: string) => {
     // 1. Consulta principal: totales
     const result: any = await Lote_sucursal_articulo.findOne({

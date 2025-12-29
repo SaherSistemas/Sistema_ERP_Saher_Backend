@@ -4,21 +4,22 @@ import Empleado from '../../models/Usuarios/Empleado/Empleado';
 import { isUUID } from '../../utils/validaciones';
 import { literal, Op, Sequelize, Transaction, UniqueConstraintError, where } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
+import { Empresa_SucursalRepository } from '../Empresa_Sucursal/Empresa_Sucursal.repository';
 export const EmpleadoRepository = {
   getAll: async (page: number, limit: number, query: string) => {
     const offset = (page - 1) * limit;
     const whereClause = query
       ? {
-          [Op.or]: [
-            { nombre_empleado: { [Op.iLike]: `%${query}%` } },
-            { ap_pat_empleado: { [Op.iLike]: `%${query}%` } },
-            { ap_mat_empleado: { [Op.iLike]: `%${query}%` } },
-            { nss_empleado: { [Op.iLike]: `%${query}%` } },
-            Sequelize.where(Sequelize.cast(Sequelize.col('idinterno_empleado'), 'TEXT'), {
-              [Op.iLike]: `%${query}%`
-            })
-          ]
-        }
+        [Op.or]: [
+          { nombre_empleado: { [Op.iLike]: `%${query}%` } },
+          { ap_pat_empleado: { [Op.iLike]: `%${query}%` } },
+          { ap_mat_empleado: { [Op.iLike]: `%${query}%` } },
+          { nss_empleado: { [Op.iLike]: `%${query}%` } },
+          Sequelize.where(Sequelize.cast(Sequelize.col('idinterno_empleado'), 'TEXT'), {
+            [Op.iLike]: `%${query}%`
+          })
+        ]
+      }
       : {};
 
     const { rows, count } = await Empleado.findAndCountAll({
@@ -44,9 +45,11 @@ export const EmpleadoRepository = {
   },
 
   getAllEmpleadosQuePuedenSerAgente: async () => {
+    const empresaPrincipal = await Empresa_SucursalRepository.getEmpresaPrincipal()
+    //console.log(empresaPrincipal)
     return await Empleado.findAll({
       where: {
-        id_sucursal_empleado: process.env.EMPRESA_PRINCIPAL_ID,
+        id_sucursal_empleado: empresaPrincipal.id_empre,
         id_empleado: { [Op.notIn]: literal('(SELECT id_empleado FROM agente_de_venta)') }
       }
     });

@@ -15,14 +15,25 @@ export const Factura_Compra_ProveedorRepository = {
         });
     },
     guardarFacturaEIniciarCapturaLotes: async (data: ICreateFacturaCompraProveedor) => {
-        const compraProveedor = await Compra_ProveedorRepository.getByID(data.id_compra_proveedor)
+        const compraProveedor = await Compra_ProveedorRepository.getByID(data.id_compra_proveedor);
 
-        compraProveedor.update({
-            folio_factura_compra: data.folio_factura_proveedor,
-            inicio_de_registro_lotes: new Date(),
-            costo_por_envio: data.costo_por_envio,
-            estado_comp: 'L'
-        })
+        if (!compraProveedor) throw new Error('Compra proveedor no encontrada');
+
+        const updates: any = {};
+
+        // Acumular costo por envío
+        updates.costo_por_envio = Number(compraProveedor.costo_por_envio || 0) + Number(data.costo_por_envio || 0);
+
+        // Solo colocar fecha si aún no existe
+        if (!compraProveedor.inicio_de_registro_lotes) {
+            updates.inicio_de_registro_lotes = new Date();
+        }
+
+        // No actualizar estado_comp si ya tiene uno definido
+        // (Si quieres permitir que se cambie solo si estaba en otro estado, aquí se ajusta)
+        // updates.estado_comp = compraProveedor.estado_comp; // NO se toca
+
+        await compraProveedor.update(updates);
 
         return await Factura_Compra_Proveedor.create({
             id_factura_proveedor: uuidv4(),
@@ -34,9 +45,9 @@ export const Factura_Compra_ProveedorRepository = {
             estatus_pago_factura: 'PENDIENTE',
             url_PDF: '',
             url_XML: ''
-        })
-
+        });
     }
+
 
 
 

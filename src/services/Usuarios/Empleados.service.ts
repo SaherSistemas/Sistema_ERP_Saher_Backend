@@ -10,11 +10,11 @@ export const EmpleadoService = {
     return await EmpleadoRepository.getAll(page, limit, query);
   },
   getAllEmpleadosQuePuedenSerAgente: async () => {
-    console.log("HOLA")
+    // console.log("HOLA")
     return await EmpleadoRepository.getAllEmpleadosQuePuedenSerAgente();
   },
 
-  async obtenerEmpleado(id_empleado: string | number, t?: Transaction) {
+  obtenerEmpleado: async (id_empleado: string | number, t?: Transaction) => {
     if (!id_empleado) {
       throw new Error('Id_empleado no enviado');
     }

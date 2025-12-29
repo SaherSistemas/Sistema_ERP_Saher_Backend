@@ -25,7 +25,9 @@ export class EstadoController {
     static getEstadosPorPais = async (req: Request, res: Response) => {
         try {
             const { id_pais_esta } = req.params;
+            console.log(id_pais_esta)
             const estadosPorPais = await EstadoService.getEstadosPorPais(id_pais_esta);
+
             res.status(200).json(estadosPorPais);
         } catch (error) {
             //      console.log(error)
@@ -61,7 +63,7 @@ export class EstadoController {
             const updateEstado = await EstadoService.updateEstado(id_esta, data);
             res.status(200).json({ mensaje: "Estado actualizado correctamente.", estado: updateEstado });
         } catch (error) {
-         //   console.log(error)
+            //   console.log(error)
             res.status(500).json({ message: "Error al modificar el estado." });
         }
     }

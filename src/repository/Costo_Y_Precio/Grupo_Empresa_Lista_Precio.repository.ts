@@ -23,20 +23,28 @@ export const Grupo_Empresa_Lista_PrecioRepository = {
 
     getListasSinAsignar: async () => {
         const listasAsignadas = await Grupo_Empresa_Lista_Precio.findAll({
-            attributes: ['id_list_precio']
-        })
+            attributes: ['id_list_precio'],
+            raw: true
+        });
 
-        const idsAsignados = listasAsignadas.map(l => l.id_list_precio)
+        const idsAsignados = listasAsignadas.map(l => l.id_list_precio);
+
+        if (idsAsignados.length === 0) {
+            return await ListaPrecio.findAll({
+                attributes: ['id_lista_precio', 'nombre_lista_precio']
+            });
+        }
 
         return await ListaPrecio.findAll({
             where: {
                 id_lista_precio: {
-                    [Op.notIn]: idsAsignados.length ? idsAsignados : [""]
+                    [Op.notIn]: idsAsignados
                 }
             },
-            attributes: ["id_lista_precio", "nombre_lista_precio"]
+            attributes: ['id_lista_precio', 'nombre_lista_precio']
         });
     },
+
     getOne: async (data: ICreateOrUpdateGrupo_Empresa_Lista_Precio) => {
         return await Grupo_Empresa_Lista_Precio.findOne({
             where: {

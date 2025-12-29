@@ -84,6 +84,10 @@ class Empresa_Sucursal extends Model {
   })
   declare id_listapreciodefault: string;
 
+  @Column({
+    type: DataType.BOOLEAN
+  })
+  declare es_empresa_principal: boolean
   @BelongsTo(() => ListaPrecio)
   listaPrecio: ListaPrecio;
 

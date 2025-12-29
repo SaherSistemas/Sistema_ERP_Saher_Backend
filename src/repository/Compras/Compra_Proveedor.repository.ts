@@ -44,7 +44,7 @@ export const Compra_ProveedorRepository = {
       ]
     });
   },
-  
+
   getComprasPendientes: async () => {
     return await Compra_Proveedor.findAll({
       where: {

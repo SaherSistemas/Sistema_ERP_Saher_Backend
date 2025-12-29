@@ -10,6 +10,7 @@ export interface IEmpresaSucursal {
     correo_empre: string;
     tele_empre: string;
     status_empre: boolean;
+    es_empresa_principal: boolean
 }
 export interface ICrearEmpresaSucursal {
     nom_empre: string;
@@ -22,6 +23,8 @@ export interface ICrearEmpresaSucursal {
     correo_empre: string;
     tele_empre: string;
     status_empre: boolean;
+
+    es_empresa_principal: boolean
 }
 export interface IUpdateEmpresaSucursal {
     id_caja?: string;
@@ -35,4 +38,6 @@ export interface IUpdateEmpresaSucursal {
     correo_empre?: string;
     tele_empre?: string;
     status_empre?: boolean
+
+    es_empresa_principal: boolean
 }

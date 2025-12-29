@@ -16,7 +16,7 @@ export class Grupo_Empresa_Lista_PrecioController {
             const listasSinAsignar = await Grupo_Empresa_Lista_PrecioService.getListasSinAsignar();
             res.status(200).json(listasSinAsignar);
         } catch (error) {
-            //  console.log(error)
+            console.log(error)
             res.status(500).json({ message: "Error al obtener los grupos Lista", error });
         }
     }
@@ -36,6 +36,7 @@ export class Grupo_Empresa_Lista_PrecioController {
             const listasRelacionadasAlGrupo = await Grupo_Empresa_Lista_PrecioService.getPorGrupo(id_grup_empresa)
             res.status(200).json(listasRelacionadasAlGrupo)
         } catch (error) {
+            console.log(error)
             res.status(500).json({ message: "Error al obtener los grupos Lista", error });
         }
     }

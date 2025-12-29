@@ -22,10 +22,6 @@ class Compra_Proveedor extends Model {
     })
     declare idprove_comp: string
 
-    @Column({
-        type: DataType.STRING(20)
-    })
-    declare folio_factura_compra: string
 
     @Column({
         type: DataType.DECIMAL(12, 2)

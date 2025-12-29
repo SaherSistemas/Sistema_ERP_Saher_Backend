@@ -19,11 +19,8 @@ export const ColoniaRepository = {
   },
 
   getColoniasPorCiudad: async (id_ciuda: string): Promise<IColonia[]> => {
-    const ciudad = await CiudadRepository.findByIdFlexible(id_ciuda);
 
-    if (!ciudad) return [];
-
-    return await Colonia.findAll({ where: { id_ciuda_colonia: ciudad.id_ciuda } });
+    return await Colonia.findAll({ where: { id_ciuda_colonia: id_ciuda } });
   },
 
   findByIdFlexible: async (id: string): Promise<Colonia | null> => {

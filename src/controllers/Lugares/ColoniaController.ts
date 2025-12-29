@@ -26,6 +26,7 @@ export class ColoniaController {
     try {
       const { id_ciuda_colonia } = req.params;
       const coloniasPorCiudad = await ColoniaService.getColoniasPorCiudad(id_ciuda_colonia);
+      console.log(coloniasPorCiudad)
       res.status(200).json(coloniasPorCiudad);
     } catch (error) {
       //  console.error(error);

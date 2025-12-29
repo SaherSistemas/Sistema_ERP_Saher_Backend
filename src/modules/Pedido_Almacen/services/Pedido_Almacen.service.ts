@@ -6,6 +6,7 @@ import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacenCompleto } from '.
 import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.repository';
 import { Detalle_Pedido_AlmacenRepository } from '../repositories/Detalle_Pedido_Almacen.repository';
 import { Pedido_Almacen_Flujo_LogRepository } from '../repositories/Pedido_Almacen_Flujo_Log.repository';
+import { Detalle_Pedido_Almacen_LoteRepository } from '../repositories/Detalle_Pedido_Almacen_Lote.repository';
 
 export const Pedido_AlmacenService = {
   getAllDiaAgente: async (fecha: string, id_agente: string) => {
@@ -118,6 +119,8 @@ export const Pedido_AlmacenService = {
 
     const capturado = await Pedido_AlmacenRepository.actualizarFinCapturado(id_pedido, t)
     if (!capturado) throw new Error('No se pudo actualizar el pedido');
+
+    const repartirLotes = await Detalle_Pedido_Almacen_LoteRepository.create(id_pedido, t)
     await t.commit();
 
     return capturado

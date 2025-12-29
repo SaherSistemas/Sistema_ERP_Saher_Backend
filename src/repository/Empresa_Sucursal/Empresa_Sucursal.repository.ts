@@ -7,6 +7,15 @@ import Ciudad from "../../models/Ubicacion/Ciudad";
 import Estado from "../../models/Ubicacion/Estado";
 import Pais from "../../models/Ubicacion/Pais";
 export const Empresa_SucursalRepository = {
+
+    getEmpresaPrincipal: async () => {
+        return await Empresa_Sucursal.findOne({
+            where: {
+                es_empresa_principal: true
+            },
+            attributes: ['id_empre']
+        })
+    },
     getAll: async (): Promise<IEmpresaSucursal[]> => {
         return await Empresa_Sucursal.findAll({
             attributes: ['id_empre', 'nom_empre', 'rfc_empre', 'tipo_empre', 'calle_empre', 'id_colonia_empre', 'correo_empre', 'tele_empre', 'status_empre', 'idgrup_empre', 'id_listapreciodefault', 'createdAt', 'updatedAt'],

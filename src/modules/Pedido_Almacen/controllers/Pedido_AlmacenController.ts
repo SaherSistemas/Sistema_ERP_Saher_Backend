@@ -73,7 +73,7 @@ export class Pedido_AlmacenController {
       io.emit('pedido_nuevo_surtir', finalizarPedido);
       res.status(200).json(finalizarPedido);
     } catch (error) {
-      //console.log(error);
+      console.log(error);
       res.status(500).json({ mensaje: 'Error al finalizar pedidos.' });
     }
 

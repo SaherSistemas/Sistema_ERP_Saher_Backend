@@ -65,7 +65,7 @@ class LoteArticuloSucursal extends Model {
   @Column({
     type: DataType.UUID
   })
-  declare id_loterecibido_lote_sucursal: number;
+  declare id_loterecibido_lote_sucursal: string;
 
   //NUEVO CAMPO PARA COSTO DEL LOTE
   @Column({

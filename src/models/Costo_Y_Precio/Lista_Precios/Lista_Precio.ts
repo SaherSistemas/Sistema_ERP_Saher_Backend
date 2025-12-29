@@ -27,19 +27,9 @@ class ListaPrecio extends Model {
     @Column({
         type: DataType.STRING(50)
     }) declare descripcion_lista_precio: string;
-
-    @Column({
-        type: DataType.DATE
-    }) declare fecha_inicio: Date;
-
-    @Column({
-        type: DataType.DATE
-    }) declare fecha_fin: Date;
-
     @Column({
         type: DataType.STRING(1)
     }) declare status_lista_precios: string;
-
 
 
     @HasMany(() => Empresa_Sucursal)

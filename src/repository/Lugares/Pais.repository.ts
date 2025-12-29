@@ -31,15 +31,15 @@ export const PaisRepository = {
 
     findByIdFlexible: async (id: string) => {
         if (isUUID(id)) {
-            return await Pais.findByPk(id);
+            const pais = await Pais.findByPk(id);
+            console.log(pais)
+            return
         } else if (!isNaN(Number(id))) {
             return await Pais.findOne({
                 where: {
                     id_intpais: Number(id)
                 }
             });
-        } else {
-            return null;
         }
     },
 
