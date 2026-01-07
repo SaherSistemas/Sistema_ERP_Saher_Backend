@@ -111,7 +111,7 @@ export class Pedido_AlmacenController {
 
       res.status(201).json(nuevo);
     } catch (error) {
-      //  console.log(error);
+      console.log(error);
       res.status(500).json({ mensaje: 'Error al crear pedido.' });
     }
   };

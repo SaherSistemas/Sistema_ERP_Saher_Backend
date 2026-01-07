@@ -1,8 +1,8 @@
 import { Op, WhereOptions } from 'sequelize';
 
 import { ICompraKPISRequest } from "../../interface/Dashboard/Compras.interface";
-import { CompraGeneralRepository } from '../../repository/Compras/Compra_General.repository';
-import { Compra_ProveedorRepository } from '../../repository/Compras/Compra_Proveedor.repository';
+import { CompraGeneralRepository } from '../../modules/Compras/repositories/Compra_General.repository';
+import { Compra_ProveedorRepository } from '../../modules/Compras/repositories/Compra_Proveedor.repository';
 
 
 export const dashboardComprasService = {

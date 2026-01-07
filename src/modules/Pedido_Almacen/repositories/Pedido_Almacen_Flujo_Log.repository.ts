@@ -27,7 +27,7 @@ export const Pedido_Almacen_Flujo_LogRepository = {
     finalizarLogCapturado: async (id_pedido: string, transaction?: Transaction) => {
         const log = await Pedido_Flujo_Log.findOne({ where: { id_pedido } });
         if (!log) return null;
-
+        
         return await log.update(
             {
                 captura_fin: new Date()

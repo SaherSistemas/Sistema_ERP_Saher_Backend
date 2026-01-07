@@ -4,10 +4,10 @@ import estadoRouter from '../routes/Lugares/estadoRouter';
 import ciudadRouter from '../routes/Lugares/ciudadRouter';
 import coloniaRouter from '../routes/Lugares/coloniaRouter';
 
-import proveedorRouter from './Proveedores/proveedorRouter';
-import proveedor_empresaRouter from './Proveedores/proveedor_empresaRouter';
+import proveedorRouter from '../modules/Proveedores/routes/proveedorRouter';
+import proveedor_empresaRouter from '../modules/Proveedores/routes/proveedor_empresaRouter';
 
-import listados_proveedorRouter from './Proveedores/listados_proveedorRouter';
+import listados_proveedorRouter from '../modules/Proveedores/routes/listados_proveedorRouter';
 import unidad_medidaRouter from '../routes/Articulos/UnidadMedidaRouter';
 import temporabilidadRouter from '../routes/Articulos/TemporabilidadRouter';
 import tipoArticuloRouter from '../routes/Articulos/Tipo_ArticuloRouter';
@@ -46,14 +46,14 @@ import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter';
 import grupo_EmpresaRouter from './Empresa_Sucursal/grupo_EmpresaSucursalRouter';
 import grupoEmpresaListaPrecioRouter from './Costo_y_Precio/Grupo_Empresa_Lista_PrecioRouter';
 
-import detalleCompraNegadoRouter from './Compras/detalle_Compra_NegadoRouter';
-import detalleCompraRecibidoRouter from './Compras/detalle_Compra_RecibidoRouter';
-import parametos_CompraRouter from './Compras/parametros_CompraRouter';
-import comprasRouter from './Compras/ComprasGeneralRouter';
-import comprasProveedorRouter from './Compras/ComprasProveedorRouter';
-import detalle_CompraRouter from './Compras/detalle_CompraRouter';
+import detalleCompraNegadoRouter from '../modules/Compras/routes/detalle_Compra_NegadoRouter';
+import detalleCompraRecibidoRouter from '../modules/Compras/routes/detalle_Compra_RecibidoRouter';
+import parametos_CompraRouter from '../modules/Compras/routes/parametros_CompraRouter';
+import comprasRouter from '../modules/Compras/routes/ComprasGeneralRouter';
+import comprasProveedorRouter from '../modules/Compras/routes/ComprasProveedorRouter';
+import detalle_CompraRouter from '../modules/Compras/routes/detalle_CompraRouter';
 
-import factura_compra_ProveedorRouter from './Proveedores/facturas_Compra_ProveedorRouter';
+import factura_compra_ProveedorRouter from '../modules/Finanzas/Cuentas_Por_Pagar/routes/facturas_Compra_ProveedorRouter';
 
 import Margen_Ganancia_ListaRouter from './Costo_y_Precio/Margen_Ganancia_ListaRouter';
 
@@ -117,6 +117,14 @@ import Asignacion_Empleado_SucursalRouter from './Presupuestos/Asignacion_Emplea
 
 import Cliente_AlmacenRouter from './Clientes/Cliente_Almacen/Cliente_AlmacenRouter';
 import Pedido_AlmacenRouter from '../modules/Pedido_Almacen/routes/Pedido_AlmecenRouter';
+
+
+import finanzasRouter from '../modules/Finanzas/index.route';
+
+import inventarioRouter from '../modules/Inventario/index.route';
+
+
+import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
 const router = Router();
 
 router.use(generalLimiter);
@@ -233,7 +241,8 @@ router.use('/presupuesto_empresa', Presupuesto_EmpresaRouter);
 router.use('/presupuesto_empleado', Presupuesto_EmpleadoRouter);
 router.use('/asignacion_empleado_sucursal', Asignacion_Empleado_SucursalRouter);
 
-router.use('/facturas_proveedor', factura_compra_ProveedorRouter);
+
+router.use('/finanzas', finanzasRouter);
 
 router.use('/devoluciones', DevolucionesRouter);
 router.use('/nota_credito', notaCreditoRouter);
@@ -243,6 +252,7 @@ router.use('/dashboard', Dash_ComprasRouter);
 router.use('/proyeccion', ProyecionRouter);
 
 //! ALMACEN
+router.use('/inventario', inventarioRouter)
 router.use('/pedido_almacen', Pedido_AlmacenRouter);
-//router.use('/uploads/factura', uploadsRouter)
+router.use('/uploads', uploadsRouter)
 export default router;

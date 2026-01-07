@@ -14,11 +14,11 @@ import { ICreateOrUpdateIDetalleListaPrecio } from "../../interface/Articulos/Li
 import { Devoluciones_ComprasRepository } from "../../repository/Devoluciones_NC/Devoluciones_Compras.repository";
 import { EmpleadoRepository } from "../../repository/Usuarios/Empleado.repository";
 import { ICreateDevoluciones_Compra } from "../../interface/Devolucion_NC/Devoluciones_Compras.interface";
-import { Detalle_Compra_RecibidosRepository } from "../../repository/Compras/Detalle_Compra_Recibido.repository";
+import { Detalle_Compra_RecibidosRepository } from "../../modules/Compras/repositories/Detalle_Compra_Recibido.repository";
 import { Console } from "console";
 import { Detalle_Devoluciones_CompraRepository } from "../../repository/Devoluciones_NC/Detalles_Devoluciones_Compras.repository";
-import { Detalle_Compra_NegadosRepository } from "../../repository/Compras/Detalle_Compra_Negado.repository";
-import { Compra_ProveedorRepository } from "../../repository/Compras/Compra_Proveedor.repository";
+import { Detalle_Compra_NegadosRepository } from "../../modules/Compras/repositories/Detalle_Compra_Negado.repository";
+import { Compra_ProveedorRepository } from "../../modules/Compras/repositories/Compra_Proveedor.repository";
 import { LoteRecibidoCompraRepository } from "../../repository/LotesYCaducidad/LoteRecibidoCompra.repository";
 import { ILoteRecibidoChecado } from "../../interface/LotesYCaducidad/LotesRecibidosCompra.interface";
 
@@ -116,7 +116,7 @@ export const StockSucursalService = {
                         cantidad_lote_sucursal: lote.cantidad_lote,
                         precio_costo_lote_sucursal: costoNuevo,
                         estado_lote_sucursal: 'A',
-                        id_loterecibido_lote_sucursal:lote.id_loterecibido
+                        id_loterecibido_lote_sucursal: lote.id_loterecibido
                     };
                     await LotesArticuloSucursalRepository.updateOrCreateLoteSucursal(loteData, { transaction: t });
                 }

@@ -23,13 +23,9 @@ export type CompraProveedorDTO = {
     fin_de_compra_proveedor: FechaISO | null;
     id_empleado_compra: string | null;
     fecha_enviada_proveedor: FechaISO | null;
-    fecha_mercancia_recibida_proveedor: FechaISO | null;
+
     inicio_de_registro_lotes: FechaISO | null;
     fin_de_registro_lotes: FechaISO | null;
-    inicio_de_checado: FechaISO | null;
-    fin_de_checado: FechaISO | null;
-    inicio_acomodo_mercancia: FechaISO | null;
-    fin_acomodo_mercancia: FechaISO | null;
 
     proveedor: ProveedorMiniDTO;       // o ProveedorDTO si quieres todo
 };

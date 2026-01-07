@@ -111,6 +111,7 @@ export const Pedido_AlmacenService = {
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
+    console.log("ENTRO A SERVICIO FINALIZAR CAPTURA");
     //REGISTRAR LOG
     const log = await Pedido_Almacen_Flujo_LogRepository.finalizarLogCapturado(id_pedido, t)
     if (!log) throw new Error('No existe log activo del pedido');

@@ -2,7 +2,7 @@ import { v4 } from "uuid";
 import { Op, Transaction } from "sequelize";
 import { ICreateDevoluciones_Compra } from "../../interface/Devolucion_NC/Devoluciones_Compras.interface";
 import Devoluciones_Compras from "../../models/Devolucion_NC/Devolucion/Devoluciones_Compras";
-import { Factura_Compra_ProveedorRepository } from "../Proveedor/Factura_Compra_Proveedor.repository";
+import { Factura_Compra_ProveedorRepository } from "../../modules/Finanzas/Cuentas_Por_Pagar/repositories/Factura_Compra_Proveedor.repository";
 
 export const Devoluciones_ComprasRepository = {
     create: async (data: ICreateDevoluciones_Compra, options?: { transaction?: Transaction }) => {

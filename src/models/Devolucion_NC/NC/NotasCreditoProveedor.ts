@@ -1,5 +1,5 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
-import Compra_Proveedor from '../../Compra/Compra_Proveedor';
+import Compra_Proveedor from '../../../modules/Compras/model/Compra_Proveedor';
 
 
 @Table({

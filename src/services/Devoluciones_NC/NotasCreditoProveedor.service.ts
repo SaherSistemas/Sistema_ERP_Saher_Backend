@@ -1,6 +1,6 @@
 import { Transaction } from "sequelize";
 import { INotasCreditoProveedor } from "../../interface/Devolucion_NC/NotaCredito.interface";
-import { Compra_ProveedorRepository } from "../../repository/Compras/Compra_Proveedor.repository";
+import { Compra_ProveedorRepository } from "../../modules/Compras/repositories/Compra_Proveedor.repository";
 import { NotasCreditoProveedorRepository } from "../../repository/Devoluciones_NC/NC/NotasCreditoProveedor.repository";
 import { dbLocal } from "../../config/db";
 import { trace } from "console";

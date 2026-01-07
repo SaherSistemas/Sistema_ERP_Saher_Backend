@@ -1,5 +1,5 @@
 import { IDataLotesRecibidos } from "../../interface/LotesYCaducidad/LotesSolicitadoCompra.interface";
-import { Compra_ProveedorRepository } from "../../repository/Compras/Compra_Proveedor.repository";
+import { Compra_ProveedorRepository } from "../../modules/Compras/repositories/Compra_Proveedor.repository";
 import { LotesSolicitadoCompraRepository } from "../../repository/LotesYCaducidad/LotesSolicitadosCompra.repository";
 export const LotesSolicitadoCompraService = {
 
@@ -36,7 +36,7 @@ export const LotesSolicitadoCompraService = {
         const resultado = await LotesSolicitadoCompraRepository.create({
             id_comp: data.id_comp,
             id_empleado_registro_lotes: id_empleado_registro_lotes,
-            productos: productosMapeados
+            productos: productosMapeados,
         });
 
         //DARLE TOTAL A LA COMPRA PROVEEDOR Y FACTURA UN TOTAL(FACTURA)

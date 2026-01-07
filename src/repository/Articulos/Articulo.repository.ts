@@ -3,17 +3,18 @@ import { ICreateOrUpdateArticulo } from "../../interface/Articulos/Articulo.inte
 import Articulo from "../../models/Articulos/Articulo";
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from 'uuid';
-import ArticuloExcluidoCompra from '../../models/Compra/Parametros_Compra/ArticuloExcluidoCompra';
-import CategoriaExcluidaCompra from '../../models/Compra/Parametros_Compra/CategoriaExcluidaCompra';
-import Parametros_Compra from '../../models/Compra/Parametros_Compra/Parametros_Compra';
-import Compra_General from '../../models/Compra/Compra_General';
-import Compra_Proveedor from '../../models/Compra/Compra_Proveedor';
-import Detalle_Compra_Solicitado from '../../models/Compra/Detalle_Compra_Solicitado';
-import Detalle_Compra_Negados from '../../models/Compra/Detalle_Compra_Negados';
+
 import DetalleListaPrecio from '../../models/Costo_Y_Precio/Lista_Precios/Detalle_Lista_Precio';
 import { Empresa_SucursalRepository } from '../Empresa_Sucursal/Empresa_Sucursal.repository';
 import { LotesArticuloSucursalRepository } from '../LotesYCaducidad/Lote_ArticuloSucursal.repository';
 import { Tipo_IVARepository } from './Tipo_IVA.repository';
+import Parametros_Compra from '../../modules/Compras/model/Parametros_Compra';
+import ArticuloExcluidoCompra from '../../modules/Compras/model/ArticuloExcluidoCompra';
+import CategoriaExcluidaCompra from '../../modules/Compras/model/CategoriaExcluidaCompra';
+import Compra_General from '../../modules/Compras/model/Compra_General';
+import Compra_Proveedor from '../../modules/Compras/model/Compra_Proveedor';
+import Detalle_Compra_Solicitado from '../../modules/Compras/model/Detalle_Compra_Solicitado';
+import Detalle_Compra_Negados from '../../modules/Compras/model/Detalle_Compra_Negados';
 
 
 export const ArticuloRepository = {
