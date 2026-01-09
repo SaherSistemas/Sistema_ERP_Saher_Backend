@@ -9,29 +9,18 @@ import { Factura_Compra_ProveedorService } from "../services/Factura_Compra_Prov
 
 export class Factura_Compra_ProveedorController {
     static getAllFacturas = async (req: Request, res: Response) => {
-        console.log("HOLA")
+        // console.log("HOLA")
 
         try {
             const facturas = await Factura_Compra_ProveedorService.getAllFacturas();
-            console.log(facturas)
+            // console.log(facturas)
             res.status(200).json({ mensaje: facturas })
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: "Error al mostrar todos los proveedores." });
         }
     }
-    static guardarArticulosFactura = async (req: Request, res: Response) => {
-        try {
-            // Lógica para guardar los artículos de la factura
-            const data = req.body;
-            console.log(data)
-            console.log("ENTRO A FUARDAR ARTICULOS FACTURA")
-            res.status(200).json({ mensaje: "Artículos de la factura guardados correctamente." })
-        } catch (error) {
-            console.error(error)
-            res.status(500).json({ message: "Error al guardar los artículos de la factura." })
-        }
-    }
+
     static guardarCapturaCompleta = async (req: Request, res: Response) => {
         try {
             // Lógica para guardar los artículos de la factura

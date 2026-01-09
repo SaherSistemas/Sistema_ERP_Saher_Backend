@@ -1,4 +1,4 @@
-import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, Default } from "sequelize-typescript";
 
 import Detalle_Compra_Solicitado from "./Detalle_Compra_Solicitado";
 import Compra_General from "./Compra_General";
@@ -24,23 +24,25 @@ class Compra_Proveedor extends Model {
     })
     declare idprove_comp: string
 
-
+    @Default(0)
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
     declare total_comp_factura: number
 
-
+    @Default(0)
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
     declare total_iva_factura: number
 
+    @Default(0)
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
     declare total_comp_recibido: number
 
+    @Default(0)
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
@@ -97,15 +99,6 @@ class Compra_Proveedor extends Model {
         type: DataType.DATE
     })
     declare fin_de_registro_lotes: Date
-
-
-    // Quién registró los lotes
-    @ForeignKey(() => Empleado)
-    @Column({ type: DataType.UUID })
-    declare id_empleado_registro_lotes: string;
-
-    @BelongsTo(() => Empleado, 'id_empleado_registro_lotes')
-    empleado_registro_lotes: Empleado;
 
 
     /*  FALTA AGREGAR QUIEN FUE EL QUE HIZO LA COMPRA, ACOMODO  */

@@ -1,3 +1,4 @@
+import { ILoteFacturaInputDTO } from "./Lote_Factura_Compra_Proveedor.interface";
 
 export interface IDetalleFacturaCompraProveedor {
     id_factura_proveedor_detalle: string;
@@ -36,4 +37,49 @@ export interface IDetalleFacturaCompraProveedorDTO
         nombre_articulo?: string;
         clave_interna?: string;
     };
+}
+
+
+
+
+export interface ICreateDetalleFacturaCompraProveedorConLotes {
+    id_factura_compra_proveedor: string;
+    id_detallecomprec_det_factura_compr_prov: string;
+
+}
+
+
+
+
+
+//!NUEVO
+
+//DETALLES FACTURA COMPRA PROVEEDOR
+export interface IProductoFacturadoInputDTO {
+    id_detcompsol: string;        // referencia al detalle solicitado / compra
+    id_artic: string;             // opcional para validaciones extra
+    cantidad_facturada: number;   // cantidad total del renglón
+
+    precio: number;
+    descuento: number;
+    iva: number;
+
+    lotes: ILoteFacturaInputDTO[];
+}
+
+
+
+
+// === Detalle repo payload (NO incluye lotes) ===
+export interface IDetalleFacturaRepoItemDTO {
+    id_detcompsol: string;
+    cantidad_articulo_facturada: number;
+    precio_articulo_factura: number;
+    descuento_articulo_factura: number;
+    iva_articulo_factura: number;
+}
+
+export interface ICrearDetallesFacturaRepoDTO {
+    id_factura_compra_proveedor: string;
+    detalles: IDetalleFacturaRepoItemDTO[];
 }

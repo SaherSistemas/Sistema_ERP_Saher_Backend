@@ -47,6 +47,17 @@ export const Compra_ProveedorRepository = {
     });
   },
 
+  actualizarTotalesCompraProveedor: async (id_comp: string, totalSinIva: number, totaliva: number, t?: Transaction) => {
+    //AQUI SOLO SE HACE UPDATE DE LOS TOTALES DE LA COMPRA PROVEEDOR
+    return await Compra_Proveedor.update({
+      total_comp_factura: literal(`total_comp_factura + ${Number(totalSinIva)}`),
+      total_iva_factura: literal(`total_iva_factura + ${Number(totaliva)}`)
+    },
+      {
+        where: { id_comp },
+        transaction: t
+      });
+  },
 
   getComprasPendientes: async () => {
     return await Compra_Proveedor.findAll({

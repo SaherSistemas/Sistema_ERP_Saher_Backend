@@ -26,7 +26,7 @@ class Factura_Compra_Proveedor extends Model {
     @Column({
         type: DataType.UUID
     })
-    declare id_compra_proveedor: string
+    declare id_compra_prove_factura: string
 
     @Column({
         type: DataType.STRING(20)
@@ -127,6 +127,13 @@ class Factura_Compra_Proveedor extends Model {
     })
     declare inicio_acomodo_mercancia: Date
 
+    @Column({
+        type: DataType.DATE
+    })
+    declare fin_acomodo_mercancia: Date
+    @BelongsTo(() => Compra_Proveedor)
+    compra!: Compra_Proveedor;
+
 
     // Quién acomodó la mercancía
     @ForeignKey(() => Empleado)
@@ -135,13 +142,6 @@ class Factura_Compra_Proveedor extends Model {
 
     @BelongsTo(() => Empleado, 'id_empleado_acomodo')
     empleado_acomodo: Empleado;
-
-    @Column({
-        type: DataType.DATE
-    })
-    declare fin_acomodo_mercancia: Date
-    @BelongsTo(() => Compra_Proveedor)
-    compra!: Compra_Proveedor;
 
 }
 

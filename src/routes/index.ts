@@ -119,7 +119,7 @@ import Cliente_AlmacenRouter from './Clientes/Cliente_Almacen/Cliente_AlmacenRou
 import Pedido_AlmacenRouter from '../modules/Pedido_Almacen/routes/Pedido_AlmecenRouter';
 
 
-import finanzasRouter from '../modules/Finanzas/index.route';
+import cxcRoutes from '../modules/Finanzas/Cuentas_Por_Pagar/routes/index.route';
 
 import inventarioRouter from '../modules/Inventario/index.route';
 
@@ -242,7 +242,7 @@ router.use('/presupuesto_empleado', Presupuesto_EmpleadoRouter);
 router.use('/asignacion_empleado_sucursal', Asignacion_Empleado_SucursalRouter);
 
 
-router.use('/finanzas', finanzasRouter);
+router.use('/finanzas', cxcRoutes);
 
 router.use('/devoluciones', DevolucionesRouter);
 router.use('/nota_credito', notaCreditoRouter);

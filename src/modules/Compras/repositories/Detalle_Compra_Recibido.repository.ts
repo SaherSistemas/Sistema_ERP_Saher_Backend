@@ -1,5 +1,5 @@
 
-import { col, fn, Transaction } from 'sequelize';
+import { col, fn, literal, Transaction } from 'sequelize';
 import LotesRecibidosCompra from '../../../models/LotesYCaducidad/LotesRecibidosCompra';
 import Articulo from '../../../models/Articulos/Articulo';
 import Detalle_Compra_Recibidos from '../model/Detalle_Compra_Recibido'
@@ -12,6 +12,7 @@ export const Detalle_Compra_RecibidosRepository = {
       returning: true
     });
   },
+
 
   getCantidadTransitoPorArticulo: async (id_artic: string) => {
     const rows = await Detalle_Compra_Recibidos.findOne({

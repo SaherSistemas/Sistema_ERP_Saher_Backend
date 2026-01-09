@@ -2,6 +2,7 @@ import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, Belongs
 import Factura_Compra_Proveedor from "./Factura_Compra_Proveedor";
 import Articulo from "../../../../models/Articulos/Articulo";
 import Detalle_Compra_Recibido from "../../../Compras/model/Detalle_Compra_Recibido";
+import Detalle_Compra_Solicitado from "../../../Compras/model/Detalle_Compra_Solicitado";
 
 @Table({
     tableName: 'detalle_factura_compra_proveedor',
@@ -24,15 +25,38 @@ class Detalle_Factura_Compra_Proveedor extends Model {
     factura!: Factura_Compra_Proveedor;
 
 
-    @ForeignKey(() => Detalle_Compra_Recibido)
+    @ForeignKey(() => Detalle_Compra_Solicitado)
     @Column({
         type: DataType.UUID
     })
-    declare id_detallecomprec_det_factura_compr_prov: string
+    declare id_detcompsol: string
 
 
-    @BelongsTo(() => Detalle_Compra_Recibido)
-    detalleCompraRecibido!: Detalle_Compra_Recibido;
+    @BelongsTo(() => Detalle_Compra_Solicitado)
+    detalleCompraSolicitado!: Detalle_Compra_Solicitado;
+
+
+    @Column({
+        type: DataType.SMALLINT
+    })
+    declare cantidad_articulo_facturada: number
+
+    @Column({
+        type: DataType.DECIMAL(12, 2)
+    })
+    declare precio_articulo_factura: number
+
+    @Column({
+        type: DataType.DECIMAL(12, 2)
+    })
+    declare descuento_articulo_factura: number
+
+    @Column({
+        type: DataType.DECIMAL(12, 2)
+    })
+    declare iva_articulo_factura: number
+
+
 
 }
 

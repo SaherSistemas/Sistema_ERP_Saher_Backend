@@ -4,7 +4,8 @@ import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
 import { Compra_ProveedorRepository } from '../../../Compras/repositories/Compra_Proveedor.repository';
 import Proveedor from '../../../Proveedores/model/Proveedor';
 import Compra_Proveedor from '../../../Compras/model/Compra_Proveedor';
-
+import { Transaction } from 'sequelize';
+import { EmpleadoRepository } from '../../../../repository/Usuarios/Empleado.repository';
 export const Factura_Compra_ProveedorRepository = {
     getAll: async () => {
         return await Factura_Compra_Proveedor.findAll({
@@ -30,8 +31,21 @@ export const Factura_Compra_ProveedorRepository = {
             }
         });
     },
+    actualizarTotalesFactura: async (id_factura_compra_proveedor: string, totalSinIva: number, totaliva: number, id_empleado_registro_lotes: number, t?: Transaction) => {
+        //AQUI SOLO SE HACE UPDATE DE LOS TOTALES DE LA FACTURA
+
+        const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado_registro_lotes);
+        if (!empleado) throw new Error('Empleado no encontrado');
+        return await Factura_Compra_Proveedor.update({
+            total_factura_proveedor: totalSinIva,
+            total_iva_factura: totaliva,
+            fin_de_registro_lotes: new Date(),
+            id_empleado_registro_lotes: empleado.id_empleado,
+        }, { where: { id_factura_proveedor: id_factura_compra_proveedor }, transaction: t })
+    },
     guardarFacturaEIniciarCapturaLotes: async (data: ICreateFacturaCompraProveedor) => {
-        const compraProveedor = await Compra_ProveedorRepository.getByID(data.id_compra_proveedor);
+        //console.log(data)
+        const compraProveedor = await Compra_ProveedorRepository.getByID(data.id_compra_prove_factura);
 
         if (!compraProveedor) throw new Error('Compra proveedor no encontrada');
 
@@ -53,7 +67,7 @@ export const Factura_Compra_ProveedorRepository = {
 
         return await Factura_Compra_Proveedor.create({
             id_factura_proveedor: uuidv4(),
-            id_compra_proveedor: data.id_compra_proveedor,
+            id_compra_prove_factura: data.id_compra_prove_factura,
             folio_factura_proveedor: data.folio_factura_proveedor,
             fecha_emision: data.fecha_emision,
             fecha_vencimiento: data.fecha_vencimiento,
@@ -61,7 +75,8 @@ export const Factura_Compra_ProveedorRepository = {
             estatus_pago_factura: 'PENDIENTE',
             estado_factura_proveedor: 'C',
             url_PDF: '',
-            url_XML: ''
+            url_XML: '',
+            inicio_de_registro_lotes: new Date()
         });
     }
 

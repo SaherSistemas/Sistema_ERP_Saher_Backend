@@ -4,7 +4,7 @@ import facturasRoutes from './facturas_Compra_ProveedorRouter';
 
 const router = Router();
 
-router.use('/facturas_compra_proveedor', facturasRoutes);
+router.use('/cxp/facturas_compra_proveedor', facturasRoutes);
 // router.use('/pagos', pagosRoutes);
 
 export default router;

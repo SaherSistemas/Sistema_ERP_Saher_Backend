@@ -1,3 +1,5 @@
+import { IProductoFacturadoInputDTO } from "./Detalle_Factura_Compra_Proveedor.interface";
+
 export interface IFactura_Compra_Proveedor {
     id_factura_proveedor: string;
     id_compra_proveedor: string;
@@ -12,7 +14,7 @@ export interface IFactura_Compra_Proveedor {
 }
 
 export interface ICreateFacturaCompraProveedor {
-    id_compra_proveedor: string;
+    id_compra_prove_factura: string;
     folio_factura_proveedor: string;
     costo_por_envio: number
     fecha_emision: Date;
@@ -21,23 +23,16 @@ export interface ICreateFacturaCompraProveedor {
 }
 
 
-export interface IProductoCapturaCompleta {
-    id_detcompsol: string;
-    id_artic: string;
-    precio: number;
-    descuento: number;
-    cantidad_facturada: number;
-    lotes: {
-        numerolote_lote: string;
-        fechavencimiento_lote: string;
-        cantidad_lote: number;
-        observacion_lote: string | null;
-    }[];
-}
+// ===== DTO que RECIBE el Controller desde el Frontend =====
 
-export interface IGuardarCapturaCompletaDTO {
+
+
+
+
+//DTO COMPLETO DE LA FACURA COMPRA PROVEEDOR    
+export interface IGuardarCapturaCompletaControllerDTO {
     id_comp: string;
-    id_factura_proveedor: string;
-    id_empleado_registro_lotes: number;
-    productos: IProductoCapturaCompleta[];
+    id_factura_compra_proveedor: string;
+    id_empleado_registro_lotes: number; // o string si en tu BD es UUID
+    productos: IProductoFacturadoInputDTO[];
 }

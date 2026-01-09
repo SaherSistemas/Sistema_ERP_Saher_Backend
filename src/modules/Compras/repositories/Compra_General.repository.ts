@@ -19,7 +19,17 @@ import Compra_Proveedor from "../model/Compra_Proveedor";
 
 
 export const CompraGeneralRepository = {
-
+    actualizarTotalesCompraGeneralPorCompraProveedor: async (id_compra_proveedor: string, totalSinIva: number, totaliva: number, t?: Transaction) => {
+        //OBTENER LA COMPRA GENERAL A LA QUE PERTENECE LA COMPRA PROVEEDOR
+        const compraProveedor = await Compra_Proveedor.findByPk(id_compra_proveedor);
+        if (!compraProveedor) throw new Error('Compra Proveedor no encontrada');
+        const compraGeneral = await Compra_General.findByPk(compraProveedor.id_compra_general);
+        if (!compraGeneral) throw new Error('Compra General no encontrada');
+        return await compraGeneral.increment({
+            total_compra_general: totalSinIva,
+            total_iva_compra_general: totaliva,
+        }, { transaction: t });
+    },
     getAllCompra_GeneralSinPaginar: async (id_empresa: string) => {
         return await Compra_General.findAll({
             where: { id_empresa_sucursal: id_empresa },
