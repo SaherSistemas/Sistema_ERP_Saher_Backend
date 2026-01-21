@@ -5,7 +5,7 @@ import Asignacion_Empleado_Sucursal from "../../models/Presupuestos/Asignacion_E
 import { ICreateOrUpdateAsignacion_Empleado_Sucursal } from "../../interface/Presupuestos/Asignacion_Empleado_Sucursal.interface";
 import { isUUID } from "../../utils/validaciones";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
-import Empleado from "../../models/Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 
 export const Asignacion_Empleado_SucursalRepository = {
   getAll: async () => {

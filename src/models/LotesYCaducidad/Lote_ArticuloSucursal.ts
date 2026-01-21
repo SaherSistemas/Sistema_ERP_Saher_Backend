@@ -9,7 +9,7 @@ import {
   BelongsTo,
   Default
 } from 'sequelize-typescript';
-import Articulo from '../Articulos/Articulo';
+import Articulo from '../../modules/Inventario/Articulos/model/Articulo';
 import Empresa_Sucursal from '../Empresa_Sucursal/Empresa_Sucursal';
 import LotesRecibidosCompra from './LotesRecibidosCompra';
 

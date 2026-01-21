@@ -10,39 +10,42 @@ import {
   Default,
   BelongsToMany,
 } from "sequelize-typescript";
-import Articulo from "../Articulos/Articulo";
+import Articulo from "../../modules/Inventario/Articulos/model/Articulo";
 import RecetaMedica from "./RecetaMedica";
 import DetalleVenta from "../Venta/Detalle_Venta";
 
-@Table({ 
-    tableName: "receta_articulo"
+@Table({
+  tableName: "receta_articulo"
 })
 class RecetaArticulo extends Model {
 
   @PrimaryKey
-  @Default(DataType.UUIDV4) 
-  @Column({ 
-    field: 'id_receta_articulo', 
-    type: DataType.UUID })
+  @Default(DataType.UUIDV4)
+  @Column({
+    field: 'id_receta_articulo',
+    type: DataType.UUID
+  })
   declare id_receta_articulo: string;
 
   @ForeignKey(() => RecetaMedica)
-  @Column({ 
-    field: "id_receta", 
-    type: DataType.UUID, 
-    allowNull: false })
+  @Column({
+    field: "id_receta",
+    type: DataType.UUID,
+    allowNull: false
+  })
   declare id_receta: string;
 
   @ForeignKey(() => Articulo)
-  @Column({ field: "id_articulo", 
-    type: DataType.UUID, 
-     })
+  @Column({
+    field: "id_articulo",
+    type: DataType.UUID,
+  })
   declare id_articulo: string;
 
   @Column({
     type: DataType.STRING(50),
   })
-  declare dosis?: string | null; 
+  declare dosis?: string | null;
 
   @Column({
     type: DataType.DECIMAL,
@@ -52,19 +55,19 @@ class RecetaArticulo extends Model {
   @Column({
     type: DataType.STRING,
   })
-  declare indicaciones?: string | null; 
+  declare indicaciones?: string | null;
 
   @Column({
     type: DataType.BOOLEAN,
   })
   declare sustitucion_permitida?: boolean;
-    
+
   @ForeignKey(() => DetalleVenta)
   @Column({ type: DataType.UUID, allowNull: true })
   declare id_detalle_venta?: string | null;
-  
-  
-  @BelongsTo(() => DetalleVenta)    
+
+
+  @BelongsTo(() => DetalleVenta)
   detalleVenta?: DetalleVenta;
 
   @BelongsTo(() => RecetaMedica)

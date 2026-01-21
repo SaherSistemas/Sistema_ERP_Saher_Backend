@@ -1,5 +1,5 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, BelongsToMany } from "sequelize-typescript";
-import Empleado from "../Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 
 

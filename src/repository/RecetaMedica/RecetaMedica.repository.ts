@@ -5,7 +5,7 @@ import {
   IRecetaMedica,
   IRecetaDesdeVenta,
 } from "../../interface/RecetaMedica/RecetaMedica.interface";
-import Empleado from "../../models/Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 import { Transaction } from "sequelize";
 import Medico from "../../models/RecetaMedica/Medico";
 

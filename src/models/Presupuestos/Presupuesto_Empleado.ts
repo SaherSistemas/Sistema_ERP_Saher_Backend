@@ -1,7 +1,7 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, BelongsToMany, HasMany } from "sequelize-typescript";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 import Presupuesto_Empresa from "./Presupuesto_Empresa";
-import Empleado from "../Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 
 @Table({
     tableName: "presupuesto_empleado"

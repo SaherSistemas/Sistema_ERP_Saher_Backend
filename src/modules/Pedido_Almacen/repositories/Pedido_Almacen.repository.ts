@@ -5,7 +5,7 @@ import Prioridad_Agente_Reglas from '../../../models/Usuarios/Agente_De_Ventas/P
 import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacen } from '../interface/Pedido_Almacen';
 
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
-import Empleado from '../../../models/Usuarios/Empleado/Empleado';
+import Empleado from '../../RRHH/model/Empleado';
 import Agente_de_Venta from '../../../models/Usuarios/Agente_De_Ventas/Agente_De_Venta';
 
 

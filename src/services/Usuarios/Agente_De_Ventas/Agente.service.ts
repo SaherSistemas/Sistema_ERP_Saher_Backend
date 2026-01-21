@@ -1,6 +1,6 @@
 import { IAgente_de_Venta, IAgenteDeVentaCreate } from '../../../interface/Usuarios/Agente_De_Ventas/Agente.interface';
 import { AgenteRepository } from '../../../repository/Usuarios/Agente_De_Ventas/Agente.repository';
-import { EmpleadoRepository } from '../../../repository/Usuarios/Empleado.repository';
+import { EmpleadoRepository } from '../../../modules/RRHH/repositories/Empleado.repository';
 import { isUUID } from '../../../utils/validaciones';
 
 export const AgenteService = {

@@ -2,7 +2,7 @@ import PDFDocument from 'pdfkit';
 import dayjs from 'dayjs';
 import { Transaction } from "sequelize";
 import { ICreateCompra_Proveedor, IEsctructuraCompra } from "../interface/Compra_Proveedor.interface";
-import { ArticuloRepository } from "../../../repository/Articulos/Articulo.repository";
+import { ArticuloRepository } from "../../Inventario/Articulos/repositories/Articulo.repository";
 import { Compra_ProveedorRepository } from "../repositories/Compra_Proveedor.repository";
 import { Detalle_Compra_SolicitadoRepository } from "../repositories/Detalle_Compra_Solicitado.repository";
 import { Listado_ProveedorRepository } from "../../Proveedores/repositories/Listado_Proveedor.repository";

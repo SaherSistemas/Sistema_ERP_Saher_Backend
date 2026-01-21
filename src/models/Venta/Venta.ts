@@ -13,7 +13,7 @@ import {
 import Cliente from "../Clientes/Cliente";
 import Empresa_Sucursal from "../Empresa_Sucursal/Empresa_Sucursal";
 import DetalleVenta from "./Detalle_Venta";
-import Empleado from "../Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 import Venta_Pago from "./Venta_Pago";
 import UsoOferta from "../Ofertas/UsoOferta";
 import Caja from "../Caja/Caja";

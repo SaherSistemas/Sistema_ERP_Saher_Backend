@@ -10,8 +10,8 @@ import {
     Default
 } from "sequelize-typescript";
 import Facturas from "./Facturas.model";
-import Articulo from "../../../models/Articulos/Articulo";
-import Cat_Forma_De_Pago from "../../../models/Catalogos/Cat_Forma_De_Pago";
+import Articulo from "../../Inventario/Articulos/model/Articulo";
+import Cat_Forma_De_Pago from "../../Catalogos/model/Cat_Forma_De_Pago";
 
 
 

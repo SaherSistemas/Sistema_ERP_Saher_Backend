@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 import { fn, literal, Op, Transaction } from 'sequelize';
-import Articulo from '../../../models/Articulos/Articulo';
+import Articulo from '../../Inventario/Articulos/model/Articulo';
 
 import Proveedor from '../../Proveedores/model/Proveedor';
 import { ICreateCompra_Proveedor } from '../interface/Compra_Proveedor.interface';
 
 import { Factura_Compra_ProveedorRepository } from '../../Finanzas/Cuentas_Por_Pagar/repositories/Factura_Compra_Proveedor.repository';
-import { EmpleadoRepository } from '../../../repository/Usuarios/Empleado.repository';
+import { EmpleadoRepository } from '../../RRHH/repositories/Empleado.repository';
 import { Sequelize } from 'sequelize-typescript';
 import { CompraGeneralRepository } from './Compra_General.repository';
 import { Detalle_Compra_RecibidosRepository } from './Detalle_Compra_Recibido.repository';

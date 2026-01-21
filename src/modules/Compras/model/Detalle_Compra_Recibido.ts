@@ -1,7 +1,7 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
 import Compra from './Compra_Proveedor'
 import Detalle_Compra_Solicitado from "./Detalle_Compra_Solicitado";
-import Articulo from "../../../models/Articulos/Articulo";
+import Articulo from "../../Inventario/Articulos/model/Articulo";
 import LotesRecibidosCompra from "../../../models/LotesYCaducidad/LotesRecibidosCompra";
 
 @Table({

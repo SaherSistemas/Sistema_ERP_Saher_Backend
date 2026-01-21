@@ -8,43 +8,43 @@ import proveedorRouter from '../modules/Proveedores/routes/proveedorRouter';
 import proveedor_empresaRouter from '../modules/Proveedores/routes/proveedor_empresaRouter';
 
 import listados_proveedorRouter from '../modules/Proveedores/routes/listados_proveedorRouter';
-import unidad_medidaRouter from '../routes/Articulos/UnidadMedidaRouter';
-import temporabilidadRouter from '../routes/Articulos/TemporabilidadRouter';
-import tipoArticuloRouter from '../routes/Articulos/Tipo_ArticuloRouter';
-import categori_ArticuloRouter from '../routes/Articulos/Categoria_ArticuloRouter';
-import subcategoriaRouter from '../routes/Articulos/SubCategoria_ArticuloRouter';
+import unidad_medidaRouter from '../modules/Catalogos/routes/UnidadMedidaRouter';
+import temporabilidadRouter from '../modules/Inventario/Articulos/routes/TemporabilidadRouter';
+import tipoArticuloRouter from '../modules/Inventario/Articulos/routes/Tipo_ArticuloRouter';
+import categori_ArticuloRouter from '../modules/Inventario/Articulos/routes/Categoria_ArticuloRouter';
+import subcategoriaRouter from '../modules/Inventario/Articulos/routes/SubCategoria_ArticuloRouter';
 
-import articuloRouter from '../routes/Articulos/ArticuloRouter';
-import tipo_ArticuloRouter from '../routes/Articulos/Prioridad_ArticuloRouter';
+import articuloRouter from '../modules/Inventario/Articulos/routes/ArticuloRouter';
+import tipo_ArticuloRouter from '../modules/Inventario/Articulos/routes/Prioridad_ArticuloRouter';
 
-import empleadoRouter from './Usuarios/EmpleadoRouter';
-import rolRouter from './Usuarios/RolRouter';
-import usuarioRouter from './Usuarios/UsuarioRouter';
-import authRouter from './Usuarios/AuthRouter';
-import permisoRouter from './Usuarios/PermisoRouter';
-import permisoRolRouter from './Usuarios/Permiso_RolRouter';
+import empleadoRouter from '../modules/RRHH/routes/EmpleadoRouter';
+import rolRouter from '../modules/Seguridad/routes/RolRouter';
+import usuarioRouter from '../modules/Seguridad/routes/UsuarioRouter';
+import authRouter from '../modules/Seguridad/auth/AuthRouter';
+import permisoRouter from '../modules/Seguridad/routes/PermisoRouter';
+import permisoRolRouter from '../modules/Seguridad/routes/Permiso_RolRouter';
 
 import agenteRouter from './Usuarios/Agente_De_Venta/AgenteRouter';
 import Presupuesto_AgenteRouter from './Usuarios/Agente_De_Venta/Presupuesto_AgenteRouter';
 import PrioridadAgenteRouter from './Usuarios/Agente_De_Venta/PrioridadAgenteReglasRouter';
 
-import cat_Regimen_fiscalRouter from './Catalogos/Cat_Regimen_FiscalRouter';
-import cat_Tipo_ContratoRouter from './Catalogos/Cat_Tipo_ContratoRouter';
-import cat_Tipo_JornadaRouter from './Catalogos/Cat_Tipo_JornadaRouter';
-import cat_Periodicidad_PagoRouter from './Catalogos/Cat_Periodicidad_PagoRouter';
-import cat_BancoRouter from './Catalogos/Cat_BancoRouter';
-import cat_RiesgoPuestoRouter from './Catalogos/Cat_Riesgo_Puesto';
-import cat_forma_de_pagoRouter from './Catalogos/Cat_Forma_De_PagoRouter';
-import cat_uso_CFDIRouter from './Catalogos/Cat_Uso_CFDIRouter';
-import cat_metodo_pagoRouter from './Catalogos/Cat_Metodo_De_PagoRouter';
+import cat_Regimen_fiscalRouter from '../modules/Catalogos/routes/Cat_Regimen_FiscalRouter';
+import cat_Tipo_ContratoRouter from '../modules/Catalogos/routes/Cat_Tipo_ContratoRouter';
+import cat_Tipo_JornadaRouter from '../modules/Catalogos/routes/Cat_Tipo_JornadaRouter';
+import cat_Periodicidad_PagoRouter from '../modules/Catalogos/routes/Cat_Periodicidad_PagoRouter';
+import cat_BancoRouter from '../modules/Catalogos/routes/Cat_BancoRouter';
+import cat_RiesgoPuestoRouter from '../modules/Catalogos/routes/Cat_Riesgo_Puesto';
+import cat_forma_de_pagoRouter from '../modules/Catalogos/routes/Cat_Forma_De_PagoRouter';
+import cat_uso_CFDIRouter from '../modules/Catalogos/routes/Cat_Uso_CFDIRouter';
+import cat_metodo_pagoRouter from '../modules/Catalogos/routes/Cat_Metodo_De_PagoRouter';
 
-import catalogosRouter from './Catalogos/CatalagosRouter';
+import catalogosRouter from '../modules/Catalogos/routes/CatalagosRouter';
 
-import tipoIVARouter from './Articulos/Tipo_IVARouter';
+import tipoIVARouter from '../modules/Inventario/Articulos/routes/Tipo_IVARouter';
 
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter';
 import grupo_EmpresaRouter from './Empresa_Sucursal/grupo_EmpresaSucursalRouter';
-import grupoEmpresaListaPrecioRouter from './Costo_y_Precio/Grupo_Empresa_Lista_PrecioRouter';
+import grupoEmpresaListaPrecioRouter from '../modules/Ventas/Precios/routes/Grupo_Empresa_Lista_PrecioRouter';
 
 import detalleCompraNegadoRouter from '../modules/Compras/routes/detalle_Compra_NegadoRouter';
 import detalleCompraRecibidoRouter from '../modules/Compras/routes/detalle_Compra_RecibidoRouter';
@@ -55,7 +55,7 @@ import detalle_CompraRouter from '../modules/Compras/routes/detalle_CompraRouter
 
 import factura_compra_ProveedorRouter from '../modules/Finanzas/Cuentas_Por_Pagar/routes/facturas_Compra_ProveedorRouter';
 
-import Margen_Ganancia_ListaRouter from './Costo_y_Precio/Margen_Ganancia_ListaRouter';
+import Margen_Ganancia_ListaRouter from '../modules/Ventas/Precios/routes/Margen_Ganancia_ListaRouter';
 
 import DevolucionesRouter from './Devoluciones_NC/DevolucionesRouter';
 import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter';
@@ -93,8 +93,8 @@ import VentaRouter from './Venta/VentaRouter';
 import Venta_PagoRouter from './Venta/Venta_PagoRouter';
 
 //Lista Precios
-import Lista_Precio from './Costo_y_Precio/Lista_Precio/Lista_PrecioRouter';
-import DetalleLista_Precio from './Costo_y_Precio/Lista_Precio/Detalle_Lista_PrecioRouter';
+import Lista_Precio from '../modules/Ventas/Precios/routes/Lista_PrecioRouter';
+import DetalleLista_Precio from '../modules/Ventas/Precios/routes/Detalle_Lista_PrecioRouter';
 
 //Oferta
 import OfertasRouter from './Ofertas/OfertasRouter';

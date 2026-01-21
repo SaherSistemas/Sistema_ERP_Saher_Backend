@@ -1,4 +1,4 @@
-import Usuario from '../models/Usuarios/Usuario';
+import Usuario from '../modules/Seguridad/model/Usuario';
 
 // Función para limpiar acentos y dejar solo letras
 const cleanString = (str: string) => {

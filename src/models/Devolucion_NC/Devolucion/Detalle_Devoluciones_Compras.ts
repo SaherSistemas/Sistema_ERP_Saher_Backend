@@ -1,6 +1,6 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
 import Devoluciones_Compras from './Devoluciones_Compras';
-import Articulo from '../../Articulos/Articulo';
+import Articulo from '../../../modules/Inventario/Articulos/model/Articulo';
 
 
 @Table({

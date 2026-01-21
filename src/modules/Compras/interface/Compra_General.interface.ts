@@ -1,4 +1,4 @@
-import { IArticulo } from "../../../interface/Articulos/Articulo.interface"
+import { IArticulo } from "../../Inventario/Articulos/interface/Articulo.interface"
 import { IEmpresaSucursal } from "../../../interface/Empresa_Sucursal/Empresa_Sucursal.interface"
 import { ICompra_Proveedor } from "./Compra_Proveedor.interface"
 

@@ -11,9 +11,9 @@ import {
   BelongsToMany,
   HasMany,
 } from "sequelize-typescript";
-import Articulo from "../Articulos/Articulo";
+import Articulo from "../../modules/Inventario/Articulos/model/Articulo";
 import Medico from "./Medico";
-import Empleado from "../Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 import RecetaArticulo from "./Receta_Articulo";
 import Venta from "../Venta/Venta";
 

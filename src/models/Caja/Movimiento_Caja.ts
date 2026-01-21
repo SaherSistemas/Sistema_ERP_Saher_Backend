@@ -1,6 +1,6 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default } from "sequelize-typescript";
 import Metodo_de_Pago from "./Metodo_de_Pago";
-import Empleado from "../Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 import Caja from "./Caja";
 import CorteCaja from "./Corte_Caja";
 

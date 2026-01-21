@@ -6,7 +6,7 @@ import { ICreateCompra_General } from "../interface/Compra_General.interface";
 import { Op, Sequelize, Transaction, WhereOptions } from "sequelize";
 
 import { Empresa_SucursalRepository } from "../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository";
-import { EmpleadoRepository } from "../../../repository/Usuarios/Empleado.repository";
+import { EmpleadoRepository } from "../../RRHH/repositories/Empleado.repository";
 import Compra_General from "../model/Compra_General";
 import Compra_Proveedor from "../model/Compra_Proveedor";
 /*

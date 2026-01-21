@@ -12,13 +12,13 @@ import {
   HasMany
 } from 'sequelize-typescript';
 import Colonia from '../../Ubicacion/Colonia';
-import Cat_Regimen_Fiscal from '../../Catalogos/Cat_Regimen_Fiscal';
+import Cat_Regimen_Fiscal from '../../../modules/Catalogos/model/Cat_Regimen_Fiscal';
 
-import Cat_Forma_De_Pago from '../../Catalogos/Cat_Forma_De_Pago';
-import Cat_uso_CFDI from '../../Catalogos/Cat_Uso_CFDI';
+import Cat_Forma_De_Pago from '../../../modules/Catalogos/model/Cat_Forma_De_Pago';
+import Cat_uso_CFDI from '../../../modules/Catalogos/model/Cat_Uso_CFDI';
 import Agente_de_Venta from '../../Usuarios/Agente_De_Ventas/Agente_De_Venta';
-import Cat_Metodo_Pago from '../../Catalogos/Cat_Metodo_Pago';
-import ListaPrecio from '../../Costo_Y_Precio/Lista_Precios/Lista_Precio';
+import Cat_Metodo_Pago from '../../../modules/Catalogos/model/Cat_Metodo_Pago';
+import ListaPrecio from '../../../modules/Ventas/Precios/model/Lista_Precio';
 import Pedido_Almacen from '../../../modules/Pedido_Almacen/model/Pedido_Almacen';
 
 @Table({

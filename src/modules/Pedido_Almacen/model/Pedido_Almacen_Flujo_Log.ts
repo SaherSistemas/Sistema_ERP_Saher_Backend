@@ -1,6 +1,6 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique, BelongsTo, Default, HasOne } from "sequelize-typescript";
 import Pedido_Almacen from "./Pedido_Almacen";
-import Usuario from "../../../models/Usuarios/Usuario";
+import Usuario from "../../Seguridad/model/Usuario";
 import Agente_de_Venta from "../../../models/Usuarios/Agente_De_Ventas/Agente_De_Venta";
 
 @Table({

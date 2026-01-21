@@ -1,7 +1,7 @@
 
 import { col, fn, literal, Transaction } from 'sequelize';
 import LotesRecibidosCompra from '../../../models/LotesYCaducidad/LotesRecibidosCompra';
-import Articulo from '../../../models/Articulos/Articulo';
+import Articulo from '../../Inventario/Articulos/model/Articulo';
 import Detalle_Compra_Recibidos from '../model/Detalle_Compra_Recibido'
 import Compra_Proveedor from '../model/Compra_Proveedor';
 

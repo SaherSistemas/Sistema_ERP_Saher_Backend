@@ -2,8 +2,8 @@ import { ICreateOrUpdateParametros_Compra } from "../interface/Parametros_Compra
 
 import { v4 as uuidv4 } from 'uuid';
 import Empresa_Sucursal from "../../../models/Empresa_Sucursal/Empresa_Sucursal";
-import Categoria_Articulo from "../../../models/Articulos/Categoria_Articulo";
-import Articulo from "../../../models/Articulos/Articulo";
+import Categoria_Articulo from "../../Inventario/Articulos/model/Categoria_Articulo";
+import Articulo from "../../Inventario/Articulos/model/Articulo";
 import Parametros_Compra from "../model/Parametros_Compra";
 import ArticuloExcluidoCompra from "../model/ArticuloExcluidoCompra";
 import CategoriaExcluidaCompra from "../model/CategoriaExcluidaCompra";

@@ -1,4 +1,4 @@
-import { ArticuloRepository } from "../../../repository/Articulos/Articulo.repository";
+import { ArticuloRepository } from "../../Inventario/Articulos/repositories/Articulo.repository";
 import { Detalle_Compra_RecibidosRepository } from "../repositories/Detalle_Compra_Recibido.repository";
 import { v4 as uuidv4 } from 'uuid';
 

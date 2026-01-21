@@ -4,7 +4,7 @@ import {
 } from "sequelize-typescript";
 
 import Caja from "./Caja";
-import Empleado from "../Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 import Movimiento_Caja from "./Movimiento_Caja";
 import Venta from "../Venta/Venta";
 

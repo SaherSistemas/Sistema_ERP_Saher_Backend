@@ -3,7 +3,7 @@ import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, Belongs
 import Detalle_Compra_Solicitado from "./Detalle_Compra_Solicitado";
 import Compra_General from "./Compra_General";
 import Proveedor from "../../Proveedores/model/Proveedor";
-import Empleado from "../../../models/Usuarios/Empleado/Empleado";
+import Empleado from "../../RRHH/model/Empleado";
 import Factura_Compra_Proveedor from "../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor";
 
 

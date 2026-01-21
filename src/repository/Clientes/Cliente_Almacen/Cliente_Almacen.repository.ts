@@ -4,7 +4,7 @@ import { Op } from 'sequelize';
 import { isUUID } from '../../../utils/validaciones';
 import { ICreateClienteAlmacen } from '../../../interface/Clientes/Cliente_Almacen/Cliente_Almacen.interface';
 import Agente_de_Venta from '../../../models/Usuarios/Agente_De_Ventas/Agente_De_Venta';
-import Empleado from '../../../models/Usuarios/Empleado/Empleado';
+import Empleado from '../../../modules/RRHH/model/Empleado';
 
 export const Cliente_AlmacenRepository = {
   // PAGINADO

@@ -12,7 +12,7 @@ import { RecetaMedicaService } from "../RecetaMedica/RecetaMedica.service";
 import { MovimientoCajaRepository } from "../../repository/Caja/Movimiento_Caja.repository";
 import CorteCaja from "../../models/Caja/Corte_Caja";
 import LoteArticuloSucursal from "../../models/LotesYCaducidad/Lote_ArticuloSucursal";
-import { EmpleadoService } from "../Usuarios/Empleados.service";
+import { EmpleadoService } from "../../modules/RRHH/services/Empleados.service";
 import { Transaction } from "sequelize";
 import { MovimientoCajaService } from "../Caja/Movimiento_Caja.service";
 import { MonederoService } from "../Clientes/Monedero/Monedero.service";

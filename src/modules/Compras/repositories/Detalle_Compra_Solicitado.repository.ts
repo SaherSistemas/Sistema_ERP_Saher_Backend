@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { col, fn } from 'sequelize';
-import Articulo from '../../../models/Articulos/Articulo';
+import Articulo from '../../Inventario/Articulos/model/Articulo';
 
 import { ICreateOAcumularDetallesSolicitados } from '../interface/Detalle_Compra_Solicitado.interface';
 import Detalle_Compra_Solicitado from '../model/Detalle_Compra_Solicitado';

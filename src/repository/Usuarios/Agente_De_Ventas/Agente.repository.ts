@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { IAgenteDeVentaCreate, IAgente_de_Venta } from '../../../interface/Usuarios/Agente_De_Ventas/Agente.interface';
 import Agente_de_Venta from '../../../models/Usuarios/Agente_De_Ventas/Agente_De_Venta';
 import id from 'zod/v4/locales/id.js';
-import Empleado from '../../../models/Usuarios/Empleado/Empleado';
+import Empleado from '../../../modules/RRHH/model/Empleado';
 
 export const AgenteRepository = {
   getAll: async () => {

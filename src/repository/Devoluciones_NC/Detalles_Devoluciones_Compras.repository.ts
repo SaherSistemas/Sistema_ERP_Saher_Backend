@@ -1,10 +1,10 @@
 import { v4 } from "uuid";
 import { Transaction } from "sequelize";
 import { ICreateDetalleDevolucionCompra } from "../../interface/Devolucion_NC/Devoluciones_Compras.interface";
-import { ArticuloRepository } from "../Articulos/Articulo.repository";
+import { ArticuloRepository } from "../../modules/Inventario/Articulos/repositories/Articulo.repository";
 import Detalle_Devoluciones_Compras from "../../models/Devolucion_NC/Devolucion/Detalle_Devoluciones_Compras";
 import { Devoluciones_ComprasRepository } from "./Devoluciones_Compras.repository";
-import Articulo from "../../models/Articulos/Articulo";
+import Articulo from "../../modules/Inventario/Articulos/model/Articulo";
 
 export const Detalle_Devoluciones_CompraRepository = {
     create: async (data: ICreateDetalleDevolucionCompra[], options?: { transaction?: Transaction }) => {

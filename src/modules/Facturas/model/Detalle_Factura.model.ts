@@ -10,7 +10,7 @@ import {
     Default
 } from "sequelize-typescript";
 import Facturas from "./Facturas.model";
-import Articulo from "../../../models/Articulos/Articulo";
+import Articulo from "../../Inventario/Articulos/model/Articulo";
 
 
 

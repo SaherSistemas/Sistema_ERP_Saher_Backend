@@ -5,7 +5,7 @@ import { Compra_ProveedorRepository } from '../../../Compras/repositories/Compra
 import Proveedor from '../../../Proveedores/model/Proveedor';
 import Compra_Proveedor from '../../../Compras/model/Compra_Proveedor';
 import { Model, Transaction } from 'sequelize';
-import { EmpleadoRepository } from '../../../../repository/Usuarios/Empleado.repository';
+import { EmpleadoRepository } from '../../../RRHH/repositories/Empleado.repository';
 import { Detalle_Factura_Compra_ProveedorRepository } from './Detalle_Factura_Compra_Proveedor.repository';
 import Detalle_Factura_Compra_Proveedor from '../model/Detalle_Factura_Compra_Proveedor';
 import Lote_Factura_Compra_Proveedor from '../model/Lote_Factura_Compra_Proveedor';

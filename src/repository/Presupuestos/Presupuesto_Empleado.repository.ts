@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { Transaction } from "sequelize";
 import Presupuesto_Empresa from "../../models/Presupuestos/Presupuesto_Empresa";
-import Empleado from "../../models/Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
 import Asignacion_Empleado_Sucursal from "../../models/Presupuestos/Asignacion_Empleado_Sucursal";
 

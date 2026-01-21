@@ -2,7 +2,7 @@ import {
   Table, Column, Model, DataType, PrimaryKey,
   ForeignKey
 } from "sequelize-typescript";
-import Empleado from "../../../../models/Usuarios/Empleado/Empleado";
+import Empleado from "../../../RRHH/model/Empleado";
 
 @Table({
   tableName: "recepcion_entrada",

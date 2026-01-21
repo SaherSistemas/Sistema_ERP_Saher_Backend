@@ -1,8 +1,8 @@
 import { ICreateClienteAlmacen } from '../../../interface/Clientes/Cliente_Almacen/Cliente_Almacen.interface';
 import { Cliente_AlmacenRepository } from '../../../repository/Clientes/Cliente_Almacen/Cliente_Almacen.repository';
 import { AgenteRepository } from '../../../repository/Usuarios/Agente_De_Ventas/Agente.repository';
-import { EmpleadoRepository } from '../../../repository/Usuarios/Empleado.repository';
-import { UsuarioRepository } from '../../../repository/Usuarios/Usuario.repository';
+import { EmpleadoRepository } from '../../../modules/RRHH/repositories/Empleado.repository';
+import { UsuarioRepository } from '../../../modules/Seguridad/repositories/Usuario.repository';
 
 export const Cliente_AlmacenService = {
   getAllPaginado: async (page: number, limit: number) => {

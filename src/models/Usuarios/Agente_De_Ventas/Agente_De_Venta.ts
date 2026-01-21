@@ -12,7 +12,7 @@ import {
   HasMany,
   AllowNull
 } from 'sequelize-typescript';
-import Empleado from '../Empleado/Empleado';
+import Empleado from '../../../modules/RRHH/model/Empleado';
 import Presupuesto_Agente from './Presupuesto_Agente/Presupuesto_Agente';
 import { UUID } from 'crypto';
 

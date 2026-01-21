@@ -10,7 +10,7 @@ import {
   BelongsTo,
   HasMany,
 } from "sequelize-typescript";
-import Articulo from "../Articulos/Articulo";
+import Articulo from "../../modules/Inventario/Articulos/model/Articulo";
 import LoteUsadoVenta from "../LotesYCaducidad/Lote_Usado_Venta";
 import Venta from "./Venta";
 

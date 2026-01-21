@@ -4,7 +4,7 @@ import { IMovimientoCaja } from "../../interface/Caja/Movimiento_Caja.interface"
 import { v4 as uuidv4 } from "uuid";
 import { Transaction } from "sequelize";
 import e from "express";
-import Empleado from "../../models/Usuarios/Empleado/Empleado";
+import Empleado from "../../modules/RRHH/model/Empleado";
 
 export const MovimientoCajaRepository = {
     getAll: async () => {
