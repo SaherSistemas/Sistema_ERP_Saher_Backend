@@ -123,6 +123,7 @@ import cxcRoutes from '../modules/Finanzas/Cuentas_Por_Pagar/routes/index.route'
 
 import inventarioRouter from '../modules/Inventario/index.route';
 
+import recepcionesRouter from '../modules/Pedido_Almacen/Recepciones/routes/Recepciones.route';
 
 import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
 const router = Router();
@@ -255,4 +256,6 @@ router.use('/proyeccion', ProyecionRouter);
 router.use('/inventario', inventarioRouter)
 router.use('/pedido_almacen', Pedido_AlmacenRouter);
 router.use('/uploads', uploadsRouter)
+
+router.use('/almacen/recepciones', recepcionesRouter)
 export default router;

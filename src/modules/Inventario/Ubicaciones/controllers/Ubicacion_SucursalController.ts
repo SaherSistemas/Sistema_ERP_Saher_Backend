@@ -55,12 +55,15 @@ export const Ubicacion_SucursalController = {
     },
 
     // POST /ubicacion-sucursal
-    create: async (req: Request, res: Response) => {
+    create: async (req: Request & { user?: any }, res: Response) => {
         try {
+            
             const data = await Ubicacion_SucursalService.create(req.body);
+           
             res.status(201).json(data);
 
         } catch (error: any) {
+            console.log(error)
             const msg = String(error?.message || "");
 
             // Duplicado lógico (service)

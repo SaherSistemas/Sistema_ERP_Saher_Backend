@@ -15,11 +15,14 @@ import { CompraGeneralRepository } from "../../../Compras/repositories/Compra_Ge
 
 
 export const Factura_Compra_ProveedorService = {
-    getAllFacturas: async () => {
-        return await Factura_Compra_ProveedorRepository.getAll();
+    getAllConFiltroDeEstado: async () => {
+        return await Factura_Compra_ProveedorRepository.getAllConFiltroDeEstado();
     },
     getByIDComp: async (id_comp: string) => {
         return await Factura_Compra_ProveedorRepository.getByID(id_comp);
+    },
+    getDetallesFacturaPorIdFacturaProveedor: async (id_factura_proveedor: string) => {
+        return await Factura_Compra_ProveedorRepository.getFacturaConDetalles(id_factura_proveedor);
     },
 
     guardarFacturaEIniciarCapturaLotes: async (data: ICreateFacturaCompraProveedor) => {

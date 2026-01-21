@@ -25,16 +25,16 @@ export const Ubicacion_SucursalService = {
     },
 
     create: async (data: ICrearUbicacionSucursal) => {
-
+        console.log(data)
         const existe = await Ubicacion_SucursalRepository.existsByLayout(
             data.id_empresa_sucursal,
-            data.tarima_ub,
-            data.pasillo_ub,
-            data.anaquel_ub,
-            data.nivel_ub,
-            data.posicion_ub
+            data?.tarima_ub,
+            data?.pasillo_ub,
+            data?.anaquel_ub,
+            data?.nivel_ub,
+            data?.posicion_ub
         );
-
+        console.log(existe)
         if (existe) {
             throw new Error("La ubicación ya existe en esta sucursal");
         }

@@ -1,5 +1,5 @@
 // modules/Finanzas/Cuentas_Por_Pagar/maps/Detalle_Factura_Compra_Proveedor.map.ts
-
+/*
 import { IDetalleFacturaCompraProveedor, IDetalleFacturaCompraProveedorDTO } from '../interface/Detalle_Factura_Compra_Proveedor.interface';
 import Detalle_Factura_Compra_Proveedor from '../model/Detalle_Factura_Compra_Proveedor';
 
@@ -38,3 +38,4 @@ export const DetalleFacturaCompraProveedorMap = {
         return list.map((item) => this.toDTO(item));
     },
 };
+*/

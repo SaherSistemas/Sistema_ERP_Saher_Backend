@@ -1,23 +1,33 @@
 import type { Request, Response } from "express";
 import { v4 as uuidv4 } from 'uuid'
 
-import { ProveedorService } from "../../../Proveedores/services/Proveedor.service";
-import { ICreateProveedor, IProveedorUpdateBody } from "../../../Proveedores/interface/Proveedor.interface";
 
 import { ICreateFacturaCompraProveedor, IFactura_Compra_Proveedor } from "../interface/Factura_Compra_Proveedor.interfece";
 import { Factura_Compra_ProveedorService } from "../services/Factura_Compra_Proveedor.service";
 
 export class Factura_Compra_ProveedorController {
-    static getAllFacturas = async (req: Request, res: Response) => {
+    static getAllConFiltroDeEstado = async (req: Request, res: Response) => {
         // console.log("HOLA")
 
         try {
-            const facturas = await Factura_Compra_ProveedorService.getAllFacturas();
+            const facturas = await Factura_Compra_ProveedorService.getAllConFiltroDeEstado();
             // console.log(facturas)
             res.status(200).json({ mensaje: facturas })
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: "Error al mostrar todos los proveedores." });
+        }
+    }
+
+    static getDetallesFacturaPorIdFacturaProveedor = async (req: Request, res: Response) => {
+        try {
+            const { id_factura_proveedor } = req.params;
+            const detallesFactura = await Factura_Compra_ProveedorService.getDetallesFacturaPorIdFacturaProveedor(id_factura_proveedor);
+            res.status(200).json({ detallesFactura })
+        }
+        catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al obtener los detalles de la factura." });
         }
     }
 

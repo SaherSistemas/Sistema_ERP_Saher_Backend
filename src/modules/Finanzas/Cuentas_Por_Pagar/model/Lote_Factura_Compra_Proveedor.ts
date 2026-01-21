@@ -1,5 +1,5 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
-import { DetalleFacturaCompraProveedorMap } from "../map/Detalle_Factura_Compra_Proveedor.map";
+//import { DetalleFacturaCompraProveedorMap } from "../map/Detalle_Factura_Compra_Proveedor.map";
 import Detalle_Factura_Compra_Proveedor from "./Detalle_Factura_Compra_Proveedor";
 
 @Table({
@@ -18,8 +18,10 @@ class Lote_Factura_Compra_Proveedor extends Model {
     })
     declare id_det_factura_proveedor: string
 
-
-    @BelongsTo(() => Detalle_Factura_Compra_Proveedor)
+    @BelongsTo(() => Detalle_Factura_Compra_Proveedor, {
+        foreignKey: 'id_det_factura_proveedor',
+        targetKey: 'id_factura_proveedor_detalle',
+    })
     detalleFacturaCompraProveedor!: Detalle_Factura_Compra_Proveedor;
 
 

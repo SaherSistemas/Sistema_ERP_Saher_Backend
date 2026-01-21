@@ -1,6 +1,7 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
 import Compra_Proveedor from "../../../Compras/model/Compra_Proveedor";
 import Empleado from "../../../../models/Usuarios/Empleado/Empleado";
+import Detalle_Factura_Compra_Proveedor from "./Detalle_Factura_Compra_Proveedor";
 
 @Table({
     tableName: 'factura_compra_proveedor',
@@ -27,6 +28,9 @@ class Factura_Compra_Proveedor extends Model {
         type: DataType.UUID
     })
     declare id_compra_prove_factura: string
+
+    @BelongsTo(() => Compra_Proveedor, 'id_compra_prove_factura')
+    compra!: Compra_Proveedor;
 
     @Column({
         type: DataType.STRING(20)
@@ -131,8 +135,9 @@ class Factura_Compra_Proveedor extends Model {
         type: DataType.DATE
     })
     declare fin_acomodo_mercancia: Date
-    @BelongsTo(() => Compra_Proveedor)
-    compra!: Compra_Proveedor;
+
+
+
 
 
     // Quién acomodó la mercancía
@@ -142,6 +147,13 @@ class Factura_Compra_Proveedor extends Model {
 
     @BelongsTo(() => Empleado, 'id_empleado_acomodo')
     empleado_acomodo: Empleado;
+
+
+
+
+    //HASMANY
+    @HasMany(() => Detalle_Factura_Compra_Proveedor)
+    detalles_factura_compra_proveedor!: Detalle_Factura_Compra_Proveedor[];
 
 }
 

@@ -4,10 +4,13 @@ import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
 import { Compra_ProveedorRepository } from '../../../Compras/repositories/Compra_Proveedor.repository';
 import Proveedor from '../../../Proveedores/model/Proveedor';
 import Compra_Proveedor from '../../../Compras/model/Compra_Proveedor';
-import { Transaction } from 'sequelize';
+import { Model, Transaction } from 'sequelize';
 import { EmpleadoRepository } from '../../../../repository/Usuarios/Empleado.repository';
+import { Detalle_Factura_Compra_ProveedorRepository } from './Detalle_Factura_Compra_Proveedor.repository';
+import Detalle_Factura_Compra_Proveedor from '../model/Detalle_Factura_Compra_Proveedor';
+import Lote_Factura_Compra_Proveedor from '../model/Lote_Factura_Compra_Proveedor';
 export const Factura_Compra_ProveedorRepository = {
-    getAll: async () => {
+    getAllConFiltroDeEstado: async () => {
         return await Factura_Compra_Proveedor.findAll({
             where: { estado_factura_proveedor: 'C' },
             include: [
@@ -31,6 +34,42 @@ export const Factura_Compra_ProveedorRepository = {
             }
         });
     },
+
+    getFacturaConDetalles: async (id_factura_compra_proveedor: string) => {
+        console.time("factura");
+        const factura = await Factura_Compra_Proveedor.findByPk(id_factura_compra_proveedor, {
+            attributes: ['id_factura_proveedor', 'folio_factura_proveedor', 'estado_factura_proveedor'],
+            include: [
+                {
+                    model: Compra_Proveedor,
+                    as: 'compra', // ✅ tu propiedad en Factura
+                    attributes: ['id_comp', 'idprove_comp'],
+                    include: [
+                        {
+                            model: Proveedor,
+                            as: 'proveedor', // ✅ si tu propiedad en Compra_Proveedor se llama proveedor
+                            attributes: ['id_prove', 'nomcort_prove'],
+                        },
+                    ],
+                },
+            ],
+        });
+        console.timeEnd("factura");
+
+        console.time("detalles");
+
+        const detalles = await Detalle_Factura_Compra_ProveedorRepository.getDetallesPorIdFacturaProveedor(id_factura_compra_proveedor);
+        console.timeEnd("detalles");
+        return {
+            factura,
+            detalles
+        };
+    },
+
+
+
+
+
     actualizarTotalesFactura: async (id_factura_compra_proveedor: string, totalSinIva: number, totaliva: number, id_empleado_registro_lotes: number, t?: Transaction) => {
         //AQUI SOLO SE HACE UPDATE DE LOS TOTALES DE LA FACTURA
 

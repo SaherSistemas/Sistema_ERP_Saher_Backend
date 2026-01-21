@@ -1,8 +1,9 @@
-import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, Default } from "sequelize-typescript";
 import Factura_Compra_Proveedor from "./Factura_Compra_Proveedor";
 import Articulo from "../../../../models/Articulos/Articulo";
 import Detalle_Compra_Recibido from "../../../Compras/model/Detalle_Compra_Recibido";
 import Detalle_Compra_Solicitado from "../../../Compras/model/Detalle_Compra_Solicitado";
+import Lote_Factura_Compra_Proveedor from "./Lote_Factura_Compra_Proveedor";
 
 @Table({
     tableName: 'detalle_factura_compra_proveedor',
@@ -56,7 +57,21 @@ class Detalle_Factura_Compra_Proveedor extends Model {
     })
     declare iva_articulo_factura: number
 
+    @Default(false)
+    @Column({
+        type: DataType.BOOLEAN
+    })
+    declare checado: boolean
 
+    @Default(null)
+    @Column({
+        type: DataType.DATE
+    })
+    declare fecha_checado: Date | null
+    //HASMANY
+
+    @HasMany(() => Lote_Factura_Compra_Proveedor)
+    lotes_factura_compra!: Lote_Factura_Compra_Proveedor[];
 
 }
 

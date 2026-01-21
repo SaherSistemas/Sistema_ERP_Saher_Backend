@@ -25,23 +25,30 @@ export const Ubicacion_SucursalRepository = {
     },
     existsByLayout: async (
         id_empresa_sucursal: string,
-        tarima_ub: string,
-        pasillo_ub: string,
-        anaquel_ub: string,
-        nivel_ub: string,
-        posicion_ub: string
+        tarima_ub?: string | null,
+        pasillo_ub?: string | null,
+        anaquel_ub?: string | null,
+        nivel_ub?: string | null,
+        posicion_ub?: string | null,
     ): Promise<boolean> => {
-        const count = await Ubicacion_Sucursal.count({
-            where: {
-                id_empresa_sucursal,
-                tarima_ub,
-                pasillo_ub,
-                anaquel_ub,
-                nivel_ub,
-                posicion_ub
-            }
-        });
 
+        const where: any = { id_empresa_sucursal };
+
+        const tar = (tarima_ub ?? "").trim();
+        const esTarima = tar.length > 0;
+
+        if (esTarima) {
+
+            where.tarima_ub = tar;
+        } else {
+
+            where.pasillo_ub = (pasillo_ub ?? "").trim();
+            where.anaquel_ub = (anaquel_ub ?? "").trim();
+            where.nivel_ub = (nivel_ub ?? "").trim();
+            where.posicion_ub = (posicion_ub ?? "").trim();
+        }
+
+        const count = await Ubicacion_Sucursal.count({ where });
         return count > 0;
     }
 
