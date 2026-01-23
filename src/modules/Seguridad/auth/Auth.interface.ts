@@ -2,6 +2,7 @@
 export interface IIniciarSesion {
     username: string;
     password_user: string;
+    id_empresa: string;
 }
 
 export interface ICreateUsuario {

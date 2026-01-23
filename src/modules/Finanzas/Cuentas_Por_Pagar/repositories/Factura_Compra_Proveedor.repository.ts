@@ -1,9 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { IFactura_Compra_Proveedor, ICreateFacturaCompraProveedor } from '../interface/Factura_Compra_Proveedor.interfece';
 import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
-import { Compra_ProveedorRepository } from '../../../Compras/repositories/Compra_Proveedor.repository';
-import Proveedor from '../../../Proveedores/model/Proveedor';
-import Compra_Proveedor from '../../../Compras/model/Compra_Proveedor';
+import { Compra_ProveedorRepository } from '../../../Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository';
+import Proveedor from '../../../Compras/Proveedores/model/Proveedor';
+import Compra_Proveedor from '../../../Compras/Ordenes-Compra/model/Compra_Proveedor';
 import { Model, Transaction } from 'sequelize';
 import { EmpleadoRepository } from '../../../RRHH/repositories/Empleado.repository';
 import { Detalle_Factura_Compra_ProveedorRepository } from './Detalle_Factura_Compra_Proveedor.repository';

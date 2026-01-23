@@ -17,8 +17,9 @@ export class AuthController {
     }
     static iniciarSesion = async (req: Request, res: Response) => {
         try {
+            //  console.log(req.body)
             const loginUser = await AuthService.iniciarSesion(req.body);
-
+            // console.log(loginUser)
             res.status(201).json({
                 mensaje: "Inicio de sesión exitoso",
                 usuario: loginUser
@@ -50,6 +51,18 @@ export class AuthController {
             });
         }
 
+
+    }
+
+    static preloginEmpresas = async (req: Request, res: Response) => {
+        try {
+            //   console.log(req.body)
+            const preloginUser = await AuthService.preloginEmpresas(req.body);
+            res.status(200).json(preloginUser)
+        } catch (error) {
+            console.log(error)
+            res.status(500).json({ error: 'Token no validssso' })
+        }
 
     }
     static user = async (req: Request, res: Response) => {

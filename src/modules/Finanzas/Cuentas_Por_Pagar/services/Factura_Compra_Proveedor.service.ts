@@ -1,18 +1,16 @@
 import { Transaction } from "sequelize";
 import { dbLocal } from "../../../../config/db";
-import { Detalle_Compra_RecibidosRepository } from "../../../Compras/repositories/Detalle_Compra_Recibido.repository";
 import { ICreateFacturaCompraProveedor, IFactura_Compra_Proveedor, IGuardarCapturaCompletaControllerDTO } from "../interface/Factura_Compra_Proveedor.interfece";
 import { Detalle_Factura_Compra_ProveedorRepository } from "../repositories/Detalle_Factura_Compra_Proveedor.repository";
 import { Factura_Compra_ProveedorRepository } from "../repositories/Factura_Compra_Proveedor.repository";
-import { Detalle_Compra_RecibidoService } from "../../../Compras/services/Detalle_Compra_Recibido.service";
+import { Detalle_Compra_RecibidoService } from "../../../Compras/Ordenes-Compra/services/Detalle_Compra_Recibido.service";
 import { LotesSolicitadoCompraRepository } from "../../../../repository/LotesYCaducidad/LotesSolicitadosCompra.repository";
 import { IDataLotesRecibidos, IDetalleSolicitado, ILoteRecibido } from "../../../../interface/LotesYCaducidad/LotesSolicitadoCompra.interface";
 import { ICrearDetallesFacturaRepoDTO } from "../interface/Detalle_Factura_Compra_Proveedor.interface";
 import { Lote_Factura_Compra_ProveedorRepository } from "../repositories/Lote_Factura_Compra_ProveedorRepository.repository";
 import { ICrearLotesFacturaRepoDTO } from "../interface/Lote_Factura_Compra_Proveedor.interface";
-import { Compra_ProveedorRepository } from "../../../Compras/repositories/Compra_Proveedor.repository";
-import { CompraGeneralRepository } from "../../../Compras/repositories/Compra_General.repository";
-
+import { Compra_ProveedorRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository";
+import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_General.repository";
 
 export const Factura_Compra_ProveedorService = {
     getAllConFiltroDeEstado: async () => {

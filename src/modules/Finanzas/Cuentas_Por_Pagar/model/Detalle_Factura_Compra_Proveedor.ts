@@ -1,8 +1,8 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, Default } from "sequelize-typescript";
 import Factura_Compra_Proveedor from "./Factura_Compra_Proveedor";
 import Articulo from "../../../Inventario/Articulos/model/Articulo";
-import Detalle_Compra_Recibido from "../../../Compras/model/Detalle_Compra_Recibido";
-import Detalle_Compra_Solicitado from "../../../Compras/model/Detalle_Compra_Solicitado";
+import Detalle_Compra_Recibido from "../../../Compras/Ordenes-Compra/model/Detalle_Compra_Recibido";
+import Detalle_Compra_Solicitado from "../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado";
 import Lote_Factura_Compra_Proveedor from "./Lote_Factura_Compra_Proveedor";
 
 @Table({

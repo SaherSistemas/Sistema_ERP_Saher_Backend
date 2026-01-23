@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Grupo_EmpresaController } from "../../controllers/Empresa_Sucursal/Grupo_EmpresaController";
+import { Grupo_EmpresaController } from "../../modules/Organizacion/controllers/Grupo_EmpresaController";
 const router = Router();
 router.get('/', Grupo_EmpresaController.getAllGrupoEmpresas)
 router.get('/:id_grupoEmpresa', Grupo_EmpresaController.getGrupoEmpresaByID)

@@ -1,5 +1,5 @@
 import { IDataLotesRecibidos } from "../../interface/LotesYCaducidad/LotesSolicitadoCompra.interface";
-import { Compra_ProveedorRepository } from "../../modules/Compras/repositories/Compra_Proveedor.repository";
+import { Compra_ProveedorRepository } from "../../modules/Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository";
 import { LotesSolicitadoCompraRepository } from "../../repository/LotesYCaducidad/LotesSolicitadosCompra.repository";
 export const LotesSolicitadoCompraService = {
 

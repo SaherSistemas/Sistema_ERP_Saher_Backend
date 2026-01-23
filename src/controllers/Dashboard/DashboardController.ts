@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
 import { ICompraKPISRequest } from "../../interface/Dashboard/Compras.interface";
 import { dashboardComprasService } from "../../services/Dashboard/dashboardCompras.service";
-import { CompraGeneralesService } from "../../modules/Compras/services/Compras.service";
-import { compraProveedorService } from "../../modules/Compras/services/compraProveedor.service";
+import { CompraGeneralesService } from "../../modules/Compras/Ordenes-Compra/services/Compras.service";
+import { compraProveedorService } from "../../modules/Compras/Ordenes-Compra/services/compraProveedor.service";
 
 export class Dash_CompraController {
     static getAllKpisCompras = async (req: Request, res: Response) => {

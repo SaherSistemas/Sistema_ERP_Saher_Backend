@@ -11,12 +11,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { ArticuloRepository } from '../../modules/Inventario/Articulos/repositories/Articulo.repository';
 import { Op, Sequelize, Transaction, FindOptions, fn, col, literal } from 'sequelize';
 import Articulo from '../../modules/Inventario/Articulos/model/Articulo';
-import { Detalle_Compra_RecibidosRepository } from '../../modules/Compras/repositories/Detalle_Compra_Recibido.repository';
-import { Detalle_Compra_SolicitadoRepository } from '../../modules/Compras/repositories/Detalle_Compra_Solicitado.repository';
+import { Detalle_Compra_RecibidosRepository } from '../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Recibido.repository';
+import { Detalle_Compra_SolicitadoRepository } from '../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Solicitado.repository';
 import DetalleListaPrecio from '../../modules/Ventas/Precios/model/Detalle_Lista_Precio';
 import { DetalleListaPreciosRepository } from '../../modules/Ventas/Precios/repositories/Detalle_Lista_Precio.repository';
-import { Pedido_AlmacenRepository } from '../../modules/Pedido_Almacen/repositories/Pedido_Almacen.repository';
-import { Detalle_Pedido_AlmacenRepository } from '../../modules/Pedido_Almacen/repositories/Detalle_Pedido_Almacen.repository';
+import { Pedido_AlmacenRepository } from '../../modules/Ventas/Pedido_Almacen/repositories/Pedido_Almacen.repository';
+import { Detalle_Pedido_AlmacenRepository } from '../../modules/Ventas/Pedido_Almacen/repositories/Detalle_Pedido_Almacen.repository';
 type RepoOpts = FindOptions;
 
 export const LotesArticuloSucursalRepository = {

@@ -1,6 +1,6 @@
 import { ICreateClienteAlmacen } from '../../../interface/Clientes/Cliente_Almacen/Cliente_Almacen.interface';
 import { Cliente_AlmacenRepository } from '../../../repository/Clientes/Cliente_Almacen/Cliente_Almacen.repository';
-import { AgenteRepository } from '../../../repository/Usuarios/Agente_De_Ventas/Agente.repository';
+import { AgenteRepository } from '../../../modules/Ventas/Agente_Venta/repositories/Agente.repository';
 import { EmpleadoRepository } from '../../../modules/RRHH/repositories/Empleado.repository';
 import { UsuarioRepository } from '../../../modules/Seguridad/repositories/Usuario.repository';
 

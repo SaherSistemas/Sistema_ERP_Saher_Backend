@@ -4,7 +4,7 @@ import { Cat_Metodo_PagoService } from '../services/Cat_Metodo_Pago.service';
 import { Cat_Regimen_FiscalService } from '../services/Cat_Regimen_Fiscal.service';
 import { CatUsoCFDIService } from '../services/Cat_Uso_CFDI.service';
 import { PaisService } from '../../../services/Lugares/pais.service';
-import { AgenteService } from '../../../services/Usuarios/Agente_De_Ventas/Agente.service';
+import { AgenteService } from '../../Ventas/Agente_Venta/services/Agente.service';
 import { ListaPrecioService } from '../../Ventas/Precios/services/Lista_Precios.service';
 
 export const CatalogosController = {

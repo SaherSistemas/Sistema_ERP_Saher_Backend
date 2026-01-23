@@ -14,11 +14,11 @@ import { ICreateOrUpdateIDetalleListaPrecio } from "../../modules/Ventas/Precios
 import { Devoluciones_ComprasRepository } from "../../repository/Devoluciones_NC/Devoluciones_Compras.repository";
 import { EmpleadoRepository } from "../../modules/RRHH/repositories/Empleado.repository";
 import { ICreateDevoluciones_Compra } from "../../interface/Devolucion_NC/Devoluciones_Compras.interface";
-import { Detalle_Compra_RecibidosRepository } from "../../modules/Compras/repositories/Detalle_Compra_Recibido.repository";
+import { Detalle_Compra_RecibidosRepository } from "../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Recibido.repository";
 import { Console } from "console";
 import { Detalle_Devoluciones_CompraRepository } from "../../repository/Devoluciones_NC/Detalles_Devoluciones_Compras.repository";
-import { Detalle_Compra_NegadosRepository } from "../../modules/Compras/repositories/Detalle_Compra_Negado.repository";
-import { Compra_ProveedorRepository } from "../../modules/Compras/repositories/Compra_Proveedor.repository";
+import { Detalle_Compra_NegadosRepository } from "../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Negado.repository";
+import { Compra_ProveedorRepository } from "../../modules/Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository";
 import { LoteRecibidoCompraRepository } from "../../repository/LotesYCaducidad/LoteRecibidoCompra.repository";
 import { ILoteRecibidoChecado } from "../../interface/LotesYCaducidad/LotesRecibidosCompra.interface";
 

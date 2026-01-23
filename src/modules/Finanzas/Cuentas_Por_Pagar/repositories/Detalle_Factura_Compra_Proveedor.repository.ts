@@ -5,7 +5,7 @@ import {
     ICrearDetallesFacturaRepoDTO
 } from '../interface/Detalle_Factura_Compra_Proveedor.interface';
 import Lote_Factura_Compra_Proveedor from '../model/Lote_Factura_Compra_Proveedor';
-import Detalle_Compra_Solicitado from '../../../Compras/model/Detalle_Compra_Solicitado';
+import Detalle_Compra_Solicitado from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado';
 import Articulo from '../../../Inventario/Articulos/model/Articulo';
 
 export const Detalle_Factura_Compra_ProveedorRepository = {

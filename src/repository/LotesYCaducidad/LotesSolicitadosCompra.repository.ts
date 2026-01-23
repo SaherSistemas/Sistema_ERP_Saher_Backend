@@ -2,10 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import LotesRecibidosCompra from '../../models/LotesYCaducidad/LotesRecibidosCompra';
 import { IDataLotesRecibidos } from '../../interface/LotesYCaducidad/LotesSolicitadoCompra.interface';
 import Lotes_Solicitado_Compra from '../../models/LotesYCaducidad/LotesSolicitadoCompra';
-import { Compra_ProveedorRepository } from '../../modules/Compras/repositories/Compra_Proveedor.repository';
 
-import { LoteRecibidoCompraRepository } from './LoteRecibidoCompra.repository';
-import Detalle_Compra_Recibido from '../../modules/Compras/model/Detalle_Compra_Recibido';
+
 import { Transaction } from "sequelize";
 
 export const LotesSolicitadoCompraRepository = {

@@ -8,13 +8,13 @@ import DetalleListaPrecio from '../../../Ventas/Precios/model/Detalle_Lista_Prec
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
 import { LotesArticuloSucursalRepository } from '../../../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository';
 import { Tipo_IVARepository } from './Tipo_IVA.repository';
-import Parametros_Compra from '../../../Compras/model/Parametros_Compra';
-import ArticuloExcluidoCompra from '../../../Compras/model/ArticuloExcluidoCompra';
-import CategoriaExcluidaCompra from '../../../Compras/model/CategoriaExcluidaCompra';
-import Compra_General from '../../../Compras/model/Compra_General';
-import Compra_Proveedor from '../../../Compras/model/Compra_Proveedor';
-import Detalle_Compra_Solicitado from '../../../Compras/model/Detalle_Compra_Solicitado';
-import Detalle_Compra_Negados from '../../../Compras/model/Detalle_Compra_Negados';
+import Parametros_Compra from '../../../Compras/Ordenes-Compra/model/Parametros_Compra';
+import ArticuloExcluidoCompra from '../../../Compras/Ordenes-Compra/model/ArticuloExcluidoCompra';
+import CategoriaExcluidaCompra from '../../../Compras/Ordenes-Compra/model/CategoriaExcluidaCompra';
+import Compra_General from '../../../Compras/Ordenes-Compra/model/Compra_General';
+import Compra_Proveedor from '../../../Compras/Ordenes-Compra/model/Compra_Proveedor';
+import Detalle_Compra_Solicitado from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado';
+import Detalle_Compra_Negados from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Negados';
 
 
 export const ArticuloRepository = {

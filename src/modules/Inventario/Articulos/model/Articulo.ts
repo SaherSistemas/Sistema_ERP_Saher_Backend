@@ -20,7 +20,7 @@ import Presentacion_Articulo from './Presentacion_Articulo';
 import RecetaMedica from '../../../../models/RecetaMedica/RecetaMedica';
 import RecetaArticulo from '../../../../models/RecetaMedica/Receta_Articulo';
 import DetalleListaPrecio from '../../../Ventas/Precios/model/Detalle_Lista_Precio';
-import Detalle_Pedido_Almacen from '../../../Pedido_Almacen/model/Detalle_Pedido_Almacen';
+import Detalle_Pedido_Almacen from '../../../Ventas/Pedido_Almacen/model/Detalle_Pedido_Almacen';
 
 @Table({
   tableName: 'articulo'

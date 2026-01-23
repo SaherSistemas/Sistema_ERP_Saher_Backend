@@ -22,7 +22,7 @@ import Empresa from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import Presupuesto_Empleado from '../../../models/Presupuestos/Presupuesto_Empleado';
 import Movimiento_Presupuesto from '../../../models/Presupuestos/Movimiento_Presupuesto';
 import Asignacion_Empleado_Sucursal from '../../../models/Presupuestos/Asignacion_Empleado_Sucursal';
-import Agente_de_Venta from '../../../models/Usuarios/Agente_De_Ventas/Agente_De_Venta';
+import Agente_de_Venta from '../../Ventas/Agente_Venta/model/Agente_De_Venta';
 import Venta from '../../../models/Venta/Venta';
 
 @Table({

@@ -3,11 +3,12 @@ import e from "cors";
 import { ICrearUbicacionSucursal } from "../interface/Ubicacion_Sucursal.interface";
 import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
 import { Ubicacion_SucursalRepository } from "../repositories/Ubicacion_Sucursal.repository";
+import { AuthRepository } from "../../../Seguridad/auth/Auth.respository";
 
 export const Ubicacion_SucursalService = {
 
-    getAll: async () => {
-        return await Ubicacion_SucursalRepository.getAll();
+    getAllPorSucursal: async (id_empresa_sucursal: string) => {
+        return await Ubicacion_SucursalRepository.getAllPorEmpresa(id_empresa_sucursal);
     },
 
     getById: async (id: string) => {
@@ -25,7 +26,8 @@ export const Ubicacion_SucursalService = {
     },
 
     create: async (data: ICrearUbicacionSucursal) => {
-        console.log(data)
+
+        // console.log(data)
         const existe = await Ubicacion_SucursalRepository.existsByLayout(
             data.id_empresa_sucursal,
             data?.tarima_ub,
@@ -34,7 +36,7 @@ export const Ubicacion_SucursalService = {
             data?.nivel_ub,
             data?.posicion_ub
         );
-        console.log(existe)
+        //console.log(existe)
         if (existe) {
             throw new Error("La ubicación ya existe en esta sucursal");
         }

@@ -3,8 +3,12 @@ import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
 import { v4 as uuidv4 } from 'uuid';
 
 export const Ubicacion_SucursalRepository = {
-    getAll: async () => {
-        return await Ubicacion_Sucursal.findAll();
+    getAllPorEmpresa: async (id_empresa_sucursal: string) => {
+        return await Ubicacion_Sucursal.findAll({
+            where: {
+                id_empresa_sucursal
+            }
+        });
     },
     findByID: async (id: string) => {
         return await Ubicacion_Sucursal.findByPk(id);
@@ -24,15 +28,15 @@ export const Ubicacion_SucursalRepository = {
         });
     },
     existsByLayout: async (
-        id_empresa_sucursal: string,
+        id_empresa: string,
         tarima_ub?: string | null,
         pasillo_ub?: string | null,
         anaquel_ub?: string | null,
         nivel_ub?: string | null,
         posicion_ub?: string | null,
     ): Promise<boolean> => {
-
-        const where: any = { id_empresa_sucursal };
+        //   console.log(id_empresa)
+        const where: any = { id_empresa_sucursal: id_empresa };
 
         const tar = (tarima_ub ?? "").trim();
         const esTarima = tar.length > 0;

@@ -7,6 +7,7 @@ import { generarUsernameUnico } from "../../../utils/posiblesUsernames"
 import { isUUID } from "../../../utils/validaciones"
 import { UsuarioRepository } from "../repositories/Usuario.repository"
 import jwt from "jsonwebtoken"
+import { Usuario_SucursalRepository } from "../repositories/Usuario_Sucursal.repository"
 
 export const AuthService = {
     createEmpleado: async (data: ICreateUsuario) => {
@@ -23,6 +24,18 @@ export const AuthService = {
         data.password_user = await hashPassword(data.password_user);
         return await AuthRepository.crearUsuario(data, usernameFinal)
     },
+    preloginEmpresas: async (data: IIniciarSesion) => {
+        const { username, password_user } = data;
+        const usuario = await UsuarioRepository.usuarioPorUser(username);
+        if (!usuario) throw new Error('Usuario no encontrado');
+
+        const passwordCorrecta = await checkPassword(password_user, usuario.password_user);
+        if (!passwordCorrecta) throw new Error('Contraseña incorrecta.')
+
+        const empresasPermitidas = await Usuario_SucursalRepository.getEmpresasPermitidasUsuario(usuario.id_user)
+        // const token = generateToken(usuario.id_user, username)
+        return empresasPermitidas;
+    },
     iniciarSesion: async (data: IIniciarSesion) => {
         const { username, password_user } = data;
         const usuario = await UsuarioRepository.usuarioPorUser(username);
@@ -31,7 +44,7 @@ export const AuthService = {
         const passwordCorrecta = await checkPassword(password_user, usuario.password_user);
         if (!passwordCorrecta) throw new Error('Contraseña incorrecta.')
 
-        const token = generateToken(usuario.id_user, username)
+        const token = generateToken(usuario.id_user, username, data.id_empresa)
         return token;
     },
     cambiarContra: async (data: ICambiarContrasena) => {

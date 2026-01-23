@@ -11,7 +11,7 @@ import {
   BelongsTo
 } from 'sequelize-typescript';
 import Ciudad from './Ciudad';
-import Proveedor from '../../modules/Proveedores/model/Proveedor';
+import Proveedor from '../../modules/Compras/Proveedores/model/Proveedor';
 
 @Table({
   tableName: 'colonia'

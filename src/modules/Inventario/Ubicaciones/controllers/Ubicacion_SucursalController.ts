@@ -1,15 +1,18 @@
 import { Request, Response } from "express";
 import { Ubicacion_SucursalService } from "../services/Ubicacion_Sucursal.service";
+import { AuthedRequest } from "../../../../middleware/auth";
 
 export const Ubicacion_SucursalController = {
 
     // GET /ubicacion-sucursal
-    getAll: async (req: Request, res: Response) => {
+    getAllPorSucursal: async (req: AuthedRequest, res: Response) => {
         //   console.log("Llegó a controller");
         try {
-            const data = await Ubicacion_SucursalService.getAll();
+            const id_empresa_sucursal = req.user?.id_empresa
+            const data = await Ubicacion_SucursalService.getAllPorSucursal(id_empresa_sucursal);
             res.status(200).json(data);
         } catch (error: any) {
+            console.log(error)
             res.status(500).json({
                 message: "Error al obtener ubicaciones",
                 error: error?.message || error
@@ -55,11 +58,16 @@ export const Ubicacion_SucursalController = {
     },
 
     // POST /ubicacion-sucursal
-    create: async (req: Request & { user?: any }, res: Response) => {
+    create: async (req: AuthedRequest, res: Response) => {
         try {
-            
-            const data = await Ubicacion_SucursalService.create(req.body);
-           
+            const id_empresa_sucursal = req.user?.id_empresa
+            const payload = {
+                ...req.body,
+                id_empresa_sucursal
+            }
+
+            const data = await Ubicacion_SucursalService.create(payload);
+
             res.status(201).json(data);
 
         } catch (error: any) {

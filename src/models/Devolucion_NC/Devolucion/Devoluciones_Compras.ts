@@ -2,7 +2,7 @@ import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, Belong
 
 import Factura_Compra_Proveedor from '../../../modules/Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
 import Empleado from '../../../modules/RRHH/model/Empleado';
-import Compra_Proveedor from '../../../modules/Compras/model/Compra_Proveedor';
+import Compra_Proveedor from '../../../modules/Compras/Ordenes-Compra/model/Compra_Proveedor';
 
 
 @Table({
