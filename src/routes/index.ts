@@ -126,6 +126,7 @@ import inventarioRouter from '../modules/Inventario/index.route';
 import recepcionesRouter from '../modules/Compras/Recepciones/routes/Recepciones.route';
 
 import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
+import { authMiddleware } from '../middleware/auth';
 const router = Router();
 
 router.use(generalLimiter);

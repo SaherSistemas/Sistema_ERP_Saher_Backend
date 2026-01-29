@@ -11,10 +11,31 @@ import { Lote_Factura_Compra_ProveedorRepository } from "../repositories/Lote_Fa
 import { ICrearLotesFacturaRepoDTO } from "../interface/Lote_Factura_Compra_Proveedor.interface";
 import { Compra_ProveedorRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository";
 import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_General.repository";
+import { EmpleadoRepository } from "../../../RRHH/repositories/Empleado.repository";
+import { UsuarioRepository } from "../../../Seguridad/repositories/Usuario.repository";
 
 export const Factura_Compra_ProveedorService = {
     getAllConFiltroDeEstado: async () => {
         return await Factura_Compra_ProveedorRepository.getAllConFiltroDeEstado();
+    },
+    finalizarChequeoFacturaProveedor: async (id_factura_proveedor: string, username: string) => {
+        const t = await dbLocal.transaction({
+            isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+        });
+        //FINALIZAR CHEQUEO FACTURA PROVEEDOR
+        const getEmpleadoIDByUsername = await UsuarioRepository.usuarioPorUser(username);
+        const facturaChequeada = await Factura_Compra_ProveedorRepository.finalizarChequeoFacturaProveedor(id_factura_proveedor, getEmpleadoIDByUsername.id_referencia_persona, t);
+        // console.log(facturaChequeada)
+        const detallesFacturaYLotes = await Factura_Compra_ProveedorRepository.getFacturaConDetalles(id_factura_proveedor);
+        console.log(
+            "DETALLES CON LOTES:",
+            JSON.stringify(detallesFacturaYLotes.detalles, null, 2)
+        );
+        await t.rollback()
+        //Registrar en Detalle de Compra Recibido que la factura fue chequeada
+        //const detalleCompraRecibido = await Detalle_Compra_RecibidoService.marcarFacturaProveedorComoChequeada(id_factura_proveedor, t);
+        // await t.commit();
+        return facturaChequeada;
     },
     getByIDComp: async (id_comp: string) => {
         return await Factura_Compra_ProveedorRepository.getByID(id_comp);

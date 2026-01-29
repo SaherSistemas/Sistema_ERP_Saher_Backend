@@ -83,3 +83,28 @@ export interface ICrearDetallesFacturaRepoDTO {
     id_factura_compra_proveedor: string;
     detalles: IDetalleFacturaRepoItemDTO[];
 }
+
+
+
+
+
+/*DETALLE FACTURA_COMPRA_PROVEEDOR LOTES  */
+
+export interface IModificarLotesDetalleFacturaDTO {
+    id_factura_proveedor_detalle: string;
+    lotes: ILoteDetalleFacturaDTO[];
+}
+
+export interface ILoteDetalleFacturaDTO {
+    /** Si viene, es update. Si viene null/undefined, es create */
+    id_lote_factura_compra_proveedor?: string | null;
+
+    numero_lote: string;
+    fecha_caducidad: string; // "YYYY-MM-DD"
+    cantidad_lote: number;
+
+    observacion_lote?: string | null;
+
+    /** Solo UI: NO se guarda en BD */
+    __local_id?: string;
+}

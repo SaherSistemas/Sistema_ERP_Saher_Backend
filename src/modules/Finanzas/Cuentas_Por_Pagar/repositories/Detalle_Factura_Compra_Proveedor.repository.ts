@@ -26,6 +26,25 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
             id_detcompsol: r.id_detcompsol
         }));
     },
+    getCountProductosPorFactura: async (id_factura_compra_proveedor: string) => {
+        const results = await Detalle_Factura_Compra_Proveedor.count({
+            where: { id_factura_compra_proveedor },
+        });
+        return results;
+    },
+    marcarDetalleFacturaCompraProveedorComoRecibido: async (id_factura_proveedor_detalle: string) => {
+        const [affectedRows, [detalle]] = await Detalle_Factura_Compra_Proveedor.update(
+            {
+                checado: true,
+                fecha_checado: new Date(),
+            },
+            {
+                where: { id_factura_proveedor_detalle },
+                returning: true,
+            }
+        );
+        return detalle;
+    },
     getDetallesPorIdFacturaProveedor: async (id_factura_proveedor: string) => {
         return await Detalle_Factura_Compra_Proveedor.findAll({
             where: { id_factura_compra_proveedor: id_factura_proveedor },
@@ -33,7 +52,7 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
             include: [
                 {
                     model: Lote_Factura_Compra_Proveedor,
-                    attributes: ['numero_lote', 'fecha_caducidad', 'cantidad_lote', 'observacion_lote'],
+                    attributes: ['id_lote_factura_compra_proveedor', 'numero_lote', 'fecha_caducidad', 'cantidad_lote', 'observacion_lote'],
                 },
                 {
                     model: Detalle_Compra_Solicitado,

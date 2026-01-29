@@ -8,7 +8,9 @@ export const ArticuloService = {
   ) => {
     return await ArticuloRepository.getAllPag(page, limit, query);
   },
-
+  getByCodigoBarras:async(cod_barr_artic: string) => {
+    return await ArticuloRepository.getByCodigoBarras(cod_barr_artic);
+  },
   getAllParaVenta: async (
     id_empresa: string,
     cantidad: number,

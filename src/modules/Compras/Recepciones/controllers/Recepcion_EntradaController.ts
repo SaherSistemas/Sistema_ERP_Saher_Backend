@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
 import { Recepcion_EntradaService } from "../services/Recepcion_Entrada.service";
+import { AuthedRequest } from "../../../../middleware/auth";
 
 export const Recepcion_EntradaController = {
-    create: async (req: Request, res: Response) => {
+    create: async (req: AuthedRequest, res: Response) => {
         try {
-            console.log("Crear recepción - body:", req.body);
+
+            const id_empresa = req.user?.id_empresa || String(req.query.id_empresa || "");
             const id_empleado_recibe = req.body.id_referencia;
-            const creado = await Recepcion_EntradaService.create(req.body, id_empleado_recibe);
+            const creado = await Recepcion_EntradaService.create(req.body, id_empleado_recibe, id_empresa);
 
             // ✅ return SIEMPRE al responder
             res.status(201).json({
@@ -40,17 +42,21 @@ export const Recepcion_EntradaController = {
             res.setHeader("Content-Type", firma_mime);
             res.send(firma_png);
         } catch (e: any) {
+            console.log(e)
             res.status(404).send(e.message ?? "No encontrado");
         }
     },
 
-    list: async (req: Request, res: Response) => {
+    list: async (req: AuthedRequest, res: Response) => {
         try {
+
+            const id_empresa = req.user?.id_empresa || String(req.query.id_empresa || "");
             const data = await Recepcion_EntradaService.list({
                 search: (req.query.search as string) || "",
                 limit: Number(req.query.limit ?? 20),
                 offset: Number(req.query.offset ?? 0),
-            });
+            },
+                id_empresa);
             res.json({ ok: true, ...data });
         } catch (e: any) {
             console.log(e)

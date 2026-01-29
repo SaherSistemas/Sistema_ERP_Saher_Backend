@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import facturasRoutes from './facturas_Compra_ProveedorRouter';
+import { authMiddleware } from '../../../../middleware/auth';
 // en un futuro: import pagosRoutes from './pagosRouter';
 
 const router = Router();

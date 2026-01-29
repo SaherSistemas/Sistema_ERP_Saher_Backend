@@ -9,7 +9,7 @@ function base64PngToBuffer(dataUrl: string): Buffer {
 }
 
 export const Recepcion_EntradaService = {
-    create: async (dto: ICreateRecepcionEntradaDTO, id_empleado_recibe: string) => {
+    create: async (dto: ICreateRecepcionEntradaDTO, id_empleado_recibe: string, id_empresa: string) => {
         const entidad = (dto.entidad_recibo ?? "").trim();
         const nombreEntrega = (dto.nombre_persona_entrega ?? "").trim();
         const tipo = dto.tipo_entidad;
@@ -33,6 +33,7 @@ export const Recepcion_EntradaService = {
 
         const creado = await Recepcion_EntradaRepository.create({
             id_recepcion,
+            id_empresa,
             entidad_recibo: entidad,
             tipo_entidad: tipo,
             nombre_persona_entrega: nombreEntrega,
@@ -64,7 +65,7 @@ export const Recepcion_EntradaService = {
         return { firma_png: rec.firma_png, firma_mime: rec.firma_mime || "image/png" };
     },
 
-    list: async (query: IListRecepcionesQuery) => {
-        return await Recepcion_EntradaRepository.list(query);
+    list: async (query: IListRecepcionesQuery, id_empresa: string) => {
+        return await Recepcion_EntradaRepository.list({ ...query, }, id_empresa);
     },
 };

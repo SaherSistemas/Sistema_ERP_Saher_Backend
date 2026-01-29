@@ -11,7 +11,7 @@ class Factura_Compra_Proveedor extends Model {
     ESTADO FACTURAS 
     C: Capturada
     R: RECIBIDA
-    C: CHECADA
+    H: CHECADA
     A: ACOMODADA
     F: FINALIZADA
     */

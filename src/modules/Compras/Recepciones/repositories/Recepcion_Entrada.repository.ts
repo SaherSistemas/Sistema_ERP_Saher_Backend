@@ -15,12 +15,12 @@ export const Recepcion_EntradaRepository = {
         });
     },
 
-    list: async (query: IListRecepcionesQuery) => {
+    list: async (query: IListRecepcionesQuery, id_empresa: string) => {
         const search = (query.search ?? "").trim();
         const limit = Math.min(Number(query.limit ?? 20), 100);
         const offset = Math.max(Number(query.offset ?? 0), 0);
 
-        const where: any = {};
+        const where: any = { id_empresa };
         if (search) {
             where[Op.or] = [
                 { entidad_recibo: { [Op.iLike]: `%${search}%` } },

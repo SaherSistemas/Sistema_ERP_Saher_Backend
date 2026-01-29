@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { ICreateFacturaCompraProveedor, IFactura_Compra_Proveedor } from "../interface/Factura_Compra_Proveedor.interfece";
 import { Factura_Compra_ProveedorService } from "../services/Factura_Compra_Proveedor.service";
+import { AuthedRequest } from "../../../../middleware/auth";
 
 export class Factura_Compra_ProveedorController {
     static getAllConFiltroDeEstado = async (req: Request, res: Response) => {
@@ -11,6 +12,20 @@ export class Factura_Compra_ProveedorController {
 
         try {
             const facturas = await Factura_Compra_ProveedorService.getAllConFiltroDeEstado();
+            // console.log(facturas)
+            res.status(200).json({ mensaje: facturas })
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "Error al mostrar todos los proveedores." });
+        }
+    }
+    static finalizarChequeoFacturaProveedor = async (req: AuthedRequest, res: Response) => {
+
+        try {
+            // console.log(req.user)
+            const username = req.user?.username || String(req.query.username || "");
+            const { id_factura_proveedor } = req.params;
+            const facturas = await Factura_Compra_ProveedorService.finalizarChequeoFacturaProveedor(id_factura_proveedor, username);
             // console.log(facturas)
             res.status(200).json({ mensaje: facturas })
         } catch (error) {

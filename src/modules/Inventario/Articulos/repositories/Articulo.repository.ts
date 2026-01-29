@@ -22,6 +22,9 @@ export const ArticuloRepository = {
     getAll: async () => {
         return await Articulo.findAll({ attributes: ['id_artic'], raw: true })
     },
+    getByCodigoBarras: async (cod_barr_artic: string) => {
+        return await Articulo.findOne({ where: { cod_barr_artic } });
+    },
     getByPK: async (id_artic: string, options?: { transaction?: Transaction }) => {
         return await Articulo.findByPk(id_artic, {
             transaction: options.transaction

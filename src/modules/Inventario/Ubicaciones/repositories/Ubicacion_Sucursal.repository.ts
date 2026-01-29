@@ -1,59 +1,80 @@
-import { ICrearUbicacionSucursal } from "../interface/Ubicacion_Sucursal.interface";
 import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
 import { v4 as uuidv4 } from 'uuid';
+import { Transaction } from "sequelize";
+import Ubicacion_Articulo from "../model/Ubicacion_Articulo";
+import Articulo from "../../Articulos/model/Articulo";
+
+const norm = (v?: string | null) => (v ?? "").trim();
+const up = (v?: string | null) => norm(v).toUpperCase();
 
 export const Ubicacion_SucursalRepository = {
-    getAllPorEmpresa: async (id_empresa_sucursal: string) => {
-        return await Ubicacion_Sucursal.findAll({
+    findById: async (id: string) =>
+        Ubicacion_Sucursal.findByPk(id),
+ 
+    // Listar ubicaciones (incluye stocks opcional)
+    getAllBySucursal: async (id_empresa_sucursal: string) =>
+        Ubicacion_Sucursal.findAll({
             where: {
-                id_empresa_sucursal
-            }
+                id_empresa_sucursal,
+                activo: true,
+            },
+            order: [["createdAt", "DESC"]],
+            include: [
+                {
+                    model: Ubicacion_Articulo,
+                    required: false, // ✅ LEFT JOIN (si no hay, viene null)
+                    attributes: ["id_ubicacion_articulo", "id_articulo"],
+                    include: [
+                        {
+                            model: Articulo,
+                            required: false,
+                            attributes: [
+                                "id_artic",
+                                "des_artic",
+                                "cod_barr_artic",
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }),
+
+    existsEstanteriaLayout: async (
+        id_empresa_sucursal: string,
+        pasillo: string,
+        anaquel: string,
+        nivel: string,
+        posicion: string
+    ) => {
+        const count = await Ubicacion_Sucursal.count({
+            where: {
+                id_empresa_sucursal,
+                tipo_ubicacion: "ESTANTERIA",
+                pasillo_ub: up(pasillo),
+                anaquel_ub: norm(anaquel),
+                nivel_ub: norm(nivel),
+                posicion_ub: norm(posicion),
+            },
         });
+        return count > 0;
     },
-    findByID: async (id: string) => {
-        return await Ubicacion_Sucursal.findByPk(id);
+
+    existsTarima: async (id_empresa_sucursal: string, tarima: string, t?: Transaction) => {
+        const count = await Ubicacion_Sucursal.count({
+            where: { id_empresa_sucursal, tipo_ubicacion: "TARIMA", tarima_ub: tarima },
+            transaction: t,
+        });
+        return count > 0;
     },
-    createUbicacionSucursal: async (data: ICrearUbicacionSucursal) => {
+
+    create: async (data: Partial<Ubicacion_Sucursal>, tx?: Transaction) => {
 
         return await Ubicacion_Sucursal.create({
-            id_ubicacion_sucursal_articulo: uuidv4(), // UUID se genera automáticamente
-            ...data
-        });
-    },
-    findAllUbicacionesBySucursal: async (id_sucursal: string) => {
-        return await Ubicacion_Sucursal.findAll({
-            where: {
-                id_empresa_sucursal: id_sucursal
-            }
-        });
-    },
-    existsByLayout: async (
-        id_empresa: string,
-        tarima_ub?: string | null,
-        pasillo_ub?: string | null,
-        anaquel_ub?: string | null,
-        nivel_ub?: string | null,
-        posicion_ub?: string | null,
-    ): Promise<boolean> => {
-        //   console.log(id_empresa)
-        const where: any = { id_empresa_sucursal: id_empresa };
-
-        const tar = (tarima_ub ?? "").trim();
-        const esTarima = tar.length > 0;
-
-        if (esTarima) {
-
-            where.tarima_ub = tar;
-        } else {
-
-            where.pasillo_ub = (pasillo_ub ?? "").trim();
-            where.anaquel_ub = (anaquel_ub ?? "").trim();
-            where.nivel_ub = (nivel_ub ?? "").trim();
-            where.posicion_ub = (posicion_ub ?? "").trim();
-        }
-
-        const count = await Ubicacion_Sucursal.count({ where });
-        return count > 0;
+            ...data,
+            id_ubicacion_sucursal_articulo: uuidv4(),
+        }, { transaction: tx });
     }
+
+
 
 }

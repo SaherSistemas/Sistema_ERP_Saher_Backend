@@ -1,29 +1,19 @@
-export interface IUbicacionSucursal {
-    id_ubicacion_sucursal_articulo: string;
-    id_sucursal: string;
+// src/modules/Inventario/Ubicaciones/interface/Ubicacion.dto.ts
+import { TipoUbicacion } from "../model/Ubicacion_Sucursal";
 
-    tarima_ub: string;
-    pasillo_ub: string;
-    anaquel_ub: string;
-    nivel_ub: string;
-    posicion_ub: string;
-}
+export interface ICrearUbicacionDTO {
+    id_empresa_sucursal: string; // ideal: viene del token
+    tipo_ubicacion: TipoUbicacion;
+
+    // TARIMA
+    tarima_ub?: string | null;
+
+    // ESTANTERIA
+    pasillo_ub?: string | null;
+    anaquel_ub?: string | null;
+    nivel_ub?: string | null;
+    posicion_ub?: string | null;
 
 
-export interface ICrearUbicacionSucursal {
-    id_empresa_sucursal: string;
-
-    tarima_ub?: string;
-    pasillo_ub?: string;
-    anaquel_ub?: string;
-    nivel_ub?: string;
-    posicion_ub?: string;
-}
-
-export interface IActualizarUbicacionSucursal {
-    tarima_ub?: string;
-    pasillo_ub?: string;
-    anaquel_ub?: string;
-    nivel_ub?: string;
-    posicion_ub?: string;
+    cod_barr_artic: string; // para asignar artículo a la ubicación
 }

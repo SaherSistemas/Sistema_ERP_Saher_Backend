@@ -4,26 +4,49 @@ import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
 import { Compra_ProveedorRepository } from '../../../Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository';
 import Proveedor from '../../../Compras/Proveedores/model/Proveedor';
 import Compra_Proveedor from '../../../Compras/Ordenes-Compra/model/Compra_Proveedor';
-import { Model, Transaction } from 'sequelize';
+import { Model, Sequelize, Transaction } from 'sequelize';
 import { EmpleadoRepository } from '../../../RRHH/repositories/Empleado.repository';
 import { Detalle_Factura_Compra_ProveedorRepository } from './Detalle_Factura_Compra_Proveedor.repository';
 import Detalle_Factura_Compra_Proveedor from '../model/Detalle_Factura_Compra_Proveedor';
 import Lote_Factura_Compra_Proveedor from '../model/Lote_Factura_Compra_Proveedor';
+import { fn, col } from "sequelize";
 export const Factura_Compra_ProveedorRepository = {
     getAllConFiltroDeEstado: async () => {
         return await Factura_Compra_Proveedor.findAll({
-            where: { estado_factura_proveedor: 'C' },
+            where: { estado_factura_proveedor: "C" },
+
+            // agrega el conteo como campo calculado
+            attributes: {
+                include: [
+                    [fn("COUNT", col("detalles_factura_compra_proveedor.id_factura_proveedor_detalle")), "renglones"],
+                    [fn("SUM", col("detalles_factura_compra_proveedor.cantidad_articulo_facturada")), "total_articulos"]
+                ],
+            },
+
             include: [
                 {
+                    model: Detalle_Factura_Compra_Proveedor,
+                    as: 'detalles_factura_compra_proveedor',
+                    attributes: [],     // importante para evitar duplicados
+                    required: false,    // factura aunque no tenga detalles
+                },
+                {
                     model: Compra_Proveedor,
-                    attributes: ['id_comp', 'idprove_comp'],
+                    attributes: ["id_comp", "idprove_comp"],
                     include: [
                         {
                             model: Proveedor,
-                            attributes: ['id_prove', 'nomcort_prove'],
+                            attributes: ["id_prove", "nomcort_prove"],
                         },
                     ],
                 },
+            ],
+
+            // agrupa por las PKs incluidas
+            group: [
+                "Factura_Compra_Proveedor.id_factura_proveedor",
+                "compra.id_comp",
+                "compra->proveedor.id_prove",
             ],
         });
     },
@@ -36,7 +59,6 @@ export const Factura_Compra_ProveedorRepository = {
     },
 
     getFacturaConDetalles: async (id_factura_compra_proveedor: string) => {
-        console.time("factura");
         const factura = await Factura_Compra_Proveedor.findByPk(id_factura_compra_proveedor, {
             attributes: ['id_factura_proveedor', 'folio_factura_proveedor', 'estado_factura_proveedor'],
             include: [
@@ -54,12 +76,9 @@ export const Factura_Compra_ProveedorRepository = {
                 },
             ],
         });
-        console.timeEnd("factura");
-
-        console.time("detalles");
 
         const detalles = await Detalle_Factura_Compra_ProveedorRepository.getDetallesPorIdFacturaProveedor(id_factura_compra_proveedor);
-        console.timeEnd("detalles");
+
         return {
             factura,
             detalles
@@ -117,10 +136,42 @@ export const Factura_Compra_ProveedorRepository = {
             url_XML: '',
             inicio_de_registro_lotes: new Date()
         });
+    },
+
+
+
+    recibirFacturaCompraProveedor: async (id_factura_compra_proveedor: string) => {
+        const [affectedRows, [factura]] = await Factura_Compra_Proveedor.update(
+            {
+                estado_factura_proveedor: 'R',
+                inicio_de_checado: Sequelize.literal(
+                    `COALESCE(inicio_de_checado, NOW())`
+                ),
+            },
+            {
+                where: { id_factura_proveedor: id_factura_compra_proveedor },
+                returning: true,
+            }
+        );
+
+        return factura;
+    },
+    finalizarChequeoFacturaProveedor: async (id_factura_proveedor: string, id_empleado_checado: string, t?: Transaction) => {
+        //console.log("ID FACTURA PROVEEDOR A FINALIZAR: ", id_factura_proveedor);
+        const [affectedRows, [factura]] = await Factura_Compra_Proveedor.update(
+            {
+                estado_factura_proveedor: 'H',
+                fin_de_checado: new Date(),
+                id_empleado_checado: id_empleado_checado
+            },
+            {
+                where: { id_factura_proveedor: id_factura_proveedor },
+                returning: ['id_factura_proveedor', 'estado_factura_proveedor', 'fin_de_checado', 'id_empleado_checado', 'id_compra_prove_factura'],
+                transaction: t
+            }
+        );
+        return factura.dataValues;
     }
-
-
-
 
 
 }

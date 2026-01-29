@@ -15,7 +15,15 @@ export class ArticuloController {
       res.status(500).json({ message: 'Error al obtener los artículos.' });
     }
   };
-
+  static getByCodigoBarras = async (req: Request, res: Response) => {
+    try {
+      const { cod_barr_artic } = req.params;
+      const articulo = await ArticuloService.getByCodigoBarras(cod_barr_artic);
+      res.status(200).json(articulo);
+    } catch (error) {
+      
+    }
+  }
   static getAllParaVenta = async (req: Request, res: Response) => {
     try {
       const id_empresa = req.query.id_empresa as string;

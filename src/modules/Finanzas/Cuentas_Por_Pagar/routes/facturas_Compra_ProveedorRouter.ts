@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { Factura_Compra_ProveedorController } from "../controllers/Factura_Compra_ProveedorController";
+import { Detalle_Factura_Compra_ProveedorController } from "../controllers/Detalle_Factura_Compra_ProveedorController";
+import { authMiddleware } from "../../../../middleware/auth";
 const router = Router()
 
 // - Obtener las facturas que estan por recibirse
@@ -14,4 +16,11 @@ router.post('/guardarFacturaEIniciarCaptura', Factura_Compra_ProveedorController
 router.post('/guardarCapturaCompleta', Factura_Compra_ProveedorController.guardarCapturaCompleta)
 //Paso 3: Definir la ruta para checar la mercancia que viene en la factura 
 //router.post('/checarMercanciaFactura', Factura_Compra_ProveedorController.checarMercanciaFactura)
+
+
+//! CHEQUEO DE FACTURAS PROVEEDOR
+// Modificamos los lotes que se registraron en la factura, para marcar los que ya se checaron y agregar a detalles Recibidos y lotes recibidos 
+router.patch('/detalles/lotes', Detalle_Factura_Compra_ProveedorController.modificarLotesYDetallesRecibidosFacturaProveedor);
+
+router.patch('/finalizarChequeoFactura/:id_factura_proveedor', authMiddleware, Factura_Compra_ProveedorController.finalizarChequeoFacturaProveedor);
 export default router;

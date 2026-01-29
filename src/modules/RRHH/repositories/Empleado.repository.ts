@@ -120,5 +120,5 @@ export const EmpleadoRepository = {
     const empleado = await EmpleadoRepository.getByIdFlexible(id);
     if (!empleado) return null;
     return await empleado.update({ estatus_empleado: statusContrario });
-  }
+  },
 };

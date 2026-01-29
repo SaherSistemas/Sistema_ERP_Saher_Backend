@@ -3,6 +3,7 @@ import {
   ForeignKey
 } from "sequelize-typescript";
 import Empleado from "../../../RRHH/model/Empleado";
+import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
 
 @Table({
   tableName: "recepcion_entrada",
@@ -11,6 +12,10 @@ export default class Recepcion_Entrada extends Model {
   @PrimaryKey
   @Column({ type: DataType.UUID })
   declare id_recepcion: string;
+
+  @ForeignKey(() => Empresa_Sucursal)
+  @Column({ type: DataType.UUID, allowNull: false })
+  declare id_empresa: string;
 
   @Column({ type: DataType.STRING(150), allowNull: false })
   declare entidad_recibo: string;

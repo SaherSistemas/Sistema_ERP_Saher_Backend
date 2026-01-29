@@ -3,6 +3,7 @@ import { ArticuloController } from '../controllers/ArticuloController';
 const router = Router();
 
 router.post('/', ArticuloController.create);
+router.get('/buscarPorCodigoBarras/:cod_barr_artic', ArticuloController.getByCodigoBarras);
 router.get('/paraVenta/:cantidad/:cod_barr_artic', ArticuloController.getAllParaVenta);
 router.get('/', ArticuloController.getAllPaginados);
 router.get('/paginaDeArticulo/:id_artic', ArticuloController.getPaginaArticuloParaContinuarCompra);
