@@ -8,9 +8,9 @@ import {
 
 import { isUUID } from '../../utils/validaciones';
 import { v4 as uuidv4 } from 'uuid';
-import { ArticuloRepository } from '../../modules/Inventario/Articulos/repositories/Articulo.repository';
+import { ArticuloRepository } from '../../modules/Catalogos/Articulos/repositories/Articulo.repository';
 import { Op, Sequelize, Transaction, FindOptions, fn, col, literal } from 'sequelize';
-import Articulo from '../../modules/Inventario/Articulos/model/Articulo';
+import Articulo from '../../modules/Catalogos/Articulos/model/Articulo';
 import { Detalle_Compra_RecibidosRepository } from '../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Recibido.repository';
 import { Detalle_Compra_SolicitadoRepository } from '../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Solicitado.repository';
 import DetalleListaPrecio from '../../modules/Ventas/Precios/model/Detalle_Lista_Precio';

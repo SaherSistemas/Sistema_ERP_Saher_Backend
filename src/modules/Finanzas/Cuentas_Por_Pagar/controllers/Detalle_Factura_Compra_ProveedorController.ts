@@ -9,12 +9,9 @@ import { Detalle_Factura_Compra_ProveedorService } from "../services/Detalle_Fac
 
 export class Detalle_Factura_Compra_ProveedorController {
     static modificarLotesYDetallesRecibidosFacturaProveedor = async (req: AuthedRequest, res: Response) => {
-        // console.log("HOLA")
-
         try {
-            // const facturas = await Factura_Compra_ProveedorService.getAllConFiltroDeEstado();
-            // console.log(facturas)
-            const facturas = await Detalle_Factura_Compra_ProveedorService.modificarLotesYDetallesRecibidosFacturaProveedor(req.body);
+            const usuario_empleado_chequeo = req.user?.username;
+            const facturas = await Detalle_Factura_Compra_ProveedorService.modificarLotesYDetallesRecibidosFacturaProveedor(req.body, usuario_empleado_chequeo);
             res.status(200).json({ mensaje: facturas })
 
         } catch (error) {

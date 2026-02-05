@@ -1,7 +1,6 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
 import Compra from './Compra_Proveedor'
-import Articulo from "../../../Inventario/Articulos/model/Articulo";
-
+import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 @Table({
     tableName: 'detalle_compra_solicitado'
 })

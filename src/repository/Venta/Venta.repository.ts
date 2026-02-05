@@ -14,11 +14,12 @@ import Metodo_de_Pago from "../../models/Caja/Metodo_de_Pago";
 import Venta_Pago from "../../models/Venta/Venta_Pago";
 import { RecetaMedicaService } from "../../services/RecetaMedica/RecetaMedica.service";
 import { DetalleLookupMap } from "../../services/Venta/Venta.service";
-import Articulo from "../../modules/Inventario/Articulos/model/Articulo";
+
 import Empleado from "../../modules/RRHH/model/Empleado";
 import Lote_Usado_Venta from "../../models/LotesYCaducidad/Lote_Usado_Venta";
 import Detalle_Venta from "../../models/Venta/Detalle_Venta";
 import LoteArticuloSucursal from "../../models/LotesYCaducidad/Lote_ArticuloSucursal";
+import Articulo from "../../modules/Catalogos/Articulos/model/Articulo";
 
 const ventaIncludes = [
   {

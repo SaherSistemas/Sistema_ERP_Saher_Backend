@@ -1,8 +1,8 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
 
 import Lista_Precios from './Lista_Precio';
-import Categoria_Articulo from '../../../Inventario/Articulos/model/Categoria_Articulo';
-import Presentacion_Articulo from '../../../Inventario/Articulos/model/Presentacion_Articulo';
+import Categoria_Articulo from '../../../Catalogos/Articulos/model/Categoria_Articulo';
+import Presentacion_Articulo from '../../../Catalogos/Articulos/model/Presentacion_Articulo';
 
 @Table({
     tableName: 'margen_ganancia_lista',

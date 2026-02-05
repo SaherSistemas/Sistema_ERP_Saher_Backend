@@ -1,9 +1,8 @@
 import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, Default } from "sequelize-typescript";
 import Factura_Compra_Proveedor from "./Factura_Compra_Proveedor";
-import Articulo from "../../../Inventario/Articulos/model/Articulo";
-import Detalle_Compra_Recibido from "../../../Compras/Ordenes-Compra/model/Detalle_Compra_Recibido";
 import Detalle_Compra_Solicitado from "../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado";
 import Lote_Factura_Compra_Proveedor from "./Lote_Factura_Compra_Proveedor";
+import Detalle_Compra_Recibido from "../../../Compras/Ordenes-Compra/model/Detalle_Compra_Recibido";
 
 @Table({
     tableName: 'detalle_factura_compra_proveedor',
@@ -72,6 +71,9 @@ class Detalle_Factura_Compra_Proveedor extends Model {
 
     @HasMany(() => Lote_Factura_Compra_Proveedor)
     lotes_factura_compra!: Lote_Factura_Compra_Proveedor[];
+
+    @HasMany(() => Detalle_Compra_Recibido)
+    declare detallesRecibidos?: Detalle_Compra_Recibido[];
 
 }
 

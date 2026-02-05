@@ -1,7 +1,6 @@
 import { Table, Column, Model, PrimaryKey, ForeignKey, DataType, BelongsTo, Default } from 'sequelize-typescript';
 
 import Pedido_Almacen from './Pedido_Almacen';
-import Articulo from '../../../Inventario/Articulos/model/Articulo';
 import Detalle_Pedido_Almacen from './Detalle_Pedido_Almacen';
 import LoteArticuloSucursal from '../../../../models/LotesYCaducidad/Lote_ArticuloSucursal';
 

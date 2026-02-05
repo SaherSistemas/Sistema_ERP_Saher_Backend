@@ -12,8 +12,9 @@ import {
 } from "sequelize-typescript";
 
 import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
-import Articulo from "../../Articulos/model/Articulo";
+
 import Ubicacion_Sucursal from "./Ubicacion_Sucursal";
+import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 
 @Table({
     tableName: "ubicacion_articulo",

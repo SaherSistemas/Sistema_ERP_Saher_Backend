@@ -1,7 +1,7 @@
 import { Transaction } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
-import Articulo from '../../../Inventario/Articulos/model/Articulo';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import { ICreateDetallePedidoAlmacen, IUpdateDetallePedidoAlmacen } from '../interface/Detalle_Pedido_Almacen.interface';
 import { ActualizarDetallesPedidoRequest, IUpdatePedidoAlmacen } from '../interface/Pedido_Almacen';
 

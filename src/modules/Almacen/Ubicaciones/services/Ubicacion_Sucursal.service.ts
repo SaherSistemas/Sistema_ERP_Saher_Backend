@@ -1,13 +1,9 @@
 
 import e from "cors";
 import { ICrearUbicacionDTO } from "../interface/Ubicacion_Sucursal.interface";
-import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
 import { Ubicacion_SucursalRepository } from "../repositories/Ubicacion_Sucursal.repository";
-import { AuthRepository } from "../../../Seguridad/auth/Auth.respository";
-import { ArticuloRepository } from "../../Articulos/repositories/Articulo.repository";
-import { dbLocal } from "../../../../config/db";
-import { Transaction } from "sequelize";
 import { Ubicacion_ArticuloRepository } from "../repositories/Ubicacion_Articulo.repository";
+import { ArticuloRepository } from "../../../Catalogos/Articulos/repositories/Articulo.repository";
 
 const norm = (v?: string | null) => (v ?? "").trim();
 const up = (v?: string | null) => norm(v).toUpperCase();

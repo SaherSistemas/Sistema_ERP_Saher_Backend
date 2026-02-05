@@ -1,8 +1,9 @@
-import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, HasOne } from "sequelize-typescript";
 import Compra from './Compra_Proveedor'
 import Detalle_Compra_Solicitado from "./Detalle_Compra_Solicitado";
-import Articulo from "../../../Inventario/Articulos/model/Articulo";
 import LotesRecibidosCompra from "../../../../models/LotesYCaducidad/LotesRecibidosCompra";
+import Detalle_Factura_Compra_Proveedor from "../../../Finanzas/Cuentas_Por_Pagar/model/Detalle_Factura_Compra_Proveedor";
+import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 
 @Table({
     tableName: 'detalle_compra_recibido'
@@ -22,10 +23,6 @@ class Detalle_Compra_Recibido extends Model {
     })
     declare idcompr_detcomprec: string
 
-    @ForeignKey(() => Detalle_Compra_Solicitado)
-    @Column(DataType.UUID)
-    declare id_detallecompr_solicitado: string;
-
 
 
     @ForeignKey(() => Articulo)
@@ -39,15 +36,16 @@ class Detalle_Compra_Recibido extends Model {
     })
     declare cantidad_detcomprec: number
 
+    //CON ESTE PRECIO CALCULARE EL MARGEN DE GANANCIA
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
     declare precio_detcomprec: number
 
-    @Column({
-        type: DataType.DECIMAL(12, 2)
-    })
-    declare iva_detcomprec: number
+
+    @ForeignKey(() => Detalle_Factura_Compra_Proveedor)
+    @Column(DataType.UUID)
+    declare id_detalle_factura_compra_proveedor: string;
 
 
     @BelongsTo(() => Compra)
@@ -56,8 +54,8 @@ class Detalle_Compra_Recibido extends Model {
     @BelongsTo(() => Articulo)
     declare articulo: Articulo;
 
-    @BelongsTo(() => Detalle_Compra_Solicitado)
-    detalleCompraSolicitado: Detalle_Compra_Solicitado;
+    @BelongsTo(() => Detalle_Factura_Compra_Proveedor)
+    detalleFacturaCompraProveedor: Detalle_Factura_Compra_Proveedor;
 
     @HasMany(() => LotesRecibidosCompra)
     lotesRecibidos: LotesRecibidosCompra[];

@@ -20,7 +20,7 @@ router.post('/guardarCapturaCompleta', Factura_Compra_ProveedorController.guarda
 
 //! CHEQUEO DE FACTURAS PROVEEDOR
 // Modificamos los lotes que se registraron en la factura, para marcar los que ya se checaron y agregar a detalles Recibidos y lotes recibidos 
-router.patch('/detalles/lotes', Detalle_Factura_Compra_ProveedorController.modificarLotesYDetallesRecibidosFacturaProveedor);
+router.patch('/detalles/lotes', authMiddleware, Detalle_Factura_Compra_ProveedorController.modificarLotesYDetallesRecibidosFacturaProveedor);
 
 router.patch('/finalizarChequeoFactura/:id_factura_proveedor', authMiddleware, Factura_Compra_ProveedorController.finalizarChequeoFacturaProveedor);
 export default router;

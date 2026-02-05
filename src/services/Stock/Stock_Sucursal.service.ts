@@ -2,7 +2,6 @@ import { Transaction } from "sequelize";
 import { dbLocal } from "../../config/db";
 import { v4 as uuidv4 } from 'uuid';
 import { ICreateOrUpdateStockSucursal, IDataProductosStockConDevolucion } from "../../interface/Stock/Stock_Sucursal.interface";
-import { ArticuloRepository } from "../../modules/Inventario/Articulos/repositories/Articulo.repository";
 import { Grupo_Empresa_Lista_PrecioRepository } from "../../modules/Ventas/Precios/repositories/Grupo_Empresa_Lista_Precio.repository";
 import { DetalleListaPreciosRepository } from "../../modules/Ventas/Precios/repositories/Detalle_Lista_Precio.repository";
 import { Margen_Ganancia_ListaRepository } from "../../modules/Ventas/Precios/repositories/Margen_Ganancia_Lista.repository";
@@ -21,6 +20,7 @@ import { Detalle_Compra_NegadosRepository } from "../../modules/Compras/Ordenes-
 import { Compra_ProveedorRepository } from "../../modules/Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository";
 import { LoteRecibidoCompraRepository } from "../../repository/LotesYCaducidad/LoteRecibidoCompra.repository";
 import { ILoteRecibidoChecado } from "../../interface/LotesYCaducidad/LotesRecibidosCompra.interface";
+import { ArticuloRepository } from "../../modules/Catalogos/Articulos/repositories/Articulo.repository";
 
 export const StockSucursalService = {
 

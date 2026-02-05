@@ -10,9 +10,9 @@ import {
   Default,
   BelongsToMany,
 } from "sequelize-typescript";
-import Articulo from "../../modules/Inventario/Articulos/model/Articulo";
 import RecetaMedica from "./RecetaMedica";
 import DetalleVenta from "../Venta/Detalle_Venta";
+import Articulo from "../../modules/Catalogos/Articulos/model/Articulo";
 
 @Table({
   tableName: "receta_articulo"

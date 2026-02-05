@@ -4,8 +4,9 @@ import {
     ForeignKey, BelongsTo, AllowNull, HasMany, Index
 } from "sequelize-typescript";
 import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
-import Stock_Ubicacion_Lote from "../../Stock/model/Stock_Ubicacion_Lote";
+
 import Ubicacion_Articulo from "./Ubicacion_Articulo";
+import Stock_Ubicacion_Lote from "../../../Inventario/Stock/model/Stock_Ubicacion_Lote";
 
 export type TipoUbicacion = "ESTANTERIA" | "TARIMA" | "VIRTUAL";
 

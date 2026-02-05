@@ -25,9 +25,10 @@ export class Factura_Compra_ProveedorController {
             // console.log(req.user)
             const username = req.user?.username || String(req.query.username || "");
             const { id_factura_proveedor } = req.params;
+            //console.log(id_factura_proveedor, username)
             const facturas = await Factura_Compra_ProveedorService.finalizarChequeoFacturaProveedor(id_factura_proveedor, username);
             // console.log(facturas)
-            res.status(200).json({ mensaje: facturas })
+            res.status(200).json({ mensaje: "Chequeo finalizado correctamente." })
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: "Error al mostrar todos los proveedores." });

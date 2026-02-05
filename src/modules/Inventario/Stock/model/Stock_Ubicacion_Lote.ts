@@ -3,9 +3,11 @@ import {
     Table, Column, Model, PrimaryKey, DataType, Default,
     ForeignKey, BelongsTo, Index
 } from "sequelize-typescript";
-import Ubicacion_Sucursal from "../../Ubicaciones/model/Ubicacion_Sucursal";
-import Articulo from "../../Articulos/model/Articulo";
+
+
 import LoteArticuloSucursal from "../../../../models/LotesYCaducidad/Lote_ArticuloSucursal";
+import Articulo from "../../../Catalogos/Articulos/model/Articulo";
+import Ubicacion_Sucursal from "../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal";
 
 @Table({
     tableName: "stock_ubicacion_lote",

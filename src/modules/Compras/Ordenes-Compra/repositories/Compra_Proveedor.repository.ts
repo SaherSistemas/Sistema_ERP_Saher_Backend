@@ -1,5 +1,4 @@
 
-import Articulo from '../../../Inventario/Articulos/model/Articulo';
 import Compra_Proveedor from '../model/Compra_Proveedor';
 import Compra_General from '../model/Compra_General';
 import Detalle_Compra_Solicitado from '../model/Detalle_Compra_Solicitado';
@@ -14,6 +13,7 @@ import { Sequelize } from 'sequelize-typescript';
 import { CompraGeneralRepository } from './Compra_General.repository';
 import { Detalle_Compra_RecibidosRepository } from './Detalle_Compra_Recibido.repository';
 import { round2 } from '../../../../utils/validaciones';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 export type KpiEstados = { R: number; A: number; F: number; D: number };
 export const Compra_ProveedorRepository = {
   /*
@@ -174,7 +174,7 @@ export const Compra_ProveedorRepository = {
     for (const det of traerDetallesCompraRecibidos) {
       const cantidad = Number(det.cantidad_detcomprec) || 0;
       const precio = Number(det.precio_detcomprec) || 0;
-      const iva = Number(det.iva_detcomprec) || 0;
+      const iva = 0; //ERA      const iva = Number(det.iva_detcomprec) || 0; 
 
       subtotal += cantidad * precio;
       totalIva += cantidad * iva;
@@ -208,7 +208,7 @@ export const Compra_ProveedorRepository = {
     for (const det of traerDetallesCompraRecibidos) {
       const cantidad = Number(det.cantidad_detcomprec) || 0;
       const precio = Number(det.precio_detcomprec) || 0;
-      const iva = Number(det.iva_detcomprec) || 0;
+      const iva = 0;// ERAconst iva = Number(det.iva_detcomprec) || 0;
 
       subtotal += cantidad * precio;
       totalIva += cantidad * iva;

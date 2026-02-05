@@ -3,7 +3,7 @@ import {
     BelongsTo
 } from 'sequelize-typescript';
 import Parametros_Compra from './Parametros_Compra';
-import Articulo from '../../../Inventario/Articulos/model/Articulo';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 
 @Table({ tableName: 'articulo_excluido_compra' })
 class ArticuloExcluidoCompra extends Model {

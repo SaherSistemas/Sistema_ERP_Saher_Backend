@@ -1,12 +1,15 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { col, fn } from 'sequelize';
-import Articulo from '../../../Inventario/Articulos/model/Articulo';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 
 import { ICreateOAcumularDetallesSolicitados } from '../interface/Detalle_Compra_Solicitado.interface';
 import Detalle_Compra_Solicitado from '../model/Detalle_Compra_Solicitado';
 import Compra_Proveedor from '../model/Compra_Proveedor';
 export const Detalle_Compra_SolicitadoRepository = {
+  getByPK: async (id_detcompsol: string) => {
+    return await Detalle_Compra_Solicitado.findByPk(id_detcompsol);
+  },
   getAllArticulosPorCompra: async (id_comp: string) => {
     return await Detalle_Compra_Solicitado.findAll({
       where: { idcompr_detcompsol: id_comp },

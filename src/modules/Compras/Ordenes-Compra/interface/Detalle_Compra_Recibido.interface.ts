@@ -12,3 +12,11 @@ export interface ICreateOrUpdateDetalleCompraRecibido {
     cantidad_detcomprec: number;
     precio_detcomprec: string;
 }
+
+export interface IDetalleCompraRecibidoPayload {
+    idcompr_detcomprec: string;
+    idarticulo_detcomprec: string;
+    cantidad_detcomprec: number;
+    precio_detcomprec: number;
+    id_detalle_factura_compra_proveedor: string;
+}

@@ -27,9 +27,11 @@ export const Factura_Compra_ProveedorService = {
         const facturaChequeada = await Factura_Compra_ProveedorRepository.finalizarChequeoFacturaProveedor(id_factura_proveedor, getEmpleadoIDByUsername.id_referencia_persona, t);
         // console.log(facturaChequeada)
         const detallesFacturaYLotes = await Factura_Compra_ProveedorRepository.getFacturaConDetalles(id_factura_proveedor);
+
+
         console.log(
             "DETALLES CON LOTES:",
-            JSON.stringify(detallesFacturaYLotes.detalles, null, 2)
+            JSON.stringify(detallesFacturaYLotes, null, 2)
         );
         await t.rollback()
         //Registrar en Detalle de Compra Recibido que la factura fue chequeada

@@ -9,13 +9,13 @@ import proveedor_empresaRouter from '../modules/Compras/Proveedores/routes/prove
 
 import listados_proveedorRouter from '../modules/Compras/Proveedores/routes/listados_proveedorRouter';
 import unidad_medidaRouter from '../modules/Catalogos/routes/UnidadMedidaRouter';
-import temporabilidadRouter from '../modules/Inventario/Articulos/routes/TemporabilidadRouter';
-import tipoArticuloRouter from '../modules/Inventario/Articulos/routes/Tipo_ArticuloRouter';
-import categori_ArticuloRouter from '../modules/Inventario/Articulos/routes/Categoria_ArticuloRouter';
-import subcategoriaRouter from '../modules/Inventario/Articulos/routes/SubCategoria_ArticuloRouter';
+import temporabilidadRouter from '../modules/Catalogos/Articulos/routes/TemporabilidadRouter';
+import tipoArticuloRouter from '../modules/Catalogos/Articulos/routes/Tipo_ArticuloRouter';
+import categori_ArticuloRouter from '../modules/Catalogos/Articulos/routes/Categoria_ArticuloRouter';
+import subcategoriaRouter from '../modules/Catalogos/Articulos/routes/SubCategoria_ArticuloRouter';
 
-import articuloRouter from '../modules/Inventario/Articulos/routes/ArticuloRouter';
-import tipo_ArticuloRouter from '../modules/Inventario/Articulos/routes/Prioridad_ArticuloRouter';
+import articuloRouter from '../modules/Catalogos/Articulos/routes/ArticuloRouter';
+import tipo_ArticuloRouter from '../modules/Catalogos/Articulos/routes/Prioridad_ArticuloRouter';
 
 import empleadoRouter from '../modules/RRHH/routes/EmpleadoRouter';
 import rolRouter from '../modules/Seguridad/routes/RolRouter';
@@ -40,7 +40,7 @@ import cat_metodo_pagoRouter from '../modules/Catalogos/routes/Cat_Metodo_De_Pag
 
 import catalogosRouter from '../modules/Catalogos/routes/CatalagosRouter';
 
-import tipoIVARouter from '../modules/Inventario/Articulos/routes/Tipo_IVARouter';
+import tipoIVARouter from '../modules/Catalogos/Articulos/routes/Tipo_IVARouter';
 
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter';
 import grupo_EmpresaRouter from './Empresa_Sucursal/grupo_EmpresaSucursalRouter';
@@ -124,7 +124,7 @@ import cxcRoutes from '../modules/Finanzas/Cuentas_Por_Pagar/routes/index.route'
 import inventarioRouter from '../modules/Inventario/index.route';
 
 import recepcionesRouter from '../modules/Compras/Recepciones/routes/Recepciones.route';
-
+import ubicacion_Router from '../modules/Almacen/Ubicaciones/routes/ubicacion_SucursalRoutes';
 import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
 import { authMiddleware } from '../middleware/auth';
 const router = Router();
@@ -258,5 +258,6 @@ router.use('/inventario', inventarioRouter)
 router.use('/pedido_almacen', Pedido_AlmacenRouter);
 router.use('/uploads', uploadsRouter)
 
+router.use('/almacen/ubicaciones', authMiddleware, ubicacion_Router);
 router.use('/almacen/recepciones', recepcionesRouter)
 export default router;

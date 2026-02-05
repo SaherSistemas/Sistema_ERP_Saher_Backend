@@ -3,7 +3,7 @@ import Stock_sucursal from '../../models/Stock/Stock_Sucursal';
 import { IStockSucursal, ICreateOrUpdateStockSucursal } from '../../interface/Stock/Stock_Sucursal.interface';
 import { v4 as uuidv4 } from 'uuid';
 import Empresa_Sucursal from '../../models/Empresa_Sucursal/Empresa_Sucursal';
-import Articulo from '../../modules/Inventario/Articulos/model/Articulo';
+
 import LoteArticuloSucursal from '../../models/LotesYCaducidad/Lote_ArticuloSucursal';
 import { Transaction } from 'sequelize'; // Asegúrate de importar Transaction
 

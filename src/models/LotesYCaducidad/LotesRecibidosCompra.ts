@@ -2,6 +2,7 @@ import { Table, Column, Model, PrimaryKey, DataType, ForeignKey, Default, Belong
 import Detalle_Compra_Recibido from '../../modules/Compras/Ordenes-Compra/model/Detalle_Compra_Recibido';
 
 
+
 @Table({ tableName: 'lotes_recibidos_compra' })
 class LotesRecibidosCompra extends Model {
     @PrimaryKey
@@ -22,12 +23,6 @@ class LotesRecibidosCompra extends Model {
 
     @Column(DataType.INTEGER)
     declare cantidad_lote: number;
-
-    @Column(DataType.TEXT)
-    declare motivo_ajuste: string
-
-    @Column(DataType.CHAR(1))
-    declare estado_lote: string
 
 
     @Column(DataType.TEXT)

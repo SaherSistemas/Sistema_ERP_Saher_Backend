@@ -3,8 +3,7 @@ import {
     BelongsTo
 } from 'sequelize-typescript';
 import Parametros_Compra from './Parametros_Compra';
-import Categoria_Articulo from '../../../Inventario/Articulos/model/Categoria_Articulo';
-
+import Categoria_Articulo from '../../../Catalogos/Articulos/model/Categoria_Articulo';
 @Table({ tableName: 'categoria_excluida_compra' })
 class CategoriaExcluidaCompra extends Model {
     @PrimaryKey

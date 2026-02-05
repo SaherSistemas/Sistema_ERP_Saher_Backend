@@ -7,8 +7,9 @@ import {
 import { isUUID } from "../../utils/validaciones";
 import { v4 as uuidv4 } from "uuid";
 import LoteUsadoVenta from "../../models/LotesYCaducidad/Lote_Usado_Venta";
-import Articulo from "../../modules/Inventario/Articulos/model/Articulo";
+
 import { CreateOptions, Transaction } from "sequelize";
+import Articulo from "../../modules/Catalogos/Articulos/model/Articulo";
 
 export const DetalleVentaRepository = {
   getAll: async () => {

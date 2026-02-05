@@ -1,8 +1,8 @@
-import { ArticuloRepository } from "../../../Inventario/Articulos/repositories/Articulo.repository";
 import { Detalle_Compra_RecibidosRepository } from "../repositories/Detalle_Compra_Recibido.repository";
 import { v4 as uuidv4 } from 'uuid';
 
 import { Transaction } from 'sequelize';
+import { ArticuloRepository } from "../../../Catalogos/Articulos/repositories/Articulo.repository";
 export const Detalle_Compra_RecibidoService = {
     createDetalleCompraRecibidos: async (
         id_comp: string,
@@ -29,10 +29,11 @@ export const Detalle_Compra_RecibidoService = {
         }));
 
         // IMPORTANTE: pasar transaction al repository
-        return await Detalle_Compra_RecibidosRepository.createDetallesCompraRecibido(
+        return
+        /* await Detalle_Compra_RecibidosRepository.createDetallesCompraRecibido(
             detallesRecibidos,
             { transaction }
-        );
+        );*/
     },
     getAllDetallesDeCompraRecibidosDeUnaCompra: async (id_comp: string) => {
         return await Detalle_Compra_RecibidosRepository.getAllDetallesDeCompraRecibidosDeUnaCompra(id_comp);

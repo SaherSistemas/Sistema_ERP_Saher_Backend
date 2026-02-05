@@ -11,7 +11,7 @@ import {
   HasMany,
 } from "sequelize-typescript";
 import Ofertas from "./Ofertas";
-import Articulo from "../../modules/Inventario/Articulos/model/Articulo";
+import Articulo from "../../modules/Catalogos/Articulos/model/Articulo";
 
 export const TIPO_BENEFICIO = [
   "PORCENTAJE",

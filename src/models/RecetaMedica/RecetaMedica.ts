@@ -11,11 +11,11 @@ import {
   BelongsToMany,
   HasMany,
 } from "sequelize-typescript";
-import Articulo from "../../modules/Inventario/Articulos/model/Articulo";
 import Medico from "./Medico";
 import Empleado from "../../modules/RRHH/model/Empleado";
 import RecetaArticulo from "./Receta_Articulo";
 import Venta from "../Venta/Venta";
+import Articulo from "../../modules/Catalogos/Articulos/model/Articulo";
 
 @Table({
   tableName: "receta_medica",
