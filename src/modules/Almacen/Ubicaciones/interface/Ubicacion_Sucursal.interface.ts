@@ -13,7 +13,4 @@ export interface ICrearUbicacionDTO {
     anaquel_ub?: string | null;
     nivel_ub?: string | null;
     posicion_ub?: string | null;
-
-
-    cod_barr_artic: string; // para asignar artículo a la ubicación
 }

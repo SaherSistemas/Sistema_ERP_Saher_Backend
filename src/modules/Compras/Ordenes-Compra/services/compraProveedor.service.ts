@@ -225,7 +225,7 @@ export const compraProveedorService = {
         //MARCAR FIN ACOMODO DE LA COMPRA PROVEEDOR
         await Compra_ProveedorRepository.finalizarAcomodoDeCompraProveedor(id_comp, id_empleado, { transaction: t })
         //FINALIZAR COMPRA GENERAL SI YA NO HAY MAS COMPRAS EN ESTATUS DIFERENTE A F
-        const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp, { transaction: t });
+        const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp, t);
 
         //NUMERO DE PENDIENTES
         const pendientes = await Compra_ProveedorRepository.comprasProveedorSinTerminar(compraProveedor.id_compra_general, { transaction: t })

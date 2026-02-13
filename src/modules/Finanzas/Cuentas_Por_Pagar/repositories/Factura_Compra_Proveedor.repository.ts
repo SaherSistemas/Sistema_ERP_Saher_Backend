@@ -11,6 +11,7 @@ import Detalle_Factura_Compra_Proveedor from '../model/Detalle_Factura_Compra_Pr
 import Lote_Factura_Compra_Proveedor from '../model/Lote_Factura_Compra_Proveedor';
 import { fn, col } from "sequelize";
 import { UsuarioRepository } from '../../../Seguridad/repositories/Usuario.repository';
+import Compra_General from '../../../Compras/Ordenes-Compra/model/Compra_General';
 export const Factura_Compra_ProveedorRepository = {
     getAllConFiltroDeEstado: async () => {
         return await Factura_Compra_Proveedor.findAll({
@@ -51,11 +52,12 @@ export const Factura_Compra_ProveedorRepository = {
             ],
         });
     },
-    getByID: async (id_comp: string) => {
+    getByID: async (id_comp: string, t?: Transaction) => {
         return await Factura_Compra_Proveedor.findOne({
             where: {
-                id_compra_proveedor: id_comp
-            }
+                id_compra_prove_factura: id_comp
+            },
+            transaction: t
         });
     },
 
@@ -110,6 +112,57 @@ export const Factura_Compra_ProveedorRepository = {
 
         return { factura, detalles };
     },
+
+    getFacturaConDetallesParaGuardar: async (id_factura_compra_proveedor: string, t?: Transaction) => {
+        const facturaInst = await Factura_Compra_Proveedor.findByPk(id_factura_compra_proveedor, {
+            attributes: ['id_factura_proveedor', 'folio_factura_proveedor', 'estado_factura_proveedor'],
+            include: [
+                {
+                    model: Compra_Proveedor,
+                    as: 'compra',
+                    attributes: ['id_comp', 'idprove_comp'],
+                    include: [{
+                        model: Compra_General,
+                        attributes: ['id_compra_general', 'id_empresa_sucursal']
+                    }]
+                },
+            ],
+            transaction: t
+        });
+
+        const factura = facturaInst ? facturaInst.toJSON() : null;
+
+        const detallesInst =
+            await Detalle_Factura_Compra_ProveedorRepository.getDetallesPorIdFacturaProveedor(
+                id_factura_compra_proveedor
+            );
+
+        // ✅ convertir todo a plain (evita ciclos)
+        const detallesRaw = (detallesInst || []).map((d: any) =>
+            typeof d?.toJSON === 'function' ? d.toJSON() : d
+        );
+
+        const detalles = detallesRaw.map((d: any) => {
+            const detallesRec = Array.isArray(d.detallesRecibidos) ? d.detallesRecibidos : [];
+            const tieneRecibidos = detallesRec.length > 0;
+
+            const lotesDeRecibido = detallesRec.flatMap((dr: any) =>
+                Array.isArray(dr.lotesRecibidos) ? dr.lotesRecibidos : []
+            );
+
+            const lotesDeFactura = Array.isArray(d.lotes_factura_compra) ? d.lotes_factura_compra : [];
+
+            return {
+                ...d,
+                lotes_finales: tieneRecibidos ? lotesDeRecibido : lotesDeFactura,
+            };
+        });
+
+        // console.log("DETALLES (plain):", JSON.stringify(detalles, null, 2));
+
+        return { factura, detalles };
+    },
+
 
 
 
@@ -192,7 +245,7 @@ export const Factura_Compra_ProveedorRepository = {
             {
                 estado_factura_proveedor: 'H',
                 fin_de_checado: new Date(),
-                id_empleado_checado: id_empleado_checado
+                id_empleado_checado: id_empleado_checado,
             },
             {
                 where: { id_factura_proveedor: id_factura_proveedor },

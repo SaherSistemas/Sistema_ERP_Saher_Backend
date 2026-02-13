@@ -49,7 +49,6 @@ export const Recepcion_EntradaController = {
 
     list: async (req: AuthedRequest, res: Response) => {
         try {
-
             const id_empresa = req.user?.id_empresa || String(req.query.id_empresa || "");
             const data = await Recepcion_EntradaService.list({
                 search: (req.query.search as string) || "",

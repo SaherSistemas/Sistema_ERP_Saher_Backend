@@ -8,16 +8,14 @@ export const Detalle_Compra_NegadosRepository = {
     getByID: async (id_detcompneg: string) => {
         return await Detalle_Compra_Negados.findByPk(id_detcompneg)
     },
-    agregarProductosNegados: async (detallesNegados: any[], options?: { transaction?: Transaction }) => {
-        return await Detalle_Compra_Negados.bulkCreate(detallesNegados, {
-            updateOnDuplicate: [
-                'cantidad_negada',
-                'motivo_negado',
-                'recuperado',
-                'fecha_negado',
-                'fecha_limite_recuperacion'
-            ],
-            transaction: options?.transaction // 👈 usar transacción
+    agregarProductosNegados: async (detallesNegados: any[], options?: Transaction) => {
+        //console.log(detallesNegados)
+        Detalle_Compra_Negados.bulkCreate(detallesNegados, {
+            transaction: options,
+            validate: false,
+            hooks: false,
+            individualHooks: false,
+            returning: false
         });
     },
 

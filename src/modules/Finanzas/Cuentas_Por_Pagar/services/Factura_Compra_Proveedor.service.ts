@@ -13,31 +13,150 @@ import { Compra_ProveedorRepository } from "../../../Compras/Ordenes-Compra/repo
 import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_General.repository";
 import { EmpleadoRepository } from "../../../RRHH/repositories/Empleado.repository";
 import { UsuarioRepository } from "../../../Seguridad/repositories/Usuario.repository";
-
+import { clasificarDetalleFactura, separarDetallesPorStatus } from "../helpers/facturasLotesClasificador";
+import { v4 as uuidv4 } from 'uuid';
+import { Detalle_Compra_NegadosRepository } from "../../../Compras/Ordenes-Compra/repositories/Detalle_Compra_Negado.repository";
+import { calcularTotalesFactura } from "../helpers/facturaTotale";
+import { ICreaterOrUdateLotesArticuloSucursal } from "../../../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
+import { LotesArticuloSucursalRepository } from "../../../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
+import { Stock_Ubicacion_LoteRepository } from "../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository";
 export const Factura_Compra_ProveedorService = {
     getAllConFiltroDeEstado: async () => {
         return await Factura_Compra_ProveedorRepository.getAllConFiltroDeEstado();
     },
-    finalizarChequeoFacturaProveedor: async (id_factura_proveedor: string, username: string) => {
+    finalizarChequeoFacturaProveedor: async (
+        id_factura_proveedor: string,
+        id_referencia_persona: string,
+    ) => {
+
+
         const t = await dbLocal.transaction({
-            isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+            isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED,
         });
-        //FINALIZAR CHEQUEO FACTURA PROVEEDOR
-        const getEmpleadoIDByUsername = await UsuarioRepository.usuarioPorUser(username);
-        const facturaChequeada = await Factura_Compra_ProveedorRepository.finalizarChequeoFacturaProveedor(id_factura_proveedor, getEmpleadoIDByUsername.id_referencia_persona, t);
-        // console.log(facturaChequeada)
-        const detallesFacturaYLotes = await Factura_Compra_ProveedorRepository.getFacturaConDetalles(id_factura_proveedor);
 
+        try {
+            // 1) Traer factura + detalles (DENTRO de TX + lock)
+            const { factura, detalles } =
+                await Factura_Compra_ProveedorRepository.getFacturaConDetallesParaGuardar(
+                    id_factura_proveedor,
+                    t
+                );
 
-        console.log(
-            "DETALLES CON LOTES:",
-            JSON.stringify(detallesFacturaYLotes, null, 2)
-        );
-        await t.rollback()
-        //Registrar en Detalle de Compra Recibido que la factura fue chequeada
-        //const detalleCompraRecibido = await Detalle_Compra_RecibidoService.marcarFacturaProveedorComoChequeada(id_factura_proveedor, t);
-        // await t.commit();
-        return facturaChequeada;
+            //console.log(factura)
+            // 2) Clasificar
+            const detallesClasificados = (detalles || []).map((d: any) => ({
+                ...d,
+                resumen: clasificarDetalleFactura({
+                    cantidad_articulo_facturada: d.cantidad_articulo_facturada,
+                    lotes_factura_compra: d.lotes_factura_compra,
+                    lotes_finales: d.lotes_finales,
+                }),
+            }));
+            // 3) Separar por status
+            const { devoluciones } = separarDetallesPorStatus(detallesClasificados);
+            // 4) Calcular totales (si los usas)
+            const totalesRecibidos = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'RECIBIDA' });
+            // 5) Insertar negados (EFICIENTE)
+            if (devoluciones.length > 0) {
+                const now = new Date();
+                const limite = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+                // OJO: evita .filter + .map doble si ya sabes que devoluciones > 0
+                const detallesNegados = [];
+                for (const d of detallesClasificados) {
+                    if (d?.resumen?.status !== 'NEGADO') continue;
+                    const idArticulo = d.detalleCompraSolicitado?.idarticulo_detcompsol;
+                    if (!idArticulo) continue;
+                    detallesNegados.push({
+                        id_detcompneg: uuidv4(),
+                        idcompr_detcompneg: factura.compra.id_comp,
+                        idarticulo_detcompneg: idArticulo,
+                        cantidad_negada: d.resumen.negado,
+                        motivo_negado: 'FALTANTE_EN_CHEQUEO',
+                        recuperado: false,
+                        fecha_negado: now,
+                        fecha_limite_recuperacion: limite,
+                    });
+                }
+                if (detallesNegados.length > 0) {
+                    await Detalle_Compra_NegadosRepository.agregarProductosNegados(detallesNegados, t);
+                }
+            }
+            // 6) Actualizar totales compra proveedor
+            await Compra_ProveedorRepository.compraProveedorTerminarRecibida(
+                factura.compra.id_comp,
+                totalesRecibidos.subtotal,
+                totalesRecibidos.iva,
+                t
+            );
+            // 7) Compra general
+            await CompraGeneralRepository.actualizarTotalesCompraGeneralPorCompraProveedor(
+                factura.compra.id_comp,
+                totalesRecibidos.subtotal,
+                totalesRecibidos.iva,
+                t
+            );
+            // 8) Darle entrada a los articulos(CREAR EL LOTE_ARTICULO_SUCURSAL Y DARLE ENTRADA EN UBICACIONLOTE_SUCURSAL)
+            const lotesArticuloSucursal: ICreaterOrUdateLotesArticuloSucursal[] = [];
+
+            for (const d of detallesClasificados) {
+                const idArticulo = d.detalleCompraSolicitado?.idarticulo_detcompsol;
+                if (!idArticulo) continue;
+
+                const recibido = Number(d?.resumen?.recibido ?? 0);
+                if (recibido <= 0) continue; // ✅ si no recibió, no entra a inventario
+
+                const lotes = Array.isArray(d.lotes_finales) ? d.lotes_finales : [];
+                for (const l of lotes) {
+                    const cantidad = Number(l.cantidad_lote ?? 0);
+                    if (cantidad <= 0) continue;
+
+                    lotesArticuloSucursal.push({
+                        id_artic: idArticulo,
+                        id_empre: factura.compra.compra_general.id_empresa_sucursal, // AJUSTA si aquí debe ser sucursal
+                        numero_lote_sucursal: l.numerolote_lote ?? l.numero_lote,
+                        fecha_venci_lote_sucursal: l.fechavencimiento_lote ?? l.fecha_caducidad ?? null,
+                        cantidad_lote_sucursal: cantidad,
+                        precio_costo_lote_sucursal: Number(d.precio_articulo_factura ?? 0),
+                        estado_lote_sucursal: 'A',
+                        id_loterecibido_lote_sucursal: l.id_loterecibido ?? l.id_lote ?? null,
+                    });
+                }
+            }
+            let lotesUpserted = [];
+
+            if (lotesArticuloSucursal.length > 0) {
+                lotesUpserted = await LotesArticuloSucursalRepository.bulkUpsert(lotesArticuloSucursal, t);
+            }
+            // console.log("LOTES UPSERTED", lotesUpserted)
+            const stockRows = lotesUpserted.map(l => ({
+                id_empresa_sucursal: factura.compra.compra_general.id_empresa_sucursal,
+                id_articulo: l.id_artic,
+                id_lote: l.id_lote_sucursal, // PK real
+                cantidad: l.cantidad_lote_sucursal,
+                cantidad_apartada: 0,
+            }));
+
+            await Stock_Ubicacion_LoteRepository.bulkUpsertAcumular(stockRows, t);
+            // 9) Actualizar los precios al articulo (DETALLES_LISTA_PRECIA) 
+
+            // 10) Finalizar checado factura
+            const facturaChequeada = await Factura_Compra_ProveedorRepository.finalizarChequeoFacturaProveedor(
+                id_factura_proveedor,
+                id_referencia_persona,
+                t
+            );
+            // 10) Commit
+            await t.commit();
+            return facturaChequeada;
+        } catch (err) {
+            try {
+                await t.rollback();
+            } catch (err) {
+                console.log('[PERF] rollback FAILED:', err);
+            }
+
+            throw err;
+        }
     },
     getByIDComp: async (id_comp: string) => {
         return await Factura_Compra_ProveedorRepository.getByID(id_comp);

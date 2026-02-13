@@ -121,12 +121,11 @@ import Pedido_AlmacenRouter from '../modules/Ventas/Pedido_Almacen/routes/Pedido
 
 import cxcRoutes from '../modules/Finanzas/Cuentas_Por_Pagar/routes/index.route';
 
-import inventarioRouter from '../modules/Inventario/index.route';
 
-import recepcionesRouter from '../modules/Compras/Recepciones/routes/Recepciones.route';
-import ubicacion_Router from '../modules/Almacen/Ubicaciones/routes/ubicacion_SucursalRoutes';
+
 import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
 import { authMiddleware } from '../middleware/auth';
+import almacenRouter from '../modules/Almacen/router'
 const router = Router();
 
 router.use(generalLimiter);
@@ -254,10 +253,8 @@ router.use('/dashboard', Dash_ComprasRouter);
 router.use('/proyeccion', ProyecionRouter);
 
 //! ALMACEN
-router.use('/inventario', inventarioRouter)
 router.use('/pedido_almacen', Pedido_AlmacenRouter);
 router.use('/uploads', uploadsRouter)
 
-router.use('/almacen/ubicaciones', authMiddleware, ubicacion_Router);
-router.use('/almacen/recepciones', recepcionesRouter)
+router.use('/almacen', almacenRouter)
 export default router;

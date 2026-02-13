@@ -1,4 +1,4 @@
-// src/modules/Inventario/Ubicaciones/model/Ubicacion_Articulo.ts
+// src/modules/Inventario/Ubicaciones/model/Articulo_Ubicacion_Default.ts
 import {
     Table,
     Column,
@@ -13,18 +13,18 @@ import {
 
 import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
 
-import Ubicacion_Sucursal from "./Ubicacion_Sucursal";
+import Ubicacion_Sucursal from "../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal";
 import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 
 @Table({
-    tableName: "ubicacion_articulo",
+    tableName: "articulo_ubicacion_default",
     timestamps: true,
 })
-export default class Ubicacion_Articulo extends Model {
+export default class Articulo_Ubicacion_Default extends Model {
     @PrimaryKey
     @Default(DataType.UUIDV4)
     @Column(DataType.UUID)
-    declare id_ubicacion_articulo: string;
+    declare id_articulo_ubicacion_default: string;
 
     @ForeignKey(() => Empresa_Sucursal)
     @Index
@@ -39,7 +39,7 @@ export default class Ubicacion_Articulo extends Model {
     @ForeignKey(() => Ubicacion_Sucursal)
     @Index
     @Column(DataType.UUID)
-    declare id_ubicacion_sucursal: string;
+    declare id_ubicacion_default: string;
 
     // Relaciones
     @BelongsTo(() => Empresa_Sucursal)

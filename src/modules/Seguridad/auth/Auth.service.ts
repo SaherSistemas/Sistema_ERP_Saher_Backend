@@ -44,7 +44,7 @@ export const AuthService = {
         const passwordCorrecta = await checkPassword(password_user, usuario.password_user);
         if (!passwordCorrecta) throw new Error('Contraseña incorrecta.')
 
-        const token = generateToken(usuario.id_user, username, data.id_empresa)
+        const token = generateToken(usuario.id_user, username, data.id_empresa, usuario.id_referencia_persona)
         return token;
     },
     cambiarContra: async (data: ICambiarContrasena) => {

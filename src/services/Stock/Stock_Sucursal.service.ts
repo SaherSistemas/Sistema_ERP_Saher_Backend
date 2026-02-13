@@ -196,10 +196,10 @@ export const StockSucursalService = {
                     })
                 )
                 //console.log(dataParaNegados)
-                const negadoDeDevolucion = await Detalle_Compra_NegadosRepository.agregarProductosNegados(dataParaNegados, { transaction: t });
+                const negadoDeDevolucion = await Detalle_Compra_NegadosRepository.agregarProductosNegados(dataParaNegados, t);
             }
 
-            const terminarPedido = await Compra_ProveedorRepository.compraProveedorTerminarRecibida(data.id_comp, subtotalRecibido, ivaRecibido, { transaction: t })
+            //const terminarPedido = await Compra_ProveedorRepository.compraProveedorTerminarRecibida(data.id_comp, subtotalRecibido, ivaRecibido, { transaction: t })
             await t.commit();
             return { mensaje: "Carga de stock y devoluciones completadas correctamente" };
 

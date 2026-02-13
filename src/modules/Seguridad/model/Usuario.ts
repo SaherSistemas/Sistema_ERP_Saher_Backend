@@ -1,24 +1,42 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, BelongsTo, Unique, Default } from 'sequelize-typescript';
+import {
+    Table,
+    Column,
+    Model,
+    DataType,
+    PrimaryKey,
+    ForeignKey,
+    BelongsTo,
+    Unique,
+    Default,
+    Index,
+} from 'sequelize-typescript';
 import Empleado from '../../RRHH/model/Empleado';
 import Rol from './Rol';
-import { column } from 'mathjs';
 
 @Table({
     tableName: 'usuario',
+    indexes: [
+        {
+            name: 'idx_usuario_username',
+            unique: true,
+            fields: ['username'],
+        },
+    ],
 })
 class Usuario extends Model {
     @PrimaryKey
     @Column({
-        type: DataType.UUID
+        type: DataType.UUID,
     })
     declare id_user: string;
 
     @ForeignKey(() => Empleado)
     @Column({
-        type: DataType.UUID
+        type: DataType.UUID,
     })
-    declare id_referencia_persona: string
+    declare id_referencia_persona: string;
 
+    @Index('idx_usuario_username') // ← refuerza el índice a nivel columna
     @Unique
     @Column({
         type: DataType.STRING(20),
@@ -31,9 +49,9 @@ class Usuario extends Model {
     })
     declare password_user: string;
 
+    @Default(true)
     @Column({
         type: DataType.BOOLEAN,
-        defaultValue: true,
     })
     declare status_user: boolean;
 
@@ -50,4 +68,4 @@ class Usuario extends Model {
     declare rol: Rol;
 }
 
-export default Usuario
+export default Usuario;

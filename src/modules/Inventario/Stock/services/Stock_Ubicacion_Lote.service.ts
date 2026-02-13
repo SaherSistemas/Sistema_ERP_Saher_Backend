@@ -2,10 +2,11 @@
 import { Transaction } from "sequelize";
 import { dbLocal } from "../../../../config/db";
 import { Stock_Ubicacion_LoteRepository } from "../repositories/Stock_Ubicacion_Lote.repository";
-import { Ubicacion_SucursalRepository } from "../../Ubicaciones/repositories/Ubicacion_Sucursal.repository";
 import { IAddStockDTO } from "../interface/Stock_Ubicacion_Lote.interface";
 import LoteArticuloSucursal from "../../../../models/LotesYCaducidad/Lote_ArticuloSucursal";
-import Articulo from "../../Articulos/model/Articulo";
+import Articulo from "../../../Catalogos/Articulos/model/Articulo";
+import { Ubicacion_SucursalRepository } from "../../../Almacen/Ubicaciones/repositories/Ubicacion_Sucursal.repository";
+
 
 export const Stock_Ubicacion_LoteService = {
     addStock: async (dto: IAddStockDTO) => {
@@ -47,18 +48,18 @@ export const Stock_Ubicacion_LoteService = {
                     throw new Error("Esta ubicación de estantería ya tiene otro producto asignado");
                 }
             }
-
+            return
             // Acumular stock por (ubicacion, lote)
-            return await Stock_Ubicacion_LoteRepository.upsertAcumular(
-                {
-                    id_ubicacion_sucursal: ubic.id_ubicacion_sucursal,
-                    id_articulo,
-                    id_lote,
-                    cantidad: dto.cantidad,
-                    cantidad_apartada: dto.cantidad_apartada,
-                },
-                tx
-            );
+            /* return await Stock_Ubicacion_LoteRepository.upsertAcumular(
+                 {
+                     id_ubicacion_sucursal: ubic.id_ubicacion_sucursal,
+                     id_articulo,
+                     id_lote,
+                     cantidad: dto.cantidad,
+                     cantidad_apartada: dto.cantidad_apartada,
+                 },
+                 tx
+             );*/
         });
     },
 

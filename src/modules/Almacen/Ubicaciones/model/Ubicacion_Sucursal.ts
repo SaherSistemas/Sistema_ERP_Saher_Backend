@@ -5,8 +5,8 @@ import {
 } from "sequelize-typescript";
 import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
 
-import Ubicacion_Articulo from "./Ubicacion_Articulo";
 import Stock_Ubicacion_Lote from "../../../Inventario/Stock/model/Stock_Ubicacion_Lote";
+import Articulo_Ubicacion_Default from "../../Articulo_Ubicacion_Default/model/Articulo_Ubicacion_Default";
 
 export type TipoUbicacion = "ESTANTERIA" | "TARIMA" | "VIRTUAL";
 
@@ -32,17 +32,6 @@ export default class Ubicacion_Sucursal extends Model {
     @Column(DataType.ENUM("ESTANTERIA", "TARIMA", "VIRTUAL"))
     declare tipo_ubicacion: TipoUbicacion;
 
-    // Identificador humano / técnico. Ej: "RECIBO", "TARIMA-01", "A1-02-03-04"
-    @AllowNull(true)
-    @Index
-    @Column(DataType.STRING(30))
-    declare codigo_ubicacion: string | null;
-
-    // Marca esta ubicación como "RECIBO / SIN ACOMODAR" por sucursal
-    @Default(false)
-    @Index
-    @Column(DataType.BOOLEAN)
-    declare es_recibo: boolean;
 
     // TARIMA
     @AllowNull(true)
@@ -78,6 +67,6 @@ export default class Ubicacion_Sucursal extends Model {
     @HasMany(() => Stock_Ubicacion_Lote)
     declare stocks?: Stock_Ubicacion_Lote[];
 
-    @HasMany(() => Ubicacion_Articulo)
-    declare ubicaciones_articulos?: Ubicacion_Articulo[];
+    @HasMany(() => Articulo_Ubicacion_Default)
+    declare ubicaciones_articulos?: Articulo_Ubicacion_Default[];
 }

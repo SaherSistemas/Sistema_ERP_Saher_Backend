@@ -143,13 +143,22 @@ export const CompraGeneralRepository = {
         })
     },
 
-    updateTotalCompraGeneral: async (id_compra_general: string, subtotal: number, totalIva: number) => {
-        const compraGeneral = await CompraGeneralRepository.findByPK_Compra_General(id_compra_general);
-
-        return await compraGeneral.increment({
-            total_compra_general: subtotal,
-            total_iva_compra_general: totalIva,
-        });
+    updateTotalCompraGeneral: async (
+        id_compra_general: string,
+        subtotal: number,
+        totalIva: number,
+        t?: Transaction
+    ) => {
+        return await Compra_General.update(
+            {
+                total_compra_general: subtotal,
+                total_iva_compra_general: totalIva,
+            },
+            {
+                where: { id_compra_general },
+                transaction: t,
+            }
+        );
     },
 
     finalizarCompraGeneralSiEsNecesario: async (id_compra_general: string, pendientes: number, options?: { transaction?: Transaction }) => {

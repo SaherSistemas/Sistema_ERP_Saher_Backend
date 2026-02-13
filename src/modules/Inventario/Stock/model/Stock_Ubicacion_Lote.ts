@@ -8,6 +8,7 @@ import {
 import LoteArticuloSucursal from "../../../../models/LotesYCaducidad/Lote_ArticuloSucursal";
 import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 import Ubicacion_Sucursal from "../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal";
+import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
 
 @Table({
     tableName: "stock_ubicacion_lote",
@@ -21,14 +22,21 @@ export default class Stock_Ubicacion_Lote extends Model {
 
     @ForeignKey(() => Ubicacion_Sucursal)
     @Index
-    @Column(DataType.UUID)
-    declare id_ubicacion_sucursal: string;
+    @Column({
+        type: DataType.UUID,
+        allowNull: true
+    })
+    declare id_ubicacion_sucursal: string | null;
 
     @ForeignKey(() => Articulo)
     @Index
     @Column(DataType.UUID)
     declare id_articulo: string;
 
+    @ForeignKey(() => Empresa_Sucursal)
+    @Column(DataType.UUID)
+    declare id_empresa_sucursal: string;
+    
     @ForeignKey(() => LoteArticuloSucursal)
     @Index
     @Column(DataType.UUID)

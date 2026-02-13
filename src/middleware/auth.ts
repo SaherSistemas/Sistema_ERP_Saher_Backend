@@ -5,6 +5,7 @@ export interface JwtPayloadCustom {
     id_user: string;
     username: string;
     id_empresa: string;
+    id_referencia_persona: string;
     iat: number;
     exp: number;
 }

@@ -11,3 +11,12 @@ export interface IAddStockDTO {
     // si quieres apartar
     cantidad_apartada?: number;            // opcional
 }
+
+
+export type StockUpsertRow = {
+    id_articulo: string;
+    id_empresa_sucursal;
+    id_lote: string;
+    cantidad: number;
+    cantidad_apartada?: number;
+};

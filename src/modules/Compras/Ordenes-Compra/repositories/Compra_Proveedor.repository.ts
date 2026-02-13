@@ -134,7 +134,7 @@ export const Compra_ProveedorRepository = {
   finalizarAcomodoDeCompraProveedor: async (
     id_comp: string,
     id_empleado: string,
-    options?: { transaction?: Transaction }
+    t?: { transaction?: Transaction }
   ) => {
     const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp);
     const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado);
@@ -194,32 +194,10 @@ export const Compra_ProveedorRepository = {
     });
   },
 
-  cambiarTotalCompraGen: async (id_comp: string) => {
-    const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp);
-    const id_compra_general = compraProveedor.id_compra_general;
-    const facturaProveedor = await Factura_Compra_ProveedorRepository.getByID(id_comp);
-    //obtener detalles_recibidos
-    const traerDetallesCompraRecibidos = await Detalle_Compra_RecibidosRepository.getArticulosRecibidos(id_comp);
-    //console.log(traerDetallesCompraRecibidos)
+  cambiarTotalCompraGen: async (id_comp: string, totalCompra: number, ivaRecibido: number, t?: Transaction) => {
+    const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp, t);
 
-    let subtotal = 0;
-    let totalIva = 0;
-
-    for (const det of traerDetallesCompraRecibidos) {
-      const cantidad = Number(det.cantidad_detcomprec) || 0;
-      const precio = Number(det.precio_detcomprec) || 0;
-      const iva = 0;// ERAconst iva = Number(det.iva_detcomprec) || 0;
-
-      subtotal += cantidad * precio;
-      totalIva += cantidad * iva;
-    }
-
-    await CompraGeneralRepository.updateTotalCompraGeneral(id_compra_general, subtotal, totalIva);
-
-    await facturaProveedor.update({
-      total_factura_proveedor: subtotal,
-      total_iva_factura: totalIva
-    });
+    return await CompraGeneralRepository.updateTotalCompraGeneral(compraProveedor.id_compra_general, totalCompra, ivaRecibido, t);
   },
   getAllArticulosPorCompra: async (id_comp: string) => {
     return await Detalle_Compra_Solicitado.findAll({
@@ -234,8 +212,8 @@ export const Compra_ProveedorRepository = {
       ]
     });
   },
-  getByID: async (id_comp: string, options?: { transaction?: Transaction }) => {
-    const compraProveedor = await Compra_Proveedor.findByPk(id_comp, options);
+  getByID: async (id_comp: string, t?: Transaction) => {
+    const compraProveedor = await Compra_Proveedor.findByPk(id_comp, { transaction: t });
     return compraProveedor;
   },
   addDetallesCompraSolicitado: async (id_compra: string, detalles: any[]) => {
@@ -345,36 +323,31 @@ export const Compra_ProveedorRepository = {
     id_comp: string,
     totalCompra: number,
     ivaRecibido: number,
-    options?: { transaction?: Transaction }
+    t?: Transaction
   ) => {
-    const compraProveedor = await Compra_ProveedorRepository.getByID(id_comp);
-    const esCompleta = Number(compraProveedor.total_comp_factura) === round2(totalCompra);
-
-    //ACTUALIZAR TOTAL_COMPRA GENERAL PARA TENER EL TOTAL QUE SE COMPRO MOVER A COMPRA GENERAL
-    const cambiarTotalFactura = await Compra_ProveedorRepository.cambiarTotalCompraGen(id_comp);
 
     return await Compra_Proveedor.update(
       {
         total_comp_recibido: totalCompra,
         total_iva_recibido: ivaRecibido,
         fin_de_checado: new Date(), // ← siempre fecha de cierre de checado
-        fin_de_compra_proveedor: esCompleta ? new Date() : null, // ← fecha de cierre definitiva SOLO si completa
-        estado_comp: 'Z' // ojo: valida que 'Z' exista en tu catálogo de estados
+        fin_de_compra_proveedor: new Date(), // ← fecha de cierre definitiva
+        estado_comp: 'Z'
       },
       {
         where: { id_comp },
-        transaction: options?.transaction
+        transaction: t
       }
     );
   },
 
-  comprasProveedorSinTerminar: async (id_compra_general: string, options?: { transaction?: Transaction }) => {
+  comprasProveedorSinTerminar: async (id_compra_general: string, t?: { transaction?: Transaction }) => {
     const pendientes = await Compra_Proveedor.count({
       where: {
         id_compra_general,
         estado_comp: { [Op.ne]: 'F' } // cualquier estado que NO sea F
       },
-      transaction: options?.transaction
+      transaction: t?.transaction
     });
 
     return {
@@ -405,12 +378,12 @@ export const Compra_ProveedorRepository = {
     };
   },
 
-  updateEstado: async (id_comp: string, estado: string, options?: { transaction?: Transaction }) => {
+  updateEstado: async (id_comp: string, estado: string, t?: { transaction?: Transaction }) => {
     return await Compra_Proveedor.update(
       { estado_comp: estado },
       {
         where: { id_comp },
-        transaction: options?.transaction
+        transaction: t?.transaction
       }
     );
   }

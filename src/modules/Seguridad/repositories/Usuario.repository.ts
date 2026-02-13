@@ -1,14 +1,15 @@
 import { v4 as uuidv4 } from 'uuid';
 import { EmpleadoRepository } from '../../RRHH/repositories/Empleado.repository';
 import Usuario from '../model/Usuario';
+import { Transaction } from 'sequelize';
 export const UsuarioRepository = {
 
-    findByID: async (id_user: string) => {
-        const user = await Usuario.findByPk(id_user, {
-            attributes: ['id_user', 'id_referencia_persona', 'username', 'status_user', 'idrol_user']
+    findByID: async (id_user: string, t?: Transaction) => {
+        return Usuario.findByPk(id_user, {
+            attributes: ['id_user', 'id_referencia_persona', 'username', 'status_user', 'idrol_user'],
+            raw: true,
+            transaction: t,
         });
-        // console.log(user)
-        return user;
     },
 
     usuarioPorUser: async (username: string) => {

@@ -58,6 +58,8 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
             attributes: [
                 'id_factura_proveedor_detalle',
                 'id_factura_compra_proveedor',
+                'precio_articulo_factura',
+                'iva_articulo_factura',
                 'cantidad_articulo_facturada',
                 'checado',
                 'fecha_checado'
@@ -110,5 +112,5 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
             ],
         });
 
-    }
+    },
 };

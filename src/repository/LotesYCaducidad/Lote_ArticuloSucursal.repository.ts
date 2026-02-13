@@ -443,6 +443,26 @@ export const LotesArticuloSucursalRepository = {
       ...data
     });
   },
+  bulkUpsert: async (data: ICreaterOrUdateLotesArticuloSucursal[], t?: Transaction) => {
+    if (!data || data.length === 0) return [];
+    // console.log(data)
+    const rows = data.map(d => ({
+      id_lote_sucursal: uuidv4(),
+      ...d,
+    }));
+
+    return Lote_sucursal_articulo.bulkCreate(rows, {
+      transaction: t,
+      validate: false,
+      hooks: false,
+      updateOnDuplicate: [
+        'cantidad_lote_sucursal',
+        'precio_costo_lote_sucursal',
+        'estado_lote_sucursal',
+        'updatedAt',
+      ],
+    });
+  },
 
   updateOrCreateLoteSucursal: async (
     data: ICreaterOrUdateLotesArticuloSucursal,

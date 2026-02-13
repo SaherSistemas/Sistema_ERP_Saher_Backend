@@ -1,8 +1,8 @@
 import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
 import { v4 as uuidv4 } from 'uuid';
 import { Transaction } from "sequelize";
-import Ubicacion_Articulo from "../model/Ubicacion_Articulo";
 import Articulo from "../../../Catalogos/Articulos/model/Articulo";
+import Articulo_Ubicacion_Default from "../../Articulo_Ubicacion_Default/model/Articulo_Ubicacion_Default";
 
 const norm = (v?: string | null) => (v ?? "").trim();
 const up = (v?: string | null) => norm(v).toUpperCase();
@@ -11,7 +11,6 @@ export const Ubicacion_SucursalRepository = {
     findById: async (id: string) =>
         Ubicacion_Sucursal.findByPk(id),
 
-    // Listar ubicaciones (incluye stocks opcional)
     getAllBySucursal: async (id_empresa_sucursal: string) =>
         Ubicacion_Sucursal.findAll({
             where: {
@@ -21,9 +20,9 @@ export const Ubicacion_SucursalRepository = {
             order: [["createdAt", "DESC"]],
             include: [
                 {
-                    model: Ubicacion_Articulo,
-                    required: false, // ✅ LEFT JOIN (si no hay, viene null)
-                    attributes: ["id_ubicacion_articulo", "id_articulo"],
+                    model: Articulo_Ubicacion_Default,
+                    required: false,
+                    attributes: ["id_articulo_ubicacion_default", "id_articulo"],
                     include: [
                         {
                             model: Articulo,

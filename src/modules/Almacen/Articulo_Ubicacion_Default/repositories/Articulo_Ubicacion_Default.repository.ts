@@ -1,19 +1,13 @@
-// src/modules/Inventario/Ubicaciones/repository/Ubicacion_Articulo.repository.ts
+// src/modules/Inventario/Ubicaciones/repository/Articulo_Ubicacion_Default.repository.ts
 import { Transaction } from "sequelize";
-import Ubicacion_Articulo from "../model/Ubicacion_Articulo";
-import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
+import Articulo_Ubicacion_Default from "../model/Articulo_Ubicacion_Default";
+import Ubicacion_Sucursal from "../../Ubicaciones/model/Ubicacion_Sucursal";
 
-export const Ubicacion_ArticuloRepository = {
-    findByArticulo: async (id_empresa_sucursal: string, id_articulo: string, t?: Transaction) => {
-        return await Ubicacion_Articulo.findOne({
-            where: { id_empresa_sucursal, id_articulo },
-            transaction: t,
-            lock: t ? t.LOCK.UPDATE : undefined,
-        });
-    },
+export const Articulo_Ubicacion_DefaultRepository = {
+
     getByIDArticulo: async (id_empresa_sucursal: string, id_articulo: string) => {
-        return await Ubicacion_Articulo.findAll({
-            attributes: ["id_ubicacion_articulo", "id_articulo", "id_empresa_sucursal"],
+        return await Articulo_Ubicacion_Default.findAll({
+            attributes: ["id_articulo_ubicacion_default", "id_articulo", "id_empresa_sucursal"],
             where: {
                 id_empresa_sucursal,
                 id_articulo,
@@ -26,7 +20,7 @@ export const Ubicacion_ArticuloRepository = {
         })
     },
     findByUbicacion: async (id_empresa_sucursal: string, id_ubicacion_sucursal: string, t?: Transaction) => {
-        return await Ubicacion_Articulo.findOne({
+        return await Articulo_Ubicacion_Default.findOne({
             where: { id_empresa_sucursal, id_ubicacion_sucursal },
             transaction: t,
             lock: t ? t.LOCK.UPDATE : undefined,
@@ -37,14 +31,14 @@ export const Ubicacion_ArticuloRepository = {
         data: { id_empresa_sucursal: string; id_articulo: string; id_ubicacion_sucursal: string },
         t?: Transaction
     ) => {
-        return await Ubicacion_Articulo.create(data as any, { transaction: t });
+        return await Articulo_Ubicacion_Default.create(data as any, { transaction: t });
     },
 
     updateUbicacion: async (id_ubicacion_articulo: string, id_ubicacion_sucursal: string, t?: Transaction) => {
-        await Ubicacion_Articulo.update(
+        await Articulo_Ubicacion_Default.update(
             { id_ubicacion_sucursal },
             { where: { id_ubicacion_articulo }, transaction: t }
         );
-        return await Ubicacion_Articulo.findByPk(id_ubicacion_articulo, { transaction: t });
+        return await Articulo_Ubicacion_Default.findByPk(id_ubicacion_articulo, { transaction: t });
     },
 };

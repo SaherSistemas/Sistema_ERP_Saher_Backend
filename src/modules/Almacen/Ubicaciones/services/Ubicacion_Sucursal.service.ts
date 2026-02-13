@@ -1,9 +1,10 @@
 
 import e from "cors";
 import { ICrearUbicacionDTO } from "../interface/Ubicacion_Sucursal.interface";
-import { Ubicacion_SucursalRepository } from "../repositories/Ubicacion_Sucursal.repository";
-import { Ubicacion_ArticuloRepository } from "../repositories/Ubicacion_Articulo.repository";
 import { ArticuloRepository } from "../../../Catalogos/Articulos/repositories/Articulo.repository";
+import { Ubicacion_SucursalRepository } from "../repositories/Ubicacion_Sucursal.repository";
+import { Articulo_Ubicacion_DefaultRepository } from "../../Articulo_Ubicacion_Default/repositories/Articulo_Ubicacion_Default.repository";
+import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
 
 const norm = (v?: string | null) => (v ?? "").trim();
 const up = (v?: string | null) => norm(v).toUpperCase();
@@ -16,17 +17,10 @@ export const Ubicacion_SucursalService = {
         if (!dto?.tipo_ubicacion) throw new Error("tipo_ubicacion requerido");
 
         // 1) Resolver artículo por código de barras
-        const cb = norm(dto.cod_barr_artic);
-        if (!cb) throw new Error("cod_barr_artic requerido");
 
-        const articulo = await ArticuloRepository.getByCodigoBarras(cb);
-        if (!articulo) throw new Error("Artículo no encontrado con el código de barras proporcionado");
-
-        const id_articulo = (articulo as any).id_artic ?? (articulo as any).id_articulo;
-        if (!id_articulo) throw new Error("El artículo no tiene id");
 
         // 2) Crear ubicación física
-        let ubicacionCreada: any;
+        let ubicacionCreada: Ubicacion_Sucursal;
 
         if (dto.tipo_ubicacion === "TARIMA") {
             const tar = up(dto.tarima_ub);
@@ -88,45 +82,7 @@ export const Ubicacion_SucursalService = {
 
             );
             //console.log(ubicacionCreada)
-
-            // 3) Regla: estantería no puede tener 2 artículos
-            const ocupante = await Ubicacion_ArticuloRepository.findByUbicacion(
-                dto.id_empresa_sucursal,
-                ubicacionCreada.id_ubicacion_sucursal,
-
-            );
-            if (ocupante && ocupante.id_articulo !== id_articulo) {
-                throw new Error("Este anaquel ya tiene un artículo asignado");
-            }
         }
-
-        // 4) Asignar/Reasignar artículo (1 ubicación por artículo)
-        const asignacionActual = await Ubicacion_ArticuloRepository.findByArticulo(
-            dto.id_empresa_sucursal,
-            id_articulo,
-
-        );
-
-        if (!asignacionActual) {
-            await Ubicacion_ArticuloRepository.create(
-                {
-                    id_empresa_sucursal: dto.id_empresa_sucursal,
-                    id_articulo,
-                    id_ubicacion_sucursal: ubicacionCreada.id_ubicacion_sucursal,
-                },
-
-            );
-        } else {
-            // si ya estaba asignado a otra ubicación, lo movemos
-            if (asignacionActual.id_ubicacion_sucursal !== ubicacionCreada.id_ubicacion_sucursal) {
-                await Ubicacion_ArticuloRepository.updateUbicacion(
-                    asignacionActual.id_ubicacion_articulo,
-                    ubicacionCreada.id_ubicacion_sucursal,
-
-                );
-            }
-        }
-
         return ubicacionCreada;
     },
 
@@ -134,7 +90,5 @@ export const Ubicacion_SucursalService = {
         return await Ubicacion_SucursalRepository.getAllBySucursal(id_empresa_sucursal);
     },
 
-    getByIDArticulo: async (id_empresa_sucursal: string, id_articulo: string) => {
-        return await Ubicacion_ArticuloRepository.getByIDArticulo(id_empresa_sucursal, id_articulo);
-    }
+
 };

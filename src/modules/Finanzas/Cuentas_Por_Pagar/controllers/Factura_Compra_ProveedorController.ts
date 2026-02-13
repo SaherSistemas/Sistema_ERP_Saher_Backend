@@ -23,10 +23,10 @@ export class Factura_Compra_ProveedorController {
 
         try {
             // console.log(req.user)
-            const username = req.user?.username || String(req.query.username || "");
+            const id_referencia_persona = req.user?.id_referencia_persona || String(req.query.id_referencia_persona || "");
             const { id_factura_proveedor } = req.params;
             //console.log(id_factura_proveedor, username)
-            const facturas = await Factura_Compra_ProveedorService.finalizarChequeoFacturaProveedor(id_factura_proveedor, username);
+            const facturas = await Factura_Compra_ProveedorService.finalizarChequeoFacturaProveedor(id_factura_proveedor, id_referencia_persona);
             // console.log(facturas)
             res.status(200).json({ mensaje: "Chequeo finalizado correctamente." })
         } catch (error) {
