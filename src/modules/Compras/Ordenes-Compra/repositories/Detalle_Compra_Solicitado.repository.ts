@@ -23,26 +23,24 @@ export const Detalle_Compra_SolicitadoRepository = {
       ]
     });
   },
-  getCantidadPedidaPorArticulo: async (id_artic: string) => {
+  getCantidadTransitoPorArticulo: async (id_artic: string) => {
     const rows = await Detalle_Compra_Solicitado.findOne({
-      attributes: [[fn('SUM', col('cantidad_detcompsol')), 'total_pedida']],
+      attributes: [[fn('SUM', col('cantidad_detcompsol')), 'total_transito']],
       include: [
         {
           model: Compra_Proveedor,
           attributes: [],
-          required: true, // IMPORTANTÍSIMO: solo detalles con compra asociada
+          required: true,
           where: {
-            estado_comp: ['C', 'A', 'E']
+            estado_comp: ['C', 'A', 'E', 'L', 'K']
           }
         }
       ],
-      where: {
-        idarticulo_detcompsol: id_artic
-      },
+      where: { idarticulo_detcompsol: id_artic },
       raw: true
     });
-    // console.log(rows);
-    return Number((rows as any)?.total_pedida ?? 0);
+    console.log("ROWWSS", rows);
+    return Number((rows as any)?.total_transito ?? 0);
   },
   addDetallesCompraSolicitado: async (data: ICreateOAcumularDetallesSolicitados) => {
     const detallesProcesados = await Promise.all(

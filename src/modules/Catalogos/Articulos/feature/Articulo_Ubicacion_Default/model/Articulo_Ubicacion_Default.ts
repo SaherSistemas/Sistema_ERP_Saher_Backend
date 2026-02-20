@@ -10,11 +10,9 @@ import {
     BelongsTo,
     Index,
 } from "sequelize-typescript";
-
-import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
-
-import Ubicacion_Sucursal from "../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal";
-import Articulo from "../../../Catalogos/Articulos/model/Articulo";
+import Empresa_Sucursal from "../../../../../../models/Empresa_Sucursal/Empresa_Sucursal";
+import Ubicacion_Sucursal from "../../../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal";
+import Articulo from "../../../model/Articulo";
 
 @Table({
     tableName: "articulo_ubicacion_default",

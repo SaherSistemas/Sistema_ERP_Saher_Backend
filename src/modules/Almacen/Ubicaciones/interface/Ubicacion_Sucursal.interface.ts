@@ -14,3 +14,26 @@ export interface ICrearUbicacionDTO {
     nivel_ub?: string | null;
     posicion_ub?: string | null;
 }
+
+
+
+//DTO 
+export type UbicacionSucursalDTO = {
+    id_ubicacion_sucursal: string;
+    pasillo_ub?: string | null;
+    anaquel_ub?: string | null;
+    nivel_ub?: string | null;
+    posicion_ub?: string | null;
+    nombre?: string | null; // si lo tienes calculado o guardado
+};
+
+
+
+//TYPE 
+export type GetAllFilters = {
+    tipo?: string;          // ESTANTERIA | TARIMA
+    pasillo?: string;       // A, B, ...
+    anaquel?: string;       // 01, 02 ...
+    q?: string;             // texto libre opcional (A-01 etc)
+    include_defaults?: boolean;
+};

@@ -81,15 +81,16 @@ export const LotesArticuloSucursalService = {
   }) => {
     return await LotesArticuloSucursalRepository.getResumen(filters);
   },
-  getResumenPromocion: async (filters: {
-    id_cliente: string;
-    id_sucursal: string;
-    grupoPrecio: string;
-    page: number;
-    limit: number;
-  }) => {
-    return await LotesArticuloSucursalRepository.getResumenPromocionados(filters);
-  },
+  /*
+    getResumenPromocion: async (filters: {
+      id_cliente: string;
+      id_sucursal: string;
+      grupoPrecio: string;
+      page: number;
+      limit: number;
+    }) => {
+      return //await LotesArticuloSucursalRepository.getResumenPromocionados(filters);
+    },*/
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     return LotesArticuloSucursalRepository.create(data);
   }

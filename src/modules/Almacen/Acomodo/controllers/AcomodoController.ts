@@ -21,5 +21,27 @@ export const AcomodoController = {
             });
         }
     },
+    acomodarArticulo: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa_sucursal = String(req.user?.id_empresa || req.query.id_empresa_sucursal || "").trim();
+            if (!id_empresa_sucursal) {
+                res.status(400).json({ ok: false, message: "id_empresa_sucursal requerido" });
+            }
 
+            const { id_stock_ubicacion_lote, lineas } = req.body || {};
+
+            const result = await AcomodoServices.acomodarArticulo(id_empresa_sucursal, {
+                id_stock_ubicacion_lote,
+                lineas,
+            });
+
+            res.status(200).json({ ok: true, data: result });
+        } catch (e: any) {
+            console.error(e);
+            res.status(400).json({
+                ok: false,
+                message: e?.message ?? "Error",
+            });
+        }
+    },
 };

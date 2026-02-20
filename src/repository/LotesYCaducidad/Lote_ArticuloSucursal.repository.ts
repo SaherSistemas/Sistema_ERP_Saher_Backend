@@ -13,10 +13,10 @@ import { Op, Sequelize, Transaction, FindOptions, fn, col, literal } from 'seque
 import Articulo from '../../modules/Catalogos/Articulos/model/Articulo';
 import { Detalle_Compra_RecibidosRepository } from '../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Recibido.repository';
 import { Detalle_Compra_SolicitadoRepository } from '../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Solicitado.repository';
-import DetalleListaPrecio from '../../modules/Ventas/Precios/model/Detalle_Lista_Precio';
-import { DetalleListaPreciosRepository } from '../../modules/Ventas/Precios/repositories/Detalle_Lista_Precio.repository';
-import { Pedido_AlmacenRepository } from '../../modules/Ventas/Pedido_Almacen/repositories/Pedido_Almacen.repository';
-import { Detalle_Pedido_AlmacenRepository } from '../../modules/Ventas/Pedido_Almacen/repositories/Detalle_Pedido_Almacen.repository';
+import DetalleListaPrecio from '../../modules/Comercial/Precios/model/Detalle_Lista_Precio';
+import { DetalleListaPreciosRepository } from '../../modules/Comercial/Precios/repositories/Detalle_Lista_Precio.repository';
+import { Pedido_AlmacenRepository } from '../../modules/Comercial/Pedido/repositories/Pedido_Almacen.repository';
+import { Detalle_Pedido_AlmacenRepository } from '../../modules/Comercial/Pedido/repositories/Detalle_Pedido_Almacen.repository';
 type RepoOpts = FindOptions;
 
 export const LotesArticuloSucursalRepository = {
@@ -183,11 +183,11 @@ export const LotesArticuloSucursalRepository = {
 
       item.setDataValue('lote_mas_corto', lote ? lote.numero_lote_sucursal : null);
 
-      const pedidas = await Detalle_Compra_SolicitadoRepository.getCantidadPedidaPorArticulo(item.id_artic);
-      item.setDataValue('pedidas', pedidas);
+      //const pedidas = await Detalle_Compra_SolicitadoRepository.getCantidadPedidaPorArticulo(item.id_artic);
+      //item.setDataValue('pedidas', pedidas);
 
-      const transito = await Detalle_Compra_RecibidosRepository.getCantidadTransitoPorArticulo(item.id_artic);
-      item.setDataValue('transito', transito);
+      // const transito = await Detalle_Compra_RecibidosRepository.getCantidadTransitoPorArticulo(item.id_artic);
+      // item.setDataValue('transito', transito);
     }
 
     // 4. Mapear a tu interface final
@@ -218,7 +218,7 @@ export const LotesArticuloSucursalRepository = {
     });
 
     return { items: resultado, totalPages };
-  },
+  },/*
   getResumenPromocionados: async ({ id_cliente, grupoPrecio, id_sucursal, page, limit }) => {
     const offset = (page - 1) * limit;
 
@@ -331,7 +331,7 @@ export const LotesArticuloSucursalRepository = {
 
     return { items: resultado, totalPages };
   },
-
+*/
   getById: async (id: string) => {
     if (isUUID(id)) {
       return await Lote_sucursal_articulo.findByPk(id);

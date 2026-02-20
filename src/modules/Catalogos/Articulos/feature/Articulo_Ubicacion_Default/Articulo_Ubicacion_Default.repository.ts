@@ -1,12 +1,13 @@
 // src/modules/Inventario/Ubicaciones/repository/Articulo_Ubicacion_Default.repository.ts
 import { Transaction } from "sequelize";
-import Articulo_Ubicacion_Default from "../model/Articulo_Ubicacion_Default";
-import Ubicacion_Sucursal from "../../Ubicaciones/model/Ubicacion_Sucursal";
+import Articulo_Ubicacion_Default from "./model/Articulo_Ubicacion_Default";
+import Ubicacion_Sucursal from "../../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal";
+
 
 export const Articulo_Ubicacion_DefaultRepository = {
 
     getByIDArticulo: async (id_empresa_sucursal: string, id_articulo: string) => {
-        return await Articulo_Ubicacion_Default.findAll({
+        const rows = await Articulo_Ubicacion_Default.findAll({
             attributes: ["id_articulo_ubicacion_default", "id_articulo", "id_empresa_sucursal"],
             where: {
                 id_empresa_sucursal,
@@ -15,9 +16,13 @@ export const Articulo_Ubicacion_DefaultRepository = {
             include: [
                 {
                     model: Ubicacion_Sucursal,
+                    as: "ubicacion_sucursal", // si tienes alias
                     attributes: ["id_ubicacion_sucursal", "tipo_ubicacion", "tarima_ub", "pasillo_ub", "anaquel_ub", "nivel_ub", "posicion_ub"],
-                }]
-        })
+                }
+            ]
+        });
+
+        return rows.map(r => r.get({ plain: true }));
     },
     findByUbicacion: async (id_empresa_sucursal: string, id_ubicacion_sucursal: string, t?: Transaction) => {
         return await Articulo_Ubicacion_Default.findOne({
@@ -28,9 +33,10 @@ export const Articulo_Ubicacion_DefaultRepository = {
     },
 
     create: async (
-        data: { id_empresa_sucursal: string; id_articulo: string; id_ubicacion_sucursal: string },
+        data: { id_empresa_sucursal: string; id_articulo: string; id_ubicacion_default: string },
         t?: Transaction
     ) => {
+        //console.log(data)
         return await Articulo_Ubicacion_Default.create(data as any, { transaction: t });
     },
 

@@ -5,7 +5,7 @@ const router = Router();
 
 router.get('/', LotesArticuloSucursalController.getAll);
 router.get('/resumen', LotesArticuloSucursalController.getResumenLotes);
-router.get('/resumen_a_promocionar', LotesArticuloSucursalController.getResumenPromocion);
+//router.get('/resumen_a_promocionar', LotesArticuloSucursalController.getResumenPromocion);
 router.get('/existencia/:id_artic/:id_sucursal', LotesArticuloSucursalController.getExistencia);
 
 router.get('/:id', LotesArticuloSucursalController.getByID);

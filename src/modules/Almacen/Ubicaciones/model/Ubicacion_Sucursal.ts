@@ -6,7 +6,7 @@ import {
 import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
 
 import Stock_Ubicacion_Lote from "../../../Inventario/Stock/model/Stock_Ubicacion_Lote";
-import Articulo_Ubicacion_Default from "../../Articulo_Ubicacion_Default/model/Articulo_Ubicacion_Default";
+import Articulo_Ubicacion_Default from "../../../Catalogos/Articulos/feature/Articulo_Ubicacion_Default/model/Articulo_Ubicacion_Default";
 
 export type TipoUbicacion = "ESTANTERIA" | "TARIMA" | "VIRTUAL";
 

@@ -24,9 +24,9 @@ import authRouter from '../modules/Seguridad/auth/AuthRouter';
 import permisoRouter from '../modules/Seguridad/routes/PermisoRouter';
 import permisoRolRouter from '../modules/Seguridad/routes/Permiso_RolRouter';
 
-import agenteRouter from '../modules/Ventas/Agente_Venta/routes/AgenteRouter';
-import Presupuesto_AgenteRouter from '../modules/Ventas/Agente_Venta/routes/Presupuesto_AgenteRouter';
-import PrioridadAgenteRouter from '../modules/Ventas/Agente_Venta/routes/PrioridadAgenteReglasRouter';
+import agenteRouter from '../modules/Comercial/Agente_Venta/routes/AgenteRouter';
+import Presupuesto_AgenteRouter from '../modules/Comercial/Agente_Venta/routes/Presupuesto_AgenteRouter';
+import PrioridadAgenteRouter from '../modules/Comercial/Agente_Venta/routes/PrioridadAgenteReglasRouter';
 
 import cat_Regimen_fiscalRouter from '../modules/Catalogos/routes/Cat_Regimen_FiscalRouter';
 import cat_Tipo_ContratoRouter from '../modules/Catalogos/routes/Cat_Tipo_ContratoRouter';
@@ -44,7 +44,7 @@ import tipoIVARouter from '../modules/Catalogos/Articulos/routes/Tipo_IVARouter'
 
 import empresa_SucursalRouter from './Empresa_Sucursal/Empresa_SucursalRouter';
 import grupo_EmpresaRouter from './Empresa_Sucursal/grupo_EmpresaSucursalRouter';
-import grupoEmpresaListaPrecioRouter from '../modules/Ventas/Precios/routes/Grupo_Empresa_Lista_PrecioRouter';
+import grupoEmpresaListaPrecioRouter from '../modules/Comercial/Precios/routes/Grupo_Empresa_Lista_PrecioRouter';
 
 import detalleCompraNegadoRouter from '../modules/Compras/Ordenes-Compra/routes/detalle_Compra_NegadoRouter';
 import detalleCompraRecibidoRouter from '../modules/Compras/Ordenes-Compra/routes/detalle_Compra_RecibidoRouter';
@@ -55,7 +55,7 @@ import detalle_CompraRouter from '../modules/Compras/Ordenes-Compra/routes/detal
 
 import factura_compra_ProveedorRouter from '../modules/Finanzas/Cuentas_Por_Pagar/routes/facturas_Compra_ProveedorRouter';
 
-import Margen_Ganancia_ListaRouter from '../modules/Ventas/Precios/routes/Margen_Ganancia_ListaRouter';
+import Margen_Ganancia_ListaRouter from '../modules/Comercial/Precios/routes/Margen_Ganancia_ListaRouter';
 
 import DevolucionesRouter from './Devoluciones_NC/DevolucionesRouter';
 import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter';
@@ -93,8 +93,8 @@ import VentaRouter from './Venta/VentaRouter';
 import Venta_PagoRouter from './Venta/Venta_PagoRouter';
 
 //Lista Precios
-import Lista_Precio from '../modules/Ventas/Precios/routes/Lista_PrecioRouter';
-import DetalleLista_Precio from '../modules/Ventas/Precios/routes/Detalle_Lista_PrecioRouter';
+import Lista_Precio from '../modules/Comercial/Precios/routes/Lista_PrecioRouter';
+import DetalleLista_Precio from '../modules/Comercial/Precios/routes/Detalle_Lista_PrecioRouter';
 
 //Oferta
 import OfertasRouter from './Ofertas/OfertasRouter';
@@ -116,7 +116,7 @@ import Presupuesto_EmpleadoRouter from './Presupuestos/Presupuesto_EmpleadoRoute
 import Asignacion_Empleado_SucursalRouter from './Presupuestos/Asignacion_Empleado_SucursalRouter';
 
 import Cliente_AlmacenRouter from './Clientes/Cliente_Almacen/Cliente_AlmacenRouter';
-import Pedido_AlmacenRouter from '../modules/Ventas/Pedido_Almacen/routes/Pedido_AlmecenRouter';
+import Pedido_AlmacenRouter from '../modules/Comercial/Pedido/routes/Pedido_AlmecenRouter';
 
 
 import cxcRoutes from '../modules/Finanzas/Cuentas_Por_Pagar/routes/index.route';
@@ -124,8 +124,10 @@ import cxcRoutes from '../modules/Finanzas/Cuentas_Por_Pagar/routes/index.route'
 
 
 import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
-import { authMiddleware } from '../middleware/auth';
+
 import almacenRouter from '../modules/Almacen/router'
+
+import comercialRouter from '../modules/Comercial/router'
 const router = Router();
 
 router.use(generalLimiter);
@@ -253,8 +255,10 @@ router.use('/dashboard', Dash_ComprasRouter);
 router.use('/proyeccion', ProyecionRouter);
 
 //! ALMACEN
-router.use('/pedido_almacen', Pedido_AlmacenRouter);
+
 router.use('/uploads', uploadsRouter)
 
 router.use('/almacen', almacenRouter)
+
+router.use('/comercial', comercialRouter)
 export default router;

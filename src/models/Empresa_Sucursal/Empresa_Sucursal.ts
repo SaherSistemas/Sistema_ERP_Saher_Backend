@@ -12,7 +12,7 @@ import {
 } from "sequelize-typescript";
 import Colonia from "../Ubicacion/Colonia";
 import Grupo_Empresa from "./Grupo_Empresa";
-import ListaPrecio from "../../modules/Ventas/Precios/model/Lista_Precio";
+import ListaPrecio from "../../modules/Comercial/Precios/model/Lista_Precio";
 import Presupuesto_Empresa from "../Presupuestos/Presupuesto_Empresa";
 import Movimiento_Presupuesto from "../Presupuestos/Movimiento_Presupuesto";
 import Asignacion_Empleado_Sucursal from "../Presupuestos/Asignacion_Empleado_Sucursal";

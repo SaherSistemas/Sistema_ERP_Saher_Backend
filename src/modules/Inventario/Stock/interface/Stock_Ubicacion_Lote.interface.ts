@@ -20,3 +20,18 @@ export type StockUpsertRow = {
     cantidad: number;
     cantidad_apartada?: number;
 };
+
+
+
+
+export type CrearStockUbicacionLoteDTO = {
+    id_empresa_sucursal: string;
+    id_articulo: string;
+    id_lote: string;
+
+    id_ubicacion_sucursal: string;
+    cantidad: number;
+
+    // opcional si lo quieres setear
+    cantidad_apartada?: number;
+};

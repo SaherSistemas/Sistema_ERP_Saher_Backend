@@ -158,25 +158,7 @@ export const Detalle_Compra_RecibidosRepository = {
   },
 
 
-  getCantidadTransitoPorArticulo: async (id_artic: string) => {
-    const rows = await Detalle_Compra_Recibidos.findOne({
-      attributes: [[fn('SUM', col('cantidad_detcomprec')), 'total_transito']],
-      include: [
-        {
-          model: Compra_Proveedor,
-          attributes: [],
-          required: true,
-          where: {
-            estado_comp: ['L', 'K', 'R', 'H']
-          }
-        }
-      ],
-      where: { idarticulo_detcomprec: id_artic },
-      raw: true
-    });
-    // console.log(rows);
-    return Number((rows as any)?.total_transito ?? 0);
-  },
+
   getByPK: async (id_detalle_recibido: string) => {
     return await Detalle_Compra_Recibidos.findByPk(id_detalle_recibido);
   },

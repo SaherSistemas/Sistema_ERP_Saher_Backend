@@ -1,9 +1,9 @@
 
 import { v4 as uuidv4 } from 'uuid';
-import { fn, literal, Op, QueryTypes, Transaction } from 'sequelize';
+import { col, fn, literal, Op, QueryTypes, Transaction } from 'sequelize';
 import Stock_Ubicacion_Lote from '../model/Stock_Ubicacion_Lote';
 import { dbLocal } from '../../../../config/db';
-import { StockUpsertRow } from '../interface/Stock_Ubicacion_Lote.interface';
+import { CrearStockUbicacionLoteDTO, StockUpsertRow } from '../interface/Stock_Ubicacion_Lote.interface';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import LoteArticuloSucursal from '../../../../models/LotesYCaducidad/Lote_ArticuloSucursal';
 
@@ -88,5 +88,91 @@ export const Stock_Ubicacion_LoteRepository = {
         });
 
         return stock_ubicacion_lote;
-    }
+    },
+    getExistenciasPorUbicacion: (
+        id_empresa_sucursal: string,
+        id_articulo: string,
+        idsUbicaciones: string[]
+    ) => {
+        if (!idsUbicaciones.length) return [];
+
+        return Stock_Ubicacion_Lote.findAll({
+            attributes: [
+                "id_ubicacion_sucursal",
+                [fn("SUM", col("cantidad")), "existencia"],
+            ],
+            where: {
+                id_empresa_sucursal,
+                id_articulo,
+                id_ubicacion_sucursal: { [Op.in]: idsUbicaciones },
+            },
+            group: ["id_ubicacion_sucursal"],
+            raw: true,
+        });
+    },
+    getExistenciasTotalesPorUbicacion: (
+        id_empresa_sucursal: string,
+        idsUbicaciones: string[]
+    ) => {
+        if (!idsUbicaciones.length) return [];
+
+        return Stock_Ubicacion_Lote.findAll({
+            attributes: [
+                "id_ubicacion_sucursal",
+                [fn("SUM", col("cantidad")), "existencia"],
+            ],
+            where: {
+                id_empresa_sucursal,
+                id_ubicacion_sucursal: { [Op.in]: idsUbicaciones },
+            },
+            group: ["id_ubicacion_sucursal"],
+            raw: true,
+        });
+    },
+
+
+    /*NUEVO */
+    findByIdForUpdate: async (
+        id_empresa_sucursal: string,
+        id_stock_ubicacion_lote: string,
+        tx: Transaction
+    ) => {
+        return Stock_Ubicacion_Lote.findOne({
+            where: { id_empresa_sucursal, id_stock_ubicacion_lote },
+            transaction: tx,
+            lock: tx.LOCK.UPDATE,
+        });
+    },
+
+    updateUbicacionYCantidad: async (
+        id_empresa_sucursal: string,
+        id_stock_ubicacion_lote: string,
+        patch: { id_ubicacion_sucursal: string; cantidad: number },
+        tx: Transaction
+    ) => {
+        await Stock_Ubicacion_Lote.update(patch, {
+            where: { id_empresa_sucursal, id_stock_ubicacion_lote },
+            transaction: tx,
+        });
+
+        return Stock_Ubicacion_Lote.findOne({
+            where: { id_empresa_sucursal, id_stock_ubicacion_lote },
+            transaction: tx,
+        });
+    },
+
+    create: async (dto: CrearStockUbicacionLoteDTO, tx: Transaction) => {
+        if (!dto.id_lote) throw new Error("id_lote requerido");
+        return Stock_Ubicacion_Lote.create(
+            {
+                id_empresa_sucursal: dto.id_empresa_sucursal,
+                id_articulo: dto.id_articulo,
+                id_lote: dto.id_lote,
+                id_ubicacion_sucursal: dto.id_ubicacion_sucursal,
+                cantidad: dto.cantidad,
+                cantidad_apartada: dto.cantidad_apartada ?? 0,
+            },
+            { transaction: tx }
+        );
+    },
 };

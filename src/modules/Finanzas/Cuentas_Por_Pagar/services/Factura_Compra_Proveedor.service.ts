@@ -115,7 +115,7 @@ export const Factura_Compra_ProveedorService = {
                         id_empre: factura.compra.compra_general.id_empresa_sucursal, // AJUSTA si aquí debe ser sucursal
                         numero_lote_sucursal: l.numerolote_lote ?? l.numero_lote,
                         fecha_venci_lote_sucursal: l.fechavencimiento_lote ?? l.fecha_caducidad ?? null,
-                        cantidad_lote_sucursal: cantidad,
+                        //cantidad_lote_sucursal: cantidad,
                         precio_costo_lote_sucursal: Number(d.precio_articulo_factura ?? 0),
                         estado_lote_sucursal: 'A',
                         id_loterecibido_lote_sucursal: l.id_loterecibido ?? l.id_lote ?? null,

@@ -17,7 +17,7 @@ import Cat_uso_CFDI from '../../Catalogos/model/Cat_Uso_CFDI';
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 
 import Detalle_Factura from './Detalle_Factura.model';
-import Pedido_Almacen from '../../Ventas/Pedido_Almacen/model/Pedido_Almacen';
+import Pedido_Almacen from '../../Comercial/Pedido/model/Pedido_Almacen';
 
 @Table({
     tableName: 'facturas'

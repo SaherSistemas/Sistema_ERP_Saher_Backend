@@ -3,7 +3,6 @@ import e from "cors";
 import { ICrearUbicacionDTO } from "../interface/Ubicacion_Sucursal.interface";
 import { ArticuloRepository } from "../../../Catalogos/Articulos/repositories/Articulo.repository";
 import { Ubicacion_SucursalRepository } from "../repositories/Ubicacion_Sucursal.repository";
-import { Articulo_Ubicacion_DefaultRepository } from "../../Articulo_Ubicacion_Default/repositories/Articulo_Ubicacion_Default.repository";
 import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
 
 const norm = (v?: string | null) => (v ?? "").trim();
@@ -86,9 +85,12 @@ export const Ubicacion_SucursalService = {
         return ubicacionCreada;
     },
 
-    getAll: async (id_empresa_sucursal: string) => {
-        return await Ubicacion_SucursalRepository.getAllBySucursal(id_empresa_sucursal);
+    getAllFiltered: async (id_empresa_sucursal: string, filters: any) => {
+        return await Ubicacion_SucursalRepository.getAllBySucursalFiltered(id_empresa_sucursal, filters);
     },
 
+    getMeta: async (id_empresa_sucursal: string) => {
+        return await Ubicacion_SucursalRepository.getMetaBySucursal(id_empresa_sucursal);
+    },
 
 };

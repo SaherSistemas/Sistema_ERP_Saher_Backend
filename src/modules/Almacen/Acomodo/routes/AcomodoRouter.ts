@@ -5,6 +5,6 @@ const router = Router();
 
 // Listar con filtro backend
 router.get("/pendientes", AcomodoController.getArticulosPendientes);
-
+router.patch("/acomodar", AcomodoController.acomodarArticulo)
 
 export default router;

@@ -4,7 +4,7 @@ import Articulo from "../model/Articulo";
 import { isUUID } from "../../../../utils/validaciones";
 import { v4 as uuidv4 } from 'uuid';
 
-import DetalleListaPrecio from '../../../Ventas/Precios/model/Detalle_Lista_Precio';
+import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
 import { LotesArticuloSucursalRepository } from '../../../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository';
 import { Tipo_IVARepository } from './Tipo_IVA.repository';

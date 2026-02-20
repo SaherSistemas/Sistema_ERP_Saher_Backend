@@ -19,8 +19,8 @@ import Categoria_Articulo from './Categoria_Articulo';
 import Presentacion_Articulo from './Presentacion_Articulo';
 import RecetaMedica from '../../../../models/RecetaMedica/RecetaMedica';
 import RecetaArticulo from '../../../../models/RecetaMedica/Receta_Articulo';
-import DetalleListaPrecio from '../../../Ventas/Precios/model/Detalle_Lista_Precio';
-import Detalle_Pedido_Almacen from '../../../Ventas/Pedido_Almacen/model/Detalle_Pedido_Almacen';
+import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
+import Detalle_Pedido_Almacen from '../../../Comercial/Pedido/model/Detalle_Pedido_Almacen';
 
 @Table({
   tableName: 'articulo'
