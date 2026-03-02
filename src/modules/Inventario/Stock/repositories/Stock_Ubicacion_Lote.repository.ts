@@ -5,7 +5,7 @@ import Stock_Ubicacion_Lote from '../model/Stock_Ubicacion_Lote';
 import { dbLocal } from '../../../../config/db';
 import { CrearStockUbicacionLoteDTO, StockUpsertRow } from '../interface/Stock_Ubicacion_Lote.interface';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
-import LoteArticuloSucursal from '../../../../models/LotesYCaducidad/Lote_ArticuloSucursal';
+import LoteArticuloSucursal from '../../Lotes/model/Lote_Articulo_Sucursal';
 
 export const Stock_Ubicacion_LoteRepository = {
     findOneByUbicacionYLote: async (id_ubicacion_sucursal: string, id_lote: string, tx?: Transaction) =>
@@ -80,7 +80,7 @@ export const Stock_Ubicacion_LoteRepository = {
                         "id_lote_sucursal",
                         "numero_lote_sucursal",
                         "fecha_venci_lote_sucursal",
-                        "cantidad_lote_sucursal",
+                        "cantidad_entrada_lote",
                     ],
                 },
             ],

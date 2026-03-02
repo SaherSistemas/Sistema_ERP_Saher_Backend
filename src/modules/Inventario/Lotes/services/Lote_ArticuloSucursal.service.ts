@@ -1,9 +1,9 @@
 import {
   ILotesArticuloSucursal,
   ICreaterOrUdateLotesArticuloSucursal
-} from '../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface';
-import { LotesArticuloSucursalRepository } from '../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository';
+} from '../../../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface';
 import { Op } from 'sequelize';
+import { LotesArticuloSucursalRepository } from '../repository/Lote_ArticuloSucursal.repository';
 
 export const LotesArticuloSucursalService = {
   getAll: async (): Promise<ILotesArticuloSucursal[]> => {
@@ -42,7 +42,7 @@ export const LotesArticuloSucursalService = {
       where.estado_lote_sucursal = opts.estado;
     }
     if (opts?.conStock) {
-      where.cantidad_lote_sucursal = { [Op.gt]: 0 };
+      where.cantidad_entrada_lote = { [Op.gt]: 0 };
     }
     if (opts?.noVencidos) {
       where.fecha_venci_lote_sucursal = { [Op.gte]: new Date() };
@@ -65,7 +65,7 @@ export const LotesArticuloSucursalService = {
     );
 
     const total = lotes.reduce(
-      (sum, lote) => sum + Number(lote.cantidad_lote_sucursal || 0),
+      (sum, lote) => sum + Number(lote.cantidad_entrada_lote || 0),
       0
     );
     return total;

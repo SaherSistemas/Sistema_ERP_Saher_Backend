@@ -7,17 +7,17 @@ import { DetalleVentaRepository } from "../../repository/Venta/Detalle_Venta.rep
 import { dbLocal } from "../../config/db";
 import { VentaPagoRepository } from "../../repository/Venta/Venta_Pago.repository";
 import { LoteUsadoVentaRepository } from "../../repository/LotesYCaducidad/Lote_Usado_Venta.repository";
-import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
 import { RecetaMedicaService } from "../RecetaMedica/RecetaMedica.service";
 import { MovimientoCajaRepository } from "../../repository/Caja/Movimiento_Caja.repository";
 import CorteCaja from "../../models/Caja/Corte_Caja";
-import LoteArticuloSucursal from "../../models/LotesYCaducidad/Lote_ArticuloSucursal";
+import LoteArticuloSucursal from "../../modules/Inventario/Lotes/model/Lote_Articulo_Sucursal";
 import { EmpleadoService } from "../../modules/RRHH/services/Empleados.service";
 import { Transaction } from "sequelize";
 import { MovimientoCajaService } from "../Caja/Movimiento_Caja.service";
 import { MonederoService } from "../Clientes/Monedero/Monedero.service";
 import { MetodoPagoService } from "../Caja/Metodo_de_Pago.service";
 import { IDetalleVentaInput } from "../../interface/Venta/Detalle_Venta.interface";
+import { LotesArticuloSucursalRepository } from "../../modules/Inventario/Lotes/repository/Lote_ArticuloSucursal.repository";
 
 export type DetalleLookupInfo = {
   id_detalle_venta: string;
@@ -221,8 +221,8 @@ export const VentaService = {
 
           await lote.update(
             {
-              cantidad_lote_sucursal:
-                Number(lote.cantidad_lote_sucursal) + Number(lu.cantidad_utilizada),
+              cantidad_entrada_lote:
+                Number(lote.cantidad_entrada_lote) + Number(lu.cantidad_utilizada),
             },
             { transaction: t }
           );
@@ -364,7 +364,7 @@ async function procesarInventarioVenta(
         throw new Error("El lote no existe o no pertenece a esa empresa/artículo.");
       }
 
-      const stock = Number(lote.cantidad_lote_sucursal);
+      const stock = Number(lote.cantidad_entrada_lote);
 
       if (stock < lu.cantidad_utilizada) {
         throw new Error(
@@ -373,7 +373,7 @@ async function procesarInventarioVenta(
       }
 
       await lote.update(
-        { cantidad_lote_sucursal: stock - lu.cantidad_utilizada },
+        { cantidad_entrada_lote: stock - lu.cantidad_utilizada },
         { transaction: t }
       );
 

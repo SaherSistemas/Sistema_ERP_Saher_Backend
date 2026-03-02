@@ -4,7 +4,7 @@ import { IStockSucursal, ICreateOrUpdateStockSucursal } from '../../interface/St
 import { v4 as uuidv4 } from 'uuid';
 import Empresa_Sucursal from '../../models/Empresa_Sucursal/Empresa_Sucursal';
 
-import LoteArticuloSucursal from '../../models/LotesYCaducidad/Lote_ArticuloSucursal';
+import LoteArticuloSucursal from '../../modules/Inventario/Lotes/model/Lote_Articulo_Sucursal';
 import { Transaction } from 'sequelize'; // Asegúrate de importar Transaction
 
 export const StockSucursalRepository = {
@@ -41,7 +41,7 @@ export const StockSucursalRepository = {
     });
 
     const total = lotes.reduce((sum, lote) => {
-      return sum + lote.cantidad_lote_sucursal;
+      return sum + lote.cantidad_entrada_lote;
     }, 0);
 
     // 2. Buscar si ya existe el registro en stock_sucursal

@@ -10,3 +10,12 @@ export interface GetResumenPromocionQueryDTO {
     page: number;
     limit: number;
 }
+
+
+export interface GetConsultaBusquedaQueryDTO {
+    nombre: string;
+    grupoPrecio: string;
+    id_sucursal: string;
+    page: number;
+    limit: number;
+}

@@ -5,7 +5,7 @@ import {
 } from "sequelize-typescript";
 
 
-import LoteArticuloSucursal from "../../../../models/LotesYCaducidad/Lote_ArticuloSucursal";
+import LoteArticuloSucursal from "../../Lotes/model/Lote_Articulo_Sucursal";
 import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 import Ubicacion_Sucursal from "../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal";
 import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
@@ -36,7 +36,7 @@ export default class Stock_Ubicacion_Lote extends Model {
     @ForeignKey(() => Empresa_Sucursal)
     @Column(DataType.UUID)
     declare id_empresa_sucursal: string;
-    
+
     @ForeignKey(() => LoteArticuloSucursal)
     @Index
     @Column(DataType.UUID)

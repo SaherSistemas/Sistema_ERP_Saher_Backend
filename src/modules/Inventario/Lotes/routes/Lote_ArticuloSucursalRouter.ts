@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { LotesArticuloSucursalController } from '../../controllers/LotesYCaducidades/Lote_ArticuloSucursalController';
+import { LotesArticuloSucursalController } from '../controllers/Lote_ArticuloSucursalController';
 
 const router = Router();
 
@@ -11,7 +11,6 @@ router.get('/existencia/:id_artic/:id_sucursal', LotesArticuloSucursalController
 router.get('/:id', LotesArticuloSucursalController.getByID);
 router.get('/empresa/:id_empre/articulo/:id_artic', LotesArticuloSucursalController.getAllByEmpresaArticulo);
 router.get('/:id_empre/:id_artic/validar', LotesArticuloSucursalController.validarExistencia);
-router.get('/:id', LotesArticuloSucursalController.getByID);
 router.get('/empresa/:id_empre/articulo/:id_artic', LotesArticuloSucursalController.getAllByEmpresaArticulo);
 
 router.get('/codigoBarra/:cod_barr_artic', LotesArticuloSucursalController.getLotesPorCodigoBarra);

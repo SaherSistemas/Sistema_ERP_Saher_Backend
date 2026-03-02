@@ -1,5 +1,5 @@
 import { Table, Column, Model, PrimaryKey, DataType, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
-import LoteArticuloSucursal from './Lote_ArticuloSucursal';
+import LoteArticuloSucursal from '../../modules/Inventario/Lotes/model/Lote_Articulo_Sucursal';
 import Detalle_Venta from '../Venta/Detalle_Venta';
 
 @Table({

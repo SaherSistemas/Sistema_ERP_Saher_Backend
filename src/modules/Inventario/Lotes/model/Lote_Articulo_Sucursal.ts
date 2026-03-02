@@ -9,14 +9,14 @@ import {
   BelongsTo,
   Default
 } from 'sequelize-typescript';
-import Empresa_Sucursal from '../Empresa_Sucursal/Empresa_Sucursal';
-import LotesRecibidosCompra from './LotesRecibidosCompra';
-import Articulo from '../../modules/Catalogos/Articulos/model/Articulo';
+import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
+import LotesRecibidosCompra from '../../../../models/LotesYCaducidad/LotesRecibidosCompra';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 
 @Table({
-  tableName: 'lote_sucursal_articulo'
+  tableName: 'lote_articulo_sucursal'
 })
-class LoteArticuloSucursal extends Model {
+class Lote_Articulo_Sucursal extends Model {
   @PrimaryKey
   @Column({
     type: DataType.UUID
@@ -52,7 +52,7 @@ class LoteArticuloSucursal extends Model {
   @Column({
     type: DataType.INTEGER
   })
-  declare cantidad_lote_sucursal: number;
+  declare cantidad_entrada_lote: number;
 
   @Default(0)
   @Column({
@@ -79,4 +79,4 @@ class LoteArticuloSucursal extends Model {
   declare estado_lote_sucursal: string;
 }
 
-export default LoteArticuloSucursal;
+export default Lote_Articulo_Sucursal;

@@ -39,7 +39,7 @@ export const Detalle_Compra_SolicitadoRepository = {
       where: { idarticulo_detcompsol: id_artic },
       raw: true
     });
-    console.log("ROWWSS", rows);
+    //  console.log("ROWWSS", rows);
     return Number((rows as any)?.total_transito ?? 0);
   },
   addDetallesCompraSolicitado: async (data: ICreateOAcumularDetallesSolicitados) => {

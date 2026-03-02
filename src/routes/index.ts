@@ -84,7 +84,7 @@ import Corte_CajaRouter from './Caja/Corte_CajaRouter';
 import Stock_SucursalRouter from './Stock/Stock_SucursalRouter';
 
 //Lotes Sucursal
-import Lote_ArticuloSucursalRouter from './LotesYCaducidades/Lote_ArticuloSucursalRouter';
+import Lote_ArticuloSucursalRouter from '../modules/Inventario/Lotes/routes/Lote_ArticuloSucursalRouter';
 import Lote_Usado_VentaRouter from './LotesYCaducidades/Lote_Usado_VentaRouter';
 
 //Venta
@@ -116,7 +116,7 @@ import Presupuesto_EmpleadoRouter from './Presupuestos/Presupuesto_EmpleadoRoute
 import Asignacion_Empleado_SucursalRouter from './Presupuestos/Asignacion_Empleado_SucursalRouter';
 
 import Cliente_AlmacenRouter from './Clientes/Cliente_Almacen/Cliente_AlmacenRouter';
-import Pedido_AlmacenRouter from '../modules/Comercial/Pedido/routes/Pedido_AlmecenRouter';
+import Pedido_AlmacenRouter from '../modules/Almacen/Pedido/routes/Pedido_AlmecenRouter';
 
 
 import cxcRoutes from '../modules/Finanzas/Cuentas_Por_Pagar/routes/index.route';

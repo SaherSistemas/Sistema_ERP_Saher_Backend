@@ -4,7 +4,7 @@ export interface ILotesArticuloSucursal {
   id_empre: string;
   numero_lote_sucursal: string;
   fecha_venci_lote_sucursal: Date;
-  cantidad_lote_sucursal: number;
+  cantidad_entrada_lote: number;
   precio_costo_lote_sucursal: number;
   estado_lote_sucursal: string;
 }
@@ -14,7 +14,7 @@ export interface ICreaterOrUdateLotesArticuloSucursal {
   id_empre: string;
   numero_lote_sucursal: string;
   fecha_venci_lote_sucursal: Date;
-  cantidad_lote_sucursal?: number;
+  cantidad_entrada_lote?: number;
   precio_costo_lote_sucursal: number;
   estado_lote_sucursal: string;
   id_loterecibido_lote_sucursal: string;

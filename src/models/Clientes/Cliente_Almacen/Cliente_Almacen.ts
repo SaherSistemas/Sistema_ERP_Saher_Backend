@@ -19,7 +19,7 @@ import Cat_uso_CFDI from '../../../modules/Catalogos/model/Cat_Uso_CFDI';
 import Agente_de_Venta from '../../../modules/Comercial/Agente_Venta/model/Agente_De_Venta';
 import Cat_Metodo_Pago from '../../../modules/Catalogos/model/Cat_Metodo_Pago';
 import ListaPrecio from '../../../modules/Comercial/Precios/model/Lista_Precio';
-import Pedido_Almacen from '../../../modules/Comercial/Pedido/model/Pedido_Almacen';
+import Pedido_Almacen from '../../../modules/Almacen/Pedido/model/Pedido_Almacen';
 
 @Table({
   tableName: 'cliente_almacen'

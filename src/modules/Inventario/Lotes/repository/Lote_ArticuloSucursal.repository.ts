@@ -1,22 +1,14 @@
-import Lote_sucursal_articulo from '../../models/LotesYCaducidad/Lote_ArticuloSucursal';
-import {
-  ILotesArticuloSucursal,
-  ICreaterOrUdateLotesArticuloSucursal,
-  IResumenArticulo,
-  ICompraAgrupada,
-} from '../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface';
-
-import { isUUID } from '../../utils/validaciones';
 import { v4 as uuidv4 } from 'uuid';
-import { ArticuloRepository } from '../../modules/Catalogos/Articulos/repositories/Articulo.repository';
 import { Op, Sequelize, Transaction, FindOptions, fn, col, literal } from 'sequelize';
-import Articulo from '../../modules/Catalogos/Articulos/model/Articulo';
-import { Detalle_Compra_RecibidosRepository } from '../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Recibido.repository';
-import { Detalle_Compra_SolicitadoRepository } from '../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Solicitado.repository';
-import DetalleListaPrecio from '../../modules/Comercial/Precios/model/Detalle_Lista_Precio';
-import { DetalleListaPreciosRepository } from '../../modules/Comercial/Precios/repositories/Detalle_Lista_Precio.repository';
-import { Pedido_AlmacenRepository } from '../../modules/Comercial/Pedido/repositories/Pedido_Almacen.repository';
-import { Detalle_Pedido_AlmacenRepository } from '../../modules/Comercial/Pedido/repositories/Detalle_Pedido_Almacen.repository';
+import Lote_Articulo_Sucursal from '../model/Lote_Articulo_Sucursal';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import { DetalleListaPreciosRepository } from '../../../Comercial/Precios/repositories/Detalle_Lista_Precio.repository';
+import { ICreaterOrUdateLotesArticuloSucursal, IResumenArticulo } from '../../../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface';
+import { isUUID } from '../../../../utils/validaciones';
+import { ArticuloRepository } from '../../../Catalogos/Articulos/repositories/Articulo.repository';
+
+
+
 type RepoOpts = FindOptions;
 
 export const LotesArticuloSucursalRepository = {
@@ -31,7 +23,7 @@ export const LotesArticuloSucursalRepository = {
       where.id_artic = id_artic;
     }
 
-    return await Lote_sucursal_articulo.findAll({
+    return await Lote_Articulo_Sucursal.findAll({
       where,
       attributes: ['id_lote_sucursal'],
       raw: true
@@ -39,7 +31,7 @@ export const LotesArticuloSucursalRepository = {
   },
   apartarCantidad: async (id_lote_sucursal: string, cantidad_apartar: number, transaction?: Transaction) => {
     // Actualiza el lote sumando a cantidad_apartada_lote
-    return await Lote_sucursal_articulo.update(
+    return await Lote_Articulo_Sucursal.update(
       {
         cantidad_apartada_lote:
           // Sequelize permite hacer operaciones incrementales
@@ -53,10 +45,10 @@ export const LotesArticuloSucursalRepository = {
   },
   getExistencia: async (id_artic: string, id_sucursal: string) => {
     // 1. Consulta principal: totales
-    const result: any = await Lote_sucursal_articulo.findOne({
+    const result: any = await Lote_Articulo_Sucursal.findOne({
       attributes: [
-        [fn('SUM', col('cantidad_lote_sucursal')), 'existencia_total'],
-        [fn('SUM', literal(`cantidad_lote_sucursal - COALESCE(cantidad_apartada_lote, 0)`)), 'existencia_disponible'],
+        [fn('SUM', col('cantidad_entrada_lote')), 'existencia_total'],
+        [fn('SUM', literal(`cantidad_entrada_lote - COALESCE(cantidad_apartada_lote, 0)`)), 'existencia_disponible'],
         [fn('MIN', col('fecha_venci_lote_sucursal')), 'fecha_caduca_mas_corta']
       ],
       where: {
@@ -81,7 +73,7 @@ export const LotesArticuloSucursalRepository = {
     // 2. Lote más corto (solo si hay fecha mínima)
     let lote = null;
     if (fechaMin) {
-      lote = await Lote_sucursal_articulo.findOne({
+      lote = await Lote_Articulo_Sucursal.findOne({
         where: {
           id_artic,
           id_empre: id_sucursal,
@@ -103,7 +95,7 @@ export const LotesArticuloSucursalRepository = {
     const offset = (page - 1) * limit;
 
     // 1. Total de artículos (DISTINCT)
-    const total = await Lote_sucursal_articulo.count({
+    const total = await Lote_Articulo_Sucursal.count({
       distinct: true,
       col: 'id_artic',
       include: [
@@ -124,11 +116,11 @@ export const LotesArticuloSucursalRepository = {
     const totalPages = Math.ceil(total / limit);
 
 
-    const items: any[] = await Lote_sucursal_articulo.findAll({
+    const items: any[] = await Lote_Articulo_Sucursal.findAll({
       attributes: [
         'id_artic',
-        [fn('SUM', col('cantidad_lote_sucursal')), 'existencia_total'],
-        [fn('SUM', literal(`cantidad_lote_sucursal - COALESCE(cantidad_apartada_lote, 0)`)), 'existencia_disponible'],
+        [fn('SUM', col('cantidad_entrada_lote')), 'existencia_total'],
+        [fn('SUM', literal(`cantidad_entrada_lote - COALESCE(cantidad_apartada_lote, 0)`)), 'existencia_disponible'],
         [fn('MIN', col('fecha_venci_lote_sucursal')), 'fecha_caduca_mas_corta']
       ],
       where: {
@@ -164,7 +156,7 @@ export const LotesArticuloSucursalRepository = {
         continue;
       }
 
-      const lote = await Lote_sucursal_articulo.findOne({
+      const lote = await Lote_Articulo_Sucursal.findOne({
         where: {
           id_artic: item.id_artic,
           id_empre: id_sucursal,
@@ -271,11 +263,11 @@ export const LotesArticuloSucursalRepository = {
       const id_artic = art.id_artic;
 
       // EXISTENCIAS
-      const exist = await Lote_sucursal_articulo.findOne({
+      const exist = await Lote_Articulo_Sucursal.findOne({
         where: { id_artic, id_empre: id_sucursal },
         attributes: [
-          [fn('SUM', col('cantidad_lote_sucursal')), 'existencia_total'],
-          [fn('SUM', literal(`cantidad_lote_sucursal - COALESCE(cantidad_apartada_lote, 0)`)), 'existencia_disponible'],
+          [fn('SUM', col('cantidad_entrada_lote')), 'existencia_total'],
+          [fn('SUM', literal(`cantidad_entrada_lote - COALESCE(cantidad_apartada_lote, 0)`)), 'existencia_disponible'],
           [fn('MIN', col('fecha_venci_lote_sucursal')), 'fecha_caduca_mas_corta']
         ],
         raw: true
@@ -287,7 +279,7 @@ export const LotesArticuloSucursalRepository = {
 
       let lote_mas_corto = null;
       if (fechaMin) {
-        const lote = await Lote_sucursal_articulo.findOne({
+        const lote = await Lote_Articulo_Sucursal.findOne({
           where: { id_artic, id_empre: id_sucursal, fecha_venci_lote_sucursal: fechaMin },
           attributes: ['numero_lote_sucursal'],
           raw: true
@@ -334,12 +326,12 @@ export const LotesArticuloSucursalRepository = {
 */
   getById: async (id: string) => {
     if (isUUID(id)) {
-      return await Lote_sucursal_articulo.findByPk(id);
+      return await Lote_Articulo_Sucursal.findByPk(id);
     }
   },
 
   listByEmpresaArticulo: async (id_empre: string, id_artic: string, options: RepoOpts = {}) => {
-    return await Lote_sucursal_articulo.findAll({
+    return await Lote_Articulo_Sucursal.findAll({
       where: { id_empre, id_artic },
       ...options
     });
@@ -351,13 +343,13 @@ export const LotesArticuloSucursalRepository = {
 
     const id_artic = articulo.id_artic;
 
-    return Lote_sucursal_articulo.findAll({
+    return Lote_Articulo_Sucursal.findAll({
       where: {
         id_empre,
         id_artic,
-        cantidad_lote_sucursal: { [Op.gt]: 0 }
+        cantidad_entrada_lote: { [Op.gt]: 0 }
       },
-      attributes: ['id_lote_sucursal', 'fecha_venci_lote_sucursal', 'numero_lote_sucursal', 'cantidad_lote_sucursal'],
+      attributes: ['id_lote_sucursal', 'fecha_venci_lote_sucursal', 'numero_lote_sucursal', 'cantidad_entrada_lote'],
       order: [['fecha_venci_lote_sucursal', 'ASC']],
       limit: 1
     });
@@ -369,7 +361,7 @@ export const LotesArticuloSucursalRepository = {
     id_artic: string,
     options: FindOptions = {}
   ) => {
-    return await Lote_sucursal_articulo.findOne({
+    return await Lote_Articulo_Sucursal.findOne({
       where: {
         id_lote_sucursal,
         id_empre,
@@ -382,18 +374,18 @@ export const LotesArticuloSucursalRepository = {
   descontarStockLotes: async (
     lotesVendidos: {
       numero_lote_sucursal: string;
-      cantidad_lote_sucursal: number;
+      cantidad_entrada_lote: number;
     }[]
   ) => {
     for (const lote of lotesVendidos) {
-      await Lote_sucursal_articulo.update(
+      await Lote_Articulo_Sucursal.update(
         {
-          cantidad_lote_sucursal: Sequelize.literal(`cantidad_lote_sucursal - ${lote.cantidad_lote_sucursal}`)
+          cantidad_entrada_lote: Sequelize.literal(`cantidad_entrada_lote - ${lote.cantidad_entrada_lote}`)
         },
         {
           where: {
             numero_lote_sucursal: lote.numero_lote_sucursal,
-            cantidad_lote_sucursal: { [Op.gte]: lote.cantidad_lote_sucursal }
+            cantidad_entrada_lote: { [Op.gte]: lote.cantidad_entrada_lote }
           }
         }
       );
@@ -405,12 +397,12 @@ export const LotesArticuloSucursalRepository = {
     ids_Empresas: string[],
     options?: { transaction?: Transaction }
   ) => {
-    const lotesExistencia = await Lote_sucursal_articulo.findAll({
-      attributes: ['cantidad_lote_sucursal', 'precio_costo_lote_sucursal'],
+    const lotesExistencia = await Lote_Articulo_Sucursal.findAll({
+      attributes: ['cantidad_entrada_lote', 'precio_costo_lote_sucursal'],
       where: {
         id_artic,
         id_empre: ids_Empresas,
-        cantidad_lote_sucursal: { [Op.gt]: 0 }
+        cantidad_entrada_lote: { [Op.gt]: 0 }
       },
       raw: true,
       transaction: options?.transaction
@@ -421,7 +413,7 @@ export const LotesArticuloSucursalRepository = {
 
     for (const lote of lotesExistencia) {
       const costo = lote.precio_costo_lote_sucursal;
-      const cantidad = lote.cantidad_lote_sucursal;
+      const cantidad = lote.cantidad_entrada_lote;
 
       totalCosto += costo * cantidad;
       totalCantidad += cantidad;
@@ -438,7 +430,7 @@ export const LotesArticuloSucursalRepository = {
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     const nuevoUUID = uuidv4();
 
-    return await Lote_sucursal_articulo.create({
+    return await Lote_Articulo_Sucursal.create({
       id_lote_sucursal: nuevoUUID,
       ...data
     });
@@ -451,12 +443,12 @@ export const LotesArticuloSucursalRepository = {
       ...d,
     }));
 
-    return Lote_sucursal_articulo.bulkCreate(rows, {
+    return Lote_Articulo_Sucursal.bulkCreate(rows, {
       transaction: t,
       validate: false,
       hooks: false,
       updateOnDuplicate: [
-        'cantidad_lote_sucursal',
+        'cantidad_entrada_lote',
         'precio_costo_lote_sucursal',
         'estado_lote_sucursal',
         'updatedAt',
@@ -470,7 +462,7 @@ export const LotesArticuloSucursalRepository = {
   ) => {
     const { id_artic, id_empre, numero_lote_sucursal } = data;
 
-    const loteExistente = await Lote_sucursal_articulo.findOne({
+    const loteExistente = await Lote_Articulo_Sucursal.findOne({
       where: {
         id_artic,
         id_empre,
@@ -480,10 +472,10 @@ export const LotesArticuloSucursalRepository = {
     });
 
     if (loteExistente) {
-      const nuevaCantidad = loteExistente.cantidad_lote_sucursal + data.cantidad_lote_sucursal;
+      const nuevaCantidad = loteExistente.cantidad_entrada_lote + data.cantidad_entrada_lote;
 
       await loteExistente.update({
-        cantidad_lote_sucursal: nuevaCantidad,
+        cantidad_entrada_lote: nuevaCantidad,
         precio_costo_lote_sucursal: data.precio_costo_lote_sucursal,
         fecha_venci_lote_sucursal: data.fecha_venci_lote_sucursal,
         estado_lote_sucursal: data.estado_lote_sucursal
@@ -492,7 +484,7 @@ export const LotesArticuloSucursalRepository = {
       return loteExistente;
     }
 
-    const nuevoLote = await Lote_sucursal_articulo.create({
+    const nuevoLote = await Lote_Articulo_Sucursal.create({
       ...data,
       id_lote_sucursal: uuidv4()
     });

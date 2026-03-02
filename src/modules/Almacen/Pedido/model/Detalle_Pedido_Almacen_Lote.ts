@@ -2,7 +2,7 @@ import { Table, Column, Model, PrimaryKey, ForeignKey, DataType, BelongsTo, Defa
 
 import Pedido_Almacen from './Pedido_Almacen';
 import Detalle_Pedido_Almacen from './Detalle_Pedido_Almacen';
-import LoteArticuloSucursal from '../../../../models/LotesYCaducidad/Lote_ArticuloSucursal';
+import LoteArticuloSucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 
 
 @Table({

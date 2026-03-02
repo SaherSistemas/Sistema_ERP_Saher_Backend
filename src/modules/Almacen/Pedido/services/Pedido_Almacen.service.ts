@@ -1,11 +1,10 @@
 import { Transaction } from 'sequelize';
 
-import { AgenteRepository } from '../../Agente_Venta/repositories/Agente.repository';
+import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
 import { dbLocal } from '../../../../config/db';
 import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacenCompleto } from '../interface/Pedido_Almacen';
 import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.repository';
 import { Detalle_Pedido_AlmacenRepository } from '../repositories/Detalle_Pedido_Almacen.repository';
-import { Pedido_Almacen_Flujo_LogRepository } from '../repositories/Pedido_Almacen_Flujo_Log.repository';
 import { Detalle_Pedido_Almacen_LoteRepository } from '../repositories/Detalle_Pedido_Almacen_Lote.repository';
 
 export const Pedido_AlmacenService = {
@@ -65,16 +64,7 @@ export const Pedido_AlmacenService = {
         { transaction: t }
       );
 
-      //INICIAR LOG
-      const id_pedido = nuevoPedido.id_pedido_alm;
-      const captura_agente = nuevoPedido.id_agente_pedido_alm;
-      await Pedido_Almacen_Flujo_LogRepository.iniciarLogPedido(
-        {
-          id_pedido,
-          captura_agente
-        },
-        { transaction: t }
-      );
+
 
       // 5. Crear / acumular detalles
       for (const item of data.detalle) {
@@ -112,19 +102,20 @@ export const Pedido_AlmacenService = {
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
     console.log("ENTRO A SERVICIO FINALIZAR CAPTURA");
-    //REGISTRAR LOG
-    const log = await Pedido_Almacen_Flujo_LogRepository.finalizarLogCapturado(id_pedido, t)
-    if (!log) throw new Error('No existe log activo del pedido');
 
     //CAMBIAR A CA= CAPTURADO 
 
     const capturado = await Pedido_AlmacenRepository.actualizarFinCapturado(id_pedido, t)
     if (!capturado) throw new Error('No se pudo actualizar el pedido');
 
-    const repartirLotes = await Detalle_Pedido_Almacen_LoteRepository.create(id_pedido, t)
+    //const repartirLotes = await Detalle_Pedido_Almacen_LoteRepository.create(id_pedido, t)
+
+    const pedidoFull = await Pedido_AlmacenRepository.getByID(id_pedido);
+    if (!pedidoFull) throw new Error("No se pudo recargar el pedido")
     await t.commit();
 
-    return capturado
+    // console.log("PEDIDO FINALIZADO Y CAPTURADO:", capturado)
+    return pedidoFull
   }
 
 

@@ -3,9 +3,9 @@ import { Transaction } from 'sequelize';
 import { IDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Almacen_Lote.interface';
 import Detalle_Pedido_Almacen_Lote from '../model/Detalle_Pedido_Almacen_Lote';
 import { Detalle_Pedido_AlmacenRepository } from './Detalle_Pedido_Almacen.repository';
-import { LotesArticuloSucursalRepository } from '../../../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository';
 import { Pedido_AlmacenRepository } from './Pedido_Almacen.repository';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
+import { LotesArticuloSucursalRepository } from '../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository';
 
 
 export const Detalle_Pedido_Almacen_LoteRepository = {
@@ -36,7 +36,7 @@ export const Detalle_Pedido_Almacen_LoteRepository = {
             for (const lote of lotesDisponibles) {
                 if (cantidadPendiente <= 0) break; // ya asignamos todo
 
-                const cantidadAsignar = Math.min(cantidadPendiente, lote.dataValues.cantidad_lote_sucursal);
+                const cantidadAsignar = Math.min(cantidadPendiente, lote.dataValues.cantidad_entrada_lote);
 
                 // Crear registro de detalle por lote
                 const detalleLoteCreado = await Detalle_Pedido_Almacen_Lote.create({
@@ -55,9 +55,7 @@ export const Detalle_Pedido_Almacen_LoteRepository = {
                 cantidadPendiente -= cantidadAsignar;
             }
 
-            if (cantidadPendiente > 0) {
-                throw new Error(`No hay suficiente stock para el artículo ${det.id_articulo}`);
-            }
+
         }
 
         return detallesConLote;

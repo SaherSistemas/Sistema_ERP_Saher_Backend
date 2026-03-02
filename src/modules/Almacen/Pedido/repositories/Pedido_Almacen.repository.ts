@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Op, Transaction } from 'sequelize';
+import { literal, Op, Transaction } from 'sequelize';
 import Pedido_Almacen from '../model/Pedido_Almacen';
-import Prioridad_Agente_Reglas from '../../Agente_Venta/model/Prioridad_Agente_Regla';
+import Prioridad_Agente_Reglas from '../../../Comercial/Agente_Venta/model/Prioridad_Agente_Regla';
 import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacen } from '../interface/Pedido_Almacen';
 
 import Cliente_Almacen from '../../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Empleado from '../../../RRHH/model/Empleado';
-import Agente_de_Venta from '../../Agente_Venta/model/Agente_De_Venta';
+import Agente_de_Venta from '../../../Comercial/Agente_Venta/model/Agente_De_Venta';
 
 
 export const Pedido_AlmacenRepository = {
@@ -33,24 +33,34 @@ export const Pedido_AlmacenRepository = {
   },
   porSurtir: async () => {
     return await Pedido_Almacen.findAll({
-      attributes: ['id_pedido_alm', 'status_pedido_alm', 'fecha_max_entrega_alm', 'id_agente_pedido_alm'],
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_max_entrega_alm', 'id_agente_pedido_alm'],
       where: { status_pedido_alm: 'CA' },
       include: [
         {
-          model: Agente_de_Venta,                   // Relación desde Pedido -> Agente
-          attributes: ['id_agente', 'id_empleado'], // Campos que quieres del agente
+          model: Cliente_Almacen,
+          attributes: ['id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+        },
+        {
+          model: Agente_de_Venta,
+          attributes: ['id_agente', 'id_empleado'],
           include: [
             {
               model: Empleado,        // Relación Agente -> Empleado
-              attributes: ['id_empleado', 'ap_pat_empleado', 'nombre_empleado'] // Campos del empleado
+              attributes: ['id_empleado', 'ap_pat_empleado', 'nombre_empleado']
             }
           ]
         }
       ],
       order: [
+        // 1) Prioridad: AGE primero
+        [literal(`CASE WHEN "Pedido_Almacen"."tipo_pedido_alm" = 'AGE' THEN 0 ELSE 1 END`), 'ASC'],
+
+        // 2) Dentro de cada grupo, por fecha máxima
         ['fecha_max_entrega_alm', 'ASC'],
-        ['id_cliente_pedido_alm', 'ASC']
-      ]
+
+        // 3) Desempate opcional (por si hay mismas fechas)
+        ['cod_int_pedido_alm', 'ASC'],
+      ],
     });
   },
   getPedidosByClienteFacturados: async (id_cliente: string) => {
@@ -75,27 +85,32 @@ export const Pedido_AlmacenRepository = {
   },
   getFechaMaxEntrega: async (id_agente: string): Promise<Date> => {
     const fechaPedido = new Date();
-    const diaSemana = fechaPedido.getDay(); // 0=domingo
+    //console.log("FECHA PEDIDO:", fechaPedido)
+    const diaSemana = fechaPedido.getDay(); // 0=domingo.
+    //console.log("DIA SEMANA:", diaSemana)
     const horaActual = fechaPedido.toTimeString().substring(0, 8); // HH:MM:SS
-
+    //console.log("HORA ACTUAL:", horaActual)
     // 1. Buscar regla para HOY
     const reglaHoy = await Prioridad_Agente_Reglas.findOne({
       where: { id_agente, dia_semana: diaSemana, activa: true }
     });
-
+    //console.log("REGLA HOY:", reglaHoy)
     if (!reglaHoy) throw new Error('No existe regla de horario para este agente en el día actual');
 
     const horaReciboMax = reglaHoy.hora_recibo_max; // <-- ESTA ES LA IMPORTANTE PARA COMPARAR
+    //console.log("HORA RECIBO MAX:", horaReciboMax)
     const horaEntregaMax = reglaHoy.hora_entrega_max; // <-- ESTA ES LA HORA DE ENTREGA DEL DÍA
+    //console.log("HORA ENTREGA MAX:", horaEntregaMax)
 
     // 2. Comparar hora actual con hora_recibo_max
     const pedidoEsAntesDeLimite = horaActual <= horaReciboMax;
-
+    //console.log("PEDIDO ES ANTES DE LIMITE:", pedidoEsAntesDeLimite)
     if (pedidoEsAntesDeLimite) {
       // ENTREGA HOY A hora_entrega_max
       const fecha = new Date(fechaPedido);
       const [hh, mm, ss] = horaEntregaMax.split(':').map(Number);
       fecha.setHours(hh, mm, ss, 0);
+      //console.log("FECHA ENTREGA HOY:", fecha)
       return fecha;
     }
 
@@ -105,6 +120,7 @@ export const Pedido_AlmacenRepository = {
     let reglaSiguiente = await Prioridad_Agente_Reglas.findOne({
       where: { id_agente, dia_semana: diaSiguiente, activa: true }
     });
+
 
     // Si no hay regla para mañana, buscar la siguiente regla disponible
     if (!reglaSiguiente) {
@@ -158,7 +174,24 @@ export const Pedido_AlmacenRepository = {
     });
   },
   getByID: async (id_pedido_alm: string) => {
-    return await Pedido_Almacen.findOne({ where: { id_pedido_alm } });
+    return await Pedido_Almacen.findOne({
+      where: { id_pedido_alm }, include: [
+        {
+          model: Cliente_Almacen,
+          attributes: ['id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+        },
+        {
+          model: Agente_de_Venta,
+          attributes: ['id_agente', 'id_empleado'],
+          include: [
+            {
+              model: Empleado,        // Relación Agente -> Empleado
+              attributes: ['id_empleado', 'ap_pat_empleado', 'nombre_empleado']
+            }
+          ]
+        }
+      ],
+    });
   },
 
   getByCodInterno: async (cod_int_pedido_alm: number) => {

@@ -3,7 +3,7 @@ import { Transaction } from "sequelize";
 import { dbLocal } from "../../../../config/db";
 import { Stock_Ubicacion_LoteRepository } from "../repositories/Stock_Ubicacion_Lote.repository";
 import { IAddStockDTO } from "../interface/Stock_Ubicacion_Lote.interface";
-import LoteArticuloSucursal from "../../../../models/LotesYCaducidad/Lote_ArticuloSucursal";
+import LoteArticuloSucursal from "../../Lotes/model/Lote_Articulo_Sucursal";
 import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 import { Ubicacion_SucursalRepository } from "../../../Almacen/Ubicaciones/repositories/Ubicacion_Sucursal.repository";
 

@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
-import { LotesArticuloSucursalService } from '../../services/LoteYCaducidades/Lote_ArticuloSucursal.service';
+import { LotesArticuloSucursalService } from '../services/Lote_ArticuloSucursal.service';
+import { Console } from 'console';
 
 export class LotesArticuloSucursalController {
   static getAll = async (req: Request, res: Response) => {
@@ -83,6 +84,7 @@ export class LotesArticuloSucursalController {
 
   static getByID = async (req: Request, res: Response) => {
     try {
+      console.log("SI ENTRA AL GET BY ID");
       const { id } = req.params;
       const caja = await LotesArticuloSucursalService.getById(id);
       res.status(200).json(caja);

@@ -1,4 +1,4 @@
-import { Op, Sequelize, Transaction } from 'sequelize';
+import { literal, Op, Sequelize, Transaction } from 'sequelize';
 import { ICreateOrUpdateArticulo } from "../interface/Articulo.interface";
 import Articulo from "../model/Articulo";
 import { isUUID } from "../../../../utils/validaciones";
@@ -6,7 +6,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
-import { LotesArticuloSucursalRepository } from '../../../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository';
 import { Tipo_IVARepository } from './Tipo_IVA.repository';
 import Parametros_Compra from '../../../Compras/Ordenes-Compra/model/Parametros_Compra';
 import ArticuloExcluidoCompra from '../../../Compras/Ordenes-Compra/model/ArticuloExcluidoCompra';
@@ -15,6 +14,8 @@ import Compra_General from '../../../Compras/Ordenes-Compra/model/Compra_General
 import Compra_Proveedor from '../../../Compras/Ordenes-Compra/model/Compra_Proveedor';
 import Detalle_Compra_Solicitado from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado';
 import Detalle_Compra_Negados from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Negados';
+import { LotesArticuloSucursalRepository } from '../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository';
+import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
 
 
 export const ArticuloRepository = {
@@ -280,5 +281,69 @@ export const ArticuloRepository = {
         const existe = await ArticuloRepository.getByIDFlexible(id);
         if (!existe) return null;
         return await existe.update(data)
+    },
+    countBusqueda: async (nombre: string) => {
+        const whereArticulo = {
+            [Op.or]: [
+                { des_artic: { [Op.iLike]: `%${nombre}%` } },
+                { cod_barr_artic: { [Op.iLike]: `%${nombre}%` } },
+                { des_gener_artic: { [Op.iLike]: `%${nombre}%` } },
+            ],
+        };
+
+        // 1) Total de artículos que matchean (SIN depender de stock)
+        return await Articulo.count({
+            where: whereArticulo,
+        });
+    },
+    getBusquedaPaginadaVenta: async (nombre: string, id_empresa: string, page: number, limit: number) => {
+        const whereArticulo = {
+            [Op.or]: [
+                { des_artic: { [Op.iLike]: `%${nombre}%` } },
+                { cod_barr_artic: { [Op.iLike]: `%${nombre}%` } },
+                { des_gener_artic: { [Op.iLike]: `%${nombre}%` } },
+            ],
+        };
+        const offset = (page - 1) * limit;
+        return await Articulo.findAll({
+            where: whereArticulo,
+            attributes: [
+                "id_artic",
+                "cod_int_artic",
+                "cod_barr_artic",
+                "des_artic",
+                "des_gener_artic",
+                "tipo_de_iva",
+                [literal(`COALESCE(SUM("stocks"."cantidad"), 0)`), "existencia_total"],
+                [
+                    literal(
+                        `COALESCE(SUM("stocks"."cantidad" - COALESCE("stocks"."cantidad_apartada", 0)), 0)`
+                    ),
+                    "existencia_disponible",
+                ],
+            ],
+            include: [
+                {
+                    model: Stock_Ubicacion_Lote,
+                    as: "stocks", // ⚠️ ESTE ALIAS debe existir en tu asociación Articulo.hasMany(Stock_Ubicacion_Lote, { as:'stocks', foreignKey:'id_articulo' })
+                    required: false, // ✅ LEFT JOIN
+                    attributes: [],
+                    where: { id_empresa_sucursal: id_empresa },
+                },
+            ],
+            group: [
+                "Articulo.id_artic",
+                "Articulo.cod_int_artic",
+                "Articulo.cod_barr_artic",
+                "Articulo.des_artic",
+                "Articulo.des_gener_artic",
+                "Articulo.tipo_de_iva",
+            ],
+            order: [[literal(`"existencia_total"`), "DESC"]],
+            limit,
+            offset,
+            subQuery: false,
+            raw: true,
+        });
     }
 }

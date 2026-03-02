@@ -6,7 +6,6 @@ import { Grupo_Empresa_Lista_PrecioRepository } from "../../modules/Comercial/Pr
 import { DetalleListaPreciosRepository } from "../../modules/Comercial/Precios/repositories/Detalle_Lista_Precio.repository";
 import { Margen_Ganancia_ListaRepository } from "../../modules/Comercial/Precios/repositories/Margen_Ganancia_Lista.repository";
 import { Empresa_SucursalRepository } from "../../repository/Empresa_Sucursal/Empresa_Sucursal.repository";
-import { LotesArticuloSucursalRepository } from "../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
 import { StockSucursalRepository } from "../../repository/Stock/Stock_Sucursal.repository";
 import { ICreaterOrUdateLotesArticuloSucursal } from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
 import { ICreateOrUpdateIDetalleListaPrecio } from "../../modules/Comercial/Precios/interface/Detalle_Lista_Pecios.interface";
@@ -21,6 +20,7 @@ import { Compra_ProveedorRepository } from "../../modules/Compras/Ordenes-Compra
 import { LoteRecibidoCompraRepository } from "../../repository/LotesYCaducidad/LoteRecibidoCompra.repository";
 import { ILoteRecibidoChecado } from "../../interface/LotesYCaducidad/LotesRecibidosCompra.interface";
 import { ArticuloRepository } from "../../modules/Catalogos/Articulos/repositories/Articulo.repository";
+import { LotesArticuloSucursalRepository } from "../../modules/Inventario/Lotes/repository/Lote_ArticuloSucursal.repository";
 
 export const StockSucursalService = {
 
@@ -113,7 +113,7 @@ export const StockSucursalService = {
                         id_empre: id_empresa,
                         numero_lote_sucursal: lote.numerolote_lote,
                         fecha_venci_lote_sucursal: new Date(lote.fechavencimiento_lote),
-                        cantidad_lote_sucursal: lote.cantidad_lote,
+                        cantidad_entrada_lote: lote.cantidad_lote,
                         precio_costo_lote_sucursal: costoNuevo,
                         estado_lote_sucursal: 'A',
                         id_loterecibido_lote_sucursal: lote.id_loterecibido

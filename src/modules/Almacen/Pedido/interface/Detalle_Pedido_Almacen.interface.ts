@@ -8,11 +8,6 @@ export interface ICreateDetallePedidoAlmacen {
   es_oferta: boolean;
 }
 
-export interface IDetallePedidoAlmacen extends ICreateDetallePedidoAlmacen {
-  id_detalle_pedido_almacen: string;
-  cantidad_surtida: number;
-  cantidad_checada: number;
-}
 
 
 //ACTUALIZAR DETALLE 

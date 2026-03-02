@@ -18,7 +18,7 @@ import { DetalleLookupMap } from "../../services/Venta/Venta.service";
 import Empleado from "../../modules/RRHH/model/Empleado";
 import Lote_Usado_Venta from "../../models/LotesYCaducidad/Lote_Usado_Venta";
 import Detalle_Venta from "../../models/Venta/Detalle_Venta";
-import LoteArticuloSucursal from "../../models/LotesYCaducidad/Lote_ArticuloSucursal";
+import LoteArticuloSucursal from "../../modules/Inventario/Lotes/model/Lote_Articulo_Sucursal";
 import Articulo from "../../modules/Catalogos/Articulos/model/Articulo";
 
 const ventaIncludes = [
@@ -70,7 +70,7 @@ const ListaVentas = [
               "id_lote_sucursal",
               "numero_lote_sucursal",
               "fecha_venci_lote_sucursal",
-              "cantidad_lote_sucursal"
+              "cantidad_entrada_lote"
             ],
           },
         ],

@@ -20,7 +20,8 @@ import Presentacion_Articulo from './Presentacion_Articulo';
 import RecetaMedica from '../../../../models/RecetaMedica/RecetaMedica';
 import RecetaArticulo from '../../../../models/RecetaMedica/Receta_Articulo';
 import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
-import Detalle_Pedido_Almacen from '../../../Comercial/Pedido/model/Detalle_Pedido_Almacen';
+import Detalle_Pedido_Almacen from '../../../Almacen/Pedido/model/Detalle_Pedido_Almacen';
+import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
 
 @Table({
   tableName: 'articulo'
@@ -160,6 +161,9 @@ class Articulo extends Model {
 
   @BelongsToMany(() => RecetaMedica, () => RecetaArticulo)
   recetas!: Array<RecetaMedica & { RecetaArticulo: RecetaArticulo }>;
+
+  @HasMany(() => Stock_Ubicacion_Lote, { foreignKey: "id_articulo", as: "stocks" })
+  declare stocks?: Stock_Ubicacion_Lote[];
 }
 
 export default Articulo;

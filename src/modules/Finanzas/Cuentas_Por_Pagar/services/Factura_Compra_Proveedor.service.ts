@@ -18,8 +18,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { Detalle_Compra_NegadosRepository } from "../../../Compras/Ordenes-Compra/repositories/Detalle_Compra_Negado.repository";
 import { calcularTotalesFactura } from "../helpers/facturaTotale";
 import { ICreaterOrUdateLotesArticuloSucursal } from "../../../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
-import { LotesArticuloSucursalRepository } from "../../../../repository/LotesYCaducidad/Lote_ArticuloSucursal.repository";
 import { Stock_Ubicacion_LoteRepository } from "../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository";
+import { LotesArticuloSucursalRepository } from "../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository";
 export const Factura_Compra_ProveedorService = {
     getAllConFiltroDeEstado: async () => {
         return await Factura_Compra_ProveedorRepository.getAllConFiltroDeEstado();
@@ -115,7 +115,7 @@ export const Factura_Compra_ProveedorService = {
                         id_empre: factura.compra.compra_general.id_empresa_sucursal, // AJUSTA si aquí debe ser sucursal
                         numero_lote_sucursal: l.numerolote_lote ?? l.numero_lote,
                         fecha_venci_lote_sucursal: l.fechavencimiento_lote ?? l.fecha_caducidad ?? null,
-                        //cantidad_lote_sucursal: cantidad,
+                        cantidad_entrada_lote: cantidad,
                         precio_costo_lote_sucursal: Number(d.precio_articulo_factura ?? 0),
                         estado_lote_sucursal: 'A',
                         id_loterecibido_lote_sucursal: l.id_loterecibido ?? l.id_lote ?? null,
@@ -132,7 +132,7 @@ export const Factura_Compra_ProveedorService = {
                 id_empresa_sucursal: factura.compra.compra_general.id_empresa_sucursal,
                 id_articulo: l.id_artic,
                 id_lote: l.id_lote_sucursal, // PK real
-                cantidad: l.cantidad_lote_sucursal,
+                cantidad: l.cantidad_entrada_lote,
                 cantidad_apartada: 0,
             }));
 
