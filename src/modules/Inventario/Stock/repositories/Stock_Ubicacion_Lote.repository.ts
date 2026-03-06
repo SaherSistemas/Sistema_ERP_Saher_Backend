@@ -6,6 +6,7 @@ import { dbLocal } from '../../../../config/db';
 import { CrearStockUbicacionLoteDTO, StockUpsertRow } from '../interface/Stock_Ubicacion_Lote.interface';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import LoteArticuloSucursal from '../../Lotes/model/Lote_Articulo_Sucursal';
+import Ubicacion_Sucursal from '../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal';
 
 export const Stock_Ubicacion_LoteRepository = {
     findOneByUbicacionYLote: async (id_ubicacion_sucursal: string, id_lote: string, tx?: Transaction) =>
@@ -174,5 +175,139 @@ export const Stock_Ubicacion_LoteRepository = {
             },
             { transaction: tx }
         );
+    },
+
+    getLotesMinimosConUbicaciones: async (
+        id_articulo: string,
+        id_empresa_sucursal: string,
+        cantidad_pedida: number
+    ) => {
+        const rows = await Stock_Ubicacion_Lote.findAll({
+            where: {
+                id_articulo,
+                id_empresa_sucursal,
+                [Op.and]: [
+                    literal(`
+            "Stock_Ubicacion_Lote"."cantidad"
+            - COALESCE("Stock_Ubicacion_Lote"."cantidad_apartada", 0) > 0
+          `)
+                ]
+            },
+            attributes: [
+                'id_stock_ubicacion_lote',
+                'id_articulo',
+                'id_ubicacion_sucursal',
+                'cantidad',
+                'cantidad_apartada',
+                [
+                    literal(`
+            "Stock_Ubicacion_Lote"."cantidad"
+            - COALESCE("Stock_Ubicacion_Lote"."cantidad_apartada", 0)
+          `),
+                    'cantidad_disponible'
+                ]
+            ],
+            include: [
+                {
+                    model: LoteArticuloSucursal,
+                    as: 'lote',
+                    required: true,
+                    attributes: [
+                        'id_lote_sucursal',
+                        'numero_lote_sucursal',
+                        'fecha_venci_lote_sucursal'
+                    ]
+                },
+                {
+                    model: Ubicacion_Sucursal,
+                    as: 'ubicacion',
+                    required: false,
+                    attributes: [
+                        'id_ubicacion_sucursal',
+                        'pasillo_ub',
+                        'anaquel_ub',
+                        'nivel_ub',
+                        'posicion_ub'
+                    ]
+                }
+            ],
+            order: [
+                [{ model: LoteArticuloSucursal, as: 'lote' }, 'fecha_venci_lote_sucursal', 'ASC'],
+                ['id_stock_ubicacion_lote', 'ASC']
+            ]
+        });
+
+        if (!rows.length) {
+            return {
+                id_articulo,
+                cantidad_pedida,
+                cantidad_total_disponible: 0,
+                cantidad_asignada: 0,
+                faltante: cantidad_pedida,
+                se_completa: false,
+                detalles: []
+            };
+        }
+
+        let restante = Number(cantidad_pedida);
+        let cantidad_total_disponible = 0;
+
+        const detalles = [];
+
+        for (const row of rows) {
+            const json = row.toJSON() as any;
+            const disponible = Number(json.cantidad_disponible || 0);
+
+            cantidad_total_disponible += disponible;
+
+            if (restante <= 0) continue;
+
+            const tomar = Math.min(disponible, restante);
+            if (tomar <= 0) continue;
+
+            detalles.push({
+                id_stock_ubicacion_lote: json.id_stock_ubicacion_lote,
+                id_articulo: json.id_articulo,
+                cantidad_disponible: disponible,
+                cantidad_a_tomar: tomar,
+                stock: {
+                    cantidad: Number(json.cantidad || 0),
+                    cantidad_apartada: Number(json.cantidad_apartada || 0)
+                },
+                lote: json.lote
+                    ? {
+                        id_lote_sucursal: json.lote.id_lote_sucursal,
+                        numero_lote_sucursal: json.lote.numero_lote_sucursal,
+                        fecha_venci_lote_sucursal: json.lote.fecha_venci_lote_sucursal
+                    }
+                    : null,
+                ubicacion: json.ubicacion
+                    ? {
+                        id_ubicacion_sucursal: json.ubicacion.id_ubicacion_sucursal,
+                        pasillo: json.ubicacion.pasillo_ub,
+                        anaquel: json.ubicacion.anaquel_ub,
+                        nivel: json.ubicacion.nivel_ub,
+                        posicion: json.ubicacion.posicion_ub
+                    }
+                    : null
+            });
+
+            restante -= tomar;
+        }
+
+        const cantidad_asignada = detalles.reduce(
+            (acc, item) => acc + Number(item.cantidad_a_tomar || 0),
+            0
+        );
+
+        return {
+            id_articulo,
+            cantidad_pedida,
+            cantidad_total_disponible,
+            cantidad_asignada,
+            faltante: Math.max(0, restante),
+            se_completa: restante <= 0,
+            detalles
+        };
     },
 };

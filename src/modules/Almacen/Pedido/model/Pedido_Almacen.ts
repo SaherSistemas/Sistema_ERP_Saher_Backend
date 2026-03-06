@@ -72,6 +72,9 @@ class Pedido_Almacen extends Model {
   @BelongsTo(() => Agente_de_Venta)
   declare agente: Agente_de_Venta;
 
+  @Default(null)
+  @Column(DataType.DATE)
+  declare inicio_surtido: Date | null;
 }
 
 export default Pedido_Almacen;

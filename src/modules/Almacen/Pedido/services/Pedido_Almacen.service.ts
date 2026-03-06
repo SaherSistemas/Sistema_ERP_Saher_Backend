@@ -6,6 +6,9 @@ import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacenCompleto } from '.
 import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.repository';
 import { Detalle_Pedido_AlmacenRepository } from '../repositories/Detalle_Pedido_Almacen.repository';
 import { Detalle_Pedido_Almacen_LoteRepository } from '../repositories/Detalle_Pedido_Almacen_Lote.repository';
+import { Detalle_Pedido_Almacen_AsignacionRepository } from '../repositories/Detalle_Pedido_Almacen_AsignacionRepository';
+import { Articulo_Ubicacion_DefaultServices } from '../../../Catalogos/Articulos/feature/Articulo_Ubicacion_Default/Articulo_Ubicacion_Default.service';
+import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
 
 export const Pedido_AlmacenService = {
   getAllDiaAgente: async (fecha: string, id_agente: string) => {
@@ -13,12 +16,48 @@ export const Pedido_AlmacenService = {
 
     return await Pedido_AlmacenRepository.getAllDiaAgente(fecha, agente.id_agente);
   },
+  getDetalleAsignado: async (id_usuario: string, id_empresa: string) => {
+    const asignacion = await Detalle_Pedido_Almacen_AsignacionRepository.getDetalleAsignado(id_usuario);
+    if (!asignacion) {
+      throw new Error('No tienes asignado este pedido o no tienes ningún pedido asignado.');
+    }
+
+    console.log("ASIGNACIÓN EN SERVICE:", asignacion)
+    const planSurtidoFefo = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(asignacion.detalle.id_articulo, id_empresa, asignacion.detalle.cant_pedida);
+    console.log(planSurtidoFefo)
+    return { asignacion, planSurtidoFefo };
+  },
+
+  asignarPedidoSurtidor: async (id_usuario: string) => {
+    const pedidoMasUrgente = await Pedido_AlmacenRepository.getPedidoMasUrgentePorSurtir();
+    //console.log("PEDIDO MÁS URGENTE POR SURTIR:", pedidoMasUrgente);
+    //ASIGNAR DETALLES A SURTIDOR
+    if (pedidoMasUrgente) {
+      const t = await dbLocal.transaction({
+        isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+      });
+      await Pedido_AlmacenRepository.iniciarSurtido(pedidoMasUrgente, t);
+      await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(id_usuario, pedidoMasUrgente, t);
+      await t.commit();
+      return { mensaje: 'Pedido asignado al surtidor.', id_pedido_alm: pedidoMasUrgente };
+    } else {
+      return { mensaje: 'No hay pedidos por surtir en este momento.' };
+    }
+
+  },
   getDetallesPedido: async (id_pedido_alm: string) => {
     return await Detalle_Pedido_AlmacenRepository.findByIDPedido(id_pedido_alm);
   },
 
-  porSurtir: async () => {
-    return await Pedido_AlmacenRepository.porSurtir();
+  porSurtir: async (id_usuario: string) => {
+    const algunoActivoParaMiUsuario = await Detalle_Pedido_Almacen_AsignacionRepository.algunPedidoAsignado(id_usuario);
+    const pedidosPorSurtir = await Pedido_AlmacenRepository.porSurtir();
+
+
+    return {
+      algunoActivoParaMiUsuario,
+      pedidosPorSurtir
+    };
   },
 
 
@@ -89,8 +128,6 @@ export const Pedido_AlmacenService = {
   },
 
   actualizarDetallesPedidoServ: async (data: ActualizarDetallesPedidoRequest) => {
-
-
     return await Detalle_Pedido_AlmacenRepository.sincronizarCarrito(data);
   },
 
@@ -101,7 +138,7 @@ export const Pedido_AlmacenService = {
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
-    console.log("ENTRO A SERVICIO FINALIZAR CAPTURA");
+    // console.log("ENTRO A SERVICIO FINALIZAR CAPTURA");
 
     //CAMBIAR A CA= CAPTURADO 
 

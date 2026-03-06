@@ -7,9 +7,11 @@ router.get('/dia/agente', Pedido_AlmacenController.getAllPorDiaAgente)
 router.get('/enCaptura', Pedido_AlmacenController.pedidosEnCaptura);
 router.get('/enCotizacion', Pedido_AlmacenController.pedidosEnCotizacion);
 router.get('/surtir', Pedido_AlmacenController.porSurtir);
-
 router.put('/actualizar_detalles', Pedido_AlmacenController.actualizarDetalles)
 router.put('/finalizar_pedido', Pedido_AlmacenController.finalizarCaptura)
+router.post('/asignar_pedido_surtidor', Pedido_AlmacenController.asignarPedidoSurtidor)
+
+router.get('/:id_pedido_alm/detalle_asignado', Pedido_AlmacenController.getDetallesAsignado);
 // 1. RUTAS ESPECÍFICAS PRIMERO
 router.get('/cod/:cod', Pedido_AlmacenController.getByCodInterno);
 router.get('/:id_pedido/detalles', Pedido_AlmacenController.getDetalles);

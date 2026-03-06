@@ -27,9 +27,6 @@ export default class Detalle_Pedido_Almacen extends Model {
   @Column(DataType.UUID)
   declare id_detalle_pedido_almacen: string;
 
-  @Column(DataType.INTEGER)
-  declare orden_detalle: number;
-
   @ForeignKey(() => Pedido_Almacen)
   @Index('ix_detalle_pedido')
   @Column(DataType.UUID)

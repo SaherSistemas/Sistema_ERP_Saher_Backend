@@ -31,11 +31,14 @@ export const CatalogoComercialService = {
         // 2️⃣ Agrupar directamente en DB por artículo (evita reduce gigante en Node)
         const rowsAgrupadas = await Detalle_Pedido_Almacen.findAll({
             where: { id_pedido_almacen: { [Op.in]: idsPedidos } },
+
             attributes: [
                 'id_articulo',
                 [fn('SUM', col('cant_pedida')), 'cantidad_total'],
-                [fn('SUM', col('cantidad_checada')), 'cantidad_total_checada'],
+                // si existe la columna en la tabla:
+                // [fn('SUM', col('cantidad_checada')), 'cantidad_total_checada'],
             ],
+
             include: [{
                 model: Articulo,
                 as: 'articulo',
@@ -48,6 +51,7 @@ export const CatalogoComercialService = {
                 ],
                 required: true,
             }],
+
             group: [
                 'Detalle_Pedido_Almacen.id_articulo',
                 'articulo.id_artic',
@@ -56,7 +60,10 @@ export const CatalogoComercialService = {
                 'articulo.tipo_de_iva',
                 'articulo.cod_int_artic',
             ],
-            order: [[fn('SUM', col('cant_pedida')), 'DESC']],
+
+            // OJO: para ordenar por alias agregado, es mejor literal con raw:true
+            order: [[literal('"cantidad_total"'), 'DESC']],
+
             limit: filters.limit,
             offset,
             subQuery: false,

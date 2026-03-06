@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { Pedido_AlmacenService } from '../services/Pedido_Almacen.service';
 import { ActualizarDetallesPedidoRequest } from '../interface/Pedido_Almacen';
 import { io } from '../../../../server_ws';
+import { AuthedRequest } from '../../../../middleware/auth';
 
 export class Pedido_AlmacenController {
   // GET paginado (si lo necesitas)
@@ -18,12 +19,33 @@ export class Pedido_AlmacenController {
       res.status(500).json({ mensaje: 'Error al obtener pedidos.' });
     }
   };
+  static asignarPedidoSurtidor = async (req: AuthedRequest, res: Response) => {
+    try {
+      const resultado = await Pedido_AlmacenService.asignarPedidoSurtidor(req.user.id_referencia_persona);
+      res.status(200).json(resultado);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ mensaje: 'Error al obtener pedidos.' });
+    }
+  };
+  static getDetallesAsignado = async (req: AuthedRequest, res: Response) => {
+    try {
+      // console.log("ID PEDIDO ALMACEN:", id_pedido_alm);
+      const resultado = await Pedido_AlmacenService.getDetalleAsignado(req.user.id_referencia_persona, req.user.id_empresa);
+      // console.log("DETALLES ASIGNADOS:", resultado);
+      res.status(200).json(resultado);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ mensaje: 'Error al obtener pedidos.' });
+    }
+  };
 
   //GET PEDIDOS EN CAPUTRA
   static pedidosEnCaptura = async (req: Request, res: Response) => {
     try {
       const id_cliente_alm = req.query.id_cliente_alm?.toString() || '';
       const data = await Pedido_AlmacenService.pedidosEnCaptura(id_cliente_alm);
+
       res.status(200).json(data);
     } catch (error) {
       console.log(error);
@@ -42,10 +64,12 @@ export class Pedido_AlmacenController {
     }
   };
 
-  static porSurtir = async (req: Request, res: Response) => {
+  static porSurtir = async (req: AuthedRequest, res: Response) => {
     try {
-      const pedidosPorSurtir = await Pedido_AlmacenService.porSurtir();
-      res.status(200).json(pedidosPorSurtir);
+      const { algunoActivoParaMiUsuario, pedidosPorSurtir } = await Pedido_AlmacenService.porSurtir(req.user.id_referencia_persona);
+      //  console.log("ALGUNO ACTIVO PARA MI USUARIO:", algunoActivoParaMiUsuario);
+      //console.log("PEDIDOS POR SURTIR:", pedidosPorSurtir);
+      res.status(200).json({ algunoActivoParaMiUsuario, pedidosPorSurtir });
     } catch (error) {
       console.log(error);
       res.status(500).json({ mensaje: 'Error al obtener pedidos.' });

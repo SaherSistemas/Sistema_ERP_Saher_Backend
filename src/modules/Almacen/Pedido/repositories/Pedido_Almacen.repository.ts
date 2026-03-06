@@ -10,6 +10,12 @@ import Agente_de_Venta from '../../../Comercial/Agente_Venta/model/Agente_De_Ven
 
 
 export const Pedido_AlmacenRepository = {
+  iniciarSurtido: async (id_pedido_alm: string, t?: Transaction) => {
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm);
+    if (!pedido) throw new Error('Pedido no encontrado');
+    pedido.inicio_surtido = new Date();
+    await pedido.save({ transaction: t });
+  },
   getAllDiaAgente: async (fecha: string, id_agente: string) => {
     const inicioDia = new Date(`${fecha}T00:00:00.000`);
     const finDia = new Date(`${fecha}T23:59:59.999`);
@@ -31,10 +37,24 @@ export const Pedido_AlmacenRepository = {
       order: [['createdAt', 'ASC']]
     });
   },
+  getPedidoMasUrgentePorSurtir: async () => {
+    const row = await Pedido_Almacen.findOne({
+      where: { status_pedido_alm: 'CA' },
+      attributes: ['id_pedido_alm'],
+      order: [
+        [literal(`CASE WHEN "Pedido_Almacen"."tipo_pedido_alm" = 'AGE' THEN 0 ELSE 1 END`), 'ASC'],
+        ['fecha_max_entrega_alm', 'ASC'],
+        ['cod_int_pedido_alm', 'ASC'],
+      ],
+      raw: true
+    });
+
+    return row?.id_pedido_alm ?? null;
+  },
   porSurtir: async () => {
     return await Pedido_Almacen.findAll({
       attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_max_entrega_alm', 'id_agente_pedido_alm'],
-      where: { status_pedido_alm: 'CA' },
+      where: { status_pedido_alm: 'CA', inicio_surtido: null },
       include: [
         {
           model: Cliente_Almacen,
@@ -61,6 +81,7 @@ export const Pedido_AlmacenRepository = {
         // 3) Desempate opcional (por si hay mismas fechas)
         ['cod_int_pedido_alm', 'ASC'],
       ],
+
     });
   },
   getPedidosByClienteFacturados: async (id_cliente: string) => {

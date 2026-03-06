@@ -2,11 +2,20 @@ import { Transaction } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
-import { ICreateDetallePedidoAlmacen, IUpdateDetallePedidoAlmacen } from '../interface/Detalle_Pedido_Almacen.interface';
+import { ICreateDetallePedidoAlmacen, } from '../interface/Detalle_Pedido_Almacen.interface';
 import { ActualizarDetallesPedidoRequest, IUpdatePedidoAlmacen } from '../interface/Pedido_Almacen';
 
 
 export const Detalle_Pedido_AlmacenRepository = {
+  findByID: async (id_detalle_pedido_almacen: string) => {
+    return await Detalle_Pedido_Almacen.findByPk(id_detalle_pedido_almacen, {
+      include: [{
+        model: Articulo,
+        attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'des_gener_artic', 'tipo_de_iva']
+      }]
+    });
+  },
+
   addOrAccumulate: async (data: ICreateDetallePedidoAlmacen, t?: Transaction): Promise<Detalle_Pedido_Almacen> => {
     // 1. Buscar si ya existe el articulo en ese mismo pedido
 
@@ -90,17 +99,30 @@ export const Detalle_Pedido_AlmacenRepository = {
     return true;
   },
   getDetallesPorPedido: async (id_pedido_alm: string, t?: Transaction) => {
+    console.log(id_pedido_alm)
     const detalles = await Detalle_Pedido_Almacen.findAll({
       where: {
-        id_pedido_alm
+        id_pedido_almacen: id_pedido_alm
       },
       transaction: t
     });
-
+    console.log("DETALLES EN REPO:", detalles);
     if (!detalles) throw new Error('Detalles no encontrado');
 
 
     return detalles;
+  },
+  getDetallesPorPedidoIDS: async (id_pedido_alm: string, t?: Transaction) => {
+    const detalles = await Detalle_Pedido_Almacen.findAll({
+      where: {
+        id_pedido_almacen: id_pedido_alm
+      },
+      attributes: ['id_detalle_pedido_almacen'],
+      raw: true,
+      transaction: t
+    });
+
+    return detalles.map(d => d.id_detalle_pedido_almacen);
   },
 
   findByIDPedido: async (id_pedido_almacen: string) => {
