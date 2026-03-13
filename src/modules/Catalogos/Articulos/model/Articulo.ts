@@ -22,6 +22,8 @@ import RecetaArticulo from '../../../../models/RecetaMedica/Receta_Articulo';
 import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
 import Detalle_Pedido_Almacen from '../../../Almacen/Pedido/model/Detalle_Pedido_Almacen';
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
+import Articulo_Ubicacion_Default from '../feature/Articulo_Ubicacion_Default/model/Articulo_Ubicacion_Default';
+import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 
 @Table({
   tableName: 'articulo'
@@ -164,6 +166,19 @@ class Articulo extends Model {
 
   @HasMany(() => Stock_Ubicacion_Lote, { foreignKey: "id_articulo", as: "stocks" })
   declare stocks?: Stock_Ubicacion_Lote[];
+
+  @HasMany(() => Articulo_Ubicacion_Default, {
+    foreignKey: "id_articulo",
+    sourceKey: "id_artic",
+    as: "ubicaciones_default"
+  })
+  declare ubicaciones_default?: Articulo_Ubicacion_Default[];
+
+  @HasMany(() => Lote_Articulo_Sucursal, {
+    foreignKey: 'id_artic',
+    as: 'lotes_sucursal'
+  })
+  declare lotes_sucursal?: Lote_Articulo_Sucursal[];
 }
 
 export default Articulo;

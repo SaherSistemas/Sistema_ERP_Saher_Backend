@@ -1,5 +1,4 @@
-// models/Detalle_Pedido_Almacen_Asignacion.ts
-
+// models/Detalle.ts
 import {
     Table,
     Column,
@@ -9,12 +8,13 @@ import {
     Default,
     ForeignKey,
     BelongsTo,
+    HasMany,
     Index,
     AllowNull
 } from 'sequelize-typescript';
-
 import Detalle_Pedido_Almacen from './Detalle_Pedido_Almacen';
 import Empleado from '../../../RRHH/model/Empleado';
+
 
 export type EstadoAsignacionDetalle =
     | 'ASIGNADO'
@@ -22,33 +22,34 @@ export type EstadoAsignacionDetalle =
     | 'TERMINADO'
     | 'CANCELADO';
 
-@Table({
-    tableName: 'detalle_pedido_almacen_asignacion',
-    timestamps: true, // mejor tener createdAt / updatedAt
-    createdAt: 'created_at',
-    updatedAt: 'updated_at'
-})
-export default class Detalle_Pedido_Almacen_Asignacion extends Model {
 
+
+@Table({
+    tableName: 'detalle_pedido_almacen_chequeo',
+    timestamps: false
+})
+
+export default class Detalle_Pedido_Almacen_Chequeo extends Model {
     @PrimaryKey
     @Default(DataType.UUIDV4)
     @Column(DataType.UUID)
-    declare id_detalle_asignacion: string;
+    declare id_detalle_chequeo: string;
 
-    // FK al detalle
     @ForeignKey(() => Detalle_Pedido_Almacen)
-    @Index('ix_asig_detalle')
-    @AllowNull(false)
+    @Index('ix_detalle_pedido_chequeo')
     @Column(DataType.UUID)
     declare id_detalle_pedido_almacen: string;
 
-    // Usuario asignado
-    @Index('ix_asig_usuario')
+    @BelongsTo(() => Detalle_Pedido_Almacen)
+    detalle_pedido: Detalle_Pedido_Almacen;
+
 
     @ForeignKey(() => Empleado)
-    @AllowNull(false)
     @Column(DataType.UUID)
-    declare id_usuario: string;
+    declare id_empleado: string;
+
+    @BelongsTo(() => Empleado)
+    empleado: Empleado;
 
     // Estado
     @AllowNull(false)
@@ -62,6 +63,8 @@ export default class Detalle_Pedido_Almacen_Asignacion extends Model {
         )
     )
     declare estado: EstadoAsignacionDetalle;
+
+
 
     // Fecha cuando se asigna
     @AllowNull(false)
@@ -79,12 +82,15 @@ export default class Detalle_Pedido_Almacen_Asignacion extends Model {
     @Column(DataType.DATE)
     declare fin: Date | null;
 
+    //cant_chequeada
+    @AllowNull(true)
+    @Column(DataType.INTEGER)
+    declare cant_chequeada: number | null;
+
     // Nota opcional
     @AllowNull(true)
     @Column(DataType.TEXT)
     declare nota: string | null;
 
-    @BelongsTo(() => Detalle_Pedido_Almacen)
-    declare detalle?: Detalle_Pedido_Almacen;
 
 }

@@ -233,10 +233,38 @@ export const Stock_Ubicacion_LoteRepository = {
             ],
             order: [
                 [{ model: LoteArticuloSucursal, as: 'lote' }, 'fecha_venci_lote_sucursal', 'ASC'],
-                ['id_stock_ubicacion_lote', 'ASC']
-            ]
-        });
 
+
+                [
+                    literal(`
+            CASE "ubicacion"."pasillo_ub"
+                WHEN 'A1' THEN 1
+                WHEN 'A'  THEN 2
+                WHEN 'B'  THEN 3
+                WHEN 'C'  THEN 4
+                WHEN 'D'  THEN 5
+                WHEN 'E'  THEN 6
+                WHEN 'F'  THEN 7
+                WHEN 'G'  THEN 8
+                WHEN 'H'  THEN 9
+                WHEN 'H1' THEN 10
+                ELSE 99
+            END
+        `),
+                    'ASC'
+                ],
+                [literal(`CAST("ubicacion"."anaquel_ub" AS INTEGER)`), 'ASC'],
+                [literal(`CAST("ubicacion"."nivel_ub" AS INTEGER)`), 'ASC'],
+                [literal(`CAST("ubicacion"."posicion_ub" AS INTEGER)`), 'ASC'],
+
+                ['id_stock_ubicacion_lote', 'ASC']
+            ],
+        });
+        /* console.log("ROWS DISPONIBLES PARA ARTÍCULO", id_articulo, ":", rows.map(r => ({
+             id_stock_ubicacion_lote: r.id_stock_ubicacion_lote,
+             cantidad: r.cantidad
+ 
+         })));*/
         if (!rows.length) {
             return {
                 id_articulo,

@@ -7,11 +7,13 @@ import {
   ForeignKey,
   Unique,
   BelongsTo,
-  Default
+  Default,
+  HasMany
 } from 'sequelize-typescript';
 import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import LotesRecibidosCompra from '../../../../models/LotesYCaducidad/LotesRecibidosCompra';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import Detalle_Pedido_Almacen_Lote from '../../../Almacen/Pedido/model/Detalle_Pedido_Almacen_Lote';
 
 @Table({
   tableName: 'lote_articulo_sucursal'
@@ -29,7 +31,7 @@ class Lote_Articulo_Sucursal extends Model {
   })
   declare id_artic: string;
   @BelongsTo(() => Articulo)
-  articulo: Articulo;
+  declare articulo: Articulo;
 
   @ForeignKey(() => Empresa_Sucursal)
   @Column({
@@ -37,7 +39,7 @@ class Lote_Articulo_Sucursal extends Model {
   })
   declare id_empre: string;
   @BelongsTo(() => Empresa_Sucursal)
-  empresa: Empresa_Sucursal;
+  declare empresa: Empresa_Sucursal;
 
   @Column({
     type: DataType.STRING(50)
@@ -77,6 +79,13 @@ class Lote_Articulo_Sucursal extends Model {
     type: DataType.CHAR(1)
   })
   declare estado_lote_sucursal: string;
+
+
+  @HasMany(() => Detalle_Pedido_Almacen_Lote, {
+    foreignKey: 'id_lote_sucursal',
+    as: 'lote_pedido'
+  })
+  declare lote_pedido?: Detalle_Pedido_Almacen_Lote[];
 }
 
 export default Lote_Articulo_Sucursal;

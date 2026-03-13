@@ -9,22 +9,115 @@ import { Detalle_Pedido_Almacen_LoteRepository } from '../repositories/Detalle_P
 import { Detalle_Pedido_Almacen_AsignacionRepository } from '../repositories/Detalle_Pedido_Almacen_AsignacionRepository';
 import { Articulo_Ubicacion_DefaultServices } from '../../../Catalogos/Articulos/feature/Articulo_Ubicacion_Default/Articulo_Ubicacion_Default.service';
 import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
+import { ICreateDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Almacen_Lote.interface';
+import { Detalle_Pedido_Almacen_ChequeoRepository } from '../repositories/Detalle_Pedido_Almacen_ChequeoRepository';
 
 export const Pedido_AlmacenService = {
+  /**CHEQUEO */
+  getPedidoEnChequeo: async (id_empleado: string) => {
+
+    const algunoActivoParaMiUsuario = await Detalle_Pedido_Almacen_ChequeoRepository.algunPedidoAsignadoChequeo(id_empleado);
+    const pedidosPorChecar = await Pedido_AlmacenRepository.pedidosPorChecar();
+
+    // console.log(algunoActivoParaMiUsuario)
+    return {
+      algunoActivoParaMiUsuario,
+      pedidosPorChecar
+    };
+  },
+  asignarPedidoChequeo: async (id_empleado: string, id_pedido_alm: string) => {
+    const t0 = Date.now();
+    const t = await dbLocal.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
+    console.log('transaction open:', Date.now() - t0, 'ms');
+
+    try {
+      const t1 = Date.now();
+      const pedido = await Pedido_AlmacenRepository.getByCodInterno(id_pedido_alm, t);
+      console.log('getByCodInterno:', Date.now() - t1, 'ms');
+      if (!pedido) throw new Error('Pedido no encontrado');
+
+      const t2 = Date.now();
+      await Detalle_Pedido_Almacen_ChequeoRepository.asignarDetallesPedidoAChequeo(id_empleado, pedido.id_pedido_alm, t);
+      console.log('asignarDetalles total:', Date.now() - t2, 'ms');
+
+      const t3 = Date.now();
+      await t.commit();
+      console.log('commit:', Date.now() - t3, 'ms');
+
+      console.log('TOTAL:', Date.now() - t0, 'ms');
+      return;
+    } catch (error) {
+      await t.rollback();
+      throw error;
+    }
+  },
+
+  getDetalleAsignadoChequeo: async (id_empleado: string) => {
+
+
+    const getDetallesAsignados = await Detalle_Pedido_Almacen_ChequeoRepository.getDetallesAsignados(id_empleado)
+    // console.log(getDetallesAsignados)
+    return getDetallesAsignados
+  },
+
+  /*FIN CHEQUEO  */
+  surtidoArticuloAsignado: async (id_detalle_asignacion: string, reqs: ICreateDetallePedidoAlmacenLote) => {
+    const t = await dbLocal.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
+    const actualizado = await Detalle_Pedido_Almacen_AsignacionRepository.marcarSurtido(id_detalle_asignacion, t);
+    if (!actualizado) throw new Error('No se pudo actualizar el estado del artículo asignado.');
+    // console.log("DETALLE ASIGNACIÓN MARCADO COMO SURTIDO:", actualizado);
+
+    const reqsConIdDetalle = {
+      ...reqs,
+      id_detalle_pedido: actualizado.id_detalle_pedido_almacen
+    };
+    //console.log(reqsConIdDetalle)
+    const crearDetalleLote = await Detalle_Pedido_Almacen_LoteRepository.create(reqsConIdDetalle, t);
+    await t.commit();
+    return { mensaje: 'Artículo marcado como surtido.' };
+  },
   getAllDiaAgente: async (fecha: string, id_agente: string) => {
     const agente = await AgenteRepository.getByIdEmpleado(id_agente)
 
     return await Pedido_AlmacenRepository.getAllDiaAgente(fecha, agente.id_agente);
   },
-  getDetalleAsignado: async (id_usuario: string, id_empresa: string) => {
-    const asignacion = await Detalle_Pedido_Almacen_AsignacionRepository.getDetalleAsignado(id_usuario);
+  getDetalleAsignado: async (
+    id_usuario: string,
+    id_empresa: string,
+    id_pedido_alm: string,
+  ) => {
+    const asignacion =
+      await Detalle_Pedido_Almacen_AsignacionRepository.getDetalleAsignado(
+        id_usuario,
+        id_pedido_alm,
+      );
+
     if (!asignacion) {
-      throw new Error('No tienes asignado este pedido o no tienes ningún pedido asignado.');
+      const pendientes =
+        await Detalle_Pedido_Almacen_AsignacionRepository.countPendientesByPedido(
+          id_pedido_alm,
+        );
+
+      if (pendientes === 0) {
+        await Pedido_AlmacenRepository.marcarPedidoComoSurtido(
+          id_pedido_alm
+        );
+      }
+
+      return null;
     }
 
-    console.log("ASIGNACIÓN EN SERVICE:", asignacion)
-    const planSurtidoFefo = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(asignacion.detalle.id_articulo, id_empresa, asignacion.detalle.cant_pedida);
-    console.log(planSurtidoFefo)
+    const planSurtidoFefo =
+      await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
+        asignacion.detalle.id_articulo,
+        id_empresa,
+        asignacion.detalle.cant_pedida,
+      );
+
     return { asignacion, planSurtidoFefo };
   },
 
@@ -72,7 +165,7 @@ export const Pedido_AlmacenService = {
     return await Pedido_AlmacenRepository.getByID(id);
   },
 
-  getByCodInterno: async (cod: number) => {
+  getByCodInterno: async (cod: string) => {
     return await Pedido_AlmacenRepository.getByCodInterno(cod);
   },
 

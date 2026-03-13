@@ -1,66 +1,54 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Transaction } from 'sequelize';
-import { IDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Almacen_Lote.interface';
+import { ICreateDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Almacen_Lote.interface';
 import Detalle_Pedido_Almacen_Lote from '../model/Detalle_Pedido_Almacen_Lote';
-import { Detalle_Pedido_AlmacenRepository } from './Detalle_Pedido_Almacen.repository';
-import { Pedido_AlmacenRepository } from './Pedido_Almacen.repository';
-import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
-import { LotesArticuloSucursalRepository } from '../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository';
+import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
 
 
 export const Detalle_Pedido_Almacen_LoteRepository = {
-    create: async (id_pedido: string, transaction?: Transaction) => {
-        const obtenerEmpresaPrincipal = await Empresa_SucursalRepository.getEmpresaPrincipal();
+    create: async (
+        data: ICreateDetallePedidoAlmacenLote,
+        transaction?: Transaction
+    ) => {
+        const { id_detalle_pedido, lotes } = data;
 
-        // Obtener los detalles del pedido
-        const obtenerDetalles = await Detalle_Pedido_AlmacenRepository.findByIDPedido(id_pedido);
+        if (!id_detalle_pedido) throw new Error("id_detalle_pedido es requerido");
+        //  console.log(data)
+        if (!Array.isArray(lotes) || lotes.length === 0) throw new Error("Debes enviar al menos un lote");
 
-        const detallesConLote: any[] = [];
+        const rows = lotes
+            .filter((item) => Number(item.cantidad) > 0)
+            .map((item) => ({
+                id_detalle_pedido_almacen_lote: uuidv4(),
+                id_detalle_pedido_almacen: id_detalle_pedido,
+                id_stock_ubicacion_lote: item.id_stock_ubicacion_lote,
+                id_lote_sucursal: item.id_lote_sucursal,
+                id_ubicacion_sucursal: item.id_ubicacion_sucursal,
+                cantidad: Number(item.cantidad),
+            }));
 
-        for (const det of obtenerDetalles) {
-            // Cantidad que necesitamos asignar del detalle
-            let cantidadPendiente = det.cant_pedida;
+        if (rows.length === 0) throw new Error("No hay lotes válidos con cantidad mayor a 0");
 
-            // Obtener lotes disponibles
-            let lotesDisponibles = await LotesArticuloSucursalRepository.getLotesPorCodigoBarra(
-                det.id_articulo,
-                obtenerEmpresaPrincipal.id_empre
-            );
+        // 1. Guardar los lotes del pedido
+        const created = await Detalle_Pedido_Almacen_Lote.bulkCreate(rows, {
+            transaction,
+            validate: true,
+        });
 
-            // Ordenar por fecha de caducidad ascendente (el que vence primero primero)
-            lotesDisponibles.sort(
-                (a, b) => new Date(a.dataValues.fecha_venci_lote_sucursal).getTime() -
-                    new Date(b.dataValues.fecha_venci_lote_sucursal).getTime()
-            );
-
-            for (const lote of lotesDisponibles) {
-                if (cantidadPendiente <= 0) break; // ya asignamos todo
-
-                const cantidadAsignar = Math.min(cantidadPendiente, lote.dataValues.cantidad_entrada_lote);
-
-                // Crear registro de detalle por lote
-                const detalleLoteCreado = await Detalle_Pedido_Almacen_Lote.create({
-                    id_detalle_pedido_almacen_lote: uuidv4(),
-                    id_detalle_pedido_almacen: det.id_detalle_pedido_almacen,
-                    id_lote_sucursal: lote.dataValues.id_lote_sucursal,
-                    cantidad: cantidadAsignar
-                }, { transaction });
-
-                detallesConLote.push(detalleLoteCreado);
-
-                //APARTAR CANTIDAD
-                await LotesArticuloSucursalRepository.apartarCantidad(lote.id_lote_sucursal, cantidadAsignar)
-
-                // Reducir la cantidad pendiente
-                cantidadPendiente -= cantidadAsignar;
-            }
+        // 2. Descontar stock por cada lote
+        for (const row of rows) {
+            const stock = await Stock_Ubicacion_Lote.findOne({
+                where: { id_stock_ubicacion_lote: row.id_stock_ubicacion_lote },
+                transaction,
+                lock: true, // 👈 bloquea el row para evitar condiciones de carrera
+            });
 
 
+            await stock.update({ cantidad_apartada: row.cantidad }, { transaction });
         }
 
-        return detallesConLote;
+        return created;
     },
-
 
 
 };

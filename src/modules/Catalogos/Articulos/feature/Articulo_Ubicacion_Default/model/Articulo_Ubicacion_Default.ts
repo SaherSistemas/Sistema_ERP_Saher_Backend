@@ -43,7 +43,10 @@ export default class Articulo_Ubicacion_Default extends Model {
     @BelongsTo(() => Empresa_Sucursal)
     declare empresa_sucursal?: Empresa_Sucursal;
 
-    @BelongsTo(() => Articulo)
+    @BelongsTo(() => Articulo, {
+        foreignKey: "id_articulo",
+        targetKey: "id_artic",
+    })
     declare articulo?: Articulo;
 
     @BelongsTo(() => Ubicacion_Sucursal)

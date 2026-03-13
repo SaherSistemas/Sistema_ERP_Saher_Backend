@@ -70,3 +70,5 @@ export interface ActualizarDetallesPedidoRequest {
   id_pedido: string;
   carrito: CarritoItem[];
 }
+
+

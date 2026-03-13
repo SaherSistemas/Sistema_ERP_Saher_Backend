@@ -10,6 +10,62 @@ import Agente_de_Venta from '../../../Comercial/Agente_Venta/model/Agente_De_Ven
 
 
 export const Pedido_AlmacenRepository = {
+
+  /*CHEQUEO */
+  pedidosPorChecar: async () => {
+    // console.log("ENTRO A REPO PEDIDOS POR CHECAR")
+    const pedidos = await Pedido_Almacen.findAll({
+      where: {
+        status_pedido_alm: 'SU',
+        fecha_facturado_pedido_alm: null
+      },
+      include: [
+        {
+          model: Cliente_Almacen,
+          attributes: ['id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+        },
+        {
+          model: Agente_de_Venta,
+          attributes: ['id_agente', 'id_empleado'],
+          include: [
+            {
+              model: Empleado,        // Relación Agente -> Empleado
+              attributes: ['id_empleado', 'ap_pat_empleado', 'nombre_empleado']
+            }
+          ]
+        }
+      ],
+      order: [
+        // 1) Prioridad: AGE primero
+        [literal(`CASE WHEN "Pedido_Almacen"."tipo_pedido_alm" = 'AGE' THEN 0 ELSE 1 END`), 'ASC'],
+
+        // 2) Dentro de cada grupo, por fecha máxima
+        ['fecha_max_entrega_alm', 'ASC'],
+
+        // 3) Desempate opcional (por si hay mismas fechas)
+        ['cod_int_pedido_alm', 'ASC'],
+      ],
+    });
+    // console.log("PEDIDOS POR CHECAR EN REPO:", pedidos)
+    return pedidos;
+  },
+
+
+  asignarPedidoChequeo: async (id_empleado: string, id_pedido_alm: string, t: Transaction) => {
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { transaction: t });
+    if (!pedido) throw new Error('Pedido no encontrado');
+    pedido.status_pedido_alm = 'CH';
+    await pedido.save({ transaction: t });
+    return { mensaje: 'Pedido asignado a chequeo.' };
+  },
+  /*FIN CHEQUEO  */
+  /*SURTIDO */
+  marcarPedidoComoSurtido: async (id_pedido_alm: string, t?: Transaction) => {
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { transaction: t });
+    if (!pedido) throw new Error('Pedido no encontrado');
+    pedido.status_pedido_alm = 'SU';
+    await pedido.save({ transaction: t });
+  },
   iniciarSurtido: async (id_pedido_alm: string, t?: Transaction) => {
     const pedido = await Pedido_Almacen.findByPk(id_pedido_alm);
     if (!pedido) throw new Error('Pedido no encontrado');
@@ -215,9 +271,11 @@ export const Pedido_AlmacenRepository = {
     });
   },
 
-  getByCodInterno: async (cod_int_pedido_alm: number) => {
+  getByCodInterno: async (cod_int_pedido_alm: string, t?: Transaction) => {
     return await Pedido_Almacen.findOne({
-      where: { cod_int_pedido_alm }
+      where: { cod_int_pedido_alm },
+      transaction: t,
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm'],
     });
   },
 

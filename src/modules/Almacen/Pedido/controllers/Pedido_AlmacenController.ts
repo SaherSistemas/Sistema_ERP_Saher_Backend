@@ -5,6 +5,62 @@ import { io } from '../../../../server_ws';
 import { AuthedRequest } from '../../../../middleware/auth';
 
 export class Pedido_AlmacenController {
+  /*CHECARRR */
+  static checarArticulo = async (req: Request, res: Response) => {
+    try {
+      console.log("HOLA DESDE CHECAR ARTICULO")
+      res.status(500).json("HOASL")
+    } catch (error) {
+
+    }
+  }
+  static asignarPedidoChequeo = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const resultado = await Pedido_AlmacenService.asignarPedidoChequeo(req.user.id_referencia_persona, id_pedido_alm);
+      res.status(200).json(resultado);
+    }
+    catch (error) {
+      console.log(error);
+      res.status(500).json({ mensaje: 'Error al asignar pedido a chequeo.' });
+    }
+  }
+
+  static getDetallesAsignadoChequeo = async (req: AuthedRequest, res: Response) => {
+    try {
+      const resultado = await Pedido_AlmacenService.getDetalleAsignadoChequeo(req.user.id_referencia_persona);
+      res.status(200).json(resultado);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ mensaje: 'Error al obtener detalles asignados a chequeo.' });
+    }
+  }
+
+  static pedidosEnChequeo = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { algunoActivoParaMiUsuario, pedidosPorChecar } = await Pedido_AlmacenService.getPedidoEnChequeo(req.user.id_referencia_persona);
+      // console.log("ALGUNO ACTIVO PARA MI USUARIO:", algunoActivoParaMiUsuario);
+      // console.log("PEDIDOS POR SURTIR:", pedidosPorChecar);
+      res.status(200).json({ algunoActivoParaMiUsuario, pedidosPorChecar });
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ mensaje: 'Error al obtener detalles asignados a chequeo.' });
+    }
+
+  }
+  /*FIN CHEQUEO  */
+  static surtidoArticuloAsignado = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const reqs = req.body;
+      // console.log(reqs)
+      const resultado = await Pedido_AlmacenService.surtidoArticuloAsignado(id, reqs);
+      res.status(200).json(resultado);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ mensaje: 'Error al actualizar estado del artículo.' });
+    }
+  }
   // GET paginado (si lo necesitas)
   static getAllPorDiaAgente = async (req: Request, res: Response) => {
     try {
@@ -30,8 +86,9 @@ export class Pedido_AlmacenController {
   };
   static getDetallesAsignado = async (req: AuthedRequest, res: Response) => {
     try {
-      // console.log("ID PEDIDO ALMACEN:", id_pedido_alm);
-      const resultado = await Pedido_AlmacenService.getDetalleAsignado(req.user.id_referencia_persona, req.user.id_empresa);
+      const { id_pedido_alm } = req.params;
+      //console.log("ID PEDIDO ALMACEN:", id_pedido_alm);
+      const resultado = await Pedido_AlmacenService.getDetalleAsignado(req.user.id_referencia_persona, req.user.id_empresa, id_pedido_alm);
       // console.log("DETALLES ASIGNADOS:", resultado);
       res.status(200).json(resultado);
     } catch (error) {
@@ -52,6 +109,7 @@ export class Pedido_AlmacenController {
       res.status(500).json({ mensaje: 'Error al obtener pedidos.' });
     }
   };
+
   //GET PEDIDOS EN CAPUTRA
   static pedidosEnCotizacion = async (req: Request, res: Response) => {
     try {
@@ -119,7 +177,7 @@ export class Pedido_AlmacenController {
   static getByCodInterno = async (req: Request, res: Response) => {
     try {
       const { cod_int } = req.params;
-      const data = await Pedido_AlmacenService.getByCodInterno(Number(cod_int));
+      const data = await Pedido_AlmacenService.getByCodInterno(cod_int);
       res.status(200).json(data);
     } catch (error) {
       res.status(500).json({ mensaje: 'Error al obtener pedido.' });

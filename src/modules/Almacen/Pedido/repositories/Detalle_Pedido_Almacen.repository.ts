@@ -4,9 +4,19 @@ import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import { ICreateDetallePedidoAlmacen, } from '../interface/Detalle_Pedido_Almacen.interface';
 import { ActualizarDetallesPedidoRequest, IUpdatePedidoAlmacen } from '../interface/Pedido_Almacen';
+import Detalle_Pedido_Almacen_Lote from '../model/Detalle_Pedido_Almacen_Lote';
+import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 
 
 export const Detalle_Pedido_AlmacenRepository = {
+  getIdsDetallesPorPedido: async (id_pedido_alm: string, t?: Transaction) => {
+    return await Detalle_Pedido_Almacen.findAll({
+      where: { id_pedido_almacen: id_pedido_alm },
+      attributes: ['id_detalle_pedido_almacen'],
+      raw: true,
+      transaction: t
+    });
+  },
   findByID: async (id_detalle_pedido_almacen: string) => {
     return await Detalle_Pedido_Almacen.findByPk(id_detalle_pedido_almacen, {
       include: [{
@@ -112,17 +122,57 @@ export const Detalle_Pedido_AlmacenRepository = {
 
     return detalles;
   },
-  getDetallesPorPedidoIDS: async (id_pedido_alm: string, t?: Transaction) => {
+  getDetallesPorPedidoYLotesSurtidos: async (id_pedido_alm: string, t?: Transaction) => {
     const detalles = await Detalle_Pedido_Almacen.findAll({
       where: {
         id_pedido_almacen: id_pedido_alm
       },
+      attributes: [
+        'id_detalle_pedido_almacen',
+        'cant_pedida',
+      ],
+      include: [
+        {
+          model: Articulo,
+          as: 'articulo',
+          attributes: ['cod_barr_artic', 'des_artic'],
+          required: false
+        },
+        {
+          model: Detalle_Pedido_Almacen_Lote,
+          as: 'lotes',
+          attributes: [
+            'id_lote_sucursal',
+            'cantidad'
+          ],
+          required: false,
+          include: [
+            {
+              model: Lote_Articulo_Sucursal,
+              as: 'lote_articulo_sucursal',
+              attributes: [
+                'numero_lote_sucursal',
+                'fecha_venci_lote_sucursal'
+              ],
+              required: false
+            }
+          ]
+        }
+      ],
+      raw: true,
+      transaction: t
+    });
+    return detalles;
+  },
+  getDetallesPorPedidoIDS: async (id_pedido_almacen: string, t?: Transaction) => {
+    const detalles = await Detalle_Pedido_Almacen.findAll({
+      where: { id_pedido_almacen },
       attributes: ['id_detalle_pedido_almacen'],
       raw: true,
       transaction: t
     });
 
-    return detalles.map(d => d.id_detalle_pedido_almacen);
+    return detalles.map((d: { id_detalle_pedido_almacen: string }) => d.id_detalle_pedido_almacen);
   },
 
   findByIDPedido: async (id_pedido_almacen: string) => {

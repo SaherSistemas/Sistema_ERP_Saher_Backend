@@ -1,6 +1,4 @@
 import { Table, Column, Model, PrimaryKey, ForeignKey, DataType, BelongsTo, Default } from 'sequelize-typescript';
-
-import Pedido_Almacen from './Pedido_Almacen';
 import Detalle_Pedido_Almacen from './Detalle_Pedido_Almacen';
 import LoteArticuloSucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 
@@ -28,7 +26,9 @@ class Detalle_Pedido_Almacen_Lote extends Model {
     @BelongsTo(() => Detalle_Pedido_Almacen)
     detalle_pedido_almacen: Detalle_Pedido_Almacen;
 
-    @BelongsTo(() => LoteArticuloSucursal)
+    @BelongsTo(() => LoteArticuloSucursal, {
+        as: 'lote_articulo_sucursal'
+    })
     lote_articulo_sucursal: LoteArticuloSucursal;
 }
 
