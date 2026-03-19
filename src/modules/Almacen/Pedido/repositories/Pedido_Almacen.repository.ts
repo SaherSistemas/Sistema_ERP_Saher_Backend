@@ -12,6 +12,12 @@ import Agente_de_Venta from '../../../Comercial/Agente_Venta/model/Agente_De_Ven
 export const Pedido_AlmacenRepository = {
 
   /*CHEQUEO */
+  pedidoChecado: async (id_pedido_alm: string) => {
+    return await Pedido_Almacen.update(
+      { status_pedido_alm: 'CH' },
+      { where: { id_pedido_alm } }
+    )
+  },
   pedidosPorChecar: async () => {
     // console.log("ENTRO A REPO PEDIDOS POR CHECAR")
     const pedidos = await Pedido_Almacen.findAll({

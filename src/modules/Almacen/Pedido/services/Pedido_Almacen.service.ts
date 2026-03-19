@@ -11,9 +11,27 @@ import { Articulo_Ubicacion_DefaultServices } from '../../../Catalogos/Articulos
 import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
 import { ICreateDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Almacen_Lote.interface';
 import { Detalle_Pedido_Almacen_ChequeoRepository } from '../repositories/Detalle_Pedido_Almacen_ChequeoRepository';
+import Pedido_Almacen from '../model/Pedido_Almacen';
 
 export const Pedido_AlmacenService = {
   /**CHEQUEO */
+
+  checarArticulo: async (id_pedido_alm: string, cod_barras: string, cantidad: number, id_empleado: string) => {
+
+    const articulo = await Detalle_Pedido_Almacen_ChequeoRepository.checarArticulo(id_pedido_alm, cod_barras, cantidad, id_empleado)
+
+    const detallesPorChecar = await Detalle_Pedido_Almacen_ChequeoRepository.detallesPorChecar(id_pedido_alm)
+
+    const pedidoTerminado = detallesPorChecar.length === 0
+
+    if (detallesPorChecar.length === 0) {
+      await Pedido_AlmacenRepository.pedidoChecado(id_pedido_alm)
+    }
+    return {
+      articulo,
+      pedidoTerminado  // true -> redirigir al front, false -> seguir chequeando
+    }
+  },
   getPedidoEnChequeo: async (id_empleado: string) => {
 
     const algunoActivoParaMiUsuario = await Detalle_Pedido_Almacen_ChequeoRepository.algunPedidoAsignadoChequeo(id_empleado);
@@ -26,27 +44,27 @@ export const Pedido_AlmacenService = {
     };
   },
   asignarPedidoChequeo: async (id_empleado: string, id_pedido_alm: string) => {
-    const t0 = Date.now();
+    //const t0 = Date.now();
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
-    console.log('transaction open:', Date.now() - t0, 'ms');
+    //   console.log('transaction open:', Date.now() - t0, 'ms');
 
     try {
-      const t1 = Date.now();
+      // const t1 = Date.now();
       const pedido = await Pedido_AlmacenRepository.getByCodInterno(id_pedido_alm, t);
-      console.log('getByCodInterno:', Date.now() - t1, 'ms');
+      // console.log('getByCodInterno:', Date.now() - t1, 'ms');
       if (!pedido) throw new Error('Pedido no encontrado');
 
-      const t2 = Date.now();
+      // const t2 = Date.now();
       await Detalle_Pedido_Almacen_ChequeoRepository.asignarDetallesPedidoAChequeo(id_empleado, pedido.id_pedido_alm, t);
-      console.log('asignarDetalles total:', Date.now() - t2, 'ms');
+      //  console.log('asignarDetalles total:', Date.now() - t2, 'ms');
 
-      const t3 = Date.now();
+      //  const t3 = Date.now();
       await t.commit();
-      console.log('commit:', Date.now() - t3, 'ms');
+      // console.log('commit:', Date.now() - t3, 'ms');
 
-      console.log('TOTAL:', Date.now() - t0, 'ms');
+      // console.log('TOTAL:', Date.now() - t0, 'ms');
       return;
     } catch (error) {
       await t.rollback();
@@ -55,10 +73,7 @@ export const Pedido_AlmacenService = {
   },
 
   getDetalleAsignadoChequeo: async (id_empleado: string) => {
-
-
     const getDetallesAsignados = await Detalle_Pedido_Almacen_ChequeoRepository.getDetallesAsignados(id_empleado)
-    // console.log(getDetallesAsignados)
     return getDetallesAsignados
   },
 

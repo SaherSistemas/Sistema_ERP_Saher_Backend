@@ -109,14 +109,14 @@ export const Detalle_Pedido_AlmacenRepository = {
     return true;
   },
   getDetallesPorPedido: async (id_pedido_alm: string, t?: Transaction) => {
-    console.log(id_pedido_alm)
+    // console.log(id_pedido_alm)
     const detalles = await Detalle_Pedido_Almacen.findAll({
       where: {
         id_pedido_almacen: id_pedido_alm
       },
       transaction: t
     });
-    console.log("DETALLES EN REPO:", detalles);
+    //console.log("DETALLES EN REPO:", detalles);
     if (!detalles) throw new Error('Detalles no encontrado');
 
 

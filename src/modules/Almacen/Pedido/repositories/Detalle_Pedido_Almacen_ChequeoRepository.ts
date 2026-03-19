@@ -19,7 +19,18 @@ interface IAsignarDetallesChequeoInput {
     nota: null;
 }
 export const Detalle_Pedido_Almacen_ChequeoRepository = {
+    detallesPorChecar: async (id_detalle_pedido: string) => {
+        const ids_detalles = await Detalle_Pedido_AlmacenRepository.getIdsDetallesPorPedido(id_detalle_pedido)
+        // console.log(ids_detalles)
 
+        const ids = ids_detalles.map((d: any) => d.id_detalle_pedido_almacen)
+        return await Detalle_Pedido_Almacen_Chequeo.findAll({
+            where: {
+                id_detalle_pedido_almacen: { [Op.in]: ids },
+                estado: { [Op.in]: ['EN_PROCESO', 'ASIGNADO'] }
+            }
+        })
+    },
     asignarDetallesPedidoAChequeo: async (
         id_empleado: string,
         id_pedido_almacen: string,
@@ -67,13 +78,13 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
     getDetallesAsignados: async (
         id_empleado: string,
         page: number = 1,
-        limit: number = 1
+        limit: number = 50
     ) => {
         const offset = (page - 1) * limit;
 
         const detalles = await Detalle_Pedido_Almacen_Chequeo.findAll({
             where: { id_empleado },
-            attributes: ['id_detalle_chequeo', 'fecha_asignado'],
+            attributes: ['id_detalle_chequeo', 'fecha_asignado', 'cant_chequeada'],
             limit,
             offset,
             order: [['fecha_asignado', 'ASC']],
@@ -133,4 +144,69 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         });
         return asignacion?.['detalle_pedido.id_pedido_almacen'] ?? null;
     },
+
+    checarArticulo: async (idPedido: string, cod_barras: string, cantidad: number, id_empleado: string) => {
+        const articulo = await Detalle_Pedido_Almacen_Chequeo.findOne({
+            where: {
+                id_empleado: id_empleado
+            },
+            include: [
+                {
+                    model: Detalle_Pedido_Almacen,
+                    as: 'detalle_pedido',
+                    required: true,
+                    where: {
+                        id_pedido_almacen: idPedido,
+                    },
+                    include: [
+                        {
+                            model: Articulo,
+                            required: true,
+                            attributes: ['id_artic', 'cod_barr_artic'],
+                            where: {
+                                cod_barr_artic: cod_barras
+                            }
+                        }
+                    ]
+                }
+            ],
+            raw: true
+        });
+
+        if (!articulo) throw new Error(`Artículo no encontrado`);
+
+        // Validar que no exceda la cantidad pedida
+        const cantPedida = articulo['detalle_pedido.cant_pedida'];
+        const cantActual = articulo.cant_chequeada;
+        const nuevaCantidad = cantActual + cantidad;
+
+        if (nuevaCantidad > cantPedida) {
+            throw new Error(
+                `Cantidad excede lo pedido. Pedido: ${cantPedida}, Ya chequeado: ${cantActual}, Intentando agregar: ${cantidad}`
+            );
+        }
+
+        // Update
+        await Detalle_Pedido_Almacen_Chequeo.update(
+            {
+                cant_chequeada: nuevaCantidad,
+                estado: nuevaCantidad === cantPedida ? 'TERMINADO' : 'EN_PROCESO',
+                inicio: cantActual === 0 ? new Date() : articulo.inicio, // primera vez que chequea
+                fin: nuevaCantidad === cantPedida ? new Date() : null,
+            },
+            {
+                where: {
+                    id_detalle_chequeo: articulo.id_detalle_chequeo
+                }
+            }
+        );
+
+        return {
+            id_detalle_chequeo: articulo.id_detalle_chequeo,
+            cant_chequeada: nuevaCantidad,
+            cant_pedida: cantPedida,
+            estado: nuevaCantidad === cantPedida ? 'COMPLETO' : 'EN_PROCESO',
+            articulo: articulo['detalle_pedido.articulo.cod_barr_artic']
+        };
+    }
 };

@@ -6,12 +6,26 @@ import { AuthedRequest } from '../../../../middleware/auth';
 
 export class Pedido_AlmacenController {
   /*CHECARRR */
-  static checarArticulo = async (req: Request, res: Response) => {
+  static checarArticulo = async (req: AuthedRequest, res: Response) => {
     try {
-      console.log("HOLA DESDE CHECAR ARTICULO")
-      res.status(500).json("HOASL")
+      const { cod_barras, cantidad } = req.body
+      const { id_pedido_alm } = req.params
+      const resultado = await Pedido_AlmacenService.checarArticulo(id_pedido_alm, cod_barras, cantidad, req.user.id_referencia_persona)
+      res.status(200).json(resultado)
     } catch (error) {
+      const msg = error.message ?? "Error desconocido";
 
+      if (msg.includes("no encontrado")) {
+        res.status(404).json({ message: msg });
+        return;
+      }
+
+      if (msg.includes("excede")) {
+        res.status(422).json({ message: msg });
+        return;
+      }
+
+      res.status(500).json({ message: msg });
     }
   }
   static asignarPedidoChequeo = async (req: AuthedRequest, res: Response) => {
@@ -29,6 +43,7 @@ export class Pedido_AlmacenController {
   static getDetallesAsignadoChequeo = async (req: AuthedRequest, res: Response) => {
     try {
       const resultado = await Pedido_AlmacenService.getDetalleAsignadoChequeo(req.user.id_referencia_persona);
+      //console.log(resultado)
       res.status(200).json(resultado);
     } catch (error) {
       console.log(error);
