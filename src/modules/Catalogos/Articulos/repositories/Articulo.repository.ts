@@ -198,7 +198,7 @@ export const ArticuloRepository = {
 
     getArticulosNegadosParaCompra: async (id_empresa_sucursal: string, page: number, limit: number) => {
         const offset = (page - 1) * limit;
-
+        console.log(id_empresa_sucursal)
         const { count, rows } = await Detalle_Compra_Negados.findAndCountAll({
             where: {
                 recuperado: false,
@@ -207,11 +207,11 @@ export const ArticuloRepository = {
             include: [
                 {
                     model: Compra_Proveedor,
-                    required: true,
+                    required: false,
                     include: [
                         {
                             model: Compra_General,
-                            required: true,
+                            required: false,
                             where: { id_empresa_sucursal: id_empresa_sucursal },
                         }
                     ]

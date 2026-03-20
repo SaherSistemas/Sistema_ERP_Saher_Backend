@@ -21,7 +21,7 @@ export class ArticuloController {
       const articulo = await ArticuloService.getByCodigoBarras(cod_barr_artic);
       res.status(200).json(articulo);
     } catch (error) {
-      
+
     }
   }
   static getAllParaVenta = async (req: Request, res: Response) => {
@@ -62,6 +62,7 @@ export class ArticuloController {
       const limit = parseInt(req.query.limit as string) || 20;
 
       const articulosNegados = await ArticuloService.getAllArticulosNegadosParaCompra(id_empresa_sucursal, page, limit);
+      // console.log(articulosNegados)
       res.status(200).json(articulosNegados);
     } catch (error) {
       console.error(error);
