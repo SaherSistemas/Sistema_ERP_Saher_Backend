@@ -7,10 +7,37 @@ import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacen } from '../interf
 import Cliente_Almacen from '../../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Empleado from '../../../RRHH/model/Empleado';
 import Agente_de_Venta from '../../../Comercial/Agente_Venta/model/Agente_De_Venta';
+import { isUUID } from '../../../../utils/validaciones';
 
 
 export const Pedido_AlmacenRepository = {
+  /*EMPACADO */
+  pedidoListoParaEmpacar: async (codigo: string) => {
+    const where: any = {
+      status_pedido_alm: 'CH'
+    };
 
+    if (isUUID(codigo)) {
+      where.id_pedido_alm = codigo;
+    } else {
+      where.cod_int_pedido_alm = codigo;
+    }
+
+    const pedido = await Pedido_Almacen.findOne({
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm'],
+      where
+    });
+
+    return pedido;
+  },
+  cambiarStatusAEmpacado: async (id_pedido_alm: string) => {
+    return await Pedido_Almacen.update(
+      { status_pedido_alm: 'EM' },
+      { where: { id_pedido_alm } }
+    )
+  },
+
+  /*FIN EMPACADO */
   /*CHEQUEO */
   pedidoChecado: async (id_pedido_alm: string) => {
     return await Pedido_Almacen.update(
@@ -18,6 +45,7 @@ export const Pedido_AlmacenRepository = {
       { where: { id_pedido_alm } }
     )
   },
+
   pedidosPorChecar: async () => {
     // console.log("ENTRO A REPO PEDIDOS POR CHECAR")
     const pedidos = await Pedido_Almacen.findAll({

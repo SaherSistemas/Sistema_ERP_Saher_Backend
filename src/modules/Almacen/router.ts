@@ -4,10 +4,14 @@ import ubicacion_Router from './Ubicaciones/routes/ubicacion_SucursalRoutes';
 import recepcionesRouter from './Recepciones/routes/Recepciones.route';
 import { authMiddleware } from "../../middleware/auth";
 import pedidoRouter from './Pedido/routes/Pedido_AlmecenRouter'
+import pedido_EmpaqueRouter from './Empaque/routes/Pedido_Almecen_EmpaqueRouter'
+
 const router = Router()
 
 router.use('/acomodo', authMiddleware, acomodoRouter)
 router.use('/ubicaciones', authMiddleware, ubicacion_Router)
 router.use('/recepciones', authMiddleware, recepcionesRouter)
 router.use('/pedido', authMiddleware, pedidoRouter)
+router.use('/empaque', authMiddleware, pedido_EmpaqueRouter)
+
 export default router

@@ -4,6 +4,8 @@ import morgan from 'morgan';
 import cors from 'cors';
 import { dbLocal, /*dbVieja/* dbRemota */ } from './config/db'; // Ambas conexiones
 import router from './routes';
+import fs from 'fs';
+import path from 'path';
 
 async function connectDatabases() {
     try {
@@ -14,7 +16,7 @@ async function connectDatabases() {
         console.log(colors.blue.bold('Conexión exitosa a base LOCAL'));
         console.log(colors.green.bold('Conexión exitosa a base VIEJA'));
 
-        //await dbLocal.sync({ alter: true });    // Sincroniza modelos si es necesario
+        await dbLocal.sync({ alter: true });    // Sincroniza modelos si es necesario
         //await dbRemota.sync();   // Solo si quieres sincronizar también la remota
     } catch (error) {
         console.error(colors.red.bold('Error al conectar a las bases de datos:'));
@@ -33,4 +35,7 @@ app.use(express.json());
 
 app.use('/api', router);
 
+app.use('/uploads/firmas', express.static(
+    path.join(__dirname, 'modules/Almacen/Empaque/routes/firmas')
+));
 export default app;

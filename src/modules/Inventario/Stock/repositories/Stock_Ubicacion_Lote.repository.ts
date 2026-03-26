@@ -1,6 +1,6 @@
 
 import { v4 as uuidv4 } from 'uuid';
-import { col, fn, literal, Op, QueryTypes, Transaction } from 'sequelize';
+import { col, fn, literal, Op, QueryTypes, Sequelize, Transaction } from 'sequelize';
 import Stock_Ubicacion_Lote from '../model/Stock_Ubicacion_Lote';
 import { dbLocal } from '../../../../config/db';
 import { CrearStockUbicacionLoteDTO, StockUpsertRow } from '../interface/Stock_Ubicacion_Lote.interface';
@@ -73,6 +73,16 @@ export const Stock_Ubicacion_LoteRepository = {
         const stock_ubicacion_lote = await Stock_Ubicacion_Lote.findAll({
             where: whereStock,
             transaction: tx,
+            attributes: [
+                'id_stock_ubicacion_lote',
+                'id_lote',
+                'cantidad',
+                'cantidad_apartada',
+                [
+                    Sequelize.literal(`"Stock_Ubicacion_Lote"."cantidad" - COALESCE("Stock_Ubicacion_Lote"."cantidad_apartada", 0)`),
+                    'cantidad_disponible'
+                ]
+            ],
             include: [
                 includeArticulo,
                 {
