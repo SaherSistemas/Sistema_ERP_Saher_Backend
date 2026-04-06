@@ -15,7 +15,7 @@ export interface IAddStockDTO {
 
 export type StockUpsertRow = {
     id_articulo: string;
-    id_empresa_sucursal;
+    id_empresa_sucursal: string;
     id_lote: string;
     cantidad: number;
     cantidad_apartada?: number;
@@ -29,9 +29,9 @@ export type CrearStockUbicacionLoteDTO = {
     id_articulo: string;
     id_lote: string;
 
-    id_ubicacion_sucursal: string;
+    // null = pendiente de acomodo (aparece en findPendientesDeAcomodo)
+    id_ubicacion_sucursal: string | null;
     cantidad: number;
 
-    // opcional si lo quieres setear
     cantidad_apartada?: number;
 };

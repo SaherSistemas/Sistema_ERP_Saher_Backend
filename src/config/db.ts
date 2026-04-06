@@ -17,8 +17,10 @@ export const dbLocal = new Sequelize({
         useUTC: true,
     },
     models: [
-        path.resolve(__dirname, '..', 'models', '**', '*.{ts,js}'),
-        path.resolve(__dirname, '..', 'modules', '**', 'model', '*.{ts,js}'),
+        path.resolve(__dirname, '..', 'models', '**', '*.ts'),
+        path.resolve(__dirname, '..', 'models', '**', '*.js'),
+        path.resolve(__dirname, '..', 'modules', '**', 'model', '*.ts'),
+        path.resolve(__dirname, '..', 'modules', '**', 'model', '*.js'),
     ],
     logging: false,
 });

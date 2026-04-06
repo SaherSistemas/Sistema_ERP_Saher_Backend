@@ -14,4 +14,5 @@ export interface ICreateNotasCreditoProveedor {
     motivo_nc: string
     fecha_emision: Date
     total_nc: number
+    estado_nc?: string   // 'P' = pendiente entrada inventario | 'C' = cerrada
 }

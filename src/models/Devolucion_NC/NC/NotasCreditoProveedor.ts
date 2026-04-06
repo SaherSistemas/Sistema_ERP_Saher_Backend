@@ -1,5 +1,6 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo, HasMany } from 'sequelize-typescript';
 import Compra_Proveedor from '../../../modules/Compras/Ordenes-Compra/model/Compra_Proveedor';
+import Faltante_Factura_Proveedor from '../Faltante/Faltante_Factura_Proveedor';
 
 
 @Table({
@@ -7,6 +8,7 @@ import Compra_Proveedor from '../../../modules/Compras/Ordenes-Compra/model/Comp
     timestamps: true,
 })
 class NotasCreditoProveedor extends Model {
+    // 'P' = pendiente entrada inventario, 'C' = cerrada (entrada ya dada)
     @PrimaryKey
     @Column({
         type: DataType.UUID,
@@ -43,8 +45,18 @@ class NotasCreditoProveedor extends Model {
     })
     declare total_nc: number;
 
+    @Default('P')
+    @Column({
+        type: DataType.CHAR(1),
+        allowNull: false,
+    })
+    declare estado_nc: string;
+
     @BelongsTo(() => Compra_Proveedor)
     compraProveedor: Compra_Proveedor;
+
+    @HasMany(() => Faltante_Factura_Proveedor)
+    declare faltantes?: Faltante_Factura_Proveedor[];
 
 }
 

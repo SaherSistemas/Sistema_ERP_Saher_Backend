@@ -9,12 +9,12 @@ import { Empresa_SucursalRepository } from "../../repository/Empresa_Sucursal/Em
 import { StockSucursalRepository } from "../../repository/Stock/Stock_Sucursal.repository";
 import { ICreaterOrUdateLotesArticuloSucursal } from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
 import { ICreateOrUpdateIDetalleListaPrecio } from "../../modules/Comercial/Precios/interface/Detalle_Lista_Pecios.interface";
-import { Devoluciones_ComprasRepository } from "../../repository/Devoluciones_NC/Devoluciones_Compras.repository";
+//import { Devoluciones_ComprasRepository } from "../../repository/Devoluciones_NC/Devoluciones_Compras.repository";
 import { EmpleadoRepository } from "../../modules/RRHH/repositories/Empleado.repository";
 import { ICreateDevoluciones_Compra } from "../../interface/Devolucion_NC/Devoluciones_Compras.interface";
 import { Detalle_Compra_RecibidosRepository } from "../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Recibido.repository";
 import { Console } from "console";
-import { Detalle_Devoluciones_CompraRepository } from "../../repository/Devoluciones_NC/Detalles_Devoluciones_Compras.repository";
+//import { Detalle_Devoluciones_CompraRepository } from "../../repository/Devoluciones_NC/Detalles_Devoluciones_Compras.repository";
 import { Detalle_Compra_NegadosRepository } from "../../modules/Compras/Ordenes-Compra/repositories/Detalle_Compra_Negado.repository";
 import { Compra_ProveedorRepository } from "../../modules/Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository";
 import { LoteRecibidoCompraRepository } from "../../repository/LotesYCaducidad/LoteRecibidoCompra.repository";
@@ -151,7 +151,7 @@ export const StockSucursalService = {
                     iva_total: 0,
                     id_usuario_devolucio: empleado.id_empleado
                 }
-                const id_devo = await Devoluciones_ComprasRepository.create(dataParaCabezaDevolucion, { transaction: t })
+               // const id_devo = await Devoluciones_ComprasRepository.create(dataParaCabezaDevolucion, { transaction: t })
                 //console.log(id_devo)
 
                 const dataParaDevolucion = await Promise.all(
@@ -161,10 +161,10 @@ export const StockSucursalService = {
                         const ivaUnitario = await ArticuloRepository.getIVAPorArticulo(
                             articuloDevolucion.idarticulo_detcomprec,
                             Number(d.costo)
-                        );
+                        )
                         // console.log("IVA", ivaUnitario)
                         return {
-                            id_devo,
+                           // id_devo,
                             id_articulo: articuloDevolucion.idarticulo_detcomprec,
                             cantidad: d.cantidad_devolucion,
                             costo_unitario: Number(d.costo),
@@ -176,7 +176,7 @@ export const StockSucursalService = {
                     })
                 )
                 // SE CREARON LAS DEVOLUCIOICNES 
-                const createDetallesDevolucion = await Detalle_Devoluciones_CompraRepository.create(dataParaDevolucion, { transaction: t })
+               // const createDetallesDevolucion = await Detalle_Devoluciones_CompraRepository.create(dataParaDevolucion, { transaction: t })
 
 
                 //LOS PRODUCTOS QUE SE DEVOLVIERON TAMBIEN TIENE QUE SER NEGADOS PARA QUE SALGA EN LA SIGUITNE COMPRA

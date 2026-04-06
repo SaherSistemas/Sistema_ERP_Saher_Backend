@@ -17,7 +17,7 @@ export interface ICreaterOrUdateLotesArticuloSucursal {
   cantidad_entrada_lote?: number;
   precio_costo_lote_sucursal: number;
   estado_lote_sucursal: string;
-  id_loterecibido_lote_sucursal: string;
+  id_loterecibido_lote_sucursal?: string | null;
 }
 
 export interface IResumenArticulo {

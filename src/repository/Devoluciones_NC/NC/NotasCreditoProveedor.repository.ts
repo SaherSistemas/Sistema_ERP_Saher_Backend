@@ -24,5 +24,19 @@ export const NotasCreditoProveedorRepository = {
                 transaction: options?.transaction
             },
         )
+    },
+
+    tienePendiente: async (id_compra_proveedor: string, options?: { transaction?: Transaction }) => {
+        return await NotasCreditoProveedor.findOne({
+            where: { id_compra_proveedor, estado_nc: 'P' },
+            transaction: options?.transaction
+        });
+    },
+
+    marcarCerradas: async (id_compra_proveedor: string, options?: { transaction?: Transaction }) => {
+        return await NotasCreditoProveedor.update(
+            { estado_nc: 'C' },
+            { where: { id_compra_proveedor, estado_nc: 'P' }, transaction: options?.transaction }
+        );
     }
 }

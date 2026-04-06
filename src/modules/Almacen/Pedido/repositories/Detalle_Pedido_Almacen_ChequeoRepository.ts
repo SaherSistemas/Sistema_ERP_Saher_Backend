@@ -83,7 +83,10 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         const offset = (page - 1) * limit;
 
         const detalles = await Detalle_Pedido_Almacen_Chequeo.findAll({
-            where: { id_empleado },
+            where: {
+                id_empleado,
+                estado: ['ASIGNADO', 'EN_PROCESO']
+            },
             attributes: ['id_detalle_chequeo', 'fecha_asignado', 'cant_chequeada'],
             limit,
             offset,

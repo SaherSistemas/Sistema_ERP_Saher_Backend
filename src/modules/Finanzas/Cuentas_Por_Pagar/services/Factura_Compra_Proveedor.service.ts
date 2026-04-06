@@ -20,6 +20,8 @@ import { calcularTotalesFactura } from "../helpers/facturaTotale";
 import { ICreaterOrUdateLotesArticuloSucursal } from "../../../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
 import { Stock_Ubicacion_LoteRepository } from "../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository";
 import { LotesArticuloSucursalRepository } from "../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository";
+import { NotasCreditoProveedorRepository } from "../../../../repository/Devoluciones_NC/NC/NotasCreditoProveedor.repository";
+import { Faltante_Factura_ProveedorRepository } from "../../../../repository/Devoluciones_NC/Faltante_Factura_Proveedor.repository";
 export const Factura_Compra_ProveedorService = {
     getAllConFiltroDeEstado: async () => {
         return await Factura_Compra_ProveedorRepository.getAllConFiltroDeEstado();
@@ -54,8 +56,10 @@ export const Factura_Compra_ProveedorService = {
             }));
             // 3) Separar por status
             const { devoluciones } = separarDetallesPorStatus(detallesClasificados);
-            // 4) Calcular totales (si los usas)
-            const totalesRecibidos = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'RECIBIDA' });
+            // 4) Calcular totales
+            const totalesRecibidos  = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'RECIBIDA' });
+            const totalesNegados    = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'NEGADA' });
+            const totalesFacturados = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'FACTURADA' });
             // 5) Insertar negados (EFICIENTE)
             if (devoluciones.length > 0) {
                 const now = new Date();
@@ -95,6 +99,58 @@ export const Factura_Compra_ProveedorService = {
                 totalesRecibidos.iva,
                 t
             );
+            // 7.5) Generar NC automática + registrar faltantes si hay diferencia
+            if (totalesNegados.total > 0) {
+                const folioAutoNC = `NC-AUTO-${factura.folio_factura_proveedor ?? id_factura_proveedor}-${Date.now()}`;
+
+                const ncCreada = await NotasCreditoProveedorRepository.create(
+                    {
+                        id_compra_proveedor: factura.compra.id_comp,
+                        folio_nc: folioAutoNC,
+                        motivo_nc: 'Faltante detectado en chequeo de factura (generado automáticamente)',
+                        fecha_emision: new Date().toISOString().split('T')[0] as any,
+                        total_nc: totalesNegados.total,
+                        estado_nc: 'P',
+                    },
+                    { transaction: t }
+                );
+
+                // Insertar un registro por cada artículo faltante
+                const filasFaltantes = [];
+                for (const d of detallesClasificados) {
+                    const cantFaltante = Number(d?.resumen?.negado ?? 0);
+                    if (cantFaltante <= 0) continue;
+
+                    const idArticulo = d.detalleCompraSolicitado?.idarticulo_detcompsol;
+                    if (!idArticulo) continue;
+
+                    const precioUnit = Number(d.precio_articulo_factura ?? 0);
+                    const ivaPct     = Number(d.iva_articulo_factura ?? 16);
+                    const ivaUnit    = precioUnit * (ivaPct / 100);
+
+                    filasFaltantes.push({
+                        id_faltante:          uuidv4(),
+                        id_nc:                ncCreada.id_nc,
+                        id_factura_proveedor: id_factura_proveedor,
+                        id_articulo:          idArticulo,
+                        cantidad_faltante:    cantFaltante,
+                        precio_unitario:      precioUnit,
+                        iva_unitario:         Math.round(ivaUnit * 100) / 100,
+                        estado:               'P',
+                    });
+                }
+
+                if (filasFaltantes.length > 0) {
+                    await Faltante_Factura_ProveedorRepository.bulkCreate(filasFaltantes, { transaction: t });
+                }
+
+                // Si lo recibido + la NC iguala la factura → finalizar compra
+                const normalizar = (n: number) => Math.round(n * 100);
+                if (normalizar(totalesRecibidos.total + totalesNegados.total) === normalizar(totalesFacturados.total)) {
+                    await Compra_ProveedorRepository.updateEstado(factura.compra.id_comp, 'F', { transaction: t });
+                }
+            }
+
             // 8) Darle entrada a los articulos(CREAR EL LOTE_ARTICULO_SUCURSAL Y DARLE ENTRADA EN UBICACIONLOTE_SUCURSAL)
             const lotesArticuloSucursal: ICreaterOrUdateLotesArticuloSucursal[] = [];
 

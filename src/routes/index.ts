@@ -57,7 +57,7 @@ import factura_compra_ProveedorRouter from '../modules/Finanzas/Cuentas_Por_Paga
 
 import Margen_Ganancia_ListaRouter from '../modules/Comercial/Precios/routes/Margen_Ganancia_ListaRouter';
 
-import DevolucionesRouter from './Devoluciones_NC/DevolucionesRouter';
+
 import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter';
 
 import Dash_ComprasRouter from './Dashboards/DashboardRouter';
@@ -128,6 +128,8 @@ import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
 import almacenRouter from '../modules/Almacen/router'
 
 import comercialRouter from '../modules/Comercial/router'
+
+import impresionesRouter from '../modules/Impresiones/router'
 const router = Router();
 
 router.use(generalLimiter);
@@ -247,7 +249,6 @@ router.use('/asignacion_empleado_sucursal', Asignacion_Empleado_SucursalRouter);
 
 router.use('/finanzas', cxcRoutes);
 
-router.use('/devoluciones', DevolucionesRouter);
 router.use('/nota_credito', notaCreditoRouter);
 
 router.use('/dashboard', Dash_ComprasRouter);
@@ -261,4 +262,7 @@ router.use('/uploads', uploadsRouter)
 router.use('/almacen', almacenRouter)
 
 router.use('/comercial', comercialRouter)
+
+
+router.use('/impresiones', impresionesRouter);
 export default router;
