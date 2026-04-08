@@ -3,6 +3,7 @@ import { Op, Transaction } from 'sequelize';
 import Pedido_Almacen_Empaque from '../model/Pedido_Almacen_Empaque';
 import { Bulto_Pedido } from '../model/Bulto_Pedido';
 import { ICrearBultoPayload } from '../interface/Bulto_Pedido.interface';
+import Pedido_Almacen from '../../Pedido/model/Pedido_Almacen';
 
 export const Bulto_PedidoRepository = {
 
@@ -24,7 +25,28 @@ export const Bulto_PedidoRepository = {
     },
 
 
-    
 
+    getInfoPedidoParaBulto: async (cod_bulto: string): Promise<string> => {
+        const bulto = await Bulto_Pedido.findOne({
+            where: { cod_bulto },
+            include: [
+                {
+                    model: Pedido_Almacen_Empaque,
+                    as: 'pedido_empaque',
+                    attributes: ['id_pedido_almacen', 'id_empleado_empaco'],
+                    include: [
+                        {
+                            model: Pedido_Almacen,
+                            as: 'pedido',
+                            attributes: ['id_cliente_pedido_alm', 'id_agente_pedido_alm', 'cod_int_pedido_alm']
+                        }
+                    ]
+                }
+            ]
+        });
+        if (!bulto) throw new Error('Bulto no encontrado');
 
+        return bulto.id_pedido_empaque;
+
+    }
 };

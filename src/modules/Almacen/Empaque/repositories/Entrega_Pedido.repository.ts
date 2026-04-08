@@ -10,6 +10,7 @@ import { Bulto_Pedido } from '../model/Bulto_Pedido';
 import { Entrega_Pedido } from '../model/Entrega_Pedido';
 import { Entrega_Pedido_Detalle } from '../model/Entrega_Pedido_Detalle';
 import { guardarFirma } from '../../../../helpers/guardarFirma';
+import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
 
 
 export const Entrega_PedidoRepository = {
@@ -33,7 +34,7 @@ export const Entrega_PedidoRepository = {
                 [
                     Sequelize.fn('JSON_AGG', Sequelize.fn('JSON_BUILD_OBJECT',
                         'cod_int_pedido_alm', Sequelize.col('pedido.cod_int_pedido_alm'),
-                        'cajas',  Sequelize.col('Pedido_Almacen_Empaque.cajas'),
+                        'cajas', Sequelize.col('Pedido_Almacen_Empaque.cajas'),
                         'bolsas', Sequelize.col('Pedido_Almacen_Empaque.bolsas'),
                         'bultos', Sequelize.literal(`(
                             SELECT JSON_AGG(JSON_BUILD_OBJECT(
@@ -49,7 +50,7 @@ export const Entrega_PedidoRepository = {
                     )),
                     'pedidos'
                 ],
-                [Sequelize.fn('SUM', Sequelize.col('Pedido_Almacen_Empaque.cajas')),  'total_cajas'],
+                [Sequelize.fn('SUM', Sequelize.col('Pedido_Almacen_Empaque.cajas')), 'total_cajas'],
                 [Sequelize.fn('SUM', Sequelize.col('Pedido_Almacen_Empaque.bolsas')), 'total_bolsas'],
             ],
             include: [
@@ -84,9 +85,9 @@ export const Entrega_PedidoRepository = {
         // ── Flujo CLIENTE directo: pedidos sin agente ─────────────────────
         const sinAgente = await Pedido_Almacen_Empaque.findAll({
             attributes: [
-                [Sequelize.col('pedido.id_pedido_alm'),        'id_pedido_alm'],
-                [Sequelize.col('pedido.cod_int_pedido_alm'),   'cod_int_pedido_alm'],
-                [Sequelize.col('pedido.id_cliente_pedido_alm'),'id_cliente_pedido_alm'],
+                [Sequelize.col('pedido.id_pedido_alm'), 'id_pedido_alm'],
+                [Sequelize.col('pedido.cod_int_pedido_alm'), 'cod_int_pedido_alm'],
+                [Sequelize.col('pedido.id_cliente_pedido_alm'), 'id_cliente_pedido_alm'],
                 'cajas', 'bolsas',
                 [
                     Sequelize.literal(`(
@@ -119,6 +120,123 @@ export const Entrega_PedidoRepository = {
     },
 
     /**
+     * Devuelve pedidos listos para entregar al cliente según el tipo de usuario:
+     *  - ALMACEN : pedidos EMPACADO sin agente (entrega directa al cliente).
+     *  - AGENTE  : entregas ABIERTA que el agente ya recibió de almacén y aún
+     *              no ha entregado al cliente.
+     */
+    obtenerPedidosParaEntregaCliente: async (params: {
+        tipo: 'ALMACEN' | 'AGENTE';
+        id_empresa?: string;
+        id_persona?: string;
+    }) => {
+        const { tipo, id_persona } = params;
+        const agente = await AgenteRepository.getByIdEmpleado(id_persona);
+        const id_agente = agente?.id_agente;
+        // console.log('Entrega_PedidoRepository.obtenerPedidosParaEntregaCliente - id_persona:', id_persona, 'id_agente:', id_agente);
+        // console.log('obtenerPedidosParaEntregaCliente - params:', params);
+        if (tipo === 'ALMACEN') {
+            return await Pedido_Almacen_Empaque.findAll({
+                attributes: [
+                    [Sequelize.col('pedido.id_pedido_alm'), 'id_pedido_alm'],
+                    [Sequelize.col('pedido.cod_int_pedido_alm'), 'cod_int_pedido_alm'],
+                    [Sequelize.col('pedido.id_cliente_pedido_alm'), 'id_cliente_pedido_alm'],
+                    'cajas',
+                    'bolsas',
+                    [
+                        Sequelize.literal(`(
+                            SELECT ca.nom_corto_cliente_alm
+                            FROM cliente_almacen ca
+                            WHERE ca.id_cliente_alm = "pedido"."id_cliente_pedido_alm"
+                        )`),
+                        'nom_corto_cliente',
+                    ],
+                    [
+                        Sequelize.literal(`(
+                            SELECT ca.razon_social_cliente_alm
+                            FROM cliente_almacen ca
+                            WHERE ca.id_cliente_alm = "pedido"."id_cliente_pedido_alm"
+                        )`),
+                        'razon_social_cliente',
+                    ],
+                    [
+                        Sequelize.literal(`(
+                            SELECT JSON_AGG(JSON_BUILD_OBJECT(
+                                'id_bulto',    b.id_bulto,
+                                'cod_bulto',   b.cod_bulto,
+                                'tipo_bulto',  b.tipo_bulto,
+                                'num_bulto',   b.num_bulto,
+                                'total_bulto', b.total_bulto
+                            ))
+                            FROM bulto_pedido b
+                            WHERE b.id_pedido_empaque = "Pedido_Almacen_Empaque"."id_pedido_empaque"
+                        )`),
+                        'bultos',
+                    ],
+                ],
+                include: [{
+                    model: Pedido_Almacen,
+                    as: 'pedido',
+                    attributes: [],
+                    required: true,
+                }],
+                where: { estado: 'EMPACADO' },
+                raw: true,
+            });
+        }
+
+        // AGENTE: entregas ABIERTA que el agente ya firmó de recibido
+        return await Entrega_Pedido.findAll({
+            where: {
+                tipo_destino: 'AGENTE',
+                estado: 'ABIERTA',
+                id_agente,
+            },
+            attributes: [
+                'id_entrega_pedido',
+                'fecha_salida',
+                'total_pedidos',
+                'total_cajas',
+                'total_bolsas',
+                'total_bultos',
+                [
+                    Sequelize.literal(`(
+                        SELECT JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+                            'cod_int_pedido_alm',    pa.cod_int_pedido_alm,
+                            'id_cliente_pedido_alm', pa.id_cliente_pedido_alm,
+                            'nom_corto_cliente',     ca.nom_corto_cliente_alm,
+                            'razon_social_cliente',  ca.razon_social_cliente_alm
+                        ))
+                        FROM entrega_pedido_detalle epd
+                        JOIN bulto_pedido           bp  ON bp.id_bulto            = epd.id_bulto
+                        JOIN pedido_almacen_empaque pae ON pae.id_pedido_empaque  = bp.id_pedido_empaque
+                        JOIN pedido_almacen         pa  ON pa.id_pedido_alm       = pae.id_pedido_almacen
+                        JOIN cliente_almacen        ca  ON ca.id_cliente_alm      = pa.id_cliente_pedido_alm
+                        WHERE epd.id_entrega_pedido = "Entrega_Pedido"."id_entrega_pedido"
+                    )`),
+                    'pedidos',
+                ],
+                [
+                    Sequelize.literal(`(
+                        SELECT JSON_AGG(JSON_BUILD_OBJECT(
+                            'id_bulto',    bp.id_bulto,
+                            'cod_bulto',   bp.cod_bulto,
+                            'tipo_bulto',  bp.tipo_bulto,
+                            'num_bulto',   bp.num_bulto,
+                            'total_bulto', bp.total_bulto
+                        ))
+                        FROM entrega_pedido_detalle epd
+                        JOIN bulto_pedido           bp ON bp.id_bulto = epd.id_bulto
+                        WHERE epd.id_entrega_pedido = "Entrega_Pedido"."id_entrega_pedido"
+                    )`),
+                    'bultos',
+                ],
+            ],
+            raw: true,
+        });
+    },
+
+    /**
      * Crea la salida de mercancía desde almacén.
      *
      * FLUJO 1 – ALMACEN → CLIENTE (directo):
@@ -144,7 +262,7 @@ export const Entrega_PedidoRepository = {
 
         const execute = async (t: Transaction) => {
             const { tipo_origen, tipo_destino, id_agente, id_cliente,
-                    bultos_escaneados, pedidos, firma_recibido } = dto;
+                bultos_escaneados, pedidos, firma_recibido } = dto;
 
             // 1. Marcar bultos como escaneados ─────────────────────────────
             if (bultos_escaneados.length > 0) {
@@ -157,17 +275,19 @@ export const Entrega_PedidoRepository = {
             // 2. Obtener pedidos con sus bultos ────────────────────────────
             const pedidosData = await Pedido_Almacen_Empaque.findAll({
                 include: [
-                    { model: Pedido_Almacen, as: 'pedido',
-                      where: { cod_int_pedido_alm: { [Op.in]: pedidos } } },
+                    {
+                        model: Pedido_Almacen, as: 'pedido',
+                        where: { cod_int_pedido_alm: { [Op.in]: pedidos } }
+                    },
                     { model: Bulto_Pedido, as: 'bultos' },
                 ],
                 transaction: t,
             });
 
             const total_pedidos = pedidosData.length;
-            const total_cajas   = pedidosData.reduce((s, p) => s + (p.cajas  ?? 0), 0);
-            const total_bolsas  = pedidosData.reduce((s, p) => s + (p.bolsas ?? 0), 0);
-            const total_bultos  = pedidosData.reduce((s, p) => s + (p.bultos?.length ?? 0), 0);
+            const total_cajas = pedidosData.reduce((s, p) => s + (p.cajas ?? 0), 0);
+            const total_bolsas = pedidosData.reduce((s, p) => s + (p.bolsas ?? 0), 0);
+            const total_bultos = pedidosData.reduce((s, p) => s + (p.bultos?.length ?? 0), 0);
 
             // 3. Determinar estado según flujo ─────────────────────────────
             //    AGENTE: queda ABIERTA hasta que el cliente firme con el agente
@@ -179,7 +299,7 @@ export const Entrega_PedidoRepository = {
             const salida = await Entrega_Pedido.create({
                 tipo_destino,
                 tipo_origen,
-                id_agente:  tipo_destino === 'AGENTE'  ? id_agente  : null,
+                id_agente: tipo_destino === 'AGENTE' ? id_agente : null,
                 id_cliente: tipo_destino === 'CLIENTE' ? id_cliente : null,
                 fecha_salida: new Date(),
                 estado: estadoInicial,
@@ -206,8 +326,8 @@ export const Entrega_PedidoRepository = {
                 await Entrega_Pedido_Detalle.bulkCreate(
                     todosBultos.map(bulto => ({
                         id_entrega_pedido: salida.id_entrega_pedido,
-                        id_bulto:    bulto.id_bulto,
-                        escaneado:   bultos_escaneados.includes(bulto.cod_bulto),
+                        id_bulto: bulto.id_bulto,
+                        escaneado: bultos_escaneados.includes(bulto.cod_bulto),
                         fecha_escaneo: bultos_escaneados.includes(bulto.cod_bulto) ? new Date() : null,
                     })),
                     { transaction: t }
@@ -223,15 +343,43 @@ export const Entrega_PedidoRepository = {
                 );
             }
 
+            // 8. Si el AGENTE está entregando al CLIENTE, cerrar la entrega
+            //    ALMACEN → AGENTE que sigue ABIERTA con esos mismos bultos ───
+            if (tipo_origen === 'AGENTE' && todosBultos.length > 0) {
+                const idsBultos = todosBultos.map(b => b.id_bulto);
+
+                const detallesAbiertos = await Entrega_Pedido_Detalle.findAll({
+                    where: { id_bulto: { [Op.in]: idsBultos } },
+                    include: [{
+                        model: Entrega_Pedido,
+                        as: 'entrega',
+                        where: { estado: 'ABIERTA', tipo_destino: 'AGENTE' },
+                        required: true,
+                    }],
+                    transaction: t,
+                });
+
+                const idsEntregasAbiertas = [
+                    ...new Set(detallesAbiertos.map(d => d.id_entrega_pedido))
+                ];
+
+                if (idsEntregasAbiertas.length > 0) {
+                    await Entrega_Pedido.update(
+                        { estado: 'ENTREGADA', fecha_firma: new Date() },
+                        { where: { id_entrega_pedido: { [Op.in]: idsEntregasAbiertas } }, transaction: t }
+                    );
+                }
+            }
+
             return {
                 id_entrega_pedido: salida.id_entrega_pedido,
-                estado:            estadoInicial,
+                estado: estadoInicial,
                 tipo_destino,
                 total_pedidos,
                 total_cajas,
                 total_bolsas,
                 total_bultos,
-                firma_recibido:    salida.firma_recibido,
+                firma_recibido: salida.firma_recibido,
             };
         };
 

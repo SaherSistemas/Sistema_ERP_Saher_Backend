@@ -73,7 +73,7 @@ export class AuthController {
             return
         }
         const [, token] = bearer.split(" ")
-        console.log(token)
+        //  console.log(token)
         if (!token) {
             res.status(403).json({ mensaje: "Token no validsssso." })
 

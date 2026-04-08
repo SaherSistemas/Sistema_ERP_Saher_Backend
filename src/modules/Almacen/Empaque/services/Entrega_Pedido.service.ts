@@ -11,6 +11,14 @@ export const Entrega_PedidoService = {
     obtenerPedidosPorEntregar: async (id_empresa: string) => {
         return await Entrega_PedidoRepository.obtenerPedidosPorEntregar(id_empresa);
     },
+    obtenerPedidosParaEntregaCliente: async (params: {
+        tipo: 'ALMACEN' | 'AGENTE';
+        id_empresa?: string;
+        id_persona?: string;
+    }) => {
+        return await Entrega_PedidoRepository.obtenerPedidosParaEntregaCliente(params);
+    },
+
     crearSalida: async (dto: {
         tipo_destino: "AGENTE" | "CLIENTE";
         id_agente: string | null;

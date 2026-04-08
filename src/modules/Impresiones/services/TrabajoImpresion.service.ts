@@ -3,17 +3,19 @@ import { Pedido_AlmacenRepository } from "../../Almacen/Pedido/repositories/Pedi
 import { ImpresoraRepository } from "../repositories/ImpresoraRepository";
 import { TrabajoImpresionRepository } from "../repositories/TrabajoImpresionRepository";
 import { ICreateTrabajoImpresion } from "../interface/TrabajoImpresion.interface";
+import { Bulto_PedidoRepository } from "../../Almacen/Empaque/repositories/Bulto_Pedido.repository";
 
 export const TrabajoImpresionService = {
     /**CHEQUEO */
 
     createTrabajoImpresion: async (id_pedido_alm: string, tipo_documento: string, estacion: string, id_empresa: string) => {
         let data: ICreateTrabajoImpresion;
-        const pedido = await Pedido_AlmacenRepository.getByID(id_pedido_alm);
-        if (!pedido) throw new Error('Pedido no encontrado');
 
         const id_impresora = await ImpresoraRepository.getImpresora(id_empresa, estacion);
         if (tipo_documento === 'PEDIDO_ALMACEN') {
+            const pedido = await Pedido_AlmacenRepository.getByID(id_pedido_alm);
+            if (!pedido) throw new Error('Pedido no encontrado');
+
             data = {
                 cod_interno_pedido: pedido.cod_int_pedido_alm,
                 tipo_documento,
@@ -30,9 +32,11 @@ export const TrabajoImpresionService = {
             };
         }
         if (tipo_documento === 'BULTO') {
-
+            //OBTENER INFORMACION DEL PEDIDO PARA LA ETIQUETA DE BULTO
+            const cod_bulto = id_pedido_alm;
+            const id_pedido = await Bulto_PedidoRepository.getInfoPedidoParaBulto(cod_bulto);
             data = {
-                "cod_interno_pedido": "30481",
+                "cod_interno_pedido": id_pedido_alm,
                 "tipo_documento": "BULTO",
                 "id_impresora": id_impresora,
                 "payload": {
@@ -80,7 +84,7 @@ export const TrabajoImpresionService = {
                         { "type": "align", "value": "left" },
                         { "type": "text", "value": "CodigoQR:" },
                         { "type": "align", "value": "center" },
-                        { "type": "qr", "value": "30481", "size": 6, "error": "L" },
+                        { "type": "qr", "value": id_pedido_alm, "size": 2, "error": "S" },
 
                         { "type": "feed", "value": 1 },
 

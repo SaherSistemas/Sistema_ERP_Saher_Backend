@@ -5,9 +5,11 @@ import recepcionesRouter from './Recepciones/routes/Recepciones.route';
 import { authMiddleware } from "../../middleware/auth";
 import pedidoRouter from './Pedido/routes/Pedido_AlmecenRouter'
 import pedido_EmpaqueRouter from './Empaque/routes/Pedido_Almecen_EmpaqueRouter'
+import entregaClienteDirectoRouter from './Empaque/routes/entregaClienteDirectoRouter'
 
 const router = Router()
 
+router.use('/entrega_cliente_directo', authMiddleware, entregaClienteDirectoRouter)
 router.use('/acomodo', authMiddleware, acomodoRouter)
 router.use('/ubicaciones', authMiddleware, ubicacion_Router)
 router.use('/recepciones', authMiddleware, recepcionesRouter)

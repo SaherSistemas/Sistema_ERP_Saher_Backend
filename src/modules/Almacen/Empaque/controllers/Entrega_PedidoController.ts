@@ -5,11 +5,33 @@ import { Entrega_PedidoService } from '../services/Entrega_Pedido.service';
 import { Entrega_Pedido_FirmaRepository } from '../repositories/Entregar_Pedido_Firma.repository';
 export class Entrega_PedidoController {
 
+    static obtenerPedidosParaEntregaCliente = async (req: AuthedRequest, res: Response) => {
+        try {
+            const tipo = req.query.tipo as string;
+
+            if (tipo !== 'ALMACEN' && tipo !== 'AGENTE') {
+                res.status(400).json({ message: 'El parámetro tipo debe ser ALMACEN o AGENTE' });
+                return;
+            }
+
+            const resultado = await Entrega_PedidoService.obtenerPedidosParaEntregaCliente({
+                tipo,
+                id_empresa: req.user?.id_empresa,
+                id_persona: req.user?.id_referencia_persona,
+            });
+            // console.log(resultado)
+            res.status(200).json(resultado);
+        } catch (error: any) {
+            console.log(error);
+            const msg = error?.message ?? 'Error desconocido';
+            res.status(500).json({ message: msg });
+        }
+    };
+
     static obtenerPedidosPorEntregar = async (req: AuthedRequest, res: Response) => {
         try {
-
             const resultado = await Entrega_PedidoService.obtenerPedidosPorEntregar(req.user?.id_empresa)
-
+            console.log(resultado)
             res.status(200).json(resultado);
         } catch (error: any) {
             console.log(error)

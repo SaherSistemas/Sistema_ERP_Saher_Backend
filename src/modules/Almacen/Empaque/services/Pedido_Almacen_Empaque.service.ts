@@ -80,7 +80,7 @@ export const Pedido_Almacen_EmpaqueService = {
           escaneado: false
         }))
       ];
-      await Bulto_PedidoRepository.bulkCrearBultos(bultosPayload, t);
+      const bultos = await Bulto_PedidoRepository.bulkCrearBultos(bultosPayload, t);
 
       const actualizado = await Pedido_Almacen_EmpaqueRepository.finalizarEmpaquePedido(
         id_pedido_empaque,
@@ -92,7 +92,7 @@ export const Pedido_Almacen_EmpaqueService = {
         t
       );
 
-      return actualizado;
+      return { ...actualizado.toJSON(), bultos };
     });
   },
 
