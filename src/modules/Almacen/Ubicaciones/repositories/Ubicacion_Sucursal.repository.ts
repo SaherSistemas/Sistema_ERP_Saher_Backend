@@ -11,6 +11,10 @@ const norm = (v?: string | null) => (v ?? "").trim();
 const up = (v?: string | null) => norm(v).toUpperCase();
 const pad2 = (v: any) => String(v ?? "").trim().padStart(2, "0");
 export const Ubicacion_SucursalRepository = {
+    findById: async (id_ubicacion_sucursal: string) => {
+        return await Ubicacion_Sucursal.findByPk(id_ubicacion_sucursal);
+    },
+
     getMetaBySucursal: async (id_empresa_sucursal: string) => {
         // Distinct de pasillo+anaquel para estantería
         const rows = await Ubicacion_Sucursal.findAll({

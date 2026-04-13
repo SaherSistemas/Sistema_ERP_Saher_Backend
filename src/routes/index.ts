@@ -126,6 +126,7 @@ import cxcRoutes from '../modules/Finanzas/Cuentas_Por_Pagar/routes/index.route'
 import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
 
 import almacenRouter from '../modules/Almacen/router'
+import facturacionRouter from '../modules/Facturas/routes/FacturacionRouter'
 
 import comercialRouter from '../modules/Comercial/router'
 
@@ -260,6 +261,7 @@ router.use('/proyeccion', ProyecionRouter);
 router.use('/uploads', uploadsRouter)
 
 router.use('/almacen', almacenRouter)
+router.use('/facturacion', facturacionRouter)
 
 router.use('/comercial', comercialRouter)
 

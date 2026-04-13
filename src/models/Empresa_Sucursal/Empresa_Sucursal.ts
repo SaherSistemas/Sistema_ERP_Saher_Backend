@@ -88,6 +88,15 @@ class Empresa_Sucursal extends Model {
     type: DataType.BOOLEAN
   })
   declare es_empresa_principal: boolean
+
+  @Column({ type: DataType.STRING(3), allowNull: true })
+  declare regimen_fiscal_empre: string | null   // ej. '601'
+
+  @Column({ type: DataType.STRING(10), allowNull: true })
+  declare serie_facturacion_empre: string | null  // ej. 'FSH'
+
+  @Column({ type: DataType.TEXT, allowNull: true })
+  declare leyenda_factura_empre: string | null    // texto libre en la factura
   @BelongsTo(() => ListaPrecio)
   listaPrecio: ListaPrecio;
 

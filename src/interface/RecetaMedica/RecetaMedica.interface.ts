@@ -1,4 +1,4 @@
-import { IArticulo } from "../../modules/Inventario/Articulos/interface/Articulo.interface";
+
 import { IEmpleado } from "../../modules/RRHH/interface/Empleado.interface";
 import { ICreateOrUpdateMedico, IMedico } from "./Medico.interface";
 import { IRecetaArticulo } from "./RecetaArticulo";

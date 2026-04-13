@@ -349,7 +349,10 @@ export const Entrega_PedidoRepository = {
                 const idsBultos = todosBultos.map(b => b.id_bulto);
 
                 const detallesAbiertos = await Entrega_Pedido_Detalle.findAll({
-                    where: { id_bulto: { [Op.in]: idsBultos } },
+                    where: {
+                        id_bulto:          { [Op.in]: idsBultos },
+                        id_entrega_pedido: { [Op.ne]: salida.id_entrega_pedido }, // excluir la recién creada
+                    },
                     include: [{
                         model: Entrega_Pedido,
                         as: 'entrega',

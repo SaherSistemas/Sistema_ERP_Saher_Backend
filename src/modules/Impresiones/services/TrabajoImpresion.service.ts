@@ -1,9 +1,10 @@
-import { qr } from "mathjs";
 import { Pedido_AlmacenRepository } from "../../Almacen/Pedido/repositories/Pedido_Almacen.repository";
 import { ImpresoraRepository } from "../repositories/ImpresoraRepository";
 import { TrabajoImpresionRepository } from "../repositories/TrabajoImpresionRepository";
 import { ICreateTrabajoImpresion } from "../interface/TrabajoImpresion.interface";
 import { Bulto_PedidoRepository } from "../../Almacen/Empaque/repositories/Bulto_Pedido.repository";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const TrabajoImpresionService = {
     /**CHEQUEO */
@@ -13,7 +14,9 @@ export const TrabajoImpresionService = {
 
         const id_impresora = await ImpresoraRepository.getImpresora(id_empresa, estacion);
         if (tipo_documento === 'PEDIDO_ALMACEN') {
-            const pedido = await Pedido_AlmacenRepository.getByID(id_pedido_alm);
+            const pedido = UUID_REGEX.test(id_pedido_alm)
+                ? await Pedido_AlmacenRepository.getByID(id_pedido_alm)
+                : await Pedido_AlmacenRepository.getByCodInterno(id_pedido_alm);
             if (!pedido) throw new Error('Pedido no encontrado');
 
             data = {
@@ -32,83 +35,76 @@ export const TrabajoImpresionService = {
             };
         }
         if (tipo_documento === 'BULTO') {
-            //OBTENER INFORMACION DEL PEDIDO PARA LA ETIQUETA DE BULTO
-            const cod_bulto = id_pedido_alm;
-            const id_pedido = await Bulto_PedidoRepository.getInfoPedidoParaBulto(cod_bulto);
+            const info = await Bulto_PedidoRepository.getInfoPedidoParaBulto(id_pedido_alm);
+
             data = {
-                "cod_interno_pedido": id_pedido_alm,
-                "tipo_documento": "BULTO",
-                "id_impresora": id_impresora,
-                "payload": {
-                    "tipo": "escpos",
-                    "comandos": [
+                cod_interno_pedido: info.cod_int_pedido_alm,
+                tipo_documento: 'BULTO',
+                id_impresora,
+                payload: {
+                    tipo: 'escpos',
+                    comandos: [
+                        { type: 'align', value: 'center' },
+                        { type: 'text', value: 'Emisor  FARMACIAS SAHER DE SINALOA S DE RL DE CV' },
+                        { type: 'text', value: '------------------------------------------------------------------------' },
 
+                        { type: 'align', value: 'left' },
+                        { type: 'text', value: 'Destinatario' },
+                        { type: 'text', value: `Razon Social:   ${info.razon_social_cliente}`, bold: true },
+                        { type: 'text', value: `Nom Comercial:  ${info.nom_corto_cliente}`,    bold: true },
 
-                        { "type": "align", "value": "center" },
-                        { "type": "text", "value": "Emisor  FARMACIAS SAHER DE SINALOA S DE RL DE CV" },
-                        { "type": "text", "value": "------------------------------------------------------------------------" },
+                        { type: 'feed', value: 1 },
 
-                        { "type": "align", "value": "left" },
-                        { "type": "text", "value": "Destinatario" },
-                        { "type": "text", "value": "Razon Social:   FARMACIAS SAHER DE SINALOA", "bold": true },
-                        { "type": "text", "value": "Nom Comercial:  FCIA UNISIN SUC. AMERICAS", "bold": true },
+                        { type: 'text', value: `Fact.:     ${info.fecha_facturado ?? 'Sin fecha'}` },
+                        { type: 'text', value: `No. Pedido: ${info.cod_int_pedido_alm}` },
 
-                        { "type": "feed", "value": 1 },
+                        { type: 'feed', value: 1 },
 
-                        { "type": "text", "value": "Fact.:     01/04/26      10:39:47" },
-                        { "type": "text", "value": "Fec Ped.:  31/03/26" },
-                        { "type": "text", "value": "No. Pedido:" },
+                        { type: 'align',   value: 'center' },
+                        { type: 'barcode', symbology: 'CODE128', value: info.cod_bulto, height: 60 },
 
-                        { "type": "feed", "value": 1 },
+                        { type: 'text', value: info.cod_int_pedido_alm, bold: true, size: 2 },
 
-                        { "type": "align", "value": "center" },
-                        { "type": "barcode", "symbology": "CODE128", "value": "30481-1", "height": 60 },
+                        { type: 'feed', value: 1 },
 
-                        { "type": "text", "value": "30481", "bold": true, "size": 2 },
+                        { type: 'text', value: `Bultos:  ${info.num_bulto} de ${info.total_bulto}`, bold: true },
 
-                        { "type": "feed", "value": 1 },
+                        { type: 'feed', value: 1 },
 
-                        { "type": "text", "value": "Bultos:  1 de  1", "bold": true },
+                        { type: 'align', value: 'left' },
+                        { type: 'text', value: `Surtido:   ${info.surtidores ?? 'N/A'}` },
+                        { type: 'text', value: `Checado:   ${info.checadores ?? 'N/A'}` },
+                        { type: 'text', value: `Empacado:  ${info.empacador}` },
 
-                        { "type": "feed", "value": 1 },
+                        { type: 'feed', value: 2 },
 
-                        { "type": "align", "value": "left" },
-                        { "type": "text", "value": "Surtido:   Rene" },
-                        { "type": "text", "value": "Checado:   Guadalupe" },
-                        { "type": "text", "value": "Empacado:  Rene" },
+                        { type: 'text', value: '------------------------------------------------------------------------' },
 
-                        { "type": "feed", "value": 2 },
+                        { type: 'align', value: 'left' },
+                        { type: 'text', value: 'CodigoQR:' },
+                        { type: 'align', value: 'center' },
+                        { type: 'qr', value: info.cod_bulto, size: 2, error: 'S' },
 
-                        { "type": "text", "value": "------------------------------------------------------------------------" },
+                        { type: 'feed', value: 1 },
 
-                        { "type": "align", "value": "left" },
-                        { "type": "text", "value": "CodigoQR:" },
-                        { "type": "align", "value": "center" },
-                        { "type": "qr", "value": id_pedido_alm, "size": 2, "error": "S" },
+                        { type: 'align', value: 'left' },
+                        { type: 'text', value: 'Quim. Responsable:' },
+                        { type: 'text', value: 'Jesus Andres Nuñez Lopez' },
+                        { type: 'text', value: 'Ced. Prof.: 1433424' },
+                        { type: 'text', value: `Agente:  ${info.agente ?? 'N/A'}`, bold: true },
+                        { type: 'text', value: 'Aviso funcionamiento' },
+                        { type: 'text', value: 'Ciudad: Mazatlan, Sinaloa' },
 
-                        { "type": "feed", "value": 1 },
+                        { type: 'feed', value: 2 },
 
-                        { "type": "align", "value": "left" },
-                        { "type": "text", "value": "Quim. Responsable:" },
-                        { "type": "text", "value": "Jesus Andres Nuñez Lopez" },
-                        { "type": "text", "value": "Ced. Prof.: 1433424" },
-                        { "type": "text", "value": "Agente:  Farmacia UniSin", "bold": true },
-                        { "type": "text", "value": "Aviso funcionamiento" },
-                        { "type": "text", "value": "Ciudad: Mazatlan, Sinaloa" },
+                        { type: 'align', value: 'center' },
+                        { type: 'text', value: 'Saher', bold: true },
 
-                        { "type": "feed", "value": 2 },
-
-                        { "type": "align", "value": "center" },
-                        { "type": "text", "value": "Saher", "bold": true },
-
-                        { "type": "feed", "value": 3 },
-                        { "type": "cut" }
-
+                        { type: 'feed', value: 3 },
+                        { type: 'cut' },
                     ]
                 }
-            }
-
-
+            };
         }
         // console.log(data);
         return await TrabajoImpresionRepository.create(data);

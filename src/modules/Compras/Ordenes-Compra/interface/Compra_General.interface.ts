@@ -1,5 +1,6 @@
-import { IArticulo } from "../../Inventario/Articulos/interface/Articulo.interface"
-import { IEmpresaSucursal } from "../../../interface/Empresa_Sucursal/Empresa_Sucursal.interface"
+
+import { IEmpresaSucursal } from "../../../../interface/Empresa_Sucursal/Empresa_Sucursal.interface";
+import { IArticulo } from "../../../Catalogos/Articulos/interface/Articulo.interface";
 import { ICompra_Proveedor } from "./Compra_Proveedor.interface"
 
 export interface ICompra_General {
