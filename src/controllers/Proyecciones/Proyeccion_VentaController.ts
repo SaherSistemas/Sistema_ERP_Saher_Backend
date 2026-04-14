@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { Proyeccion_VentaService } from "../../services/Proyeccion/Proyeccion_Venta.service";
+import { Proyeccion_VentaService } from "../../services/Proyecciones/Proyeccion_Venta.service";
 
 export class Proyeccion_VentaController {
     static getProyeccionVenta = async (req: Request, res: Response) => {
