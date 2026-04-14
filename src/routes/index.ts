@@ -62,7 +62,7 @@ import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter';
 
 import Dash_ComprasRouter from './Dashboards/DashboardRouter';
 
-import ProyecionRouter from './Proyeccion/ProyecionRouter';
+import ProyecionRouter from './Proyecciones/ProyecionRouter';
 //PRUEBA DE CAMBIOS
 //Lotes y Caducidades
 import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter';
