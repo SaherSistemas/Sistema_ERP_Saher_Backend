@@ -18,19 +18,19 @@ export const Pedido_AlmacenService = {
 
   checarArticulo: async (id_pedido_alm: string, cod_barras: string, cantidad: number, id_empleado: string) => {
 
-    const articulo = await Detalle_Pedido_Almacen_ChequeoRepository.checarArticulo(id_pedido_alm, cod_barras, cantidad, id_empleado)
+    const resultado = await Detalle_Pedido_Almacen_ChequeoRepository.checarArticulo(id_pedido_alm, cod_barras, cantidad, id_empleado);
 
-    const detallesPorChecar = await Detalle_Pedido_Almacen_ChequeoRepository.detallesPorChecar(id_pedido_alm)
+    const detallesPorChecar = await Detalle_Pedido_Almacen_ChequeoRepository.detallesPorChecar(id_pedido_alm);
+    const pedidoTerminado   = detallesPorChecar.length === 0;
 
-    const pedidoTerminado = detallesPorChecar.length === 0
-
-    if (detallesPorChecar.length === 0) {
-      await Pedido_AlmacenRepository.pedidoChecado(id_pedido_alm)
+    if (pedidoTerminado) {
+      await Pedido_AlmacenRepository.pedidoChecado(id_pedido_alm);
     }
+
     return {
-      articulo,
-      pedidoTerminado  // true -> redirigir al front, false -> seguir chequeando
-    }
+      articulo:       resultado,   // contiene cod_barras, cant_chequeada, filas[]
+      pedidoTerminado,
+    };
   },
   getPedidoEnChequeo: async (id_empleado: string) => {
 

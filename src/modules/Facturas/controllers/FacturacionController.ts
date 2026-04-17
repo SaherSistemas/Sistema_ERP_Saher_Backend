@@ -8,8 +8,13 @@ export class FacturacionController {
         try {
             const { id_pedido_alm } = req.params;
             const id_empresa = req.user?.id_empresa;
+            console.log('Generando TXT para pedido:', id_pedido_alm, 'de empresa:', id_empresa);
+            // días de crédito y cliente real se resuelven automáticamente desde la BD
+            const resultado = await FacturacionService.generarTxt({
+                id_pedido_alm,
+                id_empresa,
+            });
 
-            const resultado = await FacturacionService.generarTxt(id_pedido_alm, id_empresa);
             res.status(201).json(resultado);
         } catch (error: any) {
             console.error(error);

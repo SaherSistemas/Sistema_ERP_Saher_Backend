@@ -1,4 +1,4 @@
-import { QueryTypes } from 'sequelize';
+import { QueryTypes, Transaction } from 'sequelize';
 import { dbLocal } from '../../../config/db';
 import Facturas from '../model/Facturas.model';
 import Detalle_Factura from '../model/Detalle_Factura.model';
@@ -19,9 +19,12 @@ export interface DatosFacturacionCabecera {
     uso_cfdi: string;
     forma_pago: string;
     metodo_pago: string;
+    // Crédito del cliente
+    plazo_pago_cliente: number;   // días de crédito del cliente
     // Pedido
     id_pedido_alm: string;
-    id_cliente_alm: string;
+    id_cliente_alm: string;       // siempre el cliente real del pedido
+    id_agente_alm: string;
     cod_int_pedido_alm: string;
     nombre_agente: string | null;
     // Folio
@@ -29,6 +32,7 @@ export interface DatosFacturacionCabecera {
 }
 
 export interface ConceptoFacturacion {
+    id_articulo: string;
     cve_sat: string;
     sat_medida: string;
     desc_medida: string;
@@ -62,8 +66,10 @@ export const FacturacionRepository = {
                 ca.uso_cfdi_cliente_alm                             AS uso_cfdi,
                 ca.id_forma_pago_cliente_alm                        AS forma_pago,
                 ca.id_metodo_pago_cliente_alm                       AS metodo_pago,
+                COALESCE(ca.plazo_pago_cliente_alm, 0)              AS plazo_pago_cliente,
                 pa.id_pedido_alm,
                 pa.id_cliente_pedido_alm                            AS id_cliente_alm,
+                pa.id_agente_pedido_alm                             AS id_agente_alm,
                 pa.cod_int_pedido_alm,
                 CONCAT(e_ag.nombre_empleado, ' ', e_ag.ap_pat_empleado, ' ', COALESCE(e_ag.ap_mat_empleado, '')) AS nombre_agente,
                 (SELECT COALESCE(MAX(f.folio_factura), 0) + 1 FROM facturas f) AS siguiente_folio
@@ -87,6 +93,7 @@ export const FacturacionRepository = {
 
     getConceptos: async (id_pedido_alm: string): Promise<ConceptoFacturacion[]> => {
         const rows = await dbLocal.query<{
+            id_articulo: string;
             cve_sat: string; sat_medida: string; desc_medida: string;
             cod_barras: string; cantidad: number; descripcion: string;
             precio_unitario: number; tasa_iva: number;
@@ -94,6 +101,7 @@ export const FacturacionRepository = {
             lotes: string;
         }>(`
             SELECT
+                a.id_artic                          AS id_articulo,
                 a.satclave_artic                    AS cve_sat,
                 um.sat_medida,
                 um.descrip_medida                   AS desc_medida,
@@ -126,13 +134,24 @@ export const FacturacionRepository = {
             type: QueryTypes.SELECT,
         });
 
-        return rows.map(r => ({
-            ...r,
-            descuento: 0,
-            subtotal_linea: Number(r.cantidad) * Number(r.precio_unitario),
-            tasa_iva: Number(r.tasa_iva) / 100,   // porcentaje_iva viene como 16.00 → 0.16
-            lotes: r.lotes ? JSON.parse(r.lotes as any) : [],
-        }));
+        return rows.map(r => {
+            const cantidad        = Number(r.cantidad);
+            const precio_unitario = Number(r.precio_unitario);
+            const tasa_iva        = Number(r.tasa_iva) / 100;   // 16.00 → 0.16
+            const subtotal_linea  = +(cantidad * precio_unitario).toFixed(2);
+
+            return {
+                ...r,
+                cantidad,
+                precio_unitario,
+                tasa_iva,
+                descuento:     0,
+                subtotal_linea,
+                lotes: Array.isArray(r.lotes)
+                    ? r.lotes.map((l: any) => ({ ...l, cantidad: Number(l.cantidad) }))
+                    : (r.lotes ? JSON.parse(r.lotes as any) : []),
+            };
+        });
     },
 
     registrarFactura: async (dto: {
@@ -145,8 +164,8 @@ export const FacturacionRepository = {
         subtotal: number;
         iva: number;
         conceptos: ConceptoFacturacion[];
-    }) => {
-        return await dbLocal.transaction(async t => {
+    }, t: Transaction) => {
+        {
             const factura = await Facturas.create({
                 folio_factura:    dto.folio,
                 fecha_emision:    new Date(),
@@ -162,19 +181,19 @@ export const FacturacionRepository = {
 
             await Detalle_Factura.bulkCreate(
                 dto.conceptos.map(c => ({
-                    id_factura:            factura.id_factura,
-                    id_articulo:           null,           // no tenemos el id aquí, se puede añadir si se necesita
-                    descripcion_articulo:  c.descripcion,
-                    cantidad_facturada:    c.cantidad,
-                    precio_artic:          c.precio_unitario,
-                    subtotal:              c.subtotal_linea,
-                    tasa_iva:              c.tasa_iva,
-                    importe_iva:           +(c.subtotal_linea * c.tasa_iva).toFixed(2),
+                    id_factura:           factura.id_factura,
+                    id_articulo:          c.id_articulo,
+                    descripcion_articulo: c.descripcion,
+                    cantidad_facturada:   c.cantidad,
+                    precio_artic:         c.precio_unitario,
+                    subtotal:             c.subtotal_linea,
+                    tasa_iva:             c.tasa_iva,
+                    importe_iva:          +(c.subtotal_linea * c.tasa_iva).toFixed(2),
                 })),
                 { transaction: t }
             );
 
             return factura;
-        });
+        }
     },
 };

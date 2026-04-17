@@ -18,12 +18,14 @@ import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Al
 
 import Detalle_Factura from './Detalle_Factura.model';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
+import Remision from '../../Finanzas/Remisiones/model/Remision.model';
 
 @Table({
     tableName: 'facturas'
 })
 class Facturas extends Model {
     @PrimaryKey
+    @Default(DataType.UUIDV4)
     @Column({
         type: DataType.UUID
     })
@@ -94,15 +96,11 @@ class Facturas extends Model {
     })
     declare url_verificacion: string;
 
-    @Column({
-        type: DataType.STRING
-    })
-    pdf_url: string;
+    @Column(DataType.STRING)
+    declare pdf_url: string;
 
-    @Column({
-        type: DataType.STRING
-    })
-    xml_url: string;
+    @Column(DataType.STRING)
+    declare xml_url: string;
 
 
     @ForeignKey(() => Cliente_Almacen)
@@ -141,6 +139,10 @@ class Facturas extends Model {
     // Una factura tiene muchos detalles
     @HasMany(() => Detalle_Factura, { foreignKey: 'id_factura' })
     detalles: Detalle_Factura[];
+
+    // Una factura de Público General puede generar una remisión interna
+    @HasMany(() => Remision, { foreignKey: 'id_factura' })
+    remisiones: Remision[];
 }
 
 export default Facturas;

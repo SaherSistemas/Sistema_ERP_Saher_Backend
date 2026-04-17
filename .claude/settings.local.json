@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/saher/OneDrive/Escritorio/Trabajo/Sistema_ERP_Saher/**)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\saher\\\\OneDrive\\\\Escritorio\\\\Trabajo\\\\Sistema_ERP_Saher\")",
+      "Bash(findstr /i chequeo)",
+      "Bash(xargs grep:*)",
+      "Bash(dir \"C:\\\\Users\\\\saher\\\\OneDrive\\\\Escritorio\\\\Saher_Agentes_Clientes\\\\src\" /s /b)",
+      "Bash(findstr /i \".tsx .ts\")",
+      "Bash(findstr /v node_modules)"
+    ]
+  }
+}

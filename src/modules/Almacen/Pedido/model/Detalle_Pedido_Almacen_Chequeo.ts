@@ -13,6 +13,7 @@ import {
     AllowNull
 } from 'sequelize-typescript';
 import Detalle_Pedido_Almacen from './Detalle_Pedido_Almacen';
+import Detalle_Pedido_Almacen_Lote from './Detalle_Pedido_Almacen_Lote';
 import Empleado from '../../../RRHH/model/Empleado';
 
 
@@ -40,9 +41,22 @@ export default class Detalle_Pedido_Almacen_Chequeo extends Model {
     @Column(DataType.UUID)
     declare id_detalle_pedido_almacen: string;
 
-    @BelongsTo(() => Detalle_Pedido_Almacen)
+    @BelongsTo(() => Detalle_Pedido_Almacen, { as: 'detalle_pedido', foreignKey: 'id_detalle_pedido_almacen' })
     detalle_pedido: Detalle_Pedido_Almacen;
 
+    // Lote específico que se está chequeando (uno por fila)
+    @ForeignKey(() => Detalle_Pedido_Almacen_Lote)
+    @AllowNull(true)
+    @Column(DataType.UUID)
+    declare id_detalle_pedido_almacen_lote: string | null;
+
+    @BelongsTo(() => Detalle_Pedido_Almacen_Lote, { as: 'detalle_lote', foreignKey: 'id_detalle_pedido_almacen_lote' })
+    detalle_lote: Detalle_Pedido_Almacen_Lote;
+
+    // Cantidad surtida para este lote (target del chequeo)
+    @AllowNull(true)
+    @Column(DataType.INTEGER)
+    declare cant_surtida_lote: number | null;
 
     @ForeignKey(() => Empleado)
     @Column(DataType.UUID)

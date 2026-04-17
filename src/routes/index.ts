@@ -120,6 +120,8 @@ import Pedido_AlmacenRouter from '../modules/Almacen/Pedido/routes/Pedido_Almece
 
 
 import cxcRoutes from '../modules/Finanzas/Cuentas_Por_Pagar/routes/index.route';
+import remisionRouter from '../modules/Finanzas/Remisiones/routes/RemisionRouter';
+import cxcClienteRouter from '../modules/Finanzas/Cuentas_Por_Cobrar/routes/CxCRouter';
 
 
 
@@ -249,6 +251,8 @@ router.use('/asignacion_empleado_sucursal', Asignacion_Empleado_SucursalRouter);
 
 
 router.use('/finanzas', cxcRoutes);
+router.use('/finanzas/remisiones', remisionRouter);
+router.use('/finanzas/cxc', cxcClienteRouter);
 
 router.use('/nota_credito', notaCreditoRouter);
 
@@ -261,7 +265,7 @@ router.use('/proyeccion', ProyecionRouter);
 router.use('/uploads', uploadsRouter)
 
 router.use('/almacen', almacenRouter)
-router.use('/facturacion', facturacionRouter)
+router.use('/facturas', facturacionRouter)
 
 router.use('/comercial', comercialRouter)
 
