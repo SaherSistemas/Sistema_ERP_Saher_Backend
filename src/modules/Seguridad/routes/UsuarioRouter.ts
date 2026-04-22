@@ -2,6 +2,8 @@ import { Router } from "express";
 import { UsuarioController } from "../controllers/UsuarioController";
 const router = Router()
 
+router.get('/todos', UsuarioController.getAll)
+router.patch('/:id_user/status', UsuarioController.toggleStatus)
 router.get('/perfil', UsuarioController.getByID)
 //router.get('/obtenerEmpresas', UsuarioController.getEmpresaPermitidaByUser)
 router.get('/user', UsuarioController.getByIDUser)

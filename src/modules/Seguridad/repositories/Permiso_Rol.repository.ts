@@ -3,6 +3,7 @@ import Permiso_Rol from "../model/Permiso_Rol"
 import { v4 as uuidv4 } from 'uuid';
 import { isUUID } from "../../../utils/validaciones";
 import { UniqueConstraintError } from "sequelize";
+import { dbLocal } from "../../../config/db";
 
 
 export const PermisoRolRepository = {
@@ -44,9 +45,25 @@ export const PermisoRolRepository = {
 
     update: async (data: ICreateOrUpdatePermisoRol, id_rol_permiso: string) => {
         const permisoRol = await PermisoRolRepository.getById(id_rol_permiso)
-
         if (!permisoRol) return null;
         return await permisoRol.update(data)
+    },
+
+    getByRolId: async (id_rol: number): Promise<number[]> => {
+        const rows = await Permiso_Rol.findAll({ where: { id_rol }, attributes: ['id_permiso'] });
+        return rows.map(r => r.id_permiso);
+    },
+
+    bulkSet: async (id_rol: number, id_permisos: number[]): Promise<void> => {
+        await dbLocal.transaction(async (t) => {
+            await Permiso_Rol.destroy({ where: { id_rol }, transaction: t });
+            if (id_permisos.length > 0) {
+                await Permiso_Rol.bulkCreate(
+                    id_permisos.map(id_permiso => ({ id_rol_permiso: uuidv4(), id_rol, id_permiso })),
+                    { transaction: t }
+                );
+            }
+        });
     },
 
 }

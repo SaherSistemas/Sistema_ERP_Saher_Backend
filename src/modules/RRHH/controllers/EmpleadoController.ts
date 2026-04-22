@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { EmpleadoService } from '../services/Empleados.service';
+import { EmpleadoRepository } from '../repositories/Empleado.repository';
 import { ICrearEmpleado, IEmpleado, IUpdateEmpleado } from '../interface/Empleado.interface';
 
 export class EmpleadoController {
@@ -68,4 +69,14 @@ export class EmpleadoController {
       res.status(500).json({ message: 'Error no se pudo cambiar el estatus del empleado.' });
     }
   };*/
+
+  static getAllSinUsuario = async (req: Request, res: Response) => {
+    try {
+      const empleados = await EmpleadoRepository.sinUsuario();
+      res.status(200).json(empleados);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ message: 'Error al obtener empleados sin usuario' });
+    }
+  };
 }

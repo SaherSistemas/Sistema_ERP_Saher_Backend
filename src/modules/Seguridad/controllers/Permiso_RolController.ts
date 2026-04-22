@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { PermisoRolService } from "../services/Permiso_Rol.service"
 import { ICreateOrUpdatePermisoRol } from "../interface/Permiso_Rol.interface";
+import { PermisoRolRepository } from "../repositories/Permiso_Rol.repository";
 
 export class PermisoRolController {
     static getAll = async (req: Request, res: Response) => {
@@ -55,6 +56,25 @@ export class PermisoRolController {
         } catch (error) {
             console.error(error)
             res.status(500).json({ mensaje: "Error no se pudo actualizar el permiso." })
+        }
+    }
+
+    static getByRol = async (req: Request, res: Response) => {
+        try {
+            const id_permisos = await PermisoRolRepository.getByRolId(Number(req.params.id_rol));
+            res.status(200).json({ id_permisos });
+        } catch (error) {
+            res.status(500).json({ mensaje: error.message });
+        }
+    }
+
+    static bulkSet = async (req: Request, res: Response) => {
+        try {
+            const { id_permisos } = req.body as { id_permisos: number[] };
+            await PermisoRolRepository.bulkSet(Number(req.params.id_rol), id_permisos ?? []);
+            res.status(200).json({ mensaje: 'Permisos del rol actualizados correctamente' });
+        } catch (error) {
+            res.status(500).json({ mensaje: error.message });
         }
     }
 

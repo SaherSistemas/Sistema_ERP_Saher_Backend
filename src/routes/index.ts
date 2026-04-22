@@ -23,6 +23,7 @@ import usuarioRouter from '../modules/Seguridad/routes/UsuarioRouter';
 import authRouter from '../modules/Seguridad/auth/AuthRouter';
 import permisoRouter from '../modules/Seguridad/routes/PermisoRouter';
 import permisoRolRouter from '../modules/Seguridad/routes/Permiso_RolRouter';
+import permisoUsuarioRouter from '../modules/Seguridad/routes/Permiso_UsuarioRouter';
 
 import agenteRouter from '../modules/Comercial/Agente_Venta/routes/AgenteRouter';
 import Presupuesto_AgenteRouter from '../modules/Comercial/Agente_Venta/routes/Presupuesto_AgenteRouter';
@@ -169,6 +170,7 @@ router.use('/prioridad_agente', PrioridadAgenteRouter);
 
 router.use('/permiso', permisoRouter);
 router.use('/permiso_rol', permisoRolRouter);
+router.use('/permiso_usuario', permisoUsuarioRouter);
 router.use('/auth', authLimiter, authRouter);
 
 router.use('/tipo_iva', tipoIVARouter);

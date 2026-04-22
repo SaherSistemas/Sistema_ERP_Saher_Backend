@@ -2,9 +2,10 @@ import { ICrearEmpleado, IEmpleado, IUpdateEmpleado } from '../interface/Emplead
 import Empresa_Sucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import Empleado from '../model/Empleado';
 import { isUUID } from '../../../utils/validaciones';
-import { literal, Op, Sequelize, Transaction, UniqueConstraintError, where } from 'sequelize';
+import { literal, Op, QueryTypes, Sequelize, Transaction, UniqueConstraintError, where } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import { Empresa_SucursalRepository } from '../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
+import { dbLocal } from '../../../config/db';
 export const EmpleadoRepository = {
   getAll: async (page: number, limit: number, query: string) => {
     const offset = (page - 1) * limit;
@@ -120,5 +121,22 @@ export const EmpleadoRepository = {
     const empleado = await EmpleadoRepository.getByIdFlexible(id);
     if (!empleado) return null;
     return await empleado.update({ estatus_empleado: statusContrario });
+  },
+
+  sinUsuario: async () => {
+    return dbLocal.query<{
+      id_empleado: string; nombre_empleado: string;
+      ap_pat_empleado: string; ap_mat_empleado: string; nom_empre: string;
+    }>(
+      `SELECT e.id_empleado, e.nombre_empleado, e.ap_pat_empleado, e.ap_mat_empleado,
+              es.nom_empre
+       FROM empleado e
+       LEFT JOIN empresa_sucursal es ON es.id_empre = e.id_sucursal_empleado
+       WHERE e.id_empleado NOT IN (
+           SELECT id_referencia_persona FROM usuario WHERE id_referencia_persona IS NOT NULL
+       )
+       ORDER BY e.nombre_empleado ASC`,
+      { type: QueryTypes.SELECT }
+    );
   },
 };

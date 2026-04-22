@@ -59,6 +59,19 @@ export const AuthService = {
         return actualizarContraseña
         //const actualizacionUsuario = await AuthRepository.actualizarContra()
     },
+    getMisPermisosMenu: async (id_user: string) => {
+        const rows = await AuthRepository.getMisPermisosMenu(id_user);
+        // Agrupa: { dashboard: ['dashboard_general', ...], personal: ['empleados', ...] }
+        const permisos: Record<string, string[]> = {};
+        for (const row of rows) {
+            if (!permisos[row.modulo_permiso]) permisos[row.modulo_permiso] = [];
+            if (row.accion_permiso !== 'menu') {
+                permisos[row.modulo_permiso].push(row.accion_permiso);
+            }
+        }
+        return permisos;
+    },
+
     user: async (token: string) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         // console.log(decoded)

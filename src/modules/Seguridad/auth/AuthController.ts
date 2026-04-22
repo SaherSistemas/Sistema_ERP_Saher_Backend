@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { AuthService } from "./Auth.service";
 import jwt from "jsonwebtoken";
 import { ICambiarContrasena } from "./Auth.interface";
+import { AuthedRequest } from "../../../middleware/auth";
 export class AuthController {
     static createUsuario = async (req: Request, res: Response) => {
         try {
@@ -65,6 +66,16 @@ export class AuthController {
         }
 
     }
+    static misPermisosMenu = async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_user = req.user!.id_user;
+            const permisos = await AuthService.getMisPermisosMenu(id_user);
+            res.status(200).json({ permisos });
+        } catch (error) {
+            res.status(500).json({ mensaje: error.message });
+        }
+    }
+
     static user = async (req: Request, res: Response) => {
         const bearer = req.headers.authorization
 
