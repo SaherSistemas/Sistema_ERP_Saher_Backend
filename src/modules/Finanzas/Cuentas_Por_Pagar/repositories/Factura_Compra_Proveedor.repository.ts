@@ -4,7 +4,7 @@ import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
 import { Compra_ProveedorRepository } from '../../../Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository';
 import Proveedor from '../../../Compras/Proveedores/model/Proveedor';
 import Compra_Proveedor from '../../../Compras/Ordenes-Compra/model/Compra_Proveedor';
-import { Model, Sequelize, Transaction } from 'sequelize';
+import { Model, Op, Sequelize, Transaction } from 'sequelize';
 import { EmpleadoRepository } from '../../../RRHH/repositories/Empleado.repository';
 import { Detalle_Factura_Compra_ProveedorRepository } from './Detalle_Factura_Compra_Proveedor.repository';
 import Detalle_Factura_Compra_Proveedor from '../model/Detalle_Factura_Compra_Proveedor';
@@ -12,6 +12,8 @@ import Lote_Factura_Compra_Proveedor from '../model/Lote_Factura_Compra_Proveedo
 import { fn, col } from "sequelize";
 import { UsuarioRepository } from '../../../Seguridad/repositories/Usuario.repository';
 import Compra_General from '../../../Compras/Ordenes-Compra/model/Compra_General';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import Detalle_Compra_Solicitado from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado';
 export const Factura_Compra_ProveedorRepository = {
     getAllConFiltroDeEstado: async () => {
         return await Factura_Compra_Proveedor.findAll({
@@ -177,6 +179,7 @@ export const Factura_Compra_ProveedorRepository = {
             total_iva_factura: totaliva,
             fin_de_registro_lotes: new Date(),
             id_empleado_registro_lotes: empleado.id_empleado,
+            estado_factura_proveedor: 'C'
         }, { where: { id_factura_proveedor: id_factura_compra_proveedor }, transaction: t })
     },
     guardarFacturaEIniciarCapturaLotes: async (data: ICreateFacturaCompraProveedor) => {
@@ -209,13 +212,23 @@ export const Factura_Compra_ProveedorRepository = {
             fecha_vencimiento: data.fecha_vencimiento,
             total_factura_proveedor: data.total_factura_proveedor,
             estatus_pago_factura: 'PENDIENTE',
-            estado_factura_proveedor: 'C',
+            estado_factura_proveedor: 'E',
             url_PDF: '',
             url_XML: '',
             inicio_de_registro_lotes: new Date()
         });
     },
 
+
+    getFacturaEnCaptura: async (id_comp: string) => {
+        return await Factura_Compra_Proveedor.findOne({
+            where: {
+                id_compra_prove_factura: id_comp,
+                estado_factura_proveedor: 'E'
+            }
+        });
+    },
+    
 
 
     recibirFacturaCompraProveedor: async (id_factura_compra_proveedor: string, t: Transaction, usuario_empleado_chequeo: string) => {

@@ -20,4 +20,23 @@ export class Detalle_Factura_Compra_ProveedorController {
         }
     }
 
+    static guardarLineaFactura = async (req: Request, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const resultado = await Detalle_Factura_Compra_ProveedorService.guardarLineaFactura(id_factura, req.body);
+            res.status(200).json(resultado);
+        } catch (error: any) {
+            console.log(error);
+            res.status(500).json({ message: error.message });
+        }
+    };
+    static getLineasFactura = async (req: Request, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const resultado = await Detalle_Factura_Compra_ProveedorService.getLineasFactura(id_factura);
+            res.status(200).json(resultado);
+        } catch (error: any) {
+            res.status(500).json({ message: error.message });
+        }
+    };
 }

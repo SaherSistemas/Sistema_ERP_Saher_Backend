@@ -32,4 +32,11 @@ export const Detalle_Factura_Compra_ProveedorService = {
         return detalle;
     },
 
+    // Service
+    guardarLineaFactura: async (id_factura: string, linea: any) => {
+        return await Detalle_Factura_Compra_ProveedorRepository.guardarLineaFactura(id_factura, linea);
+    },
+    getLineasFactura: async (id_factura: string) => {
+        return await Detalle_Factura_Compra_ProveedorRepository.getLineasFactura(id_factura);
+    },
 }

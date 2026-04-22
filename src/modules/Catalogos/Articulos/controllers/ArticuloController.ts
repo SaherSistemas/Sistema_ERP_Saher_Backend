@@ -48,6 +48,7 @@ export class ArticuloController {
         limit,
         id_empresasucursal
       );
+     // console.log(TodosArticulosParaCompra)
       res.status(200).json(TodosArticulosParaCompra);
     } catch (error) {
       console.error(error);

@@ -5,7 +5,7 @@ const router = Router();
 
 
 router.get('/:id_comp', Detalle_Compra_SolicitadoController.getAllArticulosPorCompra)
-
+router.delete('/:id_detcompsol', Detalle_Compra_SolicitadoController.deleteDetalleCompra);
 
 
 

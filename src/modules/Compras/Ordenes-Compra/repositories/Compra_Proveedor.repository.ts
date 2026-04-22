@@ -74,7 +74,11 @@ export const Compra_ProveedorRepository = {
       include: [{ model: Proveedor }]
     });
   },
-
+  cuentaPorCompraGeneral: async (id_compra_general: string) => {
+    return await Compra_Proveedor.count({
+      where: { id_compra_general }
+    });
+  },
   getAllCompras_ProveedorParaRecibir: async (id_empresa_sucursal: string) => {
     const comprasGenerales = await CompraGeneralRepository.getAllCompra_GeneralSinPaginar(id_empresa_sucursal);
     return await Compra_Proveedor.findAll({
@@ -386,5 +390,11 @@ export const Compra_ProveedorRepository = {
         transaction: t?.transaction
       }
     );
+  },
+  eliminarCompraProveedor: async (id_comp: string, t?: { transaction?: Transaction }) => {
+    return await Compra_Proveedor.destroy({
+      where: { id_comp },
+      transaction: t?.transaction
+    });
   }
 };

@@ -12,5 +12,15 @@ export class Detalle_Compra_SolicitadoController {
             res.status(500).json({ message: "Error al obtener todos los articulos de la compra." })
         }
     }
+    static deleteDetalleCompra = async (req: Request, res: Response) => {
+        try {
+            const { id_detcompsol } = req.params;
+            const resultado = await Detalle_CompraService.deleteDetalleCompra(id_detcompsol);
+            res.status(200).json(resultado);
+        } catch (error: any) {
+            console.error('Error en deleteDetalleCompra:', error.message);
+            res.status(500).json({ message: error.message });
+        }
+    };
 
 }

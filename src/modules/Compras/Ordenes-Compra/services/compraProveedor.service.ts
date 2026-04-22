@@ -73,7 +73,8 @@ export const compraProveedorService = {
                     cantidad_detcompsol: detalle.cantidad_detcompsol,
                     precio_detcompsol: detalle.precio_detcompsol,
                 }
-            ]
+            ],
+            reemplazar: data.reemplazar
         }
         const Detalles = await Detalle_Compra_SolicitadoRepository.addDetallesCompraSolicitado(dataAcumularOAgregarDetalles);
 

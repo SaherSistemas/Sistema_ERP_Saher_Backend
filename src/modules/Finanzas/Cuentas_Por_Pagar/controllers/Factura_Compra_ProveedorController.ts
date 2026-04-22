@@ -68,7 +68,19 @@ export class Factura_Compra_ProveedorController {
             console.error(error)
             res.status(500).json({ message: "Error al actualizar la compra." })
         }
-    }/*
+    }
+
+
+    static getFacturaEnCaptura = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const resultado = await Factura_Compra_ProveedorService.getFacturaEnCaptura(id_comp);
+            res.status(200).json(resultado);
+        } catch (error: any) {
+            res.status(500).json({ message: error.message });
+        }
+    };
+    /*
     static createFacturaCompraProveedor = async (req: Request, res: Response) => {
         try {
             const data = req.body;

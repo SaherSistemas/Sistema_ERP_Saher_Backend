@@ -16,6 +16,7 @@ import Detalle_Compra_Solicitado from '../../../Compras/Ordenes-Compra/model/Det
 import Detalle_Compra_Negados from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Negados';
 import { LotesArticuloSucursalRepository } from '../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository';
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
+import Proveedor from '../../../Compras/Proveedores/model/Proveedor';
 
 
 export const ArticuloRepository = {
@@ -136,12 +137,12 @@ export const ArticuloRepository = {
                 id_categoria: { [Op.notIn]: idsCategoriasExcluidas },
                 status_artic: true
             },
-            order: [['cod_int_artic', 'ASC']],
+            order: [['prioridad_artic', 'ASC']],
             offset,
+            attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'prioridad_artic'],
             limit
         });
 
-        //console.log(rows)
         const compraGeneral = await Compra_General.findOne({
             where: {
                 id_empresa_sucursal: id_empresasucursal,
@@ -150,17 +151,23 @@ export const ArticuloRepository = {
         });
 
         const cantidadesPorArticulo: Record<string, number> = {};
+        const proveedoresPorArticulo: Record<string, { nombre: string; cantidad: number, id_detcompsol: string }[]> = {};
 
         if (compraGeneral) {
             const compras = await Compra_Proveedor.findAll({
-                where: {
-                    id_compra_general: compraGeneral.id_compra_general
-                },
-                attributes: ['id_comp']
+                where: { id_compra_general: compraGeneral.id_compra_general },
+                attributes: ['id_comp'],
+                include: [{ model: Proveedor, attributes: ['nomcort_prove'] }],
+                raw: true
             });
-
+            //console.log(compras)
             const idsCompras = compras.map(c => c.id_comp);
 
+            const nombreProveedorPorComp: Record<string, string> = {};
+            compras.forEach((cp: any) => {
+                nombreProveedorPorComp[cp.id_comp] = cp['proveedor.nomcort_prove'] ?? 'Desconocido';
+            });
+            //console.log(nombreProveedorPorComp)
             if (idsCompras.length > 0) {
                 const detalles = await Detalle_Compra_Solicitado.findAll({
                     where: {
@@ -179,14 +186,33 @@ export const ArticuloRepository = {
                     const total = Number(d['total'] ?? 0);
                     cantidadesPorArticulo[idArticulo] = total;
                 });
+
+                const detallesRaw = await Detalle_Compra_Solicitado.findAll({
+                    where: { idcompr_detcompsol: { [Op.in]: idsCompras } },
+                    attributes: ['id_detcompsol', 'idarticulo_detcompsol', 'idcompr_detcompsol', 'cantidad_detcompsol'],
+                    raw: true
+                });
+
+                detallesRaw.forEach((d: any) => {
+                    const idArt = d.idarticulo_detcompsol;
+                    const nombre = nombreProveedorPorComp[d.idcompr_detcompsol] ?? 'Desconocido';
+                    const cantidad = Number(d.cantidad_detcompsol);
+                    if (!proveedoresPorArticulo[idArt]) proveedoresPorArticulo[idArt] = [];
+                    const existing = proveedoresPorArticulo[idArt].find(p => p.nombre === nombre);
+                    if (existing) existing.cantidad += cantidad;
+                    else proveedoresPorArticulo[idArt].push({ nombre, cantidad, id_detcompsol: d.id_detcompsol });
+                });
             }
         }
 
         rows.forEach((articulo) => {
-            const total = cantidadesPorArticulo[articulo.id_artic] || 0;
-            articulo.setDataValue('totalSolicitado', total);
+            articulo.setDataValue('totalSolicitado', cantidadesPorArticulo[articulo.id_artic] || 0);
+            articulo.setDataValue('proveedoresDetalle', proveedoresPorArticulo[articulo.id_artic] || []);
         });
-
+        /* console.log(JSON.stringify(rows.map(r => ({
+             articulo: r.des_artic,
+             proveedoresDetalle: r.get('proveedoresDetalle')
+         })), null, 2));*/
         return {
             total: count,
             articulos: rows,

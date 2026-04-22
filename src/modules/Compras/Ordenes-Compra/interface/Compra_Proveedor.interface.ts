@@ -37,6 +37,7 @@ export interface IEsctructuraCompra {
         cantidad_detcompsol: number
         precio_detcompsol: number
     }
+    reemplazar?: boolean;
 }
 
 

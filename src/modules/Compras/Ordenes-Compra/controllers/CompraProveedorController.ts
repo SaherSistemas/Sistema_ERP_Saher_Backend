@@ -6,6 +6,7 @@ export class CompraProveedorController {
     static createCompraProveedor = async (req: Request, res: Response) => {
         try {
             const data: IEsctructuraCompra = req.body
+            // console.log("DATAAA EN CONTROLLER", data);
             const newCompra = await compraProveedorService.createCompraProveedor(data)
             res.status(201).json({ mensaje: "Compra creada correctamente.", compra: newCompra })
         } catch (error) {

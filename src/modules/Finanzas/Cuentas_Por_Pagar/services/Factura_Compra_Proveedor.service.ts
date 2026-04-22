@@ -57,8 +57,8 @@ export const Factura_Compra_ProveedorService = {
             // 3) Separar por status
             const { devoluciones } = separarDetallesPorStatus(detallesClasificados);
             // 4) Calcular totales
-            const totalesRecibidos  = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'RECIBIDA' });
-            const totalesNegados    = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'NEGADA' });
+            const totalesRecibidos = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'RECIBIDA' });
+            const totalesNegados = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'NEGADA' });
             const totalesFacturados = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'FACTURADA' });
             // 5) Insertar negados (EFICIENTE)
             if (devoluciones.length > 0) {
@@ -125,18 +125,18 @@ export const Factura_Compra_ProveedorService = {
                     if (!idArticulo) continue;
 
                     const precioUnit = Number(d.precio_articulo_factura ?? 0);
-                    const ivaPct     = Number(d.iva_articulo_factura ?? 16);
-                    const ivaUnit    = precioUnit * (ivaPct / 100);
+                    const ivaPct = Number(d.iva_articulo_factura ?? 16);
+                    const ivaUnit = precioUnit * (ivaPct / 100);
 
                     filasFaltantes.push({
-                        id_faltante:          uuidv4(),
-                        id_nc:                ncCreada.id_nc,
+                        id_faltante: uuidv4(),
+                        id_nc: ncCreada.id_nc,
                         id_factura_proveedor: id_factura_proveedor,
-                        id_articulo:          idArticulo,
-                        cantidad_faltante:    cantFaltante,
-                        precio_unitario:      precioUnit,
-                        iva_unitario:         Math.round(ivaUnit * 100) / 100,
-                        estado:               'P',
+                        id_articulo: idArticulo,
+                        cantidad_faltante: cantFaltante,
+                        precio_unitario: precioUnit,
+                        iva_unitario: Math.round(ivaUnit * 100) / 100,
+                        estado: 'P',
                     });
                 }
 
@@ -223,6 +223,10 @@ export const Factura_Compra_ProveedorService = {
 
     guardarFacturaEIniciarCapturaLotes: async (data: ICreateFacturaCompraProveedor) => {
         return await Factura_Compra_ProveedorRepository.guardarFacturaEIniciarCapturaLotes(data)
+    },
+
+    getFacturaEnCaptura: async (id_comp: string) => {
+        return await Factura_Compra_ProveedorRepository.getFacturaEnCaptura(id_comp);
     },
 
 
@@ -329,4 +333,5 @@ export const Factura_Compra_ProveedorService = {
         }
     }
 
+    
 }

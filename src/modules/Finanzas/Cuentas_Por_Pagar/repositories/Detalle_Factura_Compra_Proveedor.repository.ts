@@ -113,4 +113,51 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
         });
 
     },
+
+
+    guardarLineaFactura: async (id_factura_compra_proveedor: string, linea: {
+        id_detcompsol: string;
+        cantidad_articulo_facturada: number;
+        precio_articulo_factura: number;
+        descuento_articulo_factura: number;
+        iva_articulo_factura: number;
+        lotes: { numero_lote: string; fecha_caducidad: string; cantidad: number; observacion_lote?: string | null }[];
+    }) => {
+        // Eliminar si ya existía para reemplazar
+        await Detalle_Factura_Compra_Proveedor.destroy({
+            where: { id_factura_compra_proveedor, id_detcompsol: linea.id_detcompsol }
+        });
+
+        const detalle = await Detalle_Factura_Compra_Proveedor.create({
+            id_factura_proveedor_detalle: uuidv4(),
+            id_factura_compra_proveedor,
+            id_detcompsol: linea.id_detcompsol,
+            cantidad_articulo_facturada: linea.cantidad_articulo_facturada,
+            precio_articulo_factura: linea.precio_articulo_factura,
+            descuento_articulo_factura: linea.descuento_articulo_factura,
+            iva_articulo_factura: linea.iva_articulo_factura,
+        });
+
+        await Lote_Factura_Compra_Proveedor.bulkCreate(
+            linea.lotes.map(l => ({
+                id_lote_factura_compra_proveedor: uuidv4(),
+                id_det_factura_proveedor: detalle.id_factura_proveedor_detalle,
+                numero_lote: l.numero_lote,
+                fecha_caducidad: l.fecha_caducidad,
+                cantidad_lote: l.cantidad,
+                observacion_lote: l.observacion_lote ?? null,
+                precio_articulo_factura: linea.precio_articulo_factura,
+            }))
+        );
+
+        return detalle;
+    },
+
+    getLineasFactura: async (id_factura_compra_proveedor: string) => {
+        return await Detalle_Factura_Compra_Proveedor.findAll({
+            where: { id_factura_compra_proveedor },
+            include: [{ model: Lote_Factura_Compra_Proveedor }]
+        });
+    },
+
 };

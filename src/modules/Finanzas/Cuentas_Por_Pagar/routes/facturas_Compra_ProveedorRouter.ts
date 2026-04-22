@@ -17,6 +17,12 @@ router.post('/guardarCapturaCompleta', Factura_Compra_ProveedorController.guarda
 //Paso 3: Definir la ruta para checar la mercancia que viene en la factura 
 //router.post('/checarMercanciaFactura', Factura_Compra_ProveedorController.checarMercanciaFactura)
 
+// Facturas pendientes de guardar
+router.get('/enCaptura/:id_comp', Factura_Compra_ProveedorController.getFacturaEnCaptura);
+
+
+router.post('/:id_factura/guardarLinea', Detalle_Factura_Compra_ProveedorController.guardarLineaFactura);
+router.get('/:id_factura/lineas', Detalle_Factura_Compra_ProveedorController.getLineasFactura);
 
 //! CHEQUEO DE FACTURAS PROVEEDOR
 // Modificamos los lotes que se registraron en la factura, para marcar los que ya se checaron y agregar a detalles Recibidos y lotes recibidos 

@@ -196,5 +196,9 @@ export const CompraGeneralRepository = {
         });
         return rows.map(r => (r as any).id_compra_general);
     },
-
+    eliminarCompraGeneral: async (id_compra_general: string) => {
+        return await Compra_General.destroy({
+            where: { id_compra_general }
+        });
+    },
 }

@@ -17,4 +17,5 @@ export interface ICreateOrUpdateDetalleCompraSolicitado {
 export interface ICreateOAcumularDetallesSolicitados {
     id_compra: string
     detalles: ICreateOrUpdateDetalleCompraSolicitado[]
+    reemplazar?: boolean;
 }

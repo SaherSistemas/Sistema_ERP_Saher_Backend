@@ -8,7 +8,7 @@ export const ArticuloService = {
   ) => {
     return await ArticuloRepository.getAllPag(page, limit, query);
   },
-  getByCodigoBarras:async(cod_barr_artic: string) => {
+  getByCodigoBarras: async (cod_barr_artic: string) => {
     return await ArticuloRepository.getByCodigoBarras(cod_barr_artic);
   },
   getAllParaVenta: async (
@@ -23,16 +23,8 @@ export const ArticuloService = {
     );
   },
 
-  getAllPagProductosParaCompra: async (
-    page: number = 1,
-    limit: number,
-    id_empresasucursal: string
-  ) => {
-    return await ArticuloRepository.getAllPagProductosParaCompra(
-      page,
-      limit,
-      id_empresasucursal
-    );
+  getAllPagProductosParaCompra: async (page: number = 1, limit: number, id_empresasucursal: string) => {
+    return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_empresasucursal);
   },
   getAllArticulosNegadosParaCompra: async (
     id_empresa_sucursal: string,
