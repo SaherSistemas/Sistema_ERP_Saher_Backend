@@ -1,6 +1,6 @@
 export interface INotasCreditoProveedor {
     id_nc: string
-    id_compra_proveedor: string
+    id_factura_proveedor: string
     folio_nc: string
     motivo_nc: string
     fecha_emision: Date
@@ -9,7 +9,7 @@ export interface INotasCreditoProveedor {
 
 
 export interface ICreateNotasCreditoProveedor {
-    id_compra_proveedor: string
+    id_factura_proveedor: string
     folio_nc: string
     motivo_nc: string
     fecha_emision: Date

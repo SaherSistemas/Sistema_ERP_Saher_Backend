@@ -5,28 +5,52 @@ import { NotasCreditoProveedorRepository } from "../../repository/Devoluciones_N
 import { Faltante_Factura_ProveedorRepository } from "../../repository/Devoluciones_NC/Faltante_Factura_Proveedor.repository";
 import { LotesArticuloSucursalRepository } from "../../modules/Inventario/Lotes/repository/Lote_ArticuloSucursal.repository";
 import { Stock_Ubicacion_LoteRepository } from "../../modules/Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository";
+import { Factura_Compra_ProveedorRepository } from "../../modules/Finanzas/Cuentas_Por_Pagar/repositories/Factura_Compra_Proveedor.repository";
+import Factura_Compra_Proveedor from "../../modules/Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor";
 import { dbLocal } from "../../config/db";
-import { trace } from "console";
 
 export const NotasCreditoProveedorService = {
     createNotaDeCredito: async (data: INotasCreditoProveedor) => {
+        console.log(data)
         const t = await dbLocal.transaction({
             isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
         });
         try {
-            const compraProveedor = await Compra_ProveedorRepository.getByID(data.id_compra_proveedor)
-            if (!compraProveedor) {
-                //FALTA AGREGAR INFORMACION DE ERROR 
-                return
+            const factura = await Factura_Compra_Proveedor.findByPk(data.id_factura_proveedor, { transaction: t });
+            if (!factura) return;
+
+            const id_compra_proveedor = factura.id_compra_prove_factura;
+
+            // Si ya existe una NC auto-pendiente para esta factura, aplicarle los datos
+            // reales del SAT en lugar de crear un duplicado
+            const ncPendiente = await NotasCreditoProveedorRepository.tienePendiente(
+                data.id_factura_proveedor,
+                { transaction: t }
+            );
+            if (ncPendiente) {
+                await NotasCreditoProveedorRepository.aplicarNCFormal(
+                    data.id_factura_proveedor,
+                    {
+                        folio_nc: data.folio_nc,
+                        motivo_nc: data.motivo_nc,
+                        fecha_emision: data.fecha_emision,
+                        total_nc: Number(data.total_nc),
+                    },
+                    { transaction: t }
+                );
+            } else {
+                await NotasCreditoProveedorRepository.create(data, { transaction: t });
             }
-            await NotasCreditoProveedorRepository.create(data, { transaction: t })
-            //CONSEGURI LAS NOTAS DE CREDITO DE ESA COMPRA PARA SABER SI YA TIENE MAS Y ACOMPLETA 
-            const notas = await NotasCreditoProveedorRepository.getNotasCreditoByCompraProveedor(data.id_compra_proveedor, { transaction: t })
 
+            // Traer todas las NCs de esta factura para sumar
+            const notas = await NotasCreditoProveedorRepository.getNotasCreditoByFacturaProveedor(
+                data.id_factura_proveedor,
+                { transaction: t }
+            );
 
-            //VERIFICAR QUE SI CUEADRAN LA COMPRA Y TOTAL 
-            const totalFactura = Number(compraProveedor.total_comp_factura) + Number(compraProveedor.total_iva_factura)
-            const totalRecibido = Number(compraProveedor.total_comp_recibido) + Number(compraProveedor.total_iva_recibido) + Number(data.total_nc)
+            // Comparar totales a nivel FACTURA
+            const totalFactura = Number(factura.total_factura_proveedor) + Number(factura.total_iva_factura);
+            const totalRecibido = Number(factura.total_recibido_factura) + Number(factura.total_iva_recibido_factura);
 
             const totalNotas = notas.reduce(
                 (acc, nc) => acc + Number(nc.total_nc ?? 0),
@@ -35,26 +59,38 @@ export const NotasCreditoProveedorService = {
 
             const totalConNotas = totalRecibido + totalNotas;
 
-            // 5. Comparar en centavos para evitar problemas con decimales
             const normalizar = (num: number) => Math.round(num * 100);
 
-            // NC manual cuadra la factura → finalizar compra y cerrar faltantes pendientes
+            // La NC cuadra esta factura → cerrar solo esta factura y sus faltantes
             if (normalizar(totalFactura) === normalizar(totalConNotas)) {
-                await Compra_ProveedorRepository.updateEstado(
-                    data.id_compra_proveedor,
+                // 1) Cerrar solo esta factura
+                await Factura_Compra_ProveedorRepository.updateEstadoFactura(
+                    data.id_factura_proveedor,
                     'F',
                     { transaction: t }
                 );
-                // Marcar faltantes como condonados (el proveedor emitió NC, no mandará la mercancía)
-                await Faltante_Factura_ProveedorRepository.marcarCondonados(
-                    data.id_compra_proveedor,
+                // 2) Marcar NC(s) de esta factura como 'A' (aplicada)
+                await NotasCreditoProveedorRepository.marcarAplicadas(
+                    data.id_factura_proveedor,
                     { transaction: t }
                 );
-                // Cerrar la(s) NC pendiente(s) de esa compra
-                await NotasCreditoProveedorRepository.marcarCerradas(
-                    data.id_compra_proveedor,
+                // 3) Condonar faltantes de esta factura
+                await Faltante_Factura_ProveedorRepository.marcarCondonadosByFactura(
+                    data.id_factura_proveedor,
                     { transaction: t }
                 );
+                // 4) Si ya no quedan facturas en 'D' para esta compra → finalizar la compra
+                const hayPendientes = await Factura_Compra_ProveedorRepository.hayFacturasEnDevolucion(
+                    id_compra_proveedor,
+                    { transaction: t }
+                );
+                if (!hayPendientes) {
+                    await Compra_ProveedorRepository.updateEstado(
+                        id_compra_proveedor,
+                        'F',
+                        { transaction: t }
+                    );
+                }
             }
             await t.commit();
             return { ok: true };
@@ -65,8 +101,8 @@ export const NotasCreditoProveedorService = {
         }
     },
 
-    getNotasCreditoByCompraProveedor: async (id_compra_proveedor: string) => {
-        return NotasCreditoProveedorRepository.getNotasCreditoByCompraProveedor(id_compra_proveedor)
+    getNotasCreditoByFacturaProveedor: async (id_factura_proveedor: string) => {
+        return NotasCreditoProveedorRepository.getNotasCreditoByFacturaProveedor(id_factura_proveedor);
     },
 
     getProductosPendientes: async (compraId: string) => {
@@ -85,11 +121,28 @@ export const NotasCreditoProveedorService = {
         }));
     },
 
+    getProductosPendientesByFactura: async (facturaId: string) => {
+        const faltantes = await Faltante_Factura_ProveedorRepository.getPendientesByFactura(facturaId);
+
+        return faltantes.map((f: any) => ({
+            id_faltante: f.id_faltante,
+            id_factura_proveedor: f.id_factura_proveedor ?? null,
+            articulo: {
+                id_artic: f.articulo?.id_artic ?? f.id_articulo,
+                cod_barr_artic: f.articulo?.cod_barr_artic ?? null,
+                des_artic: f.articulo?.des_artic ?? null,
+            },
+            cantidad: Number(f.cantidad_faltante),
+            costo_unitario: Number(f.precio_unitario),
+            iva_unitario: Number(f.iva_unitario),
+        }));
+    },
+
     darEntradaInventario: async (data: {
-        id_compra_proveedor: string;
+        id_factura_proveedor: string;
         id_empresa: string;
         productos: Array<{
-            id_faltante?: string;   // viene del GET productos_pendientes → permite marcar el faltante como resuelto
+            id_faltante?: string;
             id_artic: string;
             cantidad: number;
             numero_lote: string;
@@ -101,12 +154,18 @@ export const NotasCreditoProveedorService = {
             isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
         });
         try {
-            const ncPendiente = await NotasCreditoProveedorRepository.tienePendiente(data.id_compra_proveedor, { transaction: t });
-            if (!ncPendiente) throw new Error('No hay nota de crédito pendiente para esta compra');
+            const ncPendiente = await NotasCreditoProveedorRepository.tienePendiente(
+                data.id_factura_proveedor,
+                { transaction: t }
+            );
+            if (!ncPendiente) throw new Error('No hay nota de crédito pendiente para esta factura');
+
+            // Obtener la compra desde la factura
+            const factura = await Factura_Compra_Proveedor.findByPk(data.id_factura_proveedor, { transaction: t });
+            const id_compra_proveedor = factura.id_compra_prove_factura;
 
             // Ingresa cada producto al inventario
             for (const prod of data.productos) {
-                // 1) Crear / acumular el lote en lote_articulo_sucursal
                 const lote = await LotesArticuloSucursalRepository.updateOrCreateLoteSucursal(
                     {
                         id_artic: prod.id_artic,
@@ -120,14 +179,12 @@ export const NotasCreditoProveedorService = {
                     { transaction: t }
                 );
 
-                // 2) Crear registro en stock_ubicacion_lote SIN ubicación
-                //    → queda pendiente de acomodo (aparece en el módulo de Acomodo)
                 await Stock_Ubicacion_LoteRepository.create(
                     {
                         id_empresa_sucursal: data.id_empresa,
                         id_articulo: prod.id_artic,
                         id_lote: lote.id_lote_sucursal,
-                        id_ubicacion_sucursal: null,   // ← pendiente de acomodo
+                        id_ubicacion_sucursal: null,
                         cantidad: prod.cantidad,
                         cantidad_apartada: 0,
                     },
@@ -135,26 +192,29 @@ export const NotasCreditoProveedorService = {
                 );
             }
 
-            // Marcar faltantes como 'R' (Recibido) para los artículos que llegaron
+            // Marcar faltantes como 'R' (Recibido)
             const ids_faltante = data.productos
                 .map(p => p.id_faltante)
                 .filter(Boolean) as string[];
 
-            console.log(data)
             if (ids_faltante.length) {
                 await Faltante_Factura_ProveedorRepository.marcarRecibidos(ids_faltante, { transaction: t });
             }
 
-            // Si todos los faltantes de la compra ya se resolvieron → cerrar NC y finalizar compra
+            // Si todos los faltantes de la compra ya se resolvieron → cerrar NCs y finalizar
             const pendientesRestantes = await Faltante_Factura_ProveedorRepository.getPendientesByCompra(
-                data.id_compra_proveedor,
+                id_compra_proveedor,
                 { transaction: t }
             );
             if (pendientesRestantes.length === 0) {
-                await NotasCreditoProveedorRepository.marcarCerradas(data.id_compra_proveedor, { transaction: t });
-                // La NC quedó saldada → la compra proveedor pasa a finalizada
+                await NotasCreditoProveedorRepository.marcarCerradasByCompra(id_compra_proveedor, { transaction: t });
                 await Compra_ProveedorRepository.updateEstado(
-                    data.id_compra_proveedor,
+                    id_compra_proveedor,
+                    'F',
+                    { transaction: t }
+                );
+                await Factura_Compra_ProveedorRepository.updateEstadoByCompraProveedor(
+                    id_compra_proveedor,
                     'F',
                     { transaction: t }
                 );

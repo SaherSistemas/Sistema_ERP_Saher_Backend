@@ -6,6 +6,7 @@ export class Detalle_Compra_SolicitadoController {
         try {
             const { id_comp } = req.params;
             const todosLosArticulos = await Detalle_CompraService.getAllArticulosPorCompra(id_comp);
+            // console.log("ARTICULOS EN CONTROLLER", todosLosArticulos);
             res.status(200).json({ mensaje: todosLosArticulos })
         } catch (error) {
             console.error(error);

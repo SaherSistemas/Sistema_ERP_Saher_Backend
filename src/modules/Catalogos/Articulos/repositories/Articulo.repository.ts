@@ -24,6 +24,24 @@ export const ArticuloRepository = {
     getAll: async () => {
         return await Articulo.findAll({ attributes: ['id_artic'], raw: true })
     },
+    getBycodBarroNombre: async (query: string) => {
+        return await Articulo.findAll({
+            where: {
+                [Op.or]: [
+                    { des_artic: { [Op.iLike]: `%${query}%` } },
+                    { des_gener_artic: { [Op.iLike]: `%${query}%` } },
+                    Sequelize.where(Sequelize.cast(Sequelize.col('cod_barr_artic'), 'TEXT'), {
+                        [Op.iLike]: `%${query}%`
+                    }),
+                    Sequelize.where(Sequelize.cast(Sequelize.col('cod_int_artic'), 'TEXT'), {
+                        [Op.iLike]: `%${query}%`
+                    })
+                ]
+            },
+            attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'des_gener_artic'],
+            limit: 20
+        });
+    },
     getByCodigoBarras: async (cod_barr_artic: string) => {
         return await Articulo.findOne({ where: { cod_barr_artic } });
     },

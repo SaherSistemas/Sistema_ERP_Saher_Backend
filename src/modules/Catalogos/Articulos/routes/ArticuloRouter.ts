@@ -6,6 +6,7 @@ import { authMiddleware } from '../../../../middleware/auth';
 const router = Router();
 
 router.post('/', ArticuloController.create);
+router.get('/buscar', ArticuloController.getBycodBarroNombre);
 router.get('/buscarPorCodigoBarras/:cod_barr_artic', ArticuloController.getByCodigoBarras);
 router.get('/paraVenta/:cantidad/:cod_barr_artic', ArticuloController.getAllParaVenta);
 router.get('/', ArticuloController.getAllPaginados);

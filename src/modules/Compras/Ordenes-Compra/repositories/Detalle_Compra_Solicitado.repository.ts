@@ -8,6 +8,7 @@ import Detalle_Compra_Solicitado from '../model/Detalle_Compra_Solicitado';
 import Compra_Proveedor from '../model/Compra_Proveedor';
 import Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
 import Detalle_Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/Detalle_Factura_Compra_Proveedor';
+import Tipo_IVA from '../../../Catalogos/Articulos/model/Tipo_IVA';
 
 
 export const Detalle_Compra_SolicitadoRepository = {
@@ -23,7 +24,15 @@ export const Detalle_Compra_SolicitadoRepository = {
   getAllArticulosPorCompra: async (id_comp: string) => {
     const detalles = await Detalle_Compra_Solicitado.findAll({
       where: { idcompr_detcompsol: id_comp },
-      include: [{ model: Articulo }, { model: Compra_Proveedor }]
+      include: [{
+        model: Articulo,
+        include: [{
+          model: Tipo_IVA,
+          attributes: ['porcentaje_iva']
+        }]
+      },
+      { model: Compra_Proveedor }
+      ]
     });
 
     // Cantidades ya capturadas en facturas COMPLETADAS (no 'E')

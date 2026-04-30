@@ -35,6 +35,28 @@ export class Factura_Compra_ProveedorController {
         }
     }
 
+    static getFacturasPorCompraProveedor = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const facturas = await Factura_Compra_ProveedorService.getFacturasPorCompraProveedor(id_comp);
+            res.status(200).json(facturas);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener las facturas de la compra.' });
+        }
+    }
+
+    static getFacturaCompleta = async (req: Request, res: Response) => {
+        try {
+            const { id_factura_proveedor } = req.params;
+            const resultado = await Factura_Compra_ProveedorService.getFacturaCompleta(id_factura_proveedor);
+            res.status(200).json(resultado);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener el detalle completo de la factura.' });
+        }
+    }
+
     static getDetallesFacturaPorIdFacturaProveedor = async (req: Request, res: Response) => {
         try {
             const { id_factura_proveedor } = req.params;

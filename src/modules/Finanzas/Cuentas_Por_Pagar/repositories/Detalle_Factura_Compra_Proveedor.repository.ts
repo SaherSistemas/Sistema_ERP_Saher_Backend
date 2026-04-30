@@ -11,6 +11,7 @@ import { UsuarioRepository } from '../../../Seguridad/repositories/Usuario.repos
 import Detalle_Compra_Recibido from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Recibido';
 import LotesRecibidosCompra from '../../../../models/LotesYCaducidad/LotesRecibidosCompra';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import { Op } from 'sequelize';
 
 export const Detalle_Factura_Compra_ProveedorRepository = {
     getByPK: async (id_factura_proveedor_detalle: string) => {
@@ -30,7 +31,8 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
 
         return created.map((r: any) => ({
             id_factura_proveedor_detalle: r.id_factura_proveedor_detalle,
-            id_detcompsol: r.id_detcompsol
+            id_detcompsol: r.id_detcompsol,
+            id_artic: r.id_artic
         }));
     },
     getCountProductosPorFactura: async (id_factura_compra_proveedor: string) => {
@@ -59,6 +61,7 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
                 'id_factura_proveedor_detalle',
                 'id_factura_compra_proveedor',
                 'precio_articulo_factura',
+                'descuento_articulo_factura',
                 'iva_articulo_factura',
                 'cantidad_articulo_facturada',
                 'checado',
@@ -98,16 +101,23 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
                     ]
                 },
 
-                // 3) Artículo
+                // 3) Artículo vía detalle solicitado (productos normales)
                 {
                     model: Detalle_Compra_Solicitado,
                     attributes: ['id_detcompsol', 'idarticulo_detcompsol'],
+                    required: false,
                     include: [
                         {
                             model: Articulo,
                             attributes: ['id_artic', 'cod_barr_artic', 'des_artic']
                         }
                     ]
+                },
+                // 4) Artículo directo (productos extra — id_detcompsol null)
+                {
+                    model: Articulo,
+                    attributes: ['id_artic', 'cod_barr_artic', 'des_artic'],
+                    required: false
                 }
             ],
         });
@@ -116,7 +126,8 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
 
 
     guardarLineaFactura: async (id_factura_compra_proveedor: string, linea: {
-        id_detcompsol: string;
+        id_detcompsol: string | null;
+        id_artic?: string | null;
         cantidad_articulo_facturada: number;
         precio_articulo_factura: number;
         descuento_articulo_factura: number;
@@ -125,13 +136,19 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
     }) => {
         // Eliminar si ya existía para reemplazar
         await Detalle_Factura_Compra_Proveedor.destroy({
-            where: { id_factura_compra_proveedor, id_detcompsol: linea.id_detcompsol }
+            where: {
+                id_factura_compra_proveedor,
+                ...(linea.id_detcompsol
+                    ? { id_detcompsol: linea.id_detcompsol }
+                    : { id_artic: linea.id_artic, id_detcompsol: null })
+            }
         });
 
         const detalle = await Detalle_Factura_Compra_Proveedor.create({
             id_factura_proveedor_detalle: uuidv4(),
             id_factura_compra_proveedor,
-            id_detcompsol: linea.id_detcompsol,
+            id_detcompsol: linea.id_detcompsol ?? null,
+            id_artic: linea.id_artic ?? null,
             cantidad_articulo_facturada: linea.cantidad_articulo_facturada,
             precio_articulo_factura: linea.precio_articulo_factura,
             descuento_articulo_factura: linea.descuento_articulo_factura,

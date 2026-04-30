@@ -8,6 +8,10 @@ const router = Router()
 router.get('/porRecibir', Factura_Compra_ProveedorController.getAllConFiltroDeEstado)
 // - Obtener los detalles de una factura por su id para poder checarla
 router.get('/detallesFactura/:id_factura_proveedor', Factura_Compra_ProveedorController.getDetallesFacturaPorIdFacturaProveedor)
+// - Obtener todas las facturas de una compra proveedor
+router.get('/porCompra/:id_comp', Factura_Compra_ProveedorController.getFacturasPorCompraProveedor)
+// - Obtener detalle completo de una factura (artículos, cantidades, empleados)
+router.get('/facturaCompleta/:id_factura_proveedor', Factura_Compra_ProveedorController.getFacturaCompleta)
 router.get('/:id_comp', Factura_Compra_ProveedorController.getByIDComp)
 
 // Paso 1: Definir la ruta para guardar la factura e iniciar la captura de lotes

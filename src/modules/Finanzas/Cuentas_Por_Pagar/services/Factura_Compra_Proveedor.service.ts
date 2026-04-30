@@ -10,7 +10,6 @@ import { ICrearDetallesFacturaRepoDTO } from "../interface/Detalle_Factura_Compr
 import { Lote_Factura_Compra_ProveedorRepository } from "../repositories/Lote_Factura_Compra_ProveedorRepository.repository";
 import { ICrearLotesFacturaRepoDTO } from "../interface/Lote_Factura_Compra_Proveedor.interface";
 import { Compra_ProveedorRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository";
-import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_General.repository";
 import { EmpleadoRepository } from "../../../RRHH/repositories/Empleado.repository";
 import { UsuarioRepository } from "../../../Seguridad/repositories/Usuario.repository";
 import { clasificarDetalleFactura, separarDetallesPorStatus } from "../helpers/facturasLotesClasificador";
@@ -22,7 +21,18 @@ import { Stock_Ubicacion_LoteRepository } from "../../../Inventario/Stock/reposi
 import { LotesArticuloSucursalRepository } from "../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository";
 import { NotasCreditoProveedorRepository } from "../../../../repository/Devoluciones_NC/NC/NotasCreditoProveedor.repository";
 import { Faltante_Factura_ProveedorRepository } from "../../../../repository/Devoluciones_NC/Faltante_Factura_Proveedor.repository";
+import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_General.repository";
 export const Factura_Compra_ProveedorService = {
+
+    getFacturasPorCompraProveedor: async (id_comp: string) => {
+        return await Factura_Compra_ProveedorRepository.getFacturasPorCompraProveedor(id_comp);
+    },
+
+    getFacturaCompleta: async (id_factura_proveedor: string) => {
+        const resultado = await Factura_Compra_ProveedorRepository.getFacturaCompleta(id_factura_proveedor);
+        if (!resultado) throw new Error('Factura no encontrada');
+        return resultado;
+    },
     getAllConFiltroDeEstado: async () => {
         return await Factura_Compra_ProveedorRepository.getAllConFiltroDeEstado();
     },
@@ -105,7 +115,7 @@ export const Factura_Compra_ProveedorService = {
 
                 const ncCreada = await NotasCreditoProveedorRepository.create(
                     {
-                        id_compra_proveedor: factura.compra.id_comp,
+                        id_factura_proveedor: id_factura_proveedor,
                         folio_nc: folioAutoNC,
                         motivo_nc: 'Faltante detectado en chequeo de factura (generado automáticamente)',
                         fecha_emision: new Date().toISOString().split('T')[0] as any,
@@ -125,8 +135,10 @@ export const Factura_Compra_ProveedorService = {
                     if (!idArticulo) continue;
 
                     const precioUnit = Number(d.precio_articulo_factura ?? 0);
-                    const ivaPct = Number(d.iva_articulo_factura ?? 16);
-                    const ivaUnit = precioUnit * (ivaPct / 100);
+                    const descPct = Number(d.descuento_articulo_factura ?? 0);
+                    const ivaPct = Number(d.iva_articulo_factura ?? 0);
+                    const precioNeto = precioUnit * (1 - descPct / 100);
+                    const ivaUnit = precioNeto * (ivaPct / 100);
 
                     filasFaltantes.push({
                         id_faltante: uuidv4(),
@@ -134,7 +146,7 @@ export const Factura_Compra_ProveedorService = {
                         id_factura_proveedor: id_factura_proveedor,
                         id_articulo: idArticulo,
                         cantidad_faltante: cantFaltante,
-                        precio_unitario: precioUnit,
+                        precio_unitario: Math.round(precioNeto * 100) / 100,
                         iva_unitario: Math.round(ivaUnit * 100) / 100,
                         estado: 'P',
                     });
@@ -144,12 +156,12 @@ export const Factura_Compra_ProveedorService = {
                     await Faltante_Factura_ProveedorRepository.bulkCreate(filasFaltantes, { transaction: t });
                 }
 
-                // Si lo recibido + la NC iguala la factura → finalizar compra
-                const normalizar = (n: number) => Math.round(n * 100);
-                if (normalizar(totalesRecibidos.total + totalesNegados.total) === normalizar(totalesFacturados.total)) {
-                    await Compra_ProveedorRepository.updateEstado(factura.compra.id_comp, 'F', { transaction: t });
-                }
+                // Hay faltantes → compra queda pendiente de devolución hasta que se reciba NC formal o dar entrada
+                await Compra_ProveedorRepository.updateEstado(factura.compra.id_comp, 'D', { transaction: t });
             }
+
+            // Estado de la factura: 'D' si quedaron faltantes, 'H' si todo se recibió completo
+            const estadoFactura = totalesNegados.total > 0 ? 'D' : 'H';
 
             // 8) Darle entrada a los articulos(CREAR EL LOTE_ARTICULO_SUCURSAL Y DARLE ENTRADA EN UBICACIONLOTE_SUCURSAL)
             const lotesArticuloSucursal: ICreaterOrUdateLotesArticuloSucursal[] = [];
@@ -195,11 +207,16 @@ export const Factura_Compra_ProveedorService = {
             await Stock_Ubicacion_LoteRepository.bulkUpsertAcumular(stockRows, t);
             // 9) Actualizar los precios al articulo (DETALLES_LISTA_PRECIA) 
 
-            // 10) Finalizar checado factura
+            // 10) Finalizar checado factura (guarda totales recibidos y estado correcto)
             const facturaChequeada = await Factura_Compra_ProveedorRepository.finalizarChequeoFacturaProveedor(
                 id_factura_proveedor,
                 id_referencia_persona,
-                t
+                t,
+                {
+                    recibido: totalesRecibidos.subtotal,
+                    iva_recibido: totalesRecibidos.iva,
+                    estado_factura: estadoFactura,
+                }
             );
             // 10) Commit
             await t.commit();
@@ -237,51 +254,11 @@ export const Factura_Compra_ProveedorService = {
             isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
         });
         try {
-            //TOTALES
-            let totalSinIva = 0;
-            let totalIva = 0;
-
-            for (const p of productos) {
-                // console.log(p)
-                const cantidad = Number(p.cantidad_facturada);
-                const precio = Number(p.precio);
-                const descuentoPct = Number(p.descuento ?? 0);
-                const ivaPct = Number(p.iva ?? 0);
-
-                const importeBruto = precio * cantidad;
-                const descuentoMonto = importeBruto * (descuentoPct / 100);
-                const importeNeto = importeBruto - descuentoMonto;
-                const ivaMonto = importeNeto * (ivaPct / 100);
-                //console.log("IVAMONOT", ivaMonto);
-                totalSinIva += importeNeto;
-                totalIva += ivaMonto;
-            }
-            //FACTURA
-            const actualizarFacturaTotales = await Factura_Compra_ProveedorRepository.actualizarTotalesFactura(
-                id_factura_compra_proveedor,
-                totalSinIva,
-                totalIva,
-                id_empleado_registro_lotes,
-                t
-            );
-            //COMPRA PROVEEDOR
-            const actualizarCompraProveedorTotales = await Compra_ProveedorRepository.actualizarTotalesCompraProveedor(
-                id_comp,
-                totalSinIva,
-                totalIva,
-                t
-            );
-            //COMPRA GENERAL 
-            const actualizarCompraGeneralTotales = await CompraGeneralRepository.actualizarTotalesCompraGeneralPorCompraProveedor(
-                id_comp,
-                totalSinIva,
-                totalIva,
-                t
-            );
             const detallesPayload: ICrearDetallesFacturaRepoDTO = {
                 id_factura_compra_proveedor,
-                detalles: productos.map((p) => ({
-                    id_detcompsol: p.id_detcompsol,
+                detalles: productos.map((p: any) => ({
+                    id_detcompsol: p.id_detcompsol ?? null,
+                    id_artic: p.id_artic ?? null,
                     cantidad_articulo_facturada: p.cantidad_facturada,
                     precio_articulo_factura: p.precio,
                     descuento_articulo_factura: p.descuento ?? 0,
@@ -292,21 +269,20 @@ export const Factura_Compra_ProveedorService = {
 
             const detallesCreados = await Detalle_Factura_Compra_ProveedorRepository.createMultiple(detallesPayload, t);
 
-            //console.log(detallesCreados)
-
-            const mapDet = new Map<string, string>();
-            for (const d of detallesCreados) {
-                mapDet.set(d.id_detcompsol, d.id_factura_proveedor_detalle);
-            }
+            // Mapa por índice para evitar colisión cuando id_detcompsol es null (extras)
+            const mapDetPorIndice = new Map<number, string>();
+            detallesCreados.forEach((d: any, i: number) => {
+                mapDetPorIndice.set(i, d.id_factura_proveedor_detalle);
+            });
 
             const lotesPayload: ICrearLotesFacturaRepoDTO = {
-                lotes: productos.flatMap((p) => {
-                    const idDetFactura = mapDet.get(p.id_detcompsol);
+                lotes: productos.flatMap((p: any, i: number) => {
+                    const idDetFactura = mapDetPorIndice.get(i);
                     if (!idDetFactura) {
-                        throw new Error(`No se encontró detalle creado para id_detcompsol=${p.id_detcompsol}`);
+                        throw new Error(`No se encontró detalle creado para producto índice=${i}`);
                     }
 
-                    return p.lotes.map((l) => ({
+                    return p.lotes.map((l: any) => ({
                         id_det_factura_proveedor: idDetFactura,
                         numero_lote: l.numero_lote,
                         fecha_caducidad: l.fecha_caducidad,
@@ -319,8 +295,28 @@ export const Factura_Compra_ProveedorService = {
 
             await Lote_Factura_Compra_ProveedorRepository.createMultiple(lotesPayload, t);
 
-            await t.commit();
+            // Recalcular totales de la factura leyendo TODOS sus detalles en BD
+            // (incluye tanto los recién creados como los ya guardados línea por línea)
+            await Factura_Compra_ProveedorRepository.recalcularTotales(id_factura_compra_proveedor, t);
 
+            // Registrar al empleado y marcar estado factura como 'C' (capturada)
+            const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado_registro_lotes);
+            if (empleado) {
+                await Factura_Compra_ProveedorRepository.actualizarEmpleadoYEstado(
+                    id_factura_compra_proveedor,
+                    empleado.id_empleado,
+                    t
+                );
+            }
+
+            // Recalcular total_comp_factura de la compra sumando todas sus facturas (idempotente, no acumula)
+            await Compra_ProveedorRepository.recalcularTotalesDesdeFacturas(id_comp, t);
+
+            // Compra general (acumula por diseño — deja el comportamiento existente)
+            // Se calcula desde los totales ya recalculados de la factura
+            // (no se toca para no romper otros flujos)
+
+            await t.commit();
 
             return {
                 ok: true,
@@ -333,5 +329,5 @@ export const Factura_Compra_ProveedorService = {
         }
     }
 
-    
+
 }

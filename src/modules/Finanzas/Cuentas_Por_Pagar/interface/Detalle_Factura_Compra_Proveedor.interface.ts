@@ -72,7 +72,8 @@ export interface IProductoFacturadoInputDTO {
 
 // === Detalle repo payload (NO incluye lotes) ===
 export interface IDetalleFacturaRepoItemDTO {
-    id_detcompsol: string;
+    id_detcompsol: string | null;
+    id_artic?: string | null;
     cantidad_articulo_facturada: number;
     precio_articulo_factura: number;
     descuento_articulo_factura: number;
@@ -92,6 +93,7 @@ export interface ICrearDetallesFacturaRepoDTO {
 
 export interface IModificarLotesDetalleFacturaDTO {
     id_factura_proveedor_detalle: string;
+    id_empresa: string;
     lotes: ILoteDetalleFacturaDTO[];
 }
 

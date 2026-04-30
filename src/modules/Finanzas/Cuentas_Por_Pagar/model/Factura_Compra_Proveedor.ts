@@ -12,6 +12,7 @@ class Factura_Compra_Proveedor extends Model {
     C: Capturada
     R: RECIBIDA
     H: CHECADA
+    D: DEVOLUCION
     A: ACOMODADA
     F: FINALIZADA
     */
@@ -57,10 +58,23 @@ class Factura_Compra_Proveedor extends Model {
         type: DataType.DECIMAL(12, 2)
     })
     declare total_factura_proveedor: number
+
     @Column({
         type: DataType.DECIMAL(12, 2)
     })
     declare total_iva_factura: number
+
+    @Column({
+        type: DataType.DECIMAL(12, 2),
+        defaultValue: 0
+    })
+    declare total_recibido_factura: number
+
+    @Column({
+        type: DataType.DECIMAL(12, 2),
+        defaultValue: 0
+    })
+    declare total_iva_recibido_factura: number
 
 
     @Column({

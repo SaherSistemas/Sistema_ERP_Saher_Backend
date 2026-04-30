@@ -15,6 +15,16 @@ export class ArticuloController {
       res.status(500).json({ message: 'Error al obtener los artículos.' });
     }
   };
+  static getBycodBarroNombre = async (req: Request, res: Response) => {
+    try {
+      const query = req.query.q as string;
+      const articulos = await ArticuloService.getBycodBarroNombre(query);
+      res.status(200).json(articulos);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Error al buscar los artículos.' });
+    }
+  };
   static getByCodigoBarras = async (req: Request, res: Response) => {
     try {
       const { cod_barr_artic } = req.params;
@@ -48,7 +58,7 @@ export class ArticuloController {
         limit,
         id_empresasucursal
       );
-     // console.log(TodosArticulosParaCompra)
+      // console.log(TodosArticulosParaCompra)
       res.status(200).json(TodosArticulosParaCompra);
     } catch (error) {
       console.error(error);

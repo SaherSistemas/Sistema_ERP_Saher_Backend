@@ -52,6 +52,7 @@ export class Dash_CompraController {
             );
             const comprasPendientes = await compraProveedorService.getComprasPendientes();
             // console.log(comprasGeneralesConFiltro);
+            //console.log(comprasPendientes);
             res.status(200).json({ comprasGeneralesConFiltro, comprasPendientes });
         } catch (error) {
             console.error(error);

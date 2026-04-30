@@ -13,6 +13,8 @@ import { CompraGeneralRepository } from '../repositories/Compra_General.reposito
 import { mapCompraProveedor } from '../mappers/compraProveedor.mapper';
 import id from 'zod/v4/locales/id.js';
 import { dbLocal } from '../../../../config/db';
+import Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
+import { Factura_Compra_ProveedorRepository } from '../../../Finanzas/Cuentas_Por_Pagar/repositories/Factura_Compra_Proveedor.repository';
 
 export const compraProveedorService = {
     getCompraProveedorPorIdGeneral: async (id_compra_general: string) => {
@@ -22,7 +24,7 @@ export const compraProveedorService = {
         return plain.map(mapCompraProveedor)
     },
     getComprasPendientes: async () => {
-        const rows = await Compra_ProveedorRepository.getComprasPendientes();
+        const rows = await Factura_Compra_ProveedorRepository.getFacturasPendientes();
         const plain = rows.map((r: any) => typeof r.get === 'function' ? r.get({ plain: true }) : r);
         return plain.map(mapCompraProveedor);
     },
@@ -85,99 +87,150 @@ export const compraProveedorService = {
         }
 
     },
-    articulosDetalleCompraProveedor: async (id_comp: string) => {
-        return await Compra_ProveedorRepository.articulosDetalleCompraProveedor(id_comp);
-    },
 
     generarPDFListado: async (id_comp: string): Promise<Buffer> => {
-        const compraProveedor = await compraProveedorService.articulosDetalleCompraProveedor(id_comp);
+        const compraProveedor = await Compra_ProveedorRepository.articulosDetalleCompraProveedor(id_comp);
         const { proveedor, detallesCompra } = compraProveedor;
+
         const doc = new PDFDocument({ margin: 30, size: 'letter' });
         const buffers: Buffer[] = [];
-
         doc.on('data', buffers.push.bind(buffers));
 
-        const drawEncabezadoTabla = () => {
-            const y = doc.y;
-            doc.rect(30, y, 550, 20).fill('#E0E0E0');
-            doc.fillColor('black').font('Helvetica-Bold').fontSize(10);
-            doc.text('Código', 32, y + 5);
-            doc.text('Descripción', 130, y + 5);
-            doc.text('Cantidad', 300, y + 5);
-            doc.text('Precio', 380, y + 5);
-            doc.text('Importe', 460, y + 5);
-            doc.moveDown(1.5);
-            doc.font('Helvetica');
+        const TL = 30, TR = 540, TW = 510;
+        const C = {
+            codigo: { x: 32, w: 84 },
+            desc: { x: 119, w: 142 },
+            cant: { x: 264, w: 34 },
+            precio: { x: 301, w: 60 },
+            pctIva: { x: 364, w: 32 },
+            iva: { x: 399, w: 60 },
+            importe: { x: 462, w: 75 },
         };
 
-        // 🟦 ENCABEZADO
-        doc.rect(0, 0, 612, 60).fill('#3C8DBC');
-        doc.fillColor('white').fontSize(20).text('FARMACIA SAHER', 40, 20);
-        doc.fillColor('black');
-        doc.moveDown(2);
-        doc.fontSize(14).text('Orden de Compra a Proveedor', { underline: true });
-        doc.moveDown();
-        doc.fontSize(11);
-        doc.text(`Proveedor: ${proveedor.nomcort_prove}`);
-        doc.text(`Razón Social: ${proveedor.razsoc_prove}`);
-        doc.text(`RFC: ${proveedor.rfc_prove}`);
-        doc.text(`Correo: ${proveedor.corr_prove}`);
-        doc.text(`Teléfono: ${proveedor.telef_prove}`);
-        doc.text(`Fecha: ${dayjs().format('DD/MM/YYYY')}`);
-        doc.moveDown().moveTo(30, doc.y).lineTo(580, doc.y).strokeColor('#CCCCCC').stroke();
-        doc.moveDown();
+        const drawTableHeader = (y: number): number => {
+            doc.rect(TL, y, TW, 18).fill('#1B4F72');
+            doc.font('Helvetica-Bold').fontSize(8).fillColor('white');
+            doc.text('Código', C.codigo.x, y + 5, { width: C.codigo.w, lineBreak: false });
+            doc.text('Descripción', C.desc.x, y + 5, { width: C.desc.w, lineBreak: false });
+            doc.text('Cant.', C.cant.x, y + 5, { width: C.cant.w, align: 'center', lineBreak: false });
+            doc.text('P. Unit.', C.precio.x, y + 5, { width: C.precio.w, align: 'right', lineBreak: false });
+            doc.text('%IVA', C.pctIva.x, y + 5, { width: C.pctIva.w, align: 'center', lineBreak: false });
+            doc.text('IVA', C.iva.x, y + 5, { width: C.iva.w, align: 'right', lineBreak: false });
+            doc.text('Importe', C.importe.x, y + 5, { width: C.importe.w, align: 'right', lineBreak: false });
+            doc.font('Helvetica').fillColor('black');
+            return y + 20;
+        };
 
-        drawEncabezadoTabla();
+        // HEADER
+        doc.rect(0, 0, 612, 65).fill('#1B4F72');
+        doc.font('Helvetica-Bold').fontSize(22).fillColor('white').text('FARMACIA SAHER', 35, 14, { lineBreak: false });
+        doc.font('Helvetica').fontSize(10).fillColor('#AED6F1').text('Orden de Compra a Proveedor', 35, 43, { lineBreak: false });
+        doc.font('Helvetica').fontSize(9).fillColor('white');
+        doc.text(`Folio: ${id_comp}`, 400, 26, { lineBreak: false });
+        doc.text(`Fecha: ${dayjs().format('DD/MM/YYYY')}`, 400, 41, { lineBreak: false });
 
-        let subtotal = 0;
+        // INFO PROVEEDOR
+        let cy = 75;
+        doc.rect(TL, cy, TW, 14).fill('#D6EAF8');
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#1B4F72').text('DATOS DEL PROVEEDOR', TL + 5, cy + 3, { lineBreak: false });
+        cy += 16;
+
+        doc.font('Helvetica').fontSize(9).fillColor('#1C2833');
+        doc.text(`Nombre: ${proveedor.nomcort_prove}`, TL + 5, cy, { lineBreak: false });
+        doc.text(`RFC: ${proveedor.rfc_prove}`, 310, cy, { lineBreak: false });
+        cy += 13;
+        doc.text(`Razón Social: ${proveedor.razsoc_prove}`, TL + 5, cy, { lineBreak: false });
+        cy += 13;
+        doc.text(`Correo: ${proveedor.corr_prove}`, TL + 5, cy, { lineBreak: false });
+        doc.text(`Teléfono: ${proveedor.telef_prove}`, 310, cy, { lineBreak: false });
+        cy += 14;
+
+        doc.moveTo(TL, cy).lineTo(TR, cy).strokeColor('#AEB6BF').lineWidth(0.5).stroke();
+        cy += 7;
+
+        cy = drawTableHeader(cy);
+
+        let subtotalSinIva = 0;
+        const ivaGroups: Record<string, number> = {};
+        let rowIndex = 0;
 
         for (const item of detallesCompra) {
             const cantidad = Number(item.cantidad_detcompsol);
-            const precio = Number(item.precio_detcompsol);
-            const importe = cantidad * precio;
-            subtotal += importe;
+            const precioUnit = Number(item.precio_detcompsol);
+            const pctIva = Number(item.articulo?.tipo_iva?.porcentaje_iva ?? 0);
+            const baseLine = cantidad * precioUnit;
+            const ivaLinea = baseLine * pctIva;
+            const importeTotal = baseLine + ivaLinea;
 
-            const articulo = item.articulo;
+            subtotalSinIva += baseLine;
+            const ivaKey = `${(pctIva * 100).toFixed(0)}%`;
+            ivaGroups[ivaKey] = (ivaGroups[ivaKey] ?? 0) + ivaLinea;
 
-            const espacioNecesario = 40;
-            if (doc.y + espacioNecesario > doc.page.height - doc.page.margins.bottom) {
+            const descText = item.articulo?.des_artic ?? '';
+            doc.font('Helvetica').fontSize(8);
+            const rowH = Math.max(doc.heightOfString(descText, { width: C.desc.w }) + 6, 16);
+
+            if (cy + rowH > doc.page.height - doc.page.margins.bottom - 10) {
                 doc.addPage();
-                drawEncabezadoTabla();
+                cy = doc.page.margins.top;
+                cy = drawTableHeader(cy);
+                rowIndex = 0;
             }
 
-            const startY = doc.y;
-            doc.text(articulo.cod_barr_artic, 30, startY);
-            doc.text(articulo.des_artic, 130, startY, { width: 160, lineGap: 1 });
+            doc.rect(TL, cy, TW, rowH).fill(rowIndex % 2 === 0 ? '#FDFEFE' : '#EAF2FF');
+            doc.font('Helvetica').fontSize(8).fillColor('#1C2833');
 
-            const yFinal = doc.y;
-            doc.text(`${cantidad}`, 300, startY);
-            doc.text(`$${precio.toFixed(2)}`, 380, startY);
-            doc.text(`$${importe.toFixed(2)}`, 460, startY);
+            doc.text(item.articulo?.cod_barr_artic ?? '', C.codigo.x, cy + 3, { width: C.codigo.w, lineBreak: false });
+            doc.text(descText, C.desc.x, cy + 3, { width: C.desc.w });
+            doc.text(`${cantidad}`, C.cant.x, cy + 3, { width: C.cant.w, align: 'center', lineBreak: false });
+            doc.text(`$${precioUnit.toFixed(2)}`, C.precio.x, cy + 3, { width: C.precio.w, align: 'right', lineBreak: false });
+            doc.text(`${(pctIva * 100).toFixed(0)}%`, C.pctIva.x, cy + 3, { width: C.pctIva.w, align: 'center', lineBreak: false });
+            doc.text(`$${ivaLinea.toFixed(2)}`, C.iva.x, cy + 3, { width: C.iva.w, align: 'right', lineBreak: false });
+            doc.text(`$${importeTotal.toFixed(2)}`, C.importe.x, cy + 3, { width: C.importe.w, align: 'right', lineBreak: false });
 
-            doc.y = Math.max(yFinal, startY) + 5;
+            doc.moveTo(TL, cy + rowH).lineTo(TR, cy + rowH).strokeColor('#D5D8DC').lineWidth(0.3).stroke();
+            cy += rowH;
+            rowIndex++;
         }
 
-        const iva = subtotal * 0.16;
-        const total = subtotal + iva;
+        // TOTALS
+        const totalIva = Object.values(ivaGroups).reduce((a, b) => a + b, 0);
+        const total = subtotalSinIva + totalIva;
+        const ivaKeys = Object.keys(ivaGroups).sort();
+        const boxNeeded = 22 + ivaKeys.length * 18 + 26;
 
-        if (doc.y + 60 > doc.page.height - doc.page.margins.bottom) {
+        if (cy + boxNeeded > doc.page.height - doc.page.margins.bottom) {
             doc.addPage();
+            cy = doc.page.margins.top;
         }
 
-        doc.moveDown(1);
-        const totalBoxY = doc.y;
-        doc.rect(400, totalBoxY, 170, 45).fill('#F5F5F5');
-        doc.fillColor('black').fontSize(11);
-        doc.text(`Subtotal: $${subtotal.toFixed(2)}`, 410, totalBoxY + 5);
+        cy += 10;
+        const bx = 358, bw = 182;
+
+        doc.rect(bx, cy, bw, 20).fill('#D6EAF8');
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#1B4F72');
+        doc.text('Subtotal (sin IVA):', bx + 5, cy + 6, { width: 112, lineBreak: false });
+        doc.text(`$${subtotalSinIva.toFixed(2)}`, bx + 116, cy + 6, { width: 61, align: 'right', lineBreak: false });
+        cy += 20;
+
+        for (const key of ivaKeys) {
+            doc.rect(bx, cy, bw, 18).fill('#FDFEFE');
+            doc.font('Helvetica').fontSize(9).fillColor('#1C2833');
+            doc.text(`IVA ${key}:`, bx + 5, cy + 5, { width: 112, lineBreak: false });
+            doc.text(`$${ivaGroups[key].toFixed(2)}`, bx + 116, cy + 5, { width: 61, align: 'right', lineBreak: false });
+            cy += 18;
+        }
+
+        doc.rect(bx, cy, bw, 24).fill('#1B4F72');
+        doc.font('Helvetica-Bold').fontSize(11).fillColor('white');
+        doc.text('TOTAL:', bx + 5, cy + 6, { width: 112, lineBreak: false });
+        doc.text(`$${total.toFixed(2)}`, bx + 112, cy + 6, { width: 65, align: 'right', lineBreak: false });
 
         doc.end();
         return new Promise((resolve) => {
             doc.on('end', async () => {
-                // ✅ ACTUALIZA LA FECHA SI ES NULL
-                await Compra_ProveedorRepository.actualizarFechaEnviadaProveedor(id_comp)
-
-                const pdfBuffer = Buffer.concat(buffers);
-                resolve(pdfBuffer);
+                await Compra_ProveedorRepository.actualizarFechaEnviadaProveedor(id_comp);
+                resolve(Buffer.concat(buffers));
             });
         });
     },

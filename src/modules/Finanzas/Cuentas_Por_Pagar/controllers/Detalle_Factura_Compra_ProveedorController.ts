@@ -11,7 +11,10 @@ export class Detalle_Factura_Compra_ProveedorController {
     static modificarLotesYDetallesRecibidosFacturaProveedor = async (req: AuthedRequest, res: Response) => {
         try {
             const usuario_empleado_chequeo = req.user?.username;
-            const facturas = await Detalle_Factura_Compra_ProveedorService.modificarLotesYDetallesRecibidosFacturaProveedor(req.body, usuario_empleado_chequeo);
+            const facturas = await Detalle_Factura_Compra_ProveedorService.modificarLotesYDetallesRecibidosFacturaProveedor(
+                { ...req.body, id_empresa: req.user?.id_empresa },
+                usuario_empleado_chequeo
+            );
             res.status(200).json({ mensaje: facturas })
 
         } catch (error) {

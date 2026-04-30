@@ -14,6 +14,8 @@ import { CompraGeneralRepository } from './Compra_General.repository';
 import { Detalle_Compra_RecibidosRepository } from './Detalle_Compra_Recibido.repository';
 import { round2 } from '../../../../utils/validaciones';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import Tipo_IVA from '../../../Catalogos/Articulos/model/Tipo_IVA';
+import Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
 export type KpiEstados = { R: number; A: number; F: number; D: number };
 export const Compra_ProveedorRepository = {
   /*
@@ -48,15 +50,26 @@ export const Compra_ProveedorRepository = {
   },
 
   actualizarTotalesCompraProveedor: async (id_comp: string, totalSinIva: number, totaliva: number, t?: Transaction) => {
-    //AQUI SOLO SE HACE UPDATE DE LOS TOTALES DE LA COMPRA PROVEEDOR
     return await Compra_Proveedor.update({
       total_comp_factura: literal(`total_comp_factura + ${Number(totalSinIva)}`),
       total_iva_factura: literal(`total_iva_factura + ${Number(totaliva)}`)
-    },
-      {
-        where: { id_comp },
-        transaction: t
-      });
+    }, { where: { id_comp }, transaction: t });
+  },
+
+  // Recalcula total_comp_factura y total_iva_factura sumando TODAS las facturas de esa compra.
+  // Idempotente: siempre reemplaza en vez de acumular.
+  recalcularTotalesDesdeFacturas: async (id_comp: string, t?: Transaction) => {
+    const facturas = await Factura_Compra_Proveedor.findAll({
+      where: { id_compra_prove_factura: id_comp },
+      attributes: ['total_factura_proveedor', 'total_iva_factura'],
+      transaction: t,
+    });
+    const totalSinIva = facturas.reduce((acc, f) => acc + Number(f.total_factura_proveedor ?? 0), 0);
+    const totalIva = facturas.reduce((acc, f) => acc + Number(f.total_iva_factura ?? 0), 0);
+    return await Compra_Proveedor.update(
+      { total_comp_factura: totalSinIva, total_iva_factura: totalIva },
+      { where: { id_comp }, transaction: t }
+    );
   },
 
   getComprasPendientes: async () => {
@@ -307,7 +320,11 @@ export const Compra_ProveedorRepository = {
           include: [
             {
               model: Articulo,
-              attributes: ['cod_int_artic', 'cod_barr_artic', 'des_artic']
+              attributes: ['cod_int_artic', 'cod_barr_artic', 'des_artic'],
+              include: [{
+                model: Tipo_IVA,
+                attributes: ['porcentaje_iva'],
+              }]
             }
           ],
           required: false // evita LEFT JOIN innecesarios si no hay productos

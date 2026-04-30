@@ -7,6 +7,7 @@ import Compra_Proveedor from '../model/Compra_Proveedor';
 import { IModificarLotesDetalleFacturaDTO } from '../../../Finanzas/Cuentas_Por_Pagar/interface/Detalle_Factura_Compra_Proveedor.interface';
 import { Detalle_Factura_Compra_ProveedorRepository } from '../../../Finanzas/Cuentas_Por_Pagar/repositories/Detalle_Factura_Compra_Proveedor.repository';
 import { Detalle_Compra_SolicitadoRepository } from './Detalle_Compra_Solicitado.repository';
+import Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
 import { IDetalleCompraRecibidoPayload } from '../interface/Detalle_Compra_Recibido.interface';
 import { v4 as uuidv4 } from 'uuid';
 import { randomUUID } from 'crypto';
@@ -41,11 +42,35 @@ export const Detalle_Compra_RecibidosRepository = {
       throw new Error("Detalle factura proveedor no encontrado");
     }
 
-    const detalleSolicitado =
-      await Detalle_Compra_SolicitadoRepository.getByPK(todo_el_detalle?.id_detcompsol || "");
+    // Para productos normales buscamos el detalle solicitado;
+    // para productos extra (id_detcompsol null) usamos los datos directos del detalle factura.
+    const esExtra = !todo_el_detalle?.id_detcompsol;
 
-    if (!detalleSolicitado) {
-      throw new Error("Detalle compra solicitado no encontrado");
+    let idCompra: string;
+    let idArticulo: string;
+    let precioUnitario: number;
+
+    if (esExtra) {
+      if (!todo_el_detalle?.id_artic) {
+        throw new Error("Producto extra sin id_artic en detalle factura");
+      }
+      const factura = await Factura_Compra_Proveedor.findByPk(
+        todo_el_detalle.id_factura_compra_proveedor,
+        { attributes: ['id_compra_prove_factura'] }
+      );
+      if (!factura) throw new Error("Factura no encontrada para producto extra");
+      idCompra = factura.id_compra_prove_factura;
+      idArticulo = todo_el_detalle.id_artic;
+      precioUnitario = Number(todo_el_detalle.precio_articulo_factura) || 0;
+    } else {
+      const detalleSolicitado =
+        await Detalle_Compra_SolicitadoRepository.getByPK(todo_el_detalle.id_detcompsol!);
+      if (!detalleSolicitado) {
+        throw new Error("Detalle compra solicitado no encontrado");
+      }
+      idCompra = detalleSolicitado.idcompr_detcompsol;
+      idArticulo = detalleSolicitado.idarticulo_detcompsol;
+      precioUnitario = Number(detalleSolicitado.precio_detcompsol) || 0;
     }
 
     const cantidadTotalLotes = (lotes || []).reduce(
@@ -60,15 +85,14 @@ export const Detalle_Compra_RecibidosRepository = {
       id_factura_proveedor_detalle,
       { transaction: t }
     );
-    // ↑ crea este método: buscar por id_detalle_factura_compra_proveedor
 
     let detalleCompraRecibido: any;
 
     const payloadDetalleCompraRecibido = {
-      idcompr_detcomprec: detalleSolicitado.idcompr_detcompsol, // revisa si esto es correcto
-      idarticulo_detcomprec: detalleSolicitado.idarticulo_detcompsol,
+      idcompr_detcomprec: idCompra,
+      idarticulo_detcomprec: idArticulo,
       cantidad_detcomprec: cantidadTotalLotes,
-      precio_detcomprec: detalleSolicitado.precio_detcompsol,
+      precio_detcomprec: precioUnitario,
       id_detalle_factura_compra_proveedor: todo_el_detalle.id_factura_proveedor_detalle,
     };
 

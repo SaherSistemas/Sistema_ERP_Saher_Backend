@@ -9,7 +9,7 @@ export const AcomodoController = {
             const cb = String(req.query.cb || "").trim();
 
             const listado_pendientes = await AcomodoServices.obtenerPendientesAcomodo(id_empresa_sucursal, cb);
-
+            
             res.status(200).json(listado_pendientes);
         } catch (e: any) {
             console.error(e);

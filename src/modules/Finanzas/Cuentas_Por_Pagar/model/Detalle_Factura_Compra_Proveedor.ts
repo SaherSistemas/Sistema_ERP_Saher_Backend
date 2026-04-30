@@ -3,6 +3,7 @@ import Factura_Compra_Proveedor from "./Factura_Compra_Proveedor";
 import Detalle_Compra_Solicitado from "../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado";
 import Lote_Factura_Compra_Proveedor from "./Lote_Factura_Compra_Proveedor";
 import Detalle_Compra_Recibido from "../../../Compras/Ordenes-Compra/model/Detalle_Compra_Recibido";
+import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 
 @Table({
     tableName: 'detalle_factura_compra_proveedor',
@@ -27,13 +28,25 @@ class Detalle_Factura_Compra_Proveedor extends Model {
 
     @ForeignKey(() => Detalle_Compra_Solicitado)
     @Column({
-        type: DataType.UUID
+        type: DataType.UUID,
+        allowNull: true
     })
-    declare id_detcompsol: string
+    declare id_detcompsol: string | null
 
 
     @BelongsTo(() => Detalle_Compra_Solicitado)
     detalleCompraSolicitado!: Detalle_Compra_Solicitado;
+
+    // FK directa al artículo — se usa cuando id_detcompsol es null (producto extra)
+    @ForeignKey(() => Articulo)
+    @Column({
+        type: DataType.UUID,
+        allowNull: true
+    })
+    declare id_artic: string | null
+
+    @BelongsTo(() => Articulo)
+    articulo!: Articulo;
 
 
     @Column({

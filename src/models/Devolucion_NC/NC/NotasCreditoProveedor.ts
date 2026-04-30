@@ -1,5 +1,5 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo, HasMany } from 'sequelize-typescript';
-import Compra_Proveedor from '../../../modules/Compras/Ordenes-Compra/model/Compra_Proveedor';
+import Factura_Compra_Proveedor from '../../../modules/Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
 import Faltante_Factura_Proveedor from '../Faltante/Faltante_Factura_Proveedor';
 
 
@@ -8,19 +8,19 @@ import Faltante_Factura_Proveedor from '../Faltante/Faltante_Factura_Proveedor';
     timestamps: true,
 })
 class NotasCreditoProveedor extends Model {
-    // 'P' = pendiente entrada inventario, 'C' = cerrada (entrada ya dada)
+    // 'P' = pendiente, 'A' = aplicada (NC formal SAT recibida), 'C' = cerrada (mercancía recibida vía dar entrada)
     @PrimaryKey
     @Column({
         type: DataType.UUID,
     })
     declare id_nc: string;
 
-    @ForeignKey(() => Compra_Proveedor)
+    @ForeignKey(() => Factura_Compra_Proveedor)
     @Column({
         type: DataType.UUID,
         allowNull: false,
     })
-    declare id_compra_proveedor: string;
+    declare id_factura_proveedor: string;
 
     @Column({
         type: DataType.STRING(50),
@@ -52,8 +52,8 @@ class NotasCreditoProveedor extends Model {
     })
     declare estado_nc: string;
 
-    @BelongsTo(() => Compra_Proveedor)
-    compraProveedor: Compra_Proveedor;
+    @BelongsTo(() => Factura_Compra_Proveedor)
+    facturaProveedor: Factura_Compra_Proveedor;
 
     @HasMany(() => Faltante_Factura_Proveedor)
     declare faltantes?: Faltante_Factura_Proveedor[];
