@@ -13,6 +13,7 @@ export const Pago_CxCRepository = {
         return await Pago_CxC.create({
             id_pago_cxc:          uuidv4(),
             id_cxc:               data.id_cxc,
+            numero_recibo:        data.numero_recibo,
             id_metodo_pago:       data.id_metodo_pago,
             id_forma_pago:        data.id_forma_pago,
             monto_pago:           data.monto_pago,
@@ -72,5 +73,38 @@ export const Pago_CxCRepository = {
 
     getById: async (id_pago_cxc: string) => {
         return await Pago_CxC.findByPk(id_pago_cxc);
+    },
+
+    // Cancela un pago que aún no fue aplicado (estatus CAP)
+    cancelar: async (id_pago_cxc: string, t: Transaction) => {
+        const [, [pago]] = await Pago_CxC.update(
+            { estatus_pago: 'CAN' },
+            { where: { id_pago_cxc }, returning: true, transaction: t }
+        );
+        return pago;
+    },
+
+    // Historial completo de pagos de una CxC incluyendo datos del CFDI de pago
+    getHistorialCxC: async (id_cxc: string) => {
+        return await Pago_CxC.findAll({
+            where: { id_cxc },
+            include: [
+                { model: Cat_Metodo_Pago,   attributes: ['id_metodo_pago', 'descripcion'] },
+                { model: Cat_Forma_De_Pago, attributes: ['id_forma_pago',  'descripcion'] },
+                {
+                    model: Empleado,
+                    foreignKey: 'id_empleado_captura',
+                    as: 'empleado_captura',
+                    attributes: ['id_empleado', 'nombre_empleado', 'ap_pat_empleado'],
+                },
+                {
+                    model: Empleado,
+                    foreignKey: 'id_empleado_aplica',
+                    as: 'empleado_aplica',
+                    attributes: ['id_empleado', 'nombre_empleado', 'ap_pat_empleado'],
+                },
+            ],
+            order: [['fecha_pago', 'ASC']],
+        });
     },
 };

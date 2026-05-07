@@ -30,8 +30,9 @@ export class TrabajoImpresionController {
     // Crea un nuevo trabajo en cola (estado PENDIENTE)
     static create = async (req: AuthedRequest, res: Response) => {
         const { id_pedido_alm, tipo_documento } = req.params;
-        const { estacion } = req.body;
+        const { estacion = 'PRINCIPAL' } = req.body;
         const id_empresa = req.user.id_empresa;
+
         try {
             const trabajo = await TrabajoImpresionService.createTrabajoImpresion(id_pedido_alm, tipo_documento, estacion, id_empresa);
             res.status(201).json(trabajo);

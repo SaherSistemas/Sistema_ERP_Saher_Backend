@@ -69,9 +69,10 @@ export const Detalle_Factura_Compra_ProveedorService = {
                             id_artic, empresas, { transaction: t }
                         );
 
-                    const costoPromedioActualizado =
-                        (costoPromedio * totalCantidad + costoNeto * cantidadNueva) /
-                        (totalCantidad + cantidadNueva);
+                    const totalUnidades = totalCantidad + cantidadNueva;
+                    const costoPromedioActualizado = totalUnidades > 0
+                        ? (costoPromedio * totalCantidad + costoNeto * cantidadNueva) / totalUnidades
+                        : costoNeto;  // si no hay stock previo, el costo promedio es el costo de esta compra
 
                     const listasDePrecioGrupo = await Grupo_Empresa_Lista_PrecioRepository
                         .getSoloListasDePrecioPorIDGrupo(grupoEmpresa.idgrup_empre);
@@ -84,7 +85,22 @@ export const Detalle_Factura_Compra_ProveedorService = {
                     )).filter(m => idsListasGrupo.includes(m.id_lista_precio));
                     console.log("MARGENES FILTRADOS:", margenesFiltrados);
                     for (const margen of margenesFiltrados) {
-                        const precioPorLista = costoPromedioActualizado / (1 - (margen.margen / 100));
+                        const margenPct = Number(margen.margen) || 0;
+                        const divisor = 1 - (margenPct / 100);
+
+                        // Si el margen es 100 % o más el precio sería infinito — se omite
+                        if (divisor <= 0) {
+                            console.warn(`Margen inválido (${margenPct}%) en lista ${margen.lista_precio?.id_lista_precio} — se omite`);
+                            continue;
+                        }
+
+                        const precioPorLista = costoPromedioActualizado / divisor;
+
+                        // Última guardia: nunca guardar NaN / Infinity / negativos
+                        if (!Number.isFinite(precioPorLista) || precioPorLista <= 0) {
+                            console.warn(`Precio calculado inválido (${precioPorLista}) — se omite`);
+                            continue;
+                        }
 
                         const detallePrecio: ICreateOrUpdateIDetalleListaPrecio = {
                             id_lista_precio: margen.lista_precio.id_lista_precio,

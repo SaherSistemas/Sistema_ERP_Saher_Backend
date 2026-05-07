@@ -5,8 +5,15 @@ export interface IDetallePedidoAlmacenLoteItem {
     cantidad: number;
 }
 
+export interface INegacionPedido {
+    cantidad_negada: number;
+    motivo: string;
+    comentario?: string | null;
+}
+
 export interface ICreateDetallePedidoAlmacenLote {
     id_detalle_pedido: string;
     estado: string;
     lotes: IDetallePedidoAlmacenLoteItem[];
+    negacion?: INegacionPedido | null;
 }

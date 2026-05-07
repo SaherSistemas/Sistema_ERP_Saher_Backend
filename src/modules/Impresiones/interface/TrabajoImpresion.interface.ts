@@ -8,7 +8,9 @@ export interface IQRConfig {
 export interface IPayload {
     tipo: string;
     qr?: IQRConfig;
-    comandos?: any[]; // Aquí podrías definir una interfaz más específica para los comandos de impresión
+    comandos?: any[];
+    pdf_url?: string | null;
+    ruta_archivo?: string | null;
 }
 
 export interface ICreateTrabajoImpresion {

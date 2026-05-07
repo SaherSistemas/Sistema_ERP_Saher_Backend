@@ -1,8 +1,9 @@
 import { Transaction } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
-import { ICapturarPago, IAplicarPago } from '../interface/CxC.interface';
+import { ICapturarPago, IAplicarPago, ICapturarPagoCliente } from '../interface/CxC.interface';
 import { CxCRepository } from '../repositories/CxC.repository';
 import { Pago_CxCRepository } from '../repositories/Pago_CxC.repository';
+import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
 import { RemisionRepository } from '../../Remisiones/repositories/Remision.repository';
 import Cliente_Almacen from '../../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Facturas from '../../../Facturas/model/Facturas.model';
@@ -15,6 +16,12 @@ import { facturapiClient } from '../../../../helpers/facturapi.helper';
 export const CxCService = {
 
     getAll: async () => CxCRepository.getAll(),
+
+    getClientesDeudores: async (id_empleado: string) => {
+        const agente = await AgenteRepository.getByIdEmpleado(id_empleado);
+        if (!agente) throw new Error('No se encontró un agente de venta asociado a este usuario');
+        return CxCRepository.getClientesDeudores(agente.id_agente);
+    },
 
     getByCliente: async (id_cliente_alm: string) => CxCRepository.getByCliente(id_cliente_alm),
 
@@ -53,6 +60,70 @@ export const CxCService = {
 
             await t.commit();
             return pago;
+        } catch (error) {
+            await t.rollback();
+            throw error;
+        }
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  PAGO POR RECIBO (multi-CxC)
+    //  Registra un número de recibo físico con abonos a varias CxC del mismo
+    //  cliente en una sola transacción. Cada abono queda en estatus CAP.
+    // ─────────────────────────────────────────────────────────────────────────
+    capturarPagoCliente: async (data: ICapturarPagoCliente) => {
+        if (!data.abonos || data.abonos.length === 0) {
+            throw new Error('Debe incluir al menos un abono en el recibo');
+        }
+
+        const t = await dbLocal.transaction({
+            isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+        });
+
+        try {
+            const pagosCreados = [];
+
+            for (const abono of data.abonos) {
+                const cxc = await CxCRepository.getById(abono.id_cxc);
+                if (!cxc) throw new Error(`CxC ${abono.id_cxc} no encontrada`);
+                if (cxc.id_cliente_alm !== data.id_cliente_alm)
+                    throw new Error(`La CxC ${abono.id_cxc} no pertenece al cliente indicado`);
+                if (cxc.estatus_cxc === 'PAG')
+                    throw new Error(`La CxC ${abono.id_cxc} ya está pagada`);
+                if (cxc.estatus_cxc === 'CAN')
+                    throw new Error(`La CxC ${abono.id_cxc} está cancelada`);
+                if (abono.monto_abono <= 0)
+                    throw new Error(`El monto del abono a CxC ${abono.id_cxc} debe ser mayor a 0`);
+                if (abono.monto_abono > Number(cxc.saldo_pendiente))
+                    throw new Error(
+                        `El abono ($${abono.monto_abono}) excede el saldo pendiente ($${cxc.saldo_pendiente}) de la CxC ${abono.id_cxc}`
+                    );
+
+                const pago = await Pago_CxCRepository.capturar({
+                    id_cxc:              abono.id_cxc,
+                    numero_recibo:       data.numero_recibo,
+                    id_metodo_pago:      data.id_metodo_pago,
+                    id_forma_pago:       data.id_forma_pago,
+                    monto_pago:          abono.monto_abono,
+                    fecha_pago:          data.fecha_deposito as any,
+                    referencia_pago:     data.referencia_pago,
+                    id_empleado_captura: data.id_empleado_captura,
+                    notas:               data.notas,
+                }, t);
+
+                pagosCreados.push(pago);
+            }
+
+            await t.commit();
+
+            return {
+                ok: true,
+                numero_recibo: data.numero_recibo,
+                total_abonado: data.abonos.reduce((s, a) => s + a.monto_abono, 0),
+                pagos_creados: pagosCreados.length,
+                pagos: pagosCreados,
+            };
+
         } catch (error) {
             await t.rollback();
             throw error;
@@ -261,4 +332,63 @@ export const CxCService = {
     },
 
     marcarVencidas: async () => CxCRepository.marcarVencidas(),
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  RESUMEN GENERAL — Dashboard de cartera
+    // ─────────────────────────────────────────────────────────────────────────
+    getResumenGeneral: async () => CxCRepository.getResumenGeneral(),
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  ESTADO DE CUENTA — Detalle completo por cliente
+    //  ?fecha_inicio=YYYY-MM-DD&fecha_fin=YYYY-MM-DD (opcionales)
+    // ─────────────────────────────────────────────────────────────────────────
+    getEstadoCuenta: async (id_cliente_alm: string, filtros?: { fecha_inicio?: string; fecha_fin?: string }) => {
+        return CxCRepository.getEstadoCuenta(id_cliente_alm, filtros);
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  ANTIGÜEDAD DE SALDOS — Reporte global o por cliente
+    //  Clasifica saldos en: corriente | 1-30 | 31-60 | 61-90 | +90 días
+    // ─────────────────────────────────────────────────────────────────────────
+    getAntiguedadSaldos: async (id_cliente_alm?: string) => {
+        return CxCRepository.getAntiguedadSaldos(id_cliente_alm);
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  HISTORIAL PAGOS DE UNA CxC — incluyendo links CFDI
+    // ─────────────────────────────────────────────────────────────────────────
+    getHistorialCxC: async (id_cxc: string) => {
+        const cxc    = await CxCRepository.getById(id_cxc);
+        if (!cxc) throw new Error('CxC no encontrada');
+        const pagos  = await Pago_CxCRepository.getHistorialCxC(id_cxc);
+        // Enriquecer cada pago con su CFDI (si existe)
+        const pagosConCfdi = await Promise.all(pagos.map(async pago => {
+            const cfdi = await FacturaPagoCFDI.findOne({ where: { id_pago_cxc: pago.id_pago_cxc } });
+            return {
+                ...pago.toJSON(),
+                cfdi: cfdi ?? null,
+            };
+        }));
+        return { cxc, pagos: pagosConCfdi };
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  CANCELAR PAGO — Solo si estatus es CAP (no aplicado aún)
+    // ─────────────────────────────────────────────────────────────────────────
+    cancelarPago: async (id_pago_cxc: string) => {
+        const pago = await Pago_CxCRepository.getById(id_pago_cxc);
+        if (!pago) throw new Error('Pago no encontrado');
+        if (pago.estatus_pago === 'APL') throw new Error('No se puede cancelar un pago ya aplicado');
+        if (pago.estatus_pago === 'CAN') throw new Error('El pago ya está cancelado');
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        try {
+            const pagoCancelado = await Pago_CxCRepository.cancelar(id_pago_cxc, t);
+            await t.commit();
+            return pagoCancelado;
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+    },
 };

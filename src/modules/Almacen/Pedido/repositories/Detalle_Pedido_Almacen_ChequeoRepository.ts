@@ -30,7 +30,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         id_pedido_almacen: string,
         t?: Transaction
     ) => {
-        if (!id_empleado)       throw new Error('id_empleado es requerido');
+        if (!id_empleado) throw new Error('id_empleado es requerido');
         if (!id_pedido_almacen) throw new Error('id_pedido_almacen es requerido');
 
         const detalles = await Detalle_Pedido_Almacen.findAll({
@@ -47,7 +47,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
             throw new Error('El pedido no tiene detalles para chequeo');
         }
 
-        const ahora   = new Date();
+        const ahora = new Date();
         const payload: any[] = [];
 
         for (const detalle of detalles) {
@@ -57,33 +57,33 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                 // Una fila de chequeo por cada lote surtido
                 for (const lote of lotes) {
                     payload.push({
-                        id_detalle_chequeo:             uuidv4(),
-                        id_detalle_pedido_almacen:      detalle.id_detalle_pedido_almacen,
+                        id_detalle_chequeo: uuidv4(),
+                        id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen,
                         id_detalle_pedido_almacen_lote: lote.id_detalle_pedido_almacen_lote,
-                        cant_surtida_lote:              lote.cantidad,
+                        cant_surtida_lote: lote.cantidad,
                         id_empleado,
-                        estado:        'ASIGNADO',
+                        estado: 'ASIGNADO',
                         fecha_asignado: ahora,
-                        inicio:        null,
-                        fin:           null,
+                        inicio: null,
+                        fin: null,
                         cant_chequeada: 0,
-                        nota:          null,
+                        nota: null,
                     });
                 }
             } else {
                 // Sin lotes → una fila con cant_pedida como target
                 payload.push({
-                    id_detalle_chequeo:             uuidv4(),
-                    id_detalle_pedido_almacen:      detalle.id_detalle_pedido_almacen,
+                    id_detalle_chequeo: uuidv4(),
+                    id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen,
                     id_detalle_pedido_almacen_lote: null,
-                    cant_surtida_lote:              detalle.cant_pedida,
+                    cant_surtida_lote: detalle.cant_pedida,
                     id_empleado,
-                    estado:        'ASIGNADO',
+                    estado: 'ASIGNADO',
                     fecha_asignado: ahora,
-                    inicio:        null,
-                    fin:           null,
+                    inicio: null,
+                    fin: null,
                     cant_chequeada: 0,
-                    nota:          null,
+                    nota: null,
                 });
             }
         }
@@ -100,7 +100,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         return await Detalle_Pedido_Almacen_Chequeo.findAll({
             where: {
                 id_empleado,
-                estado: { [Op.in]: ['ASIGNADO', 'EN_PROCESO', 'TERMINADO'] },
+                estado: { [Op.in]: ['ASIGNADO', 'EN_PROCESO'] },
             },
             attributes: [
                 'id_detalle_chequeo',
@@ -190,9 +190,9 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
 
         if (!filas.length) throw new Error('Artículo no encontrado en el chequeo');
 
-        const cantSurtidaTotal  = filas.reduce((s, f) => s + (Number(f.cant_surtida_lote) || 0), 0);
-        const cantChecadaActual = filas.reduce((s, f) => s + (Number(f.cant_chequeada)    || 0), 0);
-        const cantPedida        = (filas[0] as any).detalle_pedido?.cant_pedida ?? cantSurtidaTotal;
+        const cantSurtidaTotal = filas.reduce((s, f) => s + (Number(f.cant_surtida_lote) || 0), 0);
+        const cantChecadaActual = filas.reduce((s, f) => s + (Number(f.cant_chequeada) || 0), 0);
+        const cantPedida = (filas[0] as any).detalle_pedido?.cant_pedida ?? cantSurtidaTotal;
 
         if (cantChecadaActual + cantidad > cantSurtidaTotal) {
             throw new Error(
@@ -207,44 +207,44 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         for (const fila of filas) {
             if (porDistribuir <= 0) break;
 
-            const capacidad  = Number(fila.cant_surtida_lote) || 0;
-            const yaChecado  = Number(fila.cant_chequeada)    || 0;
+            const capacidad = Number(fila.cant_surtida_lote) || 0;
+            const yaChecado = Number(fila.cant_chequeada) || 0;
             const disponible = capacidad - yaChecado;
 
             if (disponible <= 0) continue;
 
-            const agregar      = Math.min(porDistribuir, disponible);
-            const nuevaCant    = yaChecado + agregar;
+            const agregar = Math.min(porDistribuir, disponible);
+            const nuevaCant = yaChecado + agregar;
             const estaCompleto = nuevaCant >= capacidad;
 
             await fila.update({
                 cant_chequeada: nuevaCant,
-                estado:  estaCompleto ? 'TERMINADO' : 'EN_PROCESO',
-                inicio:  yaChecado === 0 ? ahora : fila.inicio,
-                fin:     estaCompleto    ? ahora  : null,
+                estado: estaCompleto ? 'TERMINADO' : 'EN_PROCESO',
+                inicio: yaChecado === 0 ? ahora : fila.inicio,
+                fin: estaCompleto ? ahora : null,
             });
 
             porDistribuir -= agregar;
         }
 
         const nuevaCantTotal = cantChecadaActual + cantidad;
-        const todoCompleto   = nuevaCantTotal >= cantSurtidaTotal;
+        const todoCompleto = nuevaCantTotal >= cantSurtidaTotal;
 
         // Devolver el estado actualizado de cada fila de lote
         const filasActualizadas = filas.map(f => ({
             id_detalle_chequeo: f.id_detalle_chequeo,
-            cant_chequeada:     Number(f.cant_chequeada),
-            cant_surtida_lote:  Number(f.cant_surtida_lote),
-            estado:             f.estado,
+            cant_chequeada: Number(f.cant_chequeada),
+            cant_surtida_lote: Number(f.cant_surtida_lote),
+            estado: f.estado,
         }));
 
         return {
-            articulo:       cod_barras,
+            articulo: cod_barras,
             cant_chequeada: nuevaCantTotal,
-            cant_pedida:    cantPedida,
-            cant_surtida:   cantSurtidaTotal,
+            cant_pedida: cantPedida,
+            cant_surtida: cantSurtidaTotal,
             pedidoTerminado: false, // lo decide el service
-            filas:          filasActualizadas,
+            filas: filasActualizadas,
         };
     },
 };

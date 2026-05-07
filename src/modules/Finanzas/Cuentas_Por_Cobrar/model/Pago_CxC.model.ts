@@ -66,6 +66,12 @@ class Pago_CxC extends Model {
     declare fecha_pago: Date;
 
     @Column({
+        type: DataType.STRING(50),
+        allowNull: false
+    })
+    declare numero_recibo: string;
+
+    @Column({
         type: DataType.STRING(100),
         allowNull: true
     })

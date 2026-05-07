@@ -11,6 +11,7 @@ import { Articulo_Ubicacion_DefaultServices } from '../../../Catalogos/Articulos
 import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
 import { ICreateDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Almacen_Lote.interface';
 import { Detalle_Pedido_Almacen_ChequeoRepository } from '../repositories/Detalle_Pedido_Almacen_ChequeoRepository';
+import { Detalle_Pedido_NegadoRepository } from '../repositories/Detalle_Pedido_Negado.repository';
 import Pedido_Almacen from '../model/Pedido_Almacen';
 
 export const Pedido_AlmacenService = {
@@ -82,18 +83,37 @@ export const Pedido_AlmacenService = {
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
-    const actualizado = await Detalle_Pedido_Almacen_AsignacionRepository.marcarSurtido(id_detalle_asignacion, t);
-    if (!actualizado) throw new Error('No se pudo actualizar el estado del artículo asignado.');
-    // console.log("DETALLE ASIGNACIÓN MARCADO COMO SURTIDO:", actualizado);
 
-    const reqsConIdDetalle = {
-      ...reqs,
-      id_detalle_pedido: actualizado.id_detalle_pedido_almacen
-    };
-    //console.log(reqsConIdDetalle)
-    const crearDetalleLote = await Detalle_Pedido_Almacen_LoteRepository.create(reqsConIdDetalle, t);
-    await t.commit();
-    return { mensaje: 'Artículo marcado como surtido.' };
+    try {
+      const actualizado = await Detalle_Pedido_Almacen_AsignacionRepository.marcarSurtido(id_detalle_asignacion, t);
+      if (!actualizado) throw new Error('No se pudo actualizar el estado del artículo asignado.');
+
+      const id_detalle_pedido = actualizado.id_detalle_pedido_almacen;
+
+      const reqsConIdDetalle = { ...reqs, id_detalle_pedido };
+
+      if (Array.isArray(reqs.lotes) && reqs.lotes.length > 0) {
+        await Detalle_Pedido_Almacen_LoteRepository.create(reqsConIdDetalle, t);
+      }
+
+      if (reqs.negacion && reqs.negacion.cantidad_negada > 0) {
+        await Detalle_Pedido_NegadoRepository.create(
+          {
+            id_detalle_pedido_almacen: id_detalle_pedido,
+            cantidad_negada: reqs.negacion.cantidad_negada,
+            motivo: reqs.negacion.motivo,
+            comentario: reqs.negacion.comentario ?? null,
+          },
+          t
+        );
+      }
+
+      await t.commit();
+      return { mensaje: 'Artículo marcado como surtido.' };
+    } catch (error) {
+      await t.rollback();
+      throw error;
+    }
   },
   getAllDiaAgente: async (fecha: string, id_agente: string) => {
     const agente = await AgenteRepository.getByIdEmpleado(id_agente)

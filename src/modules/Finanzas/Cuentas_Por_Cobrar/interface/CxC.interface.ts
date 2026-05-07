@@ -23,6 +23,7 @@ export interface ICuenta_Por_Cobrar {
 // DTO para CAPTURAR un pago (paso 1 — cualquier empleado)
 export interface ICapturarPago {
     id_cxc: string;
+    numero_recibo: string;
     id_metodo_pago: string;
     id_forma_pago: string;
     monto_pago: number;
@@ -30,6 +31,24 @@ export interface ICapturarPago {
     referencia_pago?: string;
     id_empleado_captura: string;
     notas?: string;
+}
+
+// DTO para registrar un pago de recibo con abonos a múltiples CxC de un cliente
+export interface IAbonoCxC {
+    id_cxc: string;
+    monto_abono: number;
+}
+
+export interface ICapturarPagoCliente {
+    id_cliente_alm: string;
+    numero_recibo: string;
+    fecha_deposito: string;       // YYYY-MM-DD
+    id_metodo_pago: string;
+    id_forma_pago: string;
+    referencia_pago?: string;
+    id_empleado_captura: string;
+    notas?: string;
+    abonos: IAbonoCxC[];          // una entrada por cada CxC a abonar
 }
 
 // DTO para APLICAR un pago (paso 2 — encargado de pagos)

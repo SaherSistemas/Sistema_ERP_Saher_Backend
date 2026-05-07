@@ -12,6 +12,7 @@ export const ImpresoraRepository = {
                 estacion
             }
         });
+        if (!impresora) throw new Error(`No hay impresora configurada para la estación "${estacion}"`);
         return impresora.id_impresora;
 
     },

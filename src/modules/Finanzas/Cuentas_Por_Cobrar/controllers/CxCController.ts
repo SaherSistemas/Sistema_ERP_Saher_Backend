@@ -1,7 +1,42 @@
 import type { Request, Response } from 'express';
 import { CxCService } from '../services/CxC.service';
+import { AuthedRequest } from '../../../../middleware/auth';
 
 export class CxCController {
+
+    // ─── CLIENTES CON SALDO PENDIENTE + SUS CxC ───────────────────────────────
+    // Devuelve todos los clientes que tienen CxC en PEN/PAR/VEN,
+    // con el listado de facturas/remisiones pendientes listo para el formulario de pago.
+
+    static getClientesDeudores = async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empleado = req.user!.id_referencia_persona;
+            const clientes = await CxCService.getClientesDeudores(id_empleado);
+            res.status(200).json({ clientes });
+        } catch (error: any) {
+            console.error(error);
+            const status = /no se encontró un agente/i.test(error.message) ? 404 : 500;
+            res.status(status).json({ message: error.message ?? 'Error al obtener clientes con saldo pendiente.' });
+        }
+    };
+
+    // ─── REGISTRAR PAGO DE RECIBO (multi-CxC) ────────────────────────────────
+    // Un solo recibo físico puede abonar a varias facturas del mismo cliente.
+    // Body: { numero_recibo, fecha_deposito, id_metodo_pago, id_forma_pago,
+    //         referencia_pago?, id_empleado_captura, notas?,
+    //         abonos: [{ id_cxc, monto_abono }] }
+
+    static capturarPagoCliente = async (req: Request, res: Response) => {
+        try {
+            const { id_cliente_alm } = req.params;
+            const resultado = await CxCService.capturarPagoCliente({ ...req.body, id_cliente_alm });
+            res.status(201).json(resultado);
+        } catch (error: any) {
+            console.error(error);
+            const status = /no encontrada|no pertenece|pagada|cancelada|excede|mayor a 0|al menos un/i.test(error.message) ? 400 : 500;
+            res.status(status).json({ message: error.message ?? 'Error al registrar el pago.' });
+        }
+    };
 
     // ─── CONSULTAS ────────────────────────────────────────────────────────────
 
@@ -119,6 +154,88 @@ export class CxCController {
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: 'Error al marcar cuentas vencidas.' });
+        }
+    };
+
+    // ─── RESUMEN GENERAL (Dashboard) ─────────────────────────────────────────
+    // Cartera total, vencida, vigente, pagos pendientes de aplicar y timbrar
+
+    static getResumenGeneral = async (req: Request, res: Response) => {
+        try {
+            const resumen = await CxCService.getResumenGeneral();
+            res.status(200).json(resumen);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener el resumen de cartera.' });
+        }
+    };
+
+    // ─── ESTADO DE CUENTA POR CLIENTE ────────────────────────────────────────
+    // ?fecha_inicio=YYYY-MM-DD&fecha_fin=YYYY-MM-DD  (opcionales)
+
+    static getEstadoCuenta = async (req: Request, res: Response) => {
+        try {
+            const { id_cliente_alm } = req.params;
+            const { fecha_inicio, fecha_fin } = req.query as { fecha_inicio?: string; fecha_fin?: string };
+            const resultado = await CxCService.getEstadoCuenta(id_cliente_alm, { fecha_inicio, fecha_fin });
+            res.status(200).json(resultado);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message ?? 'Error al obtener el estado de cuenta.' });
+        }
+    };
+
+    // ─── ANTIGÜEDAD DE SALDOS GLOBAL ─────────────────────────────────────────
+
+    static getAntiguedadSaldos = async (req: Request, res: Response) => {
+        try {
+            const resultado = await CxCService.getAntiguedadSaldos();
+            res.status(200).json(resultado);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener la antigüedad de saldos.' });
+        }
+    };
+
+    // ─── ANTIGÜEDAD DE SALDOS POR CLIENTE ────────────────────────────────────
+
+    static getAntiguedadByCliente = async (req: Request, res: Response) => {
+        try {
+            const { id_cliente_alm } = req.params;
+            const resultado = await CxCService.getAntiguedadSaldos(id_cliente_alm);
+            res.status(200).json(resultado);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener la antigüedad de saldos del cliente.' });
+        }
+    };
+
+    // ─── HISTORIAL DE PAGOS DE UNA CxC ───────────────────────────────────────
+    // Incluye datos del CFDI de pago (uuid, PDF, estatus timbrado)
+
+    static getHistorialCxC = async (req: Request, res: Response) => {
+        try {
+            const { id_cxc } = req.params;
+            const resultado = await CxCService.getHistorialCxC(id_cxc);
+            res.status(200).json(resultado);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message ?? 'Error al obtener el historial.' });
+        }
+    };
+
+    // ─── CANCELAR PAGO ────────────────────────────────────────────────────────
+    // Solo aplica a pagos en estatus CAP (no aplicados aún)
+
+    static cancelarPago = async (req: Request, res: Response) => {
+        try {
+            const { id_pago_cxc } = req.params;
+            const pago = await CxCService.cancelarPago(id_pago_cxc);
+            res.status(200).json({ message: 'Pago cancelado correctamente.', pago });
+        } catch (error: any) {
+            console.error(error);
+            const status = /no encontrado|ya aplicado|ya cancelado/.test(error.message) ? 400 : 500;
+            res.status(status).json({ message: error?.message ?? 'Error al cancelar el pago.' });
         }
     };
 }
