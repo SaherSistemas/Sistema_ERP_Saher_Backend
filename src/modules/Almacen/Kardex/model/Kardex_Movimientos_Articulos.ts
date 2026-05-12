@@ -128,3 +128,4 @@ class Kardex_Movimientos_Articulos extends Model {
 }
 
 export default Kardex_Movimientos_Articulos
+//PRUEBA
