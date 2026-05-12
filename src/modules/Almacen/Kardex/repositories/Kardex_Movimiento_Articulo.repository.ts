@@ -1,35 +1,87 @@
-import { QueryTypes, Sequelize } from 'sequelize';
-import Kardex_Movimientos_Articulos from '../../models/Stock/Kardex_Movimientos_Articulos';
-//import { dbVieja } from '../../config/db'; // <-- ajusta la ruta del import real
-
+import { QueryTypes, Op, WhereOptions } from 'sequelize';
+import Kardex_Movimientos_Articulos from '../model/Kardex_Movimientos_Articulos';
+import { ICreateKardex_Movimiento } from '../interface/Kardex_Movimientos_Articulo.interface';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import Empleado from '../../../RRHH/model/Empleado';
 
 type QuincenaPorTipo = {
-  numero: number;     // 1 = más vieja
-  quincena: string;   // "YYYY-MM-DD a YYYY-MM-DD"
-  svm_total: number;  // suma cantidad_movimiento con tipo_movimiento='SVM'
-  svt_total: number;  // suma cantidad_movimiento con tipo_movimiento='SVT'
-  total: number;      // svm_total + svt_total
+  numero: number;
+  quincena: string;
+  svm_total: number;
+  svt_total: number;
+  total: number;
 };
 
-type Opts = {
-  empresas?: Array<number | string>;
-  articulo?: string | number;
-  today?: string | Date;  // 'YYYY-MM-DD' | Date
-  dias?: number;          // tamaño de ventana; default 15
-};
-function toYMD(d: string | Date | undefined): string | undefined {
-  if (!d) return undefined;
-  const dateObj = (d instanceof Date) ? d : new Date(String(d));
-  // Ajuste a medianoche para evitar TZ raros
-  const iso = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()))
-    .toISOString()
-    .slice(0, 10);
-  return iso; // 'YYYY-MM-DD'
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface IFiltrosMovimientos {
+  id_empresa?: string;
+  id_articulo?: string;   // UUID o código de barras
+  tipo_movimiento?: string;
+  categoria?: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  page?: number;
+  limit?: number;
 }
 
 export const Kardex_Movimiento_ArticuloRepository = {
-  getAll: async () => {
-    return await Kardex_Movimientos_Articulos.findAll({ limit: 10 });
+
+  create: async (data: ICreateKardex_Movimiento) => {
+    return await Kardex_Movimientos_Articulos.create({ ...data });
+  },
+
+  findMovimientos: async (filtros: IFiltrosMovimientos) => {
+    const { id_empresa, id_articulo, tipo_movimiento, categoria, fecha_inicio, fecha_fin, page = 1, limit = 50 } = filtros;
+
+    const where: WhereOptions<any> = {};
+
+    if (id_empresa)      where['id_empresa']      = id_empresa;
+    if (tipo_movimiento) where['tipo_movimiento'] = tipo_movimiento;
+    if (categoria)       where['categoria']       = categoria;
+
+    // Si es UUID lo usamos directo; si es código de barras buscamos primero el artículo
+    if (id_articulo) {
+      if (UUID_REGEX.test(id_articulo)) {
+        where['id_articulo'] = id_articulo;
+      } else {
+        const arts = await Articulo.findAll({
+          where: { cod_barr_artic: id_articulo },
+          attributes: ['id_artic'],
+        });
+        if (arts.length === 0) {
+          return { movimientos: [], total: 0, paginas: 0, pagina_actual: page };
+        }
+        where['id_articulo'] = { [Op.in]: arts.map(a => a.get('id_artic')) };
+      }
+    }
+
+    if (fecha_inicio || fecha_fin) {
+      where['fecha'] = {
+        ...(fecha_inicio ? { [Op.gte]: new Date(fecha_inicio) } : {}),
+        ...(fecha_fin    ? { [Op.lte]: new Date(fecha_fin + 'T23:59:59') } : {}),
+      };
+    }
+
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await Kardex_Movimientos_Articulos.findAndCountAll({
+      where,
+      include: [
+        { model: Articulo, attributes: ['id_artic', 'des_artic', 'cod_barr_artic'] },
+        { model: Empleado, attributes: ['id_empleado', 'nombre_empleado', 'ap_pat_empleado'] },
+      ],
+      order: [['fecha', 'DESC']],
+      limit,
+      offset,
+    });
+
+    return {
+      movimientos: rows.map(r => r.get({ plain: true })),
+      total: count,
+      paginas: Math.ceil(count / limit),
+      pagina_actual: page,
+    };
   },
 
   // empresas: UUID[]  |  articulo: UUID único

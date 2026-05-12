@@ -1,5 +1,5 @@
 // src/services/Proyeccion_VentaService.ts
-import { Kardex_Movimiento_ArticuloRepository } from "../../repository/Stock/Kardex_Movimiento_Articulo.repository";
+import { Kardex_Movimiento_ArticuloRepository } from "../../modules/Almacen/Kardex/repositories/Kardex_Movimiento_Articulo.repository";
 import { polyfit, polyval, polyToString } from "../../utils/polyfit";
 
 export const Proyeccion_VentaService = {

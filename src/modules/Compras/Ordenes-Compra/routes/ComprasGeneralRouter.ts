@@ -9,4 +9,5 @@ router.get('/enCaptura/:id_empresa', ComprasGeneralesController.getByEmpresaEnCa
 
 router.patch('/finalizar/:id_empresa_sucursal', ComprasGeneralesController.finalizarCapturaCompraGenYCompraProv)     //FINALIZAR COMPRA GENERAL
 
+
 export default router

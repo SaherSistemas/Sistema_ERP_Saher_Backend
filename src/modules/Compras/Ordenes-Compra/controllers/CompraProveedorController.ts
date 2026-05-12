@@ -3,6 +3,32 @@ import { compraProveedorService } from "../services/compraProveedor.service"
 import { ICompra_Proveedor, IEsctructuraCompra } from "../interface/Compra_Proveedor.interface"
 
 export class CompraProveedorController {
+
+    static finalizarCapturaFacturasDeCompras = async (req: Request, res: Response) => {
+        try {
+
+            const { id_comp, productosPendientes = [] } = req.body;
+
+            if (!id_comp) {
+                res.status(400).json({ message: 'id_comp requerido' });
+                return;
+            }
+
+            await compraProveedorService.finalizarCapturaYRegistrarNegados({
+                id_compra_proveedor: id_comp,
+                productosPendientes,
+            });
+
+            const mensaje = productosPendientes.length > 0
+                ? `Captura finalizada. ${productosPendientes.length} artículo(s) registrado(s) como negados.`
+                : 'Captura finalizada. Todos los artículos fueron recibidos.';
+
+            res.status(200).json({ ok: true, mensaje });
+        } catch (error) {
+            console.error('[finalizarCapturaFacturasDeCompras]', error);
+            res.status(500).json({ message: 'Error al finalizar la captura de la compra.' });
+        }
+    }
     static createCompraProveedor = async (req: Request, res: Response) => {
         try {
             const data: IEsctructuraCompra = req.body

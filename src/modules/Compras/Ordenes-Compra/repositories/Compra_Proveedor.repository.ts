@@ -16,6 +16,7 @@ import { round2 } from '../../../../utils/validaciones';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import Tipo_IVA from '../../../Catalogos/Articulos/model/Tipo_IVA';
 import Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
+import { Detalle_Compra_NegadosRepository } from './Detalle_Compra_Negado.repository';
 export type KpiEstados = { R: number; A: number; F: number; D: number };
 export const Compra_ProveedorRepository = {
   /*
@@ -23,6 +24,9 @@ export const Compra_ProveedorRepository = {
            C	        CAPTURANDO	                             La compra está en proceso, aún sin finalizar.
            A            CAPTURADA                                La captura ha sido completada pero aun no se ha enviado al proveedor.
            E	        ENVIADA	                                 La orden ha sido enviada al proveedor.
+           R          REGISTRADA                            La compra se registró LOS LOTES Y YA NO HAY MAS PRODUCTOS QUE VENGAN
+           
+
            L            CAPTURANDO LOTES                         La compra se estan capturando los lotes.
            K            LOTES REGISTRADOS	                     Los lotes han sido registrados y se está esperando la recepción de los productos.
            R	        RECIBIDA	                             Todos los productos han sido recibidos correctamente.(ESPERANDO CHEQUEO Y CONTEO)
@@ -413,5 +417,37 @@ export const Compra_ProveedorRepository = {
       where: { id_comp },
       transaction: t?.transaction
     });
-  }
+  },
+
+  finalizarCapturaYRegistrarNegados: async (opts: {
+    id_compra_proveedor: string;
+    productosPendientes: { id_artic: string; cantidad_pendiente: number }[];
+  }) => {
+    const { id_compra_proveedor, productosPendientes } = opts;
+
+    // Insertar negados si hay pendientes
+    if (productosPendientes.length > 0) {
+      const fechaLimite = new Date();
+      fechaLimite.setDate(fechaLimite.getDate() + 10); // fecha límite 10 días después de hoy
+
+      const negados = productosPendientes.map((p) => ({
+        id_detcompneg: uuidv4(),
+        idcompr_detcompneg: id_compra_proveedor,
+        idarticulo_detcompneg: p.id_artic,
+        cantidad_negada: p.cantidad_pendiente,
+        motivo_negado: 'Pendiente en captura de compra proveedor',
+        recuperado: false,
+        fecha_negado: new Date(),
+        fecha_limite_recuperacion: fechaLimite,
+      }));
+
+      await Detalle_Compra_NegadosRepository.agregarProductosNegados(negados);
+    }
+
+    // Marcar la compra como Finalizada
+    await Compra_Proveedor.update(
+      { estado_comp: 'F', fin_de_registro_lotes: new Date() },
+      { where: { id_comp: id_compra_proveedor } }
+    );
+  },
 };

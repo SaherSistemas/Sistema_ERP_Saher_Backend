@@ -10,6 +10,10 @@ router.get('/articulosGenerarPDF/:id_comp', CompraProveedorController.generarPDF
 
 router.get('/nombreArchivoPDF/:id_comp', CompraProveedorController.nombreArchivoPDF)
 
+
+router.post('/finalizar_captura_facturas_de_compras', CompraProveedorController.finalizarCapturaFacturasDeCompras)  //FINALIZAR CAPTURA + NEGADOS
+
+
 router.get('/compraProveedorPorRecibir/:id_empresa_sucursal', CompraProveedorController.getAllCompras_ProveedorParaRecibir)
 
 router.patch('/marcarRecibida/:id_comp', CompraProveedorController.marcarCompraProveedorComoRecibida)

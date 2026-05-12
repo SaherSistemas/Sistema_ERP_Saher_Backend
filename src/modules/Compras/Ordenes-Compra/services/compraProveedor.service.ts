@@ -17,6 +17,13 @@ import Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/
 import { Factura_Compra_ProveedorRepository } from '../../../Finanzas/Cuentas_Por_Pagar/repositories/Factura_Compra_Proveedor.repository';
 
 export const compraProveedorService = {
+    finalizarCapturaYRegistrarNegados: async (opts: {
+        id_compra_proveedor: string;
+        productosPendientes: { id_artic: string; cantidad_pendiente: number }[];
+    }) => {
+        await Compra_ProveedorRepository.finalizarCapturaYRegistrarNegados(opts);
+    },
+
     getCompraProveedorPorIdGeneral: async (id_compra_general: string) => {
         const rows = await Compra_ProveedorRepository.getAllCompra_ProveedorPorIdCompGener(id_compra_general)
         //console.log
