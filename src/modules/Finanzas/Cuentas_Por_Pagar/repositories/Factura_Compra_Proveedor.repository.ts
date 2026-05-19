@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { IFactura_Compra_Proveedor, ICreateFacturaCompraProveedor } from '../interface/Factura_Compra_Proveedor.interfece';
+import { IFactura_Compra_Proveedor, ICreateFacturaCompraProveedor, IActualizarEncabezadoFacturaDTO } from '../interface/Factura_Compra_Proveedor.interfece';
 import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
 import { Compra_ProveedorRepository } from '../../../Compras/Ordenes-Compra/repositories/Compra_Proveedor.repository';
 import Proveedor from '../../../Compras/Proveedores/model/Proveedor';
@@ -55,6 +55,18 @@ export const Factura_Compra_ProveedorRepository = {
             ],
         });
     },
+    actualizarEncabezado: async (id_factura_proveedor: string, data: IActualizarEncabezadoFacturaDTO) => {
+        const factura = await Factura_Compra_Proveedor.findByPk(id_factura_proveedor);
+        if (!factura) throw new Error('Factura no encontrada');
+        await factura.update({
+            folio_factura_proveedor: data.folio_factura_proveedor,
+            costo_por_envio: data.costo_por_envio,
+            fecha_emision: data.fecha_emision,
+            fecha_vencimiento: data.fecha_vencimiento,
+        });
+        return factura;
+    },
+
     getByID: async (id_comp: string, t?: Transaction) => {
         return await Factura_Compra_Proveedor.findOne({
             where: {
@@ -184,24 +196,30 @@ export const Factura_Compra_ProveedorRepository = {
         }, { where: { id_factura_proveedor: id_factura_compra_proveedor }, transaction: t })
     },
     guardarFacturaEIniciarCapturaLotes: async (data: ICreateFacturaCompraProveedor) => {
-        //console.log(data)
         const compraProveedor = await Compra_ProveedorRepository.getByID(data.id_compra_prove_factura);
 
         if (!compraProveedor) throw new Error('Compra proveedor no encontrada');
 
+        // Validar que no exista ya ese folio
+        const folioExistente = await Factura_Compra_Proveedor.findOne({
+            where:
+            {
+                folio_factura_proveedor: data.folio_factura_proveedor,
+                fecha_emision: data.fecha_emision
+            }
+        });
+
+        if (folioExistente) {
+            throw new Error(`El folio de factura "${data.folio_factura_proveedor}" ya existe. No se puede registrar duplicado.`);
+        }
+
         const updates: any = {};
 
-        // Acumular costo por envío
         updates.costo_por_envio = Number(compraProveedor.costo_por_envio || 0) + Number(data.costo_por_envio || 0);
 
-        // Solo colocar fecha si aún no existe
         if (!compraProveedor.inicio_de_registro_lotes) {
             updates.inicio_de_registro_lotes = new Date();
         }
-
-        // No actualizar estado_comp si ya tiene uno definido
-        // (Si quieres permitir que se cambie solo si estaba en otro estado, aquí se ajusta)
-        // updates.estado_comp = compraProveedor.estado_comp; // NO se toca
 
         await compraProveedor.update(updates);
 
@@ -397,9 +415,9 @@ export const Factura_Compra_ProveedorRepository = {
             const cantidad_facturada = Number(plain.cantidad_articulo_facturada ?? 0);
             const diferencia = cantidad_facturada - cantidad_recibida;
 
-            const precio     = Number(plain.precio_articulo_factura ?? 0);
-            const descPct    = Number(plain.descuento_articulo_factura ?? 0);
-            const ivaPct     = Number(plain.iva_articulo_factura ?? 0);
+            const precio = Number(plain.precio_articulo_factura ?? 0);
+            const descPct = Number(plain.descuento_articulo_factura ?? 0);
+            const ivaPct = Number(plain.iva_articulo_factura ?? 0);
             const precioNeto = precio * (1 - descPct / 100);
 
             return {
@@ -411,12 +429,12 @@ export const Factura_Compra_ProveedorRepository = {
                 precio,
                 descuento: descPct,
                 iva: ivaPct,
-                subtotal_factura:  precioNeto * cantidad_facturada,
+                subtotal_factura: precioNeto * cantidad_facturada,
                 subtotal_recibido: precioNeto * cantidad_recibida,
-                checado:           plain.checado,
-                fecha_checado:     plain.fecha_checado,
-                lotes_facturados:  plain.lotes_factura_compra ?? [],
-                lotes_recibidos:   detallesRec.flatMap((r: any) => r.lotesRecibidos ?? []),
+                checado: plain.checado,
+                fecha_checado: plain.fecha_checado,
+                lotes_facturados: plain.lotes_factura_compra ?? [],
+                lotes_recibidos: detallesRec.flatMap((r: any) => r.lotesRecibidos ?? []),
             };
         });
 

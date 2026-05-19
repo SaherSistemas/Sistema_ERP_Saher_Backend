@@ -130,6 +130,57 @@ export class CxCController {
         }
     };
 
+    // ─── CFDI POR TIMBRAR ─────────────────────────────────────────────────────
+    //  Lista los FacturaPagoCFDI en estatus PEN o ERR (listos para timbrar)
+
+    static getCFDIPorTimbrar = async (req: Request, res: Response) => {
+        try {
+            const cfdis = await CxCService.getCFDIPorTimbrar();
+            res.status(200).json({ cfdis });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener los CFDI pendientes de timbrar.' });
+        }
+    };
+
+    // ─── MIS RECIBOS (web agente) ─────────────────────────────────────────────
+    //  Devuelve los pagos registrados por el empleado autenticado
+
+    static getMisRecibos = async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empleado = req.user!.id_referencia_persona;
+            const pagos = await CxCService.getMisRecibos(id_empleado);
+            res.status(200).json({ pagos });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener los recibos.' });
+        }
+    };
+
+    // ─── PAGOS APL SIN CFDI ───────────────────────────────────────────────────
+    static getPagosAplicadosSinCFDI = async (req: Request, res: Response) => {
+        try {
+            const pagos = await CxCService.getPagosAplicadosSinCFDI();
+            res.status(200).json({ pagos });
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error.message ?? 'Error al obtener pagos sin CFDI.' });
+        }
+    };
+
+    // ─── TIMBRAR MANUAL ───────────────────────────────────────────────────────
+    static timbrarManual = async (req: Request, res: Response) => {
+        try {
+            const { id_pago_cxc } = req.params;
+            const { uuid_sat } = req.body;
+            const resultado = await CxCService.timbrarManual(id_pago_cxc, uuid_sat);
+            res.status(resultado.timbrado?.ok ? 200 : 207).json(resultado);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error.message ?? 'Error al timbrar el pago.' });
+        }
+    };
+
     // ─── TIMBRAR PAGOS EN LOTE ────────────────────────────────────────────────
     //  Toma TODOS los Factura_Pago_CFDI en PEN y los timbra con Facturapi.
     //  Devuelve resumen: cuántos se timbraron, cuántos fallaron y el detalle.
@@ -221,6 +272,22 @@ export class CxCController {
         } catch (error: any) {
             console.error(error);
             res.status(500).json({ message: error?.message ?? 'Error al obtener el historial.' });
+        }
+    };
+
+    // ─── EDITAR PAGO CAP ─────────────────────────────────────────────────────
+    // Permite modificar monto, fecha, forma/método de pago, referencia y notas
+    // mientras el pago no haya sido aplicado (estatus CAP)
+
+    static editarPago = async (req: Request, res: Response) => {
+        try {
+            const { id_pago_cxc } = req.params;
+            const resultado = await CxCService.editarPago(id_pago_cxc, req.body);
+            res.status(200).json({ message: 'Pago actualizado correctamente.', pago: resultado });
+        } catch (error: any) {
+            console.error(error);
+            const status = /no encontrado|no está en estatus CAP|excede|mayor a 0/.test(error.message) ? 400 : 500;
+            res.status(status).json({ message: error.message ?? 'Error al editar el pago.' });
         }
     };
 

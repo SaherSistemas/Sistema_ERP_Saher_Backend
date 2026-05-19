@@ -33,4 +33,5 @@ router.get('/:id_factura/lineas', Detalle_Factura_Compra_ProveedorController.get
 router.patch('/detalles/lotes', authMiddleware, Detalle_Factura_Compra_ProveedorController.modificarLotesYDetallesRecibidosFacturaProveedor);
 
 router.patch('/finalizarChequeoFactura/:id_factura_proveedor', authMiddleware, Factura_Compra_ProveedorController.finalizarChequeoFacturaProveedor);
+router.patch('/:id_factura_proveedor', Factura_Compra_ProveedorController.actualizarEncabezado);
 export default router;

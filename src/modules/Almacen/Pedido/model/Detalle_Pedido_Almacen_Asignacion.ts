@@ -84,6 +84,11 @@ export default class Detalle_Pedido_Almacen_Asignacion extends Model {
     @Column(DataType.TEXT)
     declare nota: string | null;
 
+    // Orden de surtido según ubicación física (pasillo → anaquel → nivel → posición)
+    @AllowNull(true)
+    @Column(DataType.INTEGER)
+    declare orden: number | null;
+
     @BelongsTo(() => Detalle_Pedido_Almacen)
     declare detalle?: Detalle_Pedido_Almacen;
 

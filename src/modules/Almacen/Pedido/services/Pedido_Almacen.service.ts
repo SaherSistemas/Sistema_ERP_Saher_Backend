@@ -22,14 +22,14 @@ export const Pedido_AlmacenService = {
     const resultado = await Detalle_Pedido_Almacen_ChequeoRepository.checarArticulo(id_pedido_alm, cod_barras, cantidad, id_empleado);
 
     const detallesPorChecar = await Detalle_Pedido_Almacen_ChequeoRepository.detallesPorChecar(id_pedido_alm);
-    const pedidoTerminado   = detallesPorChecar.length === 0;
+    const pedidoTerminado = detallesPorChecar.length === 0;
 
     if (pedidoTerminado) {
       await Pedido_AlmacenRepository.pedidoChecado(id_pedido_alm);
     }
 
     return {
-      articulo:       resultado,   // contiene cod_barras, cant_chequeada, filas[]
+      articulo: resultado,   // contiene cod_barras, cant_chequeada, filas[]
       pedidoTerminado,
     };
   },
@@ -130,7 +130,7 @@ export const Pedido_AlmacenService = {
         id_usuario,
         id_pedido_alm,
       );
-
+    console.log("ASIGNACIÓN OBTENIDA EN SERVICIO:", asignacion);
     if (!asignacion) {
       const pendientes =
         await Detalle_Pedido_Almacen_AsignacionRepository.countPendientesByPedido(
@@ -156,22 +156,68 @@ export const Pedido_AlmacenService = {
     return { asignacion, planSurtidoFefo };
   },
 
-  asignarPedidoSurtidor: async (id_usuario: string) => {
+  asignarPedidoSurtidor: async (id_usuario: string, id_empresa: string) => {
     const pedidoMasUrgente = await Pedido_AlmacenRepository.getPedidoMasUrgentePorSurtir();
-    //console.log("PEDIDO MÁS URGENTE POR SURTIR:", pedidoMasUrgente);
-    //ASIGNAR DETALLES A SURTIDOR
-    if (pedidoMasUrgente) {
-      const t = await dbLocal.transaction({
-        isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
-      });
-      await Pedido_AlmacenRepository.iniciarSurtido(pedidoMasUrgente, t);
-      await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(id_usuario, pedidoMasUrgente, t);
-      await t.commit();
-      return { mensaje: 'Pedido asignado al surtidor.', id_pedido_alm: pedidoMasUrgente };
-    } else {
+    if (!pedidoMasUrgente) {
       return { mensaje: 'No hay pedidos por surtir en este momento.' };
     }
 
+    // Obtener artículos del pedido con su cantidad
+    const detalles = await Detalle_Pedido_AlmacenRepository.getDetallesConArticuloPorPedido(pedidoMasUrgente);
+
+    // Para cada artículo, obtener su primera ubicación FEFO
+    const detallesConUbicacion = await Promise.all(
+      detalles.map(async (d) => {
+        const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
+          d.id_articulo,
+          id_empresa,
+          d.cant_pedida,
+        );
+        return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? null };
+      })
+    );
+
+    // Ordenar por pasillo → anaquel → nivel → posición (mismo criterio que FEFO)
+    const PASILLO_ORDER: Record<string, number> = {
+      'A1': 1, 'A': 2, 'B': 3, 'C': 4, 'D': 5,
+      'E': 6, 'F': 7, 'G': 8, 'H': 9, 'H1': 10,
+    };
+
+    detallesConUbicacion.sort((a, b) => {
+      const ua = a.ubicacion;
+      const ub = b.ubicacion;
+      if (!ua && !ub) return 0;
+      if (!ua) return 1;
+      if (!ub) return -1;
+
+      const pa = PASILLO_ORDER[ua.pasillo] ?? 99;
+      const pb = PASILLO_ORDER[ub.pasillo] ?? 99;
+      if (pa !== pb) return pa - pb;
+
+      const aa = parseInt(ua.anaquel) || 0;
+      const ab = parseInt(ub.anaquel) || 0;
+      if (aa !== ab) return aa - ab;
+
+      const na = parseInt(ua.nivel) || 0;
+      const nb = parseInt(ub.nivel) || 0;
+      if (na !== nb) return na - nb;
+
+      return (parseInt(ua.posicion) || 0) - (parseInt(ub.posicion) || 0);
+    });
+
+    const detallesOrdenados = detallesConUbicacion.map((d, i) => ({
+      id_detalle_pedido_almacen: d.id_detalle_pedido_almacen,
+      orden: i + 1,
+    }));
+
+    const t = await dbLocal.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
+    await Pedido_AlmacenRepository.iniciarSurtido(pedidoMasUrgente, t);
+    await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(id_usuario, detallesOrdenados, t);
+    await t.commit();
+
+    return { mensaje: 'Pedido asignado al surtidor.', id_pedido_alm: pedidoMasUrgente };
   },
   getDetallesPedido: async (id_pedido_alm: string) => {
     return await Detalle_Pedido_AlmacenRepository.findByIDPedido(id_pedido_alm);

@@ -175,6 +175,16 @@ export const Detalle_Pedido_AlmacenRepository = {
     return detalles.map((d: { id_detalle_pedido_almacen: string }) => d.id_detalle_pedido_almacen);
   },
 
+  getDetallesConArticuloPorPedido: async (id_pedido_almacen: string, t?: Transaction) => {
+    const detalles = await Detalle_Pedido_Almacen.findAll({
+      where: { id_pedido_almacen },
+      attributes: ['id_detalle_pedido_almacen', 'id_articulo', 'cant_pedida'],
+      raw: true,
+      transaction: t
+    });
+    return detalles as Array<{ id_detalle_pedido_almacen: string; id_articulo: string; cant_pedida: number }>;
+  },
+
   findByIDPedido: async (id_pedido_almacen: string) => {
     return await Detalle_Pedido_Almacen.findAll({
       where: { id_pedido_almacen },

@@ -73,7 +73,7 @@ export class ArticuloController {
       const limit = parseInt(req.query.limit as string) || 20;
 
       const articulosNegados = await ArticuloService.getAllArticulosNegadosParaCompra(id_empresa_sucursal, page, limit);
-      // console.log(articulosNegados)
+      console.log(articulosNegados)
       res.status(200).json(articulosNegados);
     } catch (error) {
       console.error(error);

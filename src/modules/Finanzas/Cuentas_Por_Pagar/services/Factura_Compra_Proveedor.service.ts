@@ -1,6 +1,6 @@
 import { Transaction } from "sequelize";
 import { dbLocal } from "../../../../config/db";
-import { ICreateFacturaCompraProveedor, IFactura_Compra_Proveedor, IGuardarCapturaCompletaControllerDTO } from "../interface/Factura_Compra_Proveedor.interfece";
+import { IActualizarEncabezadoFacturaDTO, ICreateFacturaCompraProveedor, IFactura_Compra_Proveedor, IGuardarCapturaCompletaControllerDTO } from "../interface/Factura_Compra_Proveedor.interfece";
 import { Detalle_Factura_Compra_ProveedorRepository } from "../repositories/Detalle_Factura_Compra_Proveedor.repository";
 import { Factura_Compra_ProveedorRepository } from "../repositories/Factura_Compra_Proveedor.repository";
 import { Detalle_Compra_RecibidoService } from "../../../Compras/Ordenes-Compra/services/Detalle_Compra_Recibido.service";
@@ -23,6 +23,10 @@ import { NotasCreditoProveedorRepository } from "../../../../repository/Devoluci
 import { Faltante_Factura_ProveedorRepository } from "../../../../repository/Devoluciones_NC/Faltante_Factura_Proveedor.repository";
 import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_General.repository";
 export const Factura_Compra_ProveedorService = {
+
+    actualizarEncabezado: async (id_factura_proveedor: string, data: IActualizarEncabezadoFacturaDTO) => {
+        return await Factura_Compra_ProveedorRepository.actualizarEncabezado(id_factura_proveedor, data);
+    },
 
     getFacturasPorCompraProveedor: async (id_comp: string) => {
         return await Factura_Compra_ProveedorRepository.getFacturasPorCompraProveedor(id_comp);

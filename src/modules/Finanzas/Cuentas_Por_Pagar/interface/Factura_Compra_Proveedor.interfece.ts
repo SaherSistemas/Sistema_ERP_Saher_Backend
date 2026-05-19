@@ -29,7 +29,14 @@ export interface ICreateFacturaCompraProveedor {
 
 
 
-//DTO COMPLETO DE LA FACURA COMPRA PROVEEDOR    
+export interface IActualizarEncabezadoFacturaDTO {
+    folio_factura_proveedor: string;
+    costo_por_envio: number;
+    fecha_emision: string;
+    fecha_vencimiento: string;
+}
+
+//DTO COMPLETO DE LA FACURA COMPRA PROVEEDOR
 export interface IGuardarCapturaCompletaControllerDTO {
     id_comp: string;
     id_factura_compra_proveedor: string;

@@ -92,7 +92,7 @@ export class Pedido_AlmacenController {
   };
   static asignarPedidoSurtidor = async (req: AuthedRequest, res: Response) => {
     try {
-      const resultado = await Pedido_AlmacenService.asignarPedidoSurtidor(req.user.id_referencia_persona);
+      const resultado = await Pedido_AlmacenService.asignarPedidoSurtidor(req.user.id_referencia_persona, req.user.id_empresa);
       res.status(200).json(resultado);
     } catch (error) {
       console.log(error);
@@ -104,7 +104,7 @@ export class Pedido_AlmacenController {
       const { id_pedido_alm } = req.params;
       //console.log("ID PEDIDO ALMACEN:", id_pedido_alm);
       const resultado = await Pedido_AlmacenService.getDetalleAsignado(req.user.id_referencia_persona, req.user.id_empresa, id_pedido_alm);
-      // console.log("DETALLES ASIGNADOS:", resultado);
+      //console.log("DETALLES ASIGNADOS:", resultado);
       res.status(200).json(resultado);
     } catch (error) {
       console.log(error);

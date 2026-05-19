@@ -84,14 +84,37 @@ export class Factura_Compra_ProveedorController {
     static guardarFacturaEIniciarCapturaLotes = async (req: Request, res: Response) => {
         try {
             const data: ICreateFacturaCompraProveedor = req.body;
-            const actualizarFolioEIniciarCapturaLotes = await Factura_Compra_ProveedorService.guardarFacturaEIniciarCapturaLotes(data)
-            res.status(200).json({ mensaje: "Folio compra se actualizo.", compraActualizada: actualizarFolioEIniciarCapturaLotes })
-        } catch (error) {
-            console.error(error)
-            res.status(500).json({ message: "Error al actualizar la compra." })
-        }
-    }
+            const actualizarFolioEIniciarCapturaLotes = await Factura_Compra_ProveedorService.guardarFacturaEIniciarCapturaLotes(data);
+            res.status(200).json({ mensaje: "Folio compra se actualizó.", compraActualizada: actualizarFolioEIniciarCapturaLotes });
+        } catch (error: any) {
+            console.error(error);
 
+            // Error de negocio controlado (folio duplicado, compra no encontrada, etc.)
+            if (error instanceof Error) {
+                res.status(400).json({ message: error.message });
+                return;
+            }
+
+            res.status(500).json({ message: "Error al actualizar la compra." });
+            return;
+        }
+    };
+
+
+    static actualizarEncabezado = async (req: Request, res: Response) => {
+        try {
+            const { id_factura_proveedor } = req.params;
+            const data = req.body;
+            const factura = await Factura_Compra_ProveedorService.actualizarEncabezado(id_factura_proveedor, data);
+            res.status(200).json({ mensaje: 'Encabezado actualizado correctamente.', factura });
+        } catch (error: any) {
+            if (error instanceof Error) {
+                res.status(400).json({ message: error.message });
+                return;
+            }
+            res.status(500).json({ message: 'Error al actualizar el encabezado de la factura.' });
+        }
+    };
 
     static getFacturaEnCaptura = async (req: Request, res: Response) => {
         try {

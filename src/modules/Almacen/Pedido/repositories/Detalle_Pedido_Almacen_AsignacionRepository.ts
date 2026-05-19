@@ -70,6 +70,7 @@ export const Detalle_Pedido_Almacen_AsignacionRepository = {
                     'id_detalle_pedido_almacen',
                     'estado'
                 ],
+                order: [['orden', 'ASC']],
                 transaction: t,
                 lock: t.LOCK.UPDATE
             });
@@ -85,6 +86,7 @@ export const Detalle_Pedido_Almacen_AsignacionRepository = {
                         'id_detalle_pedido_almacen',
                         'estado'
                     ],
+                    order: [['orden', 'ASC']],
                     transaction: t,
                     lock: t.LOCK.UPDATE
                 });
@@ -173,18 +175,14 @@ export const Detalle_Pedido_Almacen_AsignacionRepository = {
 
     asignarDetallesPedidoASurtidor: async (
         id_usuario: string,
-        id_pedido_almacen: string,
+        detallesOrdenados: Array<{ id_detalle_pedido_almacen: string; orden: number }>,
         t?: Transaction
     ) => {
-        const detalles = await Detalle_Pedido_AlmacenRepository.getDetallesPorPedidoIDS(
-            id_pedido_almacen,
-            t
-        );
-
-        const payload = detalles.map((id_detalle_pedido_almacen: string) => ({
-            id_detalle_pedido_almacen,
+        const payload = detallesOrdenados.map((d) => ({
+            id_detalle_pedido_almacen: d.id_detalle_pedido_almacen,
             id_usuario,
-            estado: 'ASIGNADO'
+            estado: 'ASIGNADO',
+            orden: d.orden,
         }));
 
         return await Detalle_Pedido_Almacen_Asignacion.bulkCreate(payload, {
