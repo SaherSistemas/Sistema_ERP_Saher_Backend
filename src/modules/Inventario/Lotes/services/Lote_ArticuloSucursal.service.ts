@@ -71,6 +71,16 @@ export const LotesArticuloSucursalService = {
     return total;
   },
 
+  /** Suma existencias no vencidas y con stock de un artículo en varias empresas */
+  getExistenciaTotalPorEmpresas: async (id_artic: string, ids_empresas: string[]): Promise<number> => {
+    const resultados = await Promise.all(
+      ids_empresas.map(id_empre =>
+        LotesArticuloSucursalService.getExistenciaTotal(id_empre, id_artic).catch(() => 0)
+      )
+    );
+    return resultados.reduce((acc, n) => acc + n, 0);
+  },
+
 
   getResumen: async (filters: {
     nombre: string;

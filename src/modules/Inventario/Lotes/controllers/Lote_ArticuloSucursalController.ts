@@ -28,6 +28,35 @@ export class LotesArticuloSucursalController {
     }
   };
 
+  /**
+   * GET /existencia/:id_artic/:ids_empresas
+   * ids_empresas puede ser un solo UUID o varios separados por coma.
+   * Devuelve { existencia_disponible: number }
+   */
+  static getExistenciaMultiEmpresa = async (req: Request, res: Response) => {
+    try {
+      const { id_artic, ids_empresas } = req.params;
+      const empresas = ids_empresas.split(',').map(s => s.trim()).filter(Boolean);
+
+      if (!id_artic || empresas.length === 0) {
+        res.status(400).json({ mensaje: 'Faltan id_artic o ids_empresas.' });
+        return;
+      }
+
+      const existencia_disponible = await LotesArticuloSucursalService.getExistenciaTotalPorEmpresas(
+        id_artic,
+        empresas
+      );
+
+      console.log(`[existencia] id_artic=${id_artic} empresas=${empresas.join(',')} → ${existencia_disponible}`);
+
+      res.status(200).json({ id_artic, empresas, existencia_disponible });
+    } catch (error: any) {
+      console.error('getExistenciaMultiEmpresa:', error);
+      res.status(500).json({ mensaje: 'Error al obtener existencia por empresas.' });
+    }
+  };
+
   static getAllByEmpresaArticulo = async (req: Request, res: Response) => {
     try {
       const { id_empre, id_artic } = req.params;

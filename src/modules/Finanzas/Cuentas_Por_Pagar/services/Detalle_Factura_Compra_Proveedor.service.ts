@@ -57,7 +57,7 @@ export const Detalle_Factura_Compra_ProveedorService = {
                 const modeloArticulo = await ArticuloRepository.getByPK(id_artic, { transaction: t });
                 console.log("MODELO ARTICULO:", modeloArticulo);
                 const grupoEmpresa = await Empresa_SucursalRepository.getGrupo(data.id_empresa, { transaction: t });
-                console.log("GRUPO EMPRESA:", grupoEmpresa);
+                //console.log("GRUPO EMPRESA:", grupoEmpresa);
 
                 if (grupoEmpresa) {
                     const empresas = await Empresa_SucursalRepository.getEmpresasPorGrupo(
@@ -83,7 +83,7 @@ export const Detalle_Factura_Compra_ProveedorService = {
                         modeloArticulo.id_presentacion,
                         { transaction: t }
                     )).filter(m => idsListasGrupo.includes(m.id_lista_precio));
-                    console.log("MARGENES FILTRADOS:", margenesFiltrados);
+                    //    console.log("MARGENES FILTRADOS:", margenesFiltrados);
                     for (const margen of margenesFiltrados) {
                         const margenPct = Number(margen.margen) || 0;
                         const divisor = 1 - (margenPct / 100);
@@ -107,7 +107,7 @@ export const Detalle_Factura_Compra_ProveedorService = {
                             id_artic,
                             precios: precioPorLista,
                         };
-                        console.log(detallePrecio);
+                        //console.log(detallePrecio);
                         await DetalleListaPreciosRepository.updateOrCreate(detallePrecio, { transaction: t });
                     }
                 }

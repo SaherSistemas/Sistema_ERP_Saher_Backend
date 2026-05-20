@@ -1,8 +1,11 @@
-import { QueryTypes, Op, WhereOptions } from 'sequelize';
+import { QueryTypes, Op, WhereOptions, fn, literal, col } from 'sequelize';
 import Kardex_Movimientos_Articulos from '../model/Kardex_Movimientos_Articulos';
 import { ICreateKardex_Movimiento } from '../interface/Kardex_Movimientos_Articulo.interface';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import Empleado from '../../../RRHH/model/Empleado';
+import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
+import { Grupo_EmpresaRepository } from '../../../../repository/Empresa_Sucursal/Grupo_Empresa.repository';
+import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
 
 type QuincenaPorTipo = {
   numero: number;
@@ -30,15 +33,72 @@ export const Kardex_Movimiento_ArticuloRepository = {
   create: async (data: ICreateKardex_Movimiento) => {
     return await Kardex_Movimientos_Articulos.create({ ...data });
   },
+  getExistencias: async (id_empresa: string, id_articulo?: string) => {
+    // 1. Obtener TODAS las empresas (sin filtrar por grupo)
+    const empresas = await Empresa_SucursalRepository.getAll()
+
+    const empresaIds = empresas.map((e: any) => e.id_empre);
+
+    // 2. Stock de TODAS las empresas
+    const stockGrupo = await Stock_Ubicacion_Lote.findAll({
+      where: {
+        id_empresa_sucursal: { [Op.in]: empresaIds },
+        ...(id_articulo && { id_articulo })
+      },
+      attributes: [
+        'id_empresa_sucursal',
+        'id_articulo',
+        [fn('COALESCE', fn('SUM', col('cantidad')), 0), 'existencia_total'],
+        [fn('COALESCE', fn('SUM', literal(`cantidad - COALESCE(cantidad_apartada, 0)`)), 0), 'existencia_disponible'],
+      ],
+      group: ['id_empresa_sucursal', 'id_articulo'],
+      raw: true,
+    }) as any[];
+
+    // 3. Separar la empresa principal
+    const stockPrincipal = stockGrupo.find(
+      (s: any) => s.id_empresa_sucursal === id_empresa
+    );
+
+    // 4. Totales globales
+    const existencia_total_grupo = stockGrupo.reduce(
+      (acc: number, s: any) => acc + Number(s.existencia_total), 0
+    );
+    const existencia_disponible_grupo = stockGrupo.reduce(
+      (acc: number, s: any) => acc + Number(s.existencia_disponible), 0
+    );
+
+    // 5. Mapear TODAS las empresas (con o sin stock)
+    const empresasConStock = empresas.map((empresa: any) => {
+      const stock = stockGrupo.find(
+        (s: any) => s.id_empresa_sucursal === empresa.id_empre
+      );
+      return {
+        id_empre: empresa.id_empre,
+        nombre: empresa.nom_empre,
+        existencia_total: Number(stock?.existencia_total ?? 0),
+        existencia_disponible: Number(stock?.existencia_disponible ?? 0),
+      };
+    });
+
+    return {
+      existencia_total: Number(stockPrincipal?.existencia_total ?? 0),
+      existencia_disponible: Number(stockPrincipal?.existencia_disponible ?? 0),
+      existencia_total_grupo,
+      existencia_disponible_grupo,
+      empresas: empresasConStock,
+    };
+  },
+
 
   findMovimientos: async (filtros: IFiltrosMovimientos) => {
     const { id_empresa, id_articulo, tipo_movimiento, categoria, fecha_inicio, fecha_fin, page = 1, limit = 50 } = filtros;
 
     const where: WhereOptions<any> = {};
 
-    if (id_empresa)      where['id_empresa']      = id_empresa;
+    if (id_empresa) where['id_empresa'] = id_empresa;
     if (tipo_movimiento) where['tipo_movimiento'] = tipo_movimiento;
-    if (categoria)       where['categoria']       = categoria;
+    if (categoria) where['categoria'] = categoria;
 
     // Si es UUID lo usamos directo; si es código de barras buscamos primero el artículo
     if (id_articulo) {
@@ -59,7 +119,7 @@ export const Kardex_Movimiento_ArticuloRepository = {
     if (fecha_inicio || fecha_fin) {
       where['fecha'] = {
         ...(fecha_inicio ? { [Op.gte]: new Date(fecha_inicio) } : {}),
-        ...(fecha_fin    ? { [Op.lte]: new Date(fecha_fin + 'T23:59:59') } : {}),
+        ...(fecha_fin ? { [Op.lte]: new Date(fecha_fin + 'T23:59:59') } : {}),
       };
     }
 
@@ -301,4 +361,6 @@ export const Kardex_Movimiento_ArticuloRepository = {
   };
   
   */
+
+
 }

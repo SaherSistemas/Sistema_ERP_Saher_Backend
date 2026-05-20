@@ -83,4 +83,39 @@ export const KardexController = {
             res.status(400).json({ ok: false, message: e.message ?? 'Error al obtener proyecciones' });
         }
     },
+    /**      const stocks = await Stock_Ubicacion_Lote.findAll({
+                where: {
+                    id_empresa_sucursal: filters.id_sucursal,
+                    id_articulo: { [Op.in]: idsArticulos },
+                },
+                attributes: [
+                    'id_articulo',
+                    [fn('COALESCE', fn('SUM', col('cantidad')), 0), 'existencia_total'],
+                    [fn('COALESCE', fn('SUM', literal(`cantidad - COALESCE(cantidad_apartada, 0)`)), 0), 'existencia_disponible'],
+                ],
+                group: ['id_articulo'],
+                raw: true,
+            }); */
+
+    obtenerExistencias: async (req: AuthedRequest, res: Response) => {
+        try {
+
+            const id_empresa = String(req.user?.id_empresa || req.query.id_empresa || '').trim();
+            const id_articulo = String(req.query.id_articulo || '').trim() || undefined;
+
+            if (!id_empresa) {
+                res.status(400).json({ ok: false, message: 'id_empresa requerido' });
+                return;
+            }
+
+            const resultado = await KardexService.obtenerExistencias(id_empresa, id_articulo);
+            console.log(resultado)
+            res.status(200).json(resultado);
+        }
+        catch (e: any) {
+            console.error('[KardexController.obtenerExistencias]', e);
+            if (res.headersSent) return;
+            res.status(400).json({ ok: false, message: e.message ?? 'Error al obtener existencias' });
+        }
+    },
 };

@@ -10,7 +10,7 @@ export const KardexService = {
     obtenerMovimientos: async (filtros: IFiltrosMovimientos) => {
         return await Kardex_Movimiento_ArticuloRepository.findMovimientos(filtros);
     },
-
+        
     obtenerProyecciones: async (opts: {
         empresas?: string[];
         id_articulo?: string;
@@ -20,8 +20,15 @@ export const KardexService = {
         return await Kardex_Movimiento_ArticuloRepository.getTotalesPorPeriodos({
             empresas: opts.empresas,
             articulo: opts.id_articulo,
-            dias:     opts.dias,
-            today:    opts.today,
+            dias: opts.dias,
+            today: opts.today,
         });
     },
+    obtenerExistencias: async (id_empresa: string, id_articulo?: string) => {
+        return await Kardex_Movimiento_ArticuloRepository.getExistencias(id_empresa, id_articulo);
+    },
+
+    // obtenerExistencias: async (id_empresa: string, id_articulo?: string) => {
+    //     return await Kardex_Movimiento_ArticuloRepository.getExistencias(id_empresa, id_articulo);
+    // },
 };
