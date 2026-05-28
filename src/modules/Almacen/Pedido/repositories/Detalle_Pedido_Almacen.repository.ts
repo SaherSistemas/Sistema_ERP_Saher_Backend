@@ -6,6 +6,7 @@ import { ICreateDetallePedidoAlmacen, } from '../interface/Detalle_Pedido_Almace
 import { ActualizarDetallesPedidoRequest, IUpdatePedidoAlmacen } from '../interface/Pedido_Almacen';
 import Detalle_Pedido_Almacen_Lote from '../model/Detalle_Pedido_Almacen_Lote';
 import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
+import Detalle_Pedido_Almacen_Chequeo from '../model/Detalle_Pedido_Almacen_Chequeo';
 
 
 export const Detalle_Pedido_AlmacenRepository = {
@@ -188,10 +189,26 @@ export const Detalle_Pedido_AlmacenRepository = {
   findByIDPedido: async (id_pedido_almacen: string) => {
     return await Detalle_Pedido_Almacen.findAll({
       where: { id_pedido_almacen },
-      include: [{
-        model: Articulo,
-        attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'des_gener_artic', 'tipo_de_iva']
-      }],
+      include: [
+        {
+          model: Articulo,
+          attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'des_gener_artic', 'tipo_de_iva']
+        },
+        {
+          model: Detalle_Pedido_Almacen_Chequeo,
+          attributes: [
+            'id_detalle_chequeo',
+            'id_empleado',
+            'estado',
+            'fecha_asignado',
+            'inicio',
+            'fin',
+            'cant_chequeada',
+            'nota',
+            'cant_surtida_lote'
+          ]
+        }
+      ],
     });
   }
 

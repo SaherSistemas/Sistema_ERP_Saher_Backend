@@ -338,6 +338,8 @@ export const CxCRepository = {
                         'monto_total',       cxc.monto_total,
                         'monto_pagado',      cxc.monto_pagado,
                         'saldo_pendiente',   cxc.saldo_pendiente,
+                        'saldo_en_revision', COALESCE((SELECT SUM(p2.monto_pago) FROM pago_cxc p2 WHERE p2.id_cxc = cxc.id_cxc AND p2.estatus_pago = 'CAP'), 0),
+                        'saldo_disponible',  GREATEST(cxc.saldo_pendiente - COALESCE((SELECT SUM(p2.monto_pago) FROM pago_cxc p2 WHERE p2.id_cxc = cxc.id_cxc AND p2.estatus_pago = 'CAP'), 0), 0),
                         'fecha_vencimiento', TO_CHAR(cxc.fecha_vencimiento, 'YYYY-MM-DD'),
                         'estatus_cxc',       cxc.estatus_cxc
                     ) ORDER BY cxc.fecha_vencimiento
@@ -360,9 +362,11 @@ export const CxCRepository = {
             total_saldo: Number(f.total_saldo),
             cuentas: (typeof f.cuentas === 'string' ? JSON.parse(f.cuentas) : f.cuentas).map((c: any) => ({
                 ...c,
-                monto_total:     Number(c.monto_total),
-                monto_pagado:    Number(c.monto_pagado),
-                saldo_pendiente: Number(c.saldo_pendiente),
+                monto_total:       Number(c.monto_total),
+                monto_pagado:      Number(c.monto_pagado),
+                saldo_pendiente:   Number(c.saldo_pendiente),
+                saldo_en_revision: Number((c as any).saldo_en_revision ?? 0),
+                saldo_disponible:  Number((c as any).saldo_disponible ?? c.saldo_pendiente),
             })),
         }));
     },

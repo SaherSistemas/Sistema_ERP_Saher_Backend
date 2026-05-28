@@ -220,6 +220,7 @@ export const Pedido_AlmacenService = {
     return { mensaje: 'Pedido asignado al surtidor.', id_pedido_alm: pedidoMasUrgente };
   },
   getDetallesPedido: async (id_pedido_alm: string) => {
+    
     return await Detalle_Pedido_AlmacenRepository.findByIDPedido(id_pedido_alm);
   },
 
@@ -327,8 +328,22 @@ export const Pedido_AlmacenService = {
 
     // console.log("PEDIDO FINALIZADO Y CAPTURADO:", capturado)
     return pedidoFull
-  }
+  },
 
+  // ══════════════════════════════════════════════════════════════════════
+  // HISTORIAL POR FECHA
+  // ══════════════════════════════════════════════════════════════════════
+  getAllByFecha: async (fecha: string) => {
+    return await Pedido_AlmacenRepository.getAllByFecha(fecha);
+  },
 
+  // ══════════════════════════════════════════════════════════════════════
+  // RESUMEN COMPLETO — todo el ciclo de vida de un pedido
+  // ══════════════════════════════════════════════════════════════════════
+  getResumenCompleto: async (id_pedido_alm: string) => {
+    const resumen = await Pedido_AlmacenRepository.getResumenCompleto(id_pedido_alm);
+    if (!resumen) throw { status: 404, message: 'Pedido no encontrado.' };
+    return resumen;
+  },
 
 };

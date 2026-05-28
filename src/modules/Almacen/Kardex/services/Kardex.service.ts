@@ -24,9 +24,7 @@ export const KardexService = {
             today: opts.today,
         });
     },
-    obtenerExistencias: async (id_empresa: string, id_articulo?: string) => {
-        return await Kardex_Movimiento_ArticuloRepository.getExistencias(id_empresa, id_articulo);
-    },
+  
 
     // obtenerExistencias: async (id_empresa: string, id_articulo?: string) => {
     //     return await Kardex_Movimiento_ArticuloRepository.getExistencias(id_empresa, id_articulo);

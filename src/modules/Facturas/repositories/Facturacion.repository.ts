@@ -4,91 +4,26 @@ import Facturas from '../model/Facturas.model';
 import Detalle_Factura from '../model/Detalle_Factura.model';
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
+import {
+    DatosFacturacionCabecera,
+    ConceptoFacturacion,
+    DetalleParaEgreso,
+    DatosFacturaParaTimbrar,
+} from '../interfaces/Facturacion.types';
 
-export interface DatosFacturacionCabecera {
-    // Emisor
-    nom_empre: string;
-    rfc_empre: string;
-    regimen_fiscal_empre: string;
-    serie_facturacion_empre: string;
-    leyenda_factura_empre: string | null;
-    lugar_expedicion: string;
-    // Receptor
-    razon_social_cliente: string;
-    rfc_cliente: string;
-    domicilio_fiscal: string;
-    regimen_fiscal_cliente: string;
-    uso_cfdi: string;
-    forma_pago: string;
-    metodo_pago: string;
-    // Crédito del cliente
-    plazo_pago_cliente: number;
-    // Pedido
-    id_pedido_alm: string;
-    id_cliente_alm: string;
-    id_agente_alm: string;
-    cod_int_pedido_alm: string;
-    nombre_agente: string | null;
-    // Folio
-    siguiente_folio: number;
-}
-
-export interface ConceptoFacturacion {
-    id_articulo: string;
-    cve_sat: string;
-    sat_medida: string;
-    desc_medida: string;
-    cod_barras: string;
-    cantidad: number;
-    descripcion: string;
-    precio_unitario: number;
-    descuento: number;
-    subtotal_linea: number;
-    tasa_iva: number;
-    impuesto_sat: string;
-    tipo_factor: string;
-    lotes: { lote: string; fecha_venci: string; cantidad: number }[];
-}
-
-export interface DetalleParaEgreso {
-    id_articulo: string;
-    descripcion_articulo: string;
-    cantidad_facturada: number;
-    precio_artic: number;
-    subtotal: number;
-    tasa_iva: number;
-    cve_sat: string;
-    sat_medida: string;
-    desc_medida: string;
-}
-
-export interface DatosFacturaParaTimbrar {
-    id_factura: string;
-    tipo_cfdi: string;
-    uuid_sat: string | null;
-    subtotal_factura: number;
-    iva_factura: number;
-    total_factura: number;
-    id_cliente_alm: string;
-    id_forma_pago: string;
-    razon_social_cliente: string;
-    rfc_cliente: string;
-    regimen_fiscal_cliente: string;
-    domicilio_fiscal: string;
-    detalles: DetalleParaEgreso[];
-}
+export type { DatosFacturacionCabecera, ConceptoFacturacion, DetalleParaEgreso, DatosFacturaParaTimbrar };
 
 export const FacturacionRepository = {
 
     getList: async (filtros: {
-        estatus?: string;
-        tipo_cfdi?: string;
+        estatus?:        string;
+        tipo_cfdi?:      string;
         id_cliente_alm?: string;
-        busqueda?: string;
-        fecha_inicio?: string;
-        fecha_fin?: string;
-        page?: number;
-        limit?: number;
+        busqueda?:       string;
+        fecha_inicio?:   string;
+        fecha_fin?:      string;
+        page?:           number;
+        limit?:          number;
     }) => {
         const page   = Number(filtros.page  ?? 1);
         const limit  = Number(filtros.limit ?? 50);
@@ -113,18 +48,18 @@ export const FacturacionRepository = {
             where,
             include: [
                 {
-                    model: Cliente_Almacen,
-                    as: 'cliente',
+                    model:      Cliente_Almacen,
+                    as:         'cliente',
                     attributes: ['razon_social_cliente_alm', 'rfc_cliente_alm'],
                 },
                 {
-                    model: Pedido_Almacen,
-                    as: 'pedido',
+                    model:      Pedido_Almacen,
+                    as:         'pedido',
                     attributes: ['cod_int_pedido_alm'],
-                    required: false,
+                    required:   false,
                 },
             ],
-            order: [['fecha_emision', 'DESC']],
+            order:  [['fecha_emision', 'DESC']],
             limit,
             offset,
         });
@@ -137,7 +72,7 @@ export const FacturacionRepository = {
             SELECT
                 es.nom_empre,
                 es.rfc_empre,
-                COALESCE(es.regimen_fiscal_empre,  '601') AS regimen_fiscal_empre,
+                COALESCE(es.regimen_fiscal_empre,    '601') AS regimen_fiscal_empre,
                 COALESCE(es.serie_facturacion_empre, 'FSH') AS serie_facturacion_empre,
                 es.leyenda_factura_empre,
                 co_es.cp_colonia                                    AS lugar_expedicion,
@@ -149,6 +84,7 @@ export const FacturacionRepository = {
                 ca.id_forma_pago_cliente_alm                        AS forma_pago,
                 ca.id_metodo_pago_cliente_alm                       AS metodo_pago,
                 COALESCE(ca.plazo_pago_cliente_alm, 0)              AS plazo_pago_cliente,
+                ca.limite_por_factura,
                 pa.id_pedido_alm,
                 pa.id_cliente_pedido_alm                            AS id_cliente_alm,
                 pa.id_agente_pedido_alm                             AS id_agente_alm,
@@ -175,12 +111,12 @@ export const FacturacionRepository = {
 
     getConceptos: async (id_pedido_alm: string): Promise<ConceptoFacturacion[]> => {
         const rows = await dbLocal.query<{
-            id_articulo: string;
-            cve_sat: string; sat_medida: string; desc_medida: string;
-            cod_barras: string; cantidad: number; descripcion: string;
+            id_articulo:   string;
+            cve_sat:       string; sat_medida: string; desc_medida: string;
+            cod_barras:    string; cantidad: number; descripcion: string;
             precio_unitario: number; tasa_iva: number;
-            impuesto_sat: string; tipo_factor: string;
-            lotes: string;
+            impuesto_sat:  string; tipo_factor: string;
+            lotes:         string;
         }>(`
             SELECT
                 a.id_artic                                  AS id_articulo,
@@ -240,7 +176,7 @@ export const FacturacionRepository = {
                 cantidad,
                 precio_unitario,
                 tasa_iva,
-                descuento:     0,
+                descuento:    0,
                 subtotal_linea,
                 lotes: Array.isArray(r.lotes)
                     ? r.lotes.map((l: any) => ({ ...l, cantidad: Number(l.cantidad) }))
@@ -259,19 +195,19 @@ export const FacturacionRepository = {
 
     getFacturaParaTimbrar: async (id_factura: string): Promise<DatosFacturaParaTimbrar | null> => {
         const rows = await dbLocal.query<{
-            id_factura: string;
-            tipo_cfdi: string;
-            uuid_sat: string | null;
-            subtotal_factura: number;
-            iva_factura: number;
-            total_factura: number;
-            id_cliente_alm: string;
-            id_forma_pago: string;
-            razon_social_cliente: string;
-            rfc_cliente: string;
+            id_factura:             string;
+            tipo_cfdi:              string;
+            uuid_sat:               string | null;
+            subtotal_factura:       number;
+            iva_factura:            number;
+            total_factura:          number;
+            id_cliente_alm:         string;
+            id_forma_pago:          string;
+            razon_social_cliente:   string;
+            rfc_cliente:            string;
             regimen_fiscal_cliente: string;
-            domicilio_fiscal: string;
-            detalles: string;
+            domicilio_fiscal:       string;
+            detalles:               string;
         }>(`
             SELECT
                 f.id_factura,
@@ -315,18 +251,16 @@ export const FacturacionRepository = {
 
         if (!rows.length) return null;
 
-        const r = rows[0];
-        const detalles: DetalleParaEgreso[] = (
-            Array.isArray(r.detalles)
-                ? r.detalles
-                : JSON.parse(r.detalles as any)
+        const r        = rows[0];
+        const detalles = (
+            Array.isArray(r.detalles) ? r.detalles : JSON.parse(r.detalles as any)
         ).map((d: any) => ({
             ...d,
             cantidad_facturada: Number(d.cantidad_facturada),
             precio_artic:       Number(d.precio_artic),
             subtotal:           Number(d.subtotal),
             tasa_iva:           Number(d.tasa_iva),
-        }));
+        })) as DetalleParaEgreso[];
 
         return {
             ...r,
@@ -338,26 +272,26 @@ export const FacturacionRepository = {
     },
 
     registrarFactura: async (dto: {
-        folio: number;
-        tipo_cfdi: 'I' | 'E';
-        origen_factura?: string;
-        id_pedido_alm?: string;
-        id_cliente_alm: string;
-        id_metodo_pago?: string;
-        id_forma_pago?: string;
-        uso_cfdi?: string;
-        subtotal: number;
-        iva: number;
-        total: number;
+        folio:              number;
+        tipo_cfdi:          'I' | 'E';
+        origen_factura?:    string;
+        id_pedido_alm?:     string;
+        id_cliente_alm:     string;
+        id_metodo_pago?:    string;
+        id_forma_pago?:     string;
+        uso_cfdi?:          string;
+        subtotal:           number;
+        iva:                number;
+        total:              number;
         id_factura_origen?: string;
-        uuid_relacionado?: string;
+        uuid_relacionado?:  string;
         conceptos: Array<{
-            id_articulo: string;
-            descripcion: string;
-            cantidad: number;
+            id_articulo:     string;
+            descripcion:     string;
+            cantidad:        number;
             precio_unitario: number;
-            subtotal_linea: number;
-            tasa_iva: number;
+            subtotal_linea:  number;
+            tasa_iva:        number;
         }>;
     }, t: Transaction) => {
         const factura = await Facturas.create({
@@ -369,13 +303,13 @@ export const FacturacionRepository = {
             iva_factura:       dto.iva,
             total_factura:     dto.total,
             estatus_factura:   'PEN',
-            id_metodo_pago:    dto.id_metodo_pago ?? null,
-            id_forma_pago:     dto.id_forma_pago ?? null,
-            uso_cfdi:          dto.uso_cfdi ?? null,
+            id_metodo_pago:    dto.id_metodo_pago    ?? null,
+            id_forma_pago:     dto.id_forma_pago      ?? null,
+            uso_cfdi:          dto.uso_cfdi           ?? null,
             id_cliente_alm:    dto.id_cliente_alm,
-            id_pedido_alm:     dto.id_pedido_alm ?? null,
-            id_factura_origen: dto.id_factura_origen ?? null,
-            uuid_relacionado:  dto.uuid_relacionado ?? null,
+            id_pedido_alm:     dto.id_pedido_alm      ?? null,
+            id_factura_origen: dto.id_factura_origen  ?? null,
+            uuid_relacionado:  dto.uuid_relacionado   ?? null,
         }, { transaction: t });
 
         await Detalle_Factura.bulkCreate(
@@ -396,10 +330,10 @@ export const FacturacionRepository = {
     },
 
     actualizarTimbrado: async (id_factura: string, data: {
-        uuid_sat: string;
+        uuid_sat:       string;
         fecha_timbrado: Date;
-        pdf_url: string;
-        xml_url: string;
+        pdf_url:        string;
+        xml_url:        string;
     }) => {
         await Facturas.update({
             uuid_sat:        data.uuid_sat,

@@ -113,7 +113,7 @@ class Cuenta_Por_Cobrar extends Model {
     remision: Remision;
 
     @BelongsTo(() => Cliente_Almacen)
-    cliente: Cliente_Almacen;
+    cliente_almacen: Cliente_Almacen;
 
     @HasMany(() => Pago_CxC)
     pagos: Pago_CxC[];

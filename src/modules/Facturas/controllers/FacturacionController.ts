@@ -32,8 +32,9 @@ export class FacturacionController {
     static generarTxt = async (req: AuthedRequest, res: Response) => {
         try {
             const { id_pedido_alm } = req.params;
-            const id_empresa = req.user?.id_empresa;
-            const resultado = await FacturacionService.generarTxt({ id_pedido_alm, id_empresa });
+            const id_empresa  = req.user?.id_empresa;
+            const id_empleado = req.user?.id_referencia_persona ?? '';
+            const resultado = await FacturacionService.generarTxt({ id_pedido_alm, id_empresa, id_empleado });
             res.status(201).json(resultado);
         } catch (error: any) {
             console.error(error);
@@ -46,8 +47,9 @@ export class FacturacionController {
         try {
             const { id_pedido_alm } = req.params;
             const { id_cliente_real } = req.body ?? {};
-            const id_empresa = req.user?.id_empresa;
-            const resultado = await FacturacionService.timbrarIngreso({ id_pedido_alm, id_empresa, id_cliente_real });
+            const id_empresa  = req.user?.id_empresa;
+            const id_empleado = req.user?.id_referencia_persona ?? '';
+            const resultado = await FacturacionService.timbrarIngreso({ id_pedido_alm, id_empresa, id_cliente_real, id_empleado });
             res.status(201).json(resultado);
         } catch (error: any) {
             console.error(error);

@@ -9,6 +9,18 @@ import Empleado from '../../../RRHH/model/Empleado';
 import Agente_de_Venta from '../../../Comercial/Agente_Venta/model/Agente_De_Venta';
 import { isUUID } from '../../../../utils/validaciones';
 
+// Imports extra para el resumen completo
+import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
+import Detalle_Pedido_Almacen_Asignacion from '../model/Detalle_Pedido_Almacen_Asignacion';
+import Detalle_Pedido_Almacen_Chequeo from '../model/Detalle_Pedido_Almacen_Chequeo';
+import Detalle_Pedido_Almacen_Lote from '../model/Detalle_Pedido_Almacen_Lote';
+import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import Pedido_Almacen_Empaque from '../../Empaque/model/Pedido_Almacen_Empaque';
+import { Bulto_Pedido } from '../../Empaque/model/Bulto_Pedido';
+import { Entrega_Pedido } from '../../Empaque/model/Entrega_Pedido';
+import { Entrega_Pedido_Detalle } from '../../Empaque/model/Entrega_Pedido_Detalle';
+
 
 export const Pedido_AlmacenRepository = {
   /*EMPACADO */
@@ -111,7 +123,7 @@ export const Pedido_AlmacenRepository = {
     const finDia = new Date(`${fecha}T23:59:59.999`);
 
     return await Pedido_Almacen.findAll({
-      attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'id_cliente_pedido_alm', 'status_pedido_alm'],
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'id_cliente_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm', 'createdAt'],
       where: {
         id_agente_pedido_alm: id_agente,
         createdAt: {
@@ -344,5 +356,144 @@ export const Pedido_AlmacenRepository = {
     return true;
   },
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // HISTORIAL POR FECHA — todos los pedidos de un día específico
+  // ══════════════════════════════════════════════════════════════════════════
+  getAllByFecha: async (fecha: string) => {
+    const inicio = new Date(`${fecha}T00:00:00.000`);
+    const fin = new Date(`${fecha}T23:59:59.999`);
 
+    return await Pedido_Almacen.findAll({
+      where: {
+        createdAt: { [Op.between]: [inicio, fin] },
+      },
+      attributes: [
+        'id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'tipo_pedido_alm',
+        'createdAt', 'inicio_surtido', 'fecha_max_entrega_alm', 'fecha_entrega_al_cliente',
+      ],
+      include: [
+        {
+          model: Cliente_Almacen,
+          attributes: ['id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+        },
+        {
+          model: Agente_de_Venta,
+          attributes: ['cod_identi_agente'],
+          include: [{ model: Empleado, attributes: ['nombre_empleado', 'ap_pat_empleado'] }],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // RESUMEN COMPLETO del pedido:
+  //   cabecera + detalles (surtido/chequeo/lotes) + empaque (bultos) + entrega
+  // ══════════════════════════════════════════════════════════════════════════
+  getResumenCompleto: async (id_pedido_alm: string) => {
+    // 1. Cabecera
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, {
+      include: [
+        {
+          model: Cliente_Almacen,
+          attributes: ['id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+        },
+        {
+          model: Agente_de_Venta,
+          attributes: ['id_agente', 'cod_identi_agente'],
+          include: [{ model: Empleado, attributes: ['nombre_empleado', 'ap_pat_empleado', 'ap_mat_empleado'] }],
+        },
+      ],
+    });
+    if (!pedido) return null;
+
+    // 2. Detalles con artículo + asignaciones(surtidor) + chequeos(chequeador) + lotes
+    const detalles = await Detalle_Pedido_Almacen.findAll({
+      where: { id_pedido_almacen: id_pedido_alm },
+      include: [
+        {
+          model: Articulo,
+          attributes: ['cod_int_artic', 'des_artic', 'cod_barr_artic'],
+        },
+        {
+          model: Detalle_Pedido_Almacen_Asignacion,
+          as: 'asignaciones',
+          required: false,
+          include: [{
+            model: Empleado,
+            as: 'surtidor',
+            attributes: ['nombre_empleado', 'ap_pat_empleado'],
+          }],
+        },
+        {
+          model: Detalle_Pedido_Almacen_Chequeo,
+          as: 'chequeos',
+          required: false,
+          include: [{
+            model: Empleado,
+            attributes: ['nombre_empleado', 'ap_pat_empleado'],
+          }],
+        },
+        {
+          model: Detalle_Pedido_Almacen_Lote,
+          as: 'lotes',
+          required: false,
+          include: [{
+            model: Lote_Articulo_Sucursal,
+            as: 'lote_articulo_sucursal',
+            attributes: ['numero_lote_sucursal', 'fecha_venci_lote_sucursal'],
+          }],
+        },
+      ],
+    });
+
+    // 3. Empaque + bultos
+    const empaque = await Pedido_Almacen_Empaque.findOne({
+      where: { id_pedido_almacen: id_pedido_alm },
+      include: [
+        {
+          model: Empleado,
+          as: 'empleado_empaco',
+          attributes: ['nombre_empleado', 'ap_pat_empleado'],
+        },
+        {
+          model: Bulto_Pedido,
+          as: 'bultos',
+          attributes: ['id_bulto', 'cod_bulto', 'tipo_bulto', 'num_bulto', 'total_bulto', 'escaneado'],
+          order: [['num_bulto', 'ASC']],
+        },
+      ],
+    });
+
+    // 4. Entrega (llegar vía bultos → entrega_pedido_detalle → entrega_pedido)
+    let entrega: Entrega_Pedido | null = null;
+    if (empaque) {
+      const bultoIds = (empaque.bultos ?? []).map(b => b.id_bulto);
+      if (bultoIds.length > 0) {
+        const detEnt = await Entrega_Pedido_Detalle.findOne({
+          where: { id_bulto: bultoIds[0] },
+          include: [{
+            model: Entrega_Pedido,
+            as: 'entrega',
+            include: [
+              {
+                model: Agente_de_Venta,
+                as: 'agente',
+                attributes: ['id_agente'],
+                include: [{ model: Empleado, attributes: ['nombre_empleado', 'ap_pat_empleado'] }],
+              },
+              {
+                model: Cliente_Almacen,
+                as: 'cliente',
+                attributes: ['razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+              },
+            ],
+          }],
+        });
+        entrega = (detEnt as any)?.entrega ?? null;
+      }
+    }
+
+    return { pedido, detalles, empaque, entrega };
+  },
 };

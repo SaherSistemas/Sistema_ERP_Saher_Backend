@@ -97,25 +97,5 @@ export const KardexController = {
                 raw: true,
             }); */
 
-    obtenerExistencias: async (req: AuthedRequest, res: Response) => {
-        try {
 
-            const id_empresa = String(req.user?.id_empresa || req.query.id_empresa || '').trim();
-            const id_articulo = String(req.query.id_articulo || '').trim() || undefined;
-
-            if (!id_empresa) {
-                res.status(400).json({ ok: false, message: 'id_empresa requerido' });
-                return;
-            }
-
-            const resultado = await KardexService.obtenerExistencias(id_empresa, id_articulo);
-            console.log(resultado)
-            res.status(200).json(resultado);
-        }
-        catch (e: any) {
-            console.error('[KardexController.obtenerExistencias]', e);
-            if (res.headersSent) return;
-            res.status(400).json({ ok: false, message: e.message ?? 'Error al obtener existencias' });
-        }
-    },
 };

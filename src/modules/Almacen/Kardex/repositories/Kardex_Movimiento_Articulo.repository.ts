@@ -1,4 +1,4 @@
-import { QueryTypes, Op, WhereOptions, fn, literal, col } from 'sequelize';
+import { QueryTypes, Op, WhereOptions, fn, literal, col, Transaction } from 'sequelize';
 import Kardex_Movimientos_Articulos from '../model/Kardex_Movimientos_Articulos';
 import { ICreateKardex_Movimiento } from '../interface/Kardex_Movimientos_Articulo.interface';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
@@ -6,6 +6,7 @@ import Empleado from '../../../RRHH/model/Empleado';
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
 import { Grupo_EmpresaRepository } from '../../../../repository/Empresa_Sucursal/Grupo_Empresa.repository';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
+import { dbLocal, dbPoly } from '../../../../config/db';
 
 type QuincenaPorTipo = {
   numero: number;
@@ -30,64 +31,379 @@ export interface IFiltrosMovimientos {
 
 export const Kardex_Movimiento_ArticuloRepository = {
 
+  getTotalesPorPeriodosSTR: async (opts?: {
+    articulo?: string;
+    dias?: number;
+  }): Promise<Array<{ numero: number; quincena: string; str_total: number; total: number }>> => {
+    const win = Math.max(1, Number(opts?.dias ?? 15));
+
+    const sql = `
+   WITH params AS (
+     SELECT CURRENT_DATE::date AS today,
+            GREATEST(1, :dias::int) AS win
+   ),
+   bounds AS (
+     SELECT COALESCE(MIN(m.kdxfechad::date),(SELECT today FROM params)) AS min_date,
+            (SELECT today FROM params) AS today
+     FROM public.kardex m
+     WHERE m.artcdartn = :articulo::int
+       AND TRIM(UPPER(m.tmocdtpoc)) = 'STR'
+   ),
+   idx AS (
+     SELECT GREATEST(0,
+       CEIL((((SELECT today FROM bounds) - (SELECT min_date FROM bounds)) + 1)::numeric
+            /(SELECT win FROM params)::numeric)::int - 1) AS max_k
+   ),
+   periods AS (
+     SELECT k,
+            (SELECT today FROM params) - (k*(SELECT win FROM params) + ((SELECT win FROM params)-1)) AS start_date,
+            (SELECT today FROM params) - (k*(SELECT win FROM params))                                  AS end_date
+     FROM generate_series(0,(SELECT max_k FROM idx)) AS gs(k)
+   ),
+   agg AS (
+     SELECT p.k, p.start_date, p.end_date,
+            COALESCE(SUM(CASE WHEN TRIM(UPPER(m.tmocdtpoc))='STR' THEN m.kdxcantin END),0)::bigint AS str_total
+     FROM periods p
+     LEFT JOIN public.kardex m
+       ON m.artcdartn = :articulo::int
+      AND m.kdxfechad::date BETWEEN p.start_date AND p.end_date
+      AND TRIM(UPPER(m.tmocdtpoc)) = 'STR'
+     GROUP BY p.k, p.start_date, p.end_date
+   ),
+   last5 AS (                 -- 👈 quedarnos con k = 0..4 (5 periodos más recientes)
+     SELECT *
+     FROM agg
+     WHERE k BETWEEN 0 AND 4
+   )
+   SELECT
+     ROW_NUMBER() OVER(ORDER BY k DESC) AS numero,                -- 1 = más reciente (k=0)
+     to_char(start_date,'YYYY-MM-DD') || ' a ' ||
+     to_char(end_date,'YYYY-MM-DD') AS quincena,
+     str_total,
+     str_total::bigint AS total
+   FROM last5
+   ORDER BY k DESC;`;
+
+    const rows = await dbPoly.query(sql, {
+      type: QueryTypes.SELECT,
+      replacements: { dias: win, articulo: opts?.articulo ?? null },
+    });
+
+    return (rows as any[]).map(r => ({
+      numero: Number(r.numero),
+      quincena: String(r.quincena),
+      str_total: Number(r.str_total) || 0,
+      total: Number(r.total) || 0,
+    }));
+  },
+
+  /*
+  getTotalesPorPeriodosSTR: async (opts: {
+    articulo: string;
+    dias: number;
+  }) => {
+    const { dias } = opts;
+    const articulo = Number(opts.articulo);
+  
+    const sql = `
+      WITH periodos AS (
+        SELECT
+          k.artcdartn AS producto,
+          a.artdsartc AS nombre_articulo,
+          FLOOR(
+            (CURRENT_DATE - k.kdxfechad::date) / ${dias}
+          )::INT AS periodo_num,
+          k.kdxcantin
+        FROM kardex k
+        JOIN articulos a ON a.artcdartn = k.artcdartn
+        WHERE k.empcdempn IN (20)
+          AND k.tmocdtpoc = 'STR'
+          AND k.artcdartn = ${articulo}
+      )
+      SELECT
+        producto,
+        nombre_articulo,
+        SUM(CASE WHEN periodo_num = 0  THEN kdxcantin ELSE 0 END) AS sem_0,
+        SUM(CASE WHEN periodo_num = 1  THEN kdxcantin ELSE 0 END) AS sem_1,
+        SUM(CASE WHEN periodo_num = 2  THEN kdxcantin ELSE 0 END) AS sem_2,
+        SUM(CASE WHEN periodo_num = 3  THEN kdxcantin ELSE 0 END) AS sem_3,
+        SUM(CASE WHEN periodo_num = 4  THEN kdxcantin ELSE 0 END) AS sem_4,
+        SUM(CASE WHEN periodo_num = 5  THEN kdxcantin ELSE 0 END) AS sem_5,
+        SUM(CASE WHEN periodo_num = 6  THEN kdxcantin ELSE 0 END) AS sem_6,
+        SUM(CASE WHEN periodo_num = 7  THEN kdxcantin ELSE 0 END) AS sem_7,
+        SUM(CASE WHEN periodo_num = 8  THEN kdxcantin ELSE 0 END) AS sem_8,
+        SUM(CASE WHEN periodo_num = 9  THEN kdxcantin ELSE 0 END) AS sem_9,
+        SUM(CASE WHEN periodo_num = 10 THEN kdxcantin ELSE 0 END) AS sem_10,
+        SUM(CASE WHEN periodo_num = 11 THEN kdxcantin ELSE 0 END) AS sem_11,
+        SUM(CASE WHEN periodo_num = 12 THEN kdxcantin ELSE 0 END) AS sem_12,
+        SUM(kdxcantin) AS total_general
+      FROM periodos
+      GROUP BY producto, nombre_articulo
+      ORDER BY producto
+    `;
+  
+    const resultado = await dbPoly.query<{
+      producto: string;
+      nombre_articulo: string;
+      [key: string]: string | number;
+    }>(sql, { type: QueryTypes.SELECT });
+  
+    if (!resultado.length) return [];
+  
+    const row = resultado[0];
+    const total_general = Number(row.total_general ?? 0);
+  
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  
+    const periodos: Array<{
+      numero: number;
+      quincena: string;
+      str_total: number;
+      total: number;
+    }> = [];
+  
+    for (let i = 0; i <= 12; i++) {
+      const str_total = Number(row[`sem_${i}`] ?? 0);
+  
+      if (str_total === 0) continue;
+  
+      const hoy = new Date();
+  
+      const fechaFin = new Date(hoy);
+      fechaFin.setDate(hoy.getDate() - i * dias);
+  
+      const fechaInicio = new Date(hoy);
+      fechaInicio.setDate(hoy.getDate() - ((i + 1) * dias - 1));
+  
+      periodos.push({
+        numero: i,
+        quincena: `${fmt(fechaInicio)} - ${fmt(fechaFin)}`,
+        str_total,
+        total: total_general,
+      });
+    }
+  
+    return periodos;
+  },*/
+
+  getTotalesPorPeriodosPrueba: async (opts?: {
+    articulo?: string;
+    dias?: number;
+  }): Promise<QuincenaPorTipo[]> => {
+    const win = Math.max(1, Number(opts?.dias ?? 15));
+
+    const sql = `
+    WITH params AS (
+      SELECT CURRENT_DATE::date AS today,
+             GREATEST(1, :dias::int) AS win
+    ),
+    bounds AS (
+      SELECT COALESCE(MIN(m.kdxfechad::date),(SELECT today FROM params)) AS min_date,
+             (SELECT today FROM params) AS today
+      FROM public.kardex m
+      WHERE m.artcdartn = :articulo::int
+        AND TRIM(UPPER(m.tmocdtpoc)) IN ('SVM')
+        AND m.empcdempn IN (2, 3, 4, 5, 6, 7, 8, 14, 15, 16, 17, 18, 19, 21) -- solo empresas del grupo ERP-Saher
+    ),
+    idx AS (
+      SELECT GREATEST(0,
+        CEIL((((SELECT today FROM bounds) - (SELECT min_date FROM bounds)) + 1)::numeric
+             /(SELECT win FROM params)::numeric)::int - 1) AS max_k
+    ),
+    periods AS (
+      SELECT k,
+             (SELECT today FROM params) - (k*(SELECT win FROM params) + ((SELECT win FROM params)-1)) AS start_date,
+             (SELECT today FROM params) - (k*(SELECT win FROM params))                                  AS end_date
+      FROM generate_series(0,(SELECT max_k FROM idx)) AS gs(k)
+    ),
+    agg AS (
+      SELECT p.k,p.start_date,p.end_date,
+             COALESCE(SUM(CASE WHEN TRIM(UPPER(m.tmocdtpoc))='SVM' THEN m.kdxcantin END),0)::bigint AS svm_total
+      FROM periods p
+      LEFT JOIN public.kardex m
+        ON m.artcdartn = :articulo::int
+       AND m.kdxfechad::date BETWEEN p.start_date AND p.end_date
+       AND TRIM(UPPER(m.tmocdtpoc)) IN ('SVM')
+      GROUP BY p.k,p.start_date,p.end_date
+    )
+    SELECT ROW_NUMBER() OVER(ORDER BY k DESC) AS numero,
+           to_char(start_date,'YYYY-MM-DD') || ' a ' || to_char(end_date,'YYYY-MM-DD') AS quincena,
+           svm_total, 0 AS svt_total, svm_total::bigint AS total
+    FROM agg
+    ORDER BY k DESC;`;
+
+    const rows = await dbPoly.query(sql, {
+      type: QueryTypes.SELECT,
+      replacements: { dias: win, articulo: opts?.articulo ?? null },
+    });
+
+    return (rows as any[]).map(r => ({
+      numero: Number(r.numero),
+      quincena: String(r.quincena),
+      svm_total: Number(r.svm_total) || 0,
+      svt_total: Number(r.svt_total) || 0,
+      total: Number(r.total) || 0,
+    }));
+
+  },
+  /*
+  getTotalesPorPeriodosPrueba: async (opts: {
+    articulo: string;
+    dias: number;
+  }) => {
+    const { dias } = opts;
+    const articulo = Number(opts.articulo);
+  
+    const sql = `
+    WITH semanas AS (
+      SELECT
+        k.artcdartn AS producto,
+        a.artdsartc AS nombre_articulo,
+        FLOOR(
+          (CURRENT_DATE - k.kdxfechad::date) / ${dias}
+        )::INT AS semana_num,
+        k.kdxcantin
+      FROM kardex k
+      JOIN articulos a ON a.artcdartn = k.artcdartn
+      WHERE k.empcdempn IN (2, 3, 4, 5, 6, 7, 8, 14, 15, 16, 17, 18, 19, 21)
+        AND k.tmocdtpoc = 'SVM'
+        AND k.artcdartn = ${articulo}
+    )
+    SELECT
+      producto,
+      nombre_articulo,
+      SUM(CASE WHEN semana_num = 0  THEN kdxcantin ELSE 0 END) AS sem_0,
+      SUM(CASE WHEN semana_num = 1  THEN kdxcantin ELSE 0 END) AS sem_1,
+      SUM(CASE WHEN semana_num = 2  THEN kdxcantin ELSE 0 END) AS sem_2,
+      SUM(CASE WHEN semana_num = 3  THEN kdxcantin ELSE 0 END) AS sem_3,
+      SUM(CASE WHEN semana_num = 4  THEN kdxcantin ELSE 0 END) AS sem_4,
+      SUM(CASE WHEN semana_num = 5  THEN kdxcantin ELSE 0 END) AS sem_5,
+      SUM(CASE WHEN semana_num = 6  THEN kdxcantin ELSE 0 END) AS sem_6,
+      SUM(CASE WHEN semana_num = 7  THEN kdxcantin ELSE 0 END) AS sem_7,
+      SUM(CASE WHEN semana_num = 8  THEN kdxcantin ELSE 0 END) AS sem_8,
+      SUM(CASE WHEN semana_num = 9  THEN kdxcantin ELSE 0 END) AS sem_9,
+      SUM(CASE WHEN semana_num = 10 THEN kdxcantin ELSE 0 END) AS sem_10,
+      SUM(CASE WHEN semana_num = 11 THEN kdxcantin ELSE 0 END) AS sem_11,
+      SUM(CASE WHEN semana_num = 12 THEN kdxcantin ELSE 0 END) AS sem_12,
+      SUM(kdxcantin) AS total_general
+    FROM semanas
+    GROUP BY producto, nombre_articulo
+    ORDER BY producto
+  `;
+  
+    //console.log("SQL generado:\n", sql); // 👈 verifica que el SQL esté bien
+  
+    const resultado = await dbPoly.query<{
+      producto: string;
+      nombre_articulo: string;
+      [key: string]: string | number;
+    }>(sql, {
+      type: QueryTypes.SELECT,
+    });
+  
+    //  console.log("resultado length:", resultado.length);
+    //  console.log("resultado raw:", JSON.stringify(resultado, null, 2));
+  
+    if (!resultado.length) return [];
+  
+    const row = resultado[0];
+    const total_general = Number(row.total_general ?? 0);
+  
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  
+    const periodos: Array<{
+      numero: number;
+      quincena: string;
+      svm_total: number;
+      total: number;
+    }> = [];
+  
+    for (let i = 0; i <= 12; i++) {
+      const svm_total = Number(row[`sem_${i}`] ?? 0);
+  
+      if (svm_total === 0) continue;
+  
+      const hoy = new Date();
+  
+      const fechaFin = new Date(hoy);
+      fechaFin.setDate(hoy.getDate() - i * dias);
+  
+      const fechaInicio = new Date(hoy);
+      fechaInicio.setDate(hoy.getDate() - ((i + 1) * dias - 1));
+  
+      periodos.push({
+        numero: i,
+        quincena: `${fmt(fechaInicio)} - ${fmt(fechaFin)}`,
+        svm_total,
+        total: total_general,
+      });
+    }
+  
+    return periodos;
+  },
+  */
   create: async (data: ICreateKardex_Movimiento) => {
     return await Kardex_Movimientos_Articulos.create({ ...data });
   },
-  getExistencias: async (id_empresa: string, id_articulo?: string) => {
-    // 1. Obtener TODAS las empresas (sin filtrar por grupo)
-    const empresas = await Empresa_SucursalRepository.getAll()
 
-    const empresaIds = empresas.map((e: any) => e.id_empre);
+  // ─────────────────────────────────────────────────────────────────────────
+  // REGISTRAR SALIDA POR FACTURACIÓN
+  //   Por cada artículo+lote del pedido, crea un movimiento VENTA en el kardex.
+  //   Se ejecuta dentro de la misma transacción que el descuento de stock.
+  // ─────────────────────────────────────────────────────────────────────────
+  registrarSalidaPorFactura: async (opts: {
+    id_pedido_alm: string;
+    id_empresa: string;
+    id_empleado: string;
+    id_factura: string;   // documento_ref (UUID de la factura generada)
+    cod_pedido: string;   // para la nota descriptiva
+    t: Transaction;
+  }) => {
+    const { id_pedido_alm, id_empresa, id_empleado, id_factura, cod_pedido, t } = opts;
 
-    // 2. Stock de TODAS las empresas
-    const stockGrupo = await Stock_Ubicacion_Lote.findAll({
-      where: {
-        id_empresa_sucursal: { [Op.in]: empresaIds },
-        ...(id_articulo && { id_articulo })
-      },
-      attributes: [
-        'id_empresa_sucursal',
-        'id_articulo',
-        [fn('COALESCE', fn('SUM', col('cantidad')), 0), 'existencia_total'],
-        [fn('COALESCE', fn('SUM', literal(`cantidad - COALESCE(cantidad_apartada, 0)`)), 0), 'existencia_disponible'],
-      ],
-      group: ['id_empresa_sucursal', 'id_articulo'],
-      raw: true,
-    }) as any[];
-
-    // 3. Separar la empresa principal
-    const stockPrincipal = stockGrupo.find(
-      (s: any) => s.id_empresa_sucursal === id_empresa
-    );
-
-    // 4. Totales globales
-    const existencia_total_grupo = stockGrupo.reduce(
-      (acc: number, s: any) => acc + Number(s.existencia_total), 0
-    );
-    const existencia_disponible_grupo = stockGrupo.reduce(
-      (acc: number, s: any) => acc + Number(s.existencia_disponible), 0
-    );
-
-    // 5. Mapear TODAS las empresas (con o sin stock)
-    const empresasConStock = empresas.map((empresa: any) => {
-      const stock = stockGrupo.find(
-        (s: any) => s.id_empresa_sucursal === empresa.id_empre
-      );
-      return {
-        id_empre: empresa.id_empre,
-        nombre: empresa.nom_empre,
-        existencia_total: Number(stock?.existencia_total ?? 0),
-        existencia_disponible: Number(stock?.existencia_disponible ?? 0),
-      };
+    // Obtener todos los lotes involucrados en el pedido
+    const lotes = await dbLocal.query<{
+      id_articulo: string;
+      id_lote_sucursal: string;
+      total_cantidad: string;  // raw SQL devuelve string
+    }>(`
+      SELECT
+        dpa.id_articulo,
+        dpal.id_lote_sucursal,
+        SUM(dpal.cantidad) AS total_cantidad
+      FROM detalle_pedido_almacen dpa
+      JOIN detalle_pedido_almacen_lote dpal
+        ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+      WHERE dpa.id_pedido_almacen = :id_pedido_alm
+      GROUP BY dpa.id_articulo, dpal.id_lote_sucursal
+    `, {
+      replacements: { id_pedido_alm },
+      type: QueryTypes.SELECT,
+      transaction: t,
     });
 
-    return {
-      existencia_total: Number(stockPrincipal?.existencia_total ?? 0),
-      existencia_disponible: Number(stockPrincipal?.existencia_disponible ?? 0),
-      existencia_total_grupo,
-      existencia_disponible_grupo,
-      empresas: empresasConStock,
-    };
+    if (!lotes.length) return;
+
+    const now = new Date();
+
+    await Kardex_Movimientos_Articulos.bulkCreate(
+      lotes.map(l => ({
+        id_empresa,
+        fecha: now,
+        id_articulo: l.id_articulo,
+        id_lote: l.id_lote_sucursal,
+        tipo_movimiento: 'VENTA' as const,
+        categoria: 'Entrada_Salida' as const,
+        cantidad_movimiento: Number(l.total_cantidad),
+        id_pedido: id_pedido_alm,
+        documento_ref: id_factura,
+        id_empleado,
+        notas: `Salida por facturación - Pedido ${cod_pedido}`,
+      })),
+      { transaction: t }
+    );
   },
 
 

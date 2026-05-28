@@ -1,4 +1,4 @@
-import { Transaction } from 'sequelize';
+import { Transaction, Op } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
 import { ICapturarPago, IAplicarPago, ICapturarPagoCliente } from '../interface/CxC.interface';
 import { CxCRepository } from '../repositories/CxC.repository';
@@ -13,6 +13,7 @@ import Pago_CxC from '../model/Pago_CxC.model';
 import FacturaPagoCFDI from '../../../Facturas/model/Factura_Pago_CFDI.model';
 import Cat_Forma_De_Pago from '../../../Catalogos/model/Cat_Forma_De_Pago';
 import { facturapiClient } from '../../../../helpers/facturapi.helper';
+import { generarReciboPDFBuffer } from '../helpers/recibo_cobranza.pdf';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,8 +124,17 @@ export const CxCService = {
             if (!cxc) throw new Error('CxC no encontrada');
             if (cxc.estatus_cxc === 'PAG') throw new Error('Esta cuenta ya fue pagada');
             if (cxc.estatus_cxc === 'CAN') throw new Error('Esta cuenta está cancelada');
-            if (data.monto_pago > Number(cxc.saldo_pendiente))
-                throw new Error(`El monto (${data.monto_pago}) excede el saldo pendiente (${cxc.saldo_pendiente})`);
+            // Saldo disponible = saldo_pendiente − pagos CAP ya registrados (aún no aplicados)
+            const capExistente1 = ((await Pago_CxC.sum('monto_pago', {
+                where: { id_cxc: data.id_cxc, estatus_pago: 'CAP' },
+                transaction: t,
+            })) as number) || 0;
+            const saldoDisponible1 = Number(cxc.saldo_pendiente) - capExistente1;
+            if (data.monto_pago > saldoDisponible1)
+                throw new Error(
+                    `El monto ($${data.monto_pago.toFixed(2)}) excede el saldo disponible ($${saldoDisponible1.toFixed(2)})` +
+                    (capExistente1 > 0 ? ` — ya hay $${capExistente1.toFixed(2)} en revisión para esta cuenta` : '')
+                );
 
             const pago = await Pago_CxCRepository.capturar(data, t);
 
@@ -146,6 +156,14 @@ export const CxCService = {
             throw new Error('Debe incluir al menos un abono en el recibo');
         }
 
+        // ── Resolver agente y generar folio ──────────────────────────────────────
+        const agente = await AgenteRepository.getByIdEmpleado(data.id_empleado_captura);
+        if (!agente) throw new Error('El empleado capturista no tiene un agente de venta asociado');
+
+        const consecutivo   = await Pago_CxCRepository.getSiguienteConsecutivoAgente(agente.cod_identi_agente);
+        const numero_recibo = `${agente.cod_identi_agente}_${String(consecutivo).padStart(4, '0')}`;
+
+        // ── Transacción ───────────────────────────────────────────────────────────
         const t = await dbLocal.transaction({
             isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED,
         });
@@ -164,14 +182,23 @@ export const CxCService = {
                     throw new Error(`La CxC ${abono.id_cxc} está cancelada`);
                 if (abono.monto_abono <= 0)
                     throw new Error(`El monto del abono a CxC ${abono.id_cxc} debe ser mayor a 0`);
-                if (abono.monto_abono > Number(cxc.saldo_pendiente))
+
+                // Saldo disponible = saldo_pendiente − pagos CAP ya registrados (aún no aplicados)
+                const capExistente = ((await Pago_CxC.sum('monto_pago', {
+                    where: { id_cxc: abono.id_cxc, estatus_pago: 'CAP' },
+                    transaction: t,
+                })) as number) || 0;
+                const saldoDisponible = Number(cxc.saldo_pendiente) - capExistente;
+                if (abono.monto_abono > saldoDisponible)
                     throw new Error(
-                        `El abono ($${abono.monto_abono}) excede el saldo pendiente ($${cxc.saldo_pendiente}) de la CxC ${abono.id_cxc}`
+                        `El abono ($${abono.monto_abono.toFixed(2)}) excede el saldo disponible ` +
+                        `($${saldoDisponible.toFixed(2)}) de la CxC ${abono.id_cxc}` +
+                        (capExistente > 0 ? ` — ya hay $${capExistente.toFixed(2)} en revisión para esta cuenta` : '')
                     );
 
                 const pago = await Pago_CxCRepository.capturar({
                     id_cxc: abono.id_cxc,
-                    numero_recibo: data.numero_recibo,
+                    numero_recibo,
                     id_metodo_pago: data.id_metodo_pago,
                     id_forma_pago: data.id_forma_pago,
                     monto_pago: abono.monto_abono,
@@ -188,7 +215,7 @@ export const CxCService = {
 
             return {
                 ok: true,
-                numero_recibo: data.numero_recibo,
+                numero_recibo,
                 total_abonado: data.abonos.reduce((s, a) => s + a.monto_abono, 0),
                 pagos_creados: pagosCreados.length,
                 pagos: pagosCreados,
@@ -256,10 +283,11 @@ export const CxCService = {
                 await RemisionRepository.actualizarEstatus(cxc.id_remision, nuevoEstatus, t);
             }
 
-            // 4. Crear Factura_Pago_CFDI solo si la factura tiene UUID SAT (ya fue timbrada)
-            //    Sin uuid_sat no hay complemento de pago posible
+            // 4. Crear Factura_Pago_CFDI solo si la factura tiene UUID SAT (ya timbrada)
+            //    y el método de pago es PPD (PUE no requiere complemento de pago SAT;
+            //    la factura se emitió como "ya pagada" aunque internamente sea crédito).
             let cfdiCreado: FacturaPagoCFDI | null = null;
-            if (factura?.uuid_sat) {
+            if (factura?.uuid_sat && factura?.id_metodo_pago !== 'PUE') {
                 const saldo_insoluto = Math.max(saldo_anterior - Number(pago.monto_pago), 0);
 
                 cfdiCreado = await FacturaPagoCFDI.create({
@@ -291,11 +319,13 @@ export const CxCService = {
 
             const mensajeTimbrado = !factura
                 ? 'Pago aplicado. No hay factura asociada, no se genera CFDI de pago.'
-                : !factura.uuid_sat
-                    ? 'Pago aplicado. La factura aún no está timbrada en el SAT, no se puede generar complemento de pago.'
-                    : timbrado?.ok
-                        ? 'Pago aplicado y complemento de pago timbrado correctamente.'
-                        : `Pago aplicado. El timbrado falló: ${timbrado?.error}`;
+                : factura.id_metodo_pago === 'PUE'
+                    ? 'Pago aplicado. La factura es PUE — no se genera complemento de pago SAT.'
+                    : !factura.uuid_sat
+                        ? 'Pago aplicado. La factura aún no está timbrada en el SAT, no se puede generar complemento de pago.'
+                        : timbrado?.ok
+                            ? 'Pago aplicado y complemento de pago timbrado correctamente.'
+                            : `Pago aplicado. El timbrado falló: ${timbrado?.error}`;
 
             return { ok: true, mensaje: mensajeTimbrado, timbrado };
 
@@ -430,8 +460,16 @@ export const CxCService = {
             // CAP no modifica saldo_pendiente → el tope es el saldo real de la CxC
             if (campos.monto_pago <= 0)
                 throw new Error('El monto debe ser mayor a 0');
-            if (campos.monto_pago > Number(cxc.saldo_pendiente))
-                throw new Error(`El monto (${campos.monto_pago}) excede el saldo pendiente (${Number(cxc.saldo_pendiente).toFixed(2)})`);
+            // Al editar: saldo disponible = saldo_pendiente − otros CAP de la misma CxC (excluye este pago)
+            const capOtros = ((await Pago_CxC.sum('monto_pago', {
+                where: { id_cxc: pago.id_cxc, estatus_pago: 'CAP', id_pago_cxc: { [Op.ne]: id_pago_cxc } },
+            })) as number) || 0;
+            const saldoDispEditar = Number(cxc.saldo_pendiente) - capOtros;
+            if (campos.monto_pago > saldoDispEditar)
+                throw new Error(
+                    `El monto ($${campos.monto_pago.toFixed(2)}) excede el saldo disponible ($${saldoDispEditar.toFixed(2)})` +
+                    (capOtros > 0 ? ` — otros pagos en revisión: $${capOtros.toFixed(2)}` : '')
+                );
         }
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
@@ -443,6 +481,15 @@ export const CxCService = {
             await t.rollback();
             throw err;
         }
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  PAGOS APLICADOS — todos los APL con fecha_vencimiento de CxC incluida
+    //  Usado por el frontend para calcular comisiones de agentes en tiempo real.
+    //  ?fecha_inicio=YYYY-MM-DD&fecha_fin=YYYY-MM-DD  (opcionales)
+    // ─────────────────────────────────────────────────────────────────────────
+    getPagosAplicados: async (filtros?: { fecha_inicio?: string; fecha_fin?: string }) => {
+        return await Pago_CxCRepository.getPagosAplicados(filtros);
     },
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -479,6 +526,11 @@ export const CxCService = {
 
         const factura = await Facturas.findByPk(id_factura_ref);
         if (!factura) throw new Error('Factura no encontrada');
+
+        // Las facturas PUE no requieren complemento de pago SAT
+        if (factura.id_metodo_pago === 'PUE') {
+            throw new Error('Esta factura tiene método de pago PUE — no requiere complemento de pago SAT.');
+        }
 
         // Si la factura no tiene uuid_sat pero el usuario lo proveyó, lo guardamos
         const uuid_sat_final = factura.uuid_sat || uuid_sat_manual || null;
@@ -544,6 +596,17 @@ export const CxCService = {
     // ─────────────────────────────────────────────────────────────────────────
     getMisRecibos: async (id_empleado_captura: string) => {
         return await Pago_CxCRepository.getMisRecibos(id_empleado_captura);
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  RECIBO DE COBRANZA PDF
+    //  Genera el PDF a partir del numero_recibo, agrupando todos los pagos
+    //  (que no estén cancelados) que comparten ese número de recibo.
+    // ─────────────────────────────────────────────────────────────────────────
+    generarReciboPDF: async (numero_recibo: string): Promise<Buffer> => {
+        const datos = await Pago_CxCRepository.getDatosRecibo(numero_recibo);
+        if (!datos) throw new Error(`Recibo ${numero_recibo} no encontrado`);
+        return generarReciboPDFBuffer(datos);
     },
 
     // ─────────────────────────────────────────────────────────────────────────

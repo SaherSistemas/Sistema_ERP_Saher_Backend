@@ -41,7 +41,7 @@ export interface IAbonoCxC {
 
 export interface ICapturarPagoCliente {
     id_cliente_alm: string;
-    numero_recibo: string;
+    // numero_recibo se genera en el backend: {cod_identi_agente}_{consecutivo 4 dígitos}
     fecha_deposito: string;       // YYYY-MM-DD
     id_metodo_pago: string;
     id_forma_pago: string;

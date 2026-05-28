@@ -6,9 +6,17 @@ import { IAddStockDTO } from "../interface/Stock_Ubicacion_Lote.interface";
 import LoteArticuloSucursal from "../../Lotes/model/Lote_Articulo_Sucursal";
 import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 import { Ubicacion_SucursalRepository } from "../../../Almacen/Ubicaciones/repositories/Ubicacion_Sucursal.repository";
+import { Detalle_Compra_SolicitadoRepository } from "../../../Compras/Ordenes-Compra/repositories/Detalle_Compra_Solicitado.repository";
 
 
 export const Stock_Ubicacion_LoteService = {
+    obtenerExistencias: async (id_empresa: string, id_articulo?: string) => {
+        const enTransito = await Detalle_Compra_SolicitadoRepository.getCantidadTransitoPorArticulo(id_articulo)
+        const existenciasEmpresa = await Stock_Ubicacion_LoteRepository.getExistencias(id_empresa, id_articulo);
+        // console.log(existenciasEmpresa)
+        console.log(enTransito)
+        return { existenciasEmpresa, enTransito };
+    },
     addStock: async (dto: IAddStockDTO) => {
         if (!dto.id_empresa_sucursal) throw new Error("id_empresa_sucursal requerido");
         if (!dto.id_ubicacion_sucursal) throw new Error("id_ubicacion_sucursal requerido");

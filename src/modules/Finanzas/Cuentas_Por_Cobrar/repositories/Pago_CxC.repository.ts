@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Transaction } from 'sequelize';
+import { QueryTypes, Transaction } from 'sequelize';
+import { dbLocal } from '../../../../config/db';
 import Pago_CxC from '../model/Pago_CxC.model';
 import Cuenta_Por_Cobrar from '../model/Cuenta_Por_Cobrar.model';
 import Cat_Metodo_Pago from '../../../Catalogos/model/Cat_Metodo_Pago';
@@ -119,6 +120,55 @@ export const Pago_CxCRepository = {
         });
     },
 
+    // Pagos aplicados (APL) — para cálculo de comisiones en el frontend.
+    // Incluye fecha_vencimiento de la CxC para que el motor pueda determinar si fue anticipado.
+    // Filtros opcionales: ?fecha_inicio=YYYY-MM-DD&fecha_fin=YYYY-MM-DD (sobre fecha_pago)
+    getPagosAplicados: async (filtros?: { fecha_inicio?: string; fecha_fin?: string }) => {
+        const { Op } = await import('sequelize');
+
+        const where: any = { estatus_pago: 'APL' };
+        if (filtros?.fecha_inicio || filtros?.fecha_fin) {
+            where.fecha_pago = {};
+            if (filtros.fecha_inicio) where.fecha_pago[Op.gte] = new Date(filtros.fecha_inicio);
+            if (filtros.fecha_fin)    where.fecha_pago[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
+        }
+
+        return await Pago_CxC.findAll({
+            where,
+            include: [
+                { model: Cat_Metodo_Pago, attributes: ['id_metodo_pago', 'descripcion_metodo_pago'] },
+                { model: Cat_Forma_De_Pago, attributes: ['id_forma_de_pago', 'descripcion_forma_de_pago'] },
+                {
+                    model: Empleado,
+                    foreignKey: 'id_empleado_captura',
+                    as: 'empleado_captura',
+                    attributes: ['id_empleado', 'nombre_empleado', 'ap_pat_empleado'],
+                },
+                {
+                    model: Cuenta_Por_Cobrar,
+                    attributes: ['id_cxc', 'monto_total', 'saldo_pendiente', 'estatus_cxc', 'fecha_vencimiento', 'id_cliente_alm', 'dias_credito'],
+                    include: [
+                        {
+                            model: Cliente_Almacen,
+                            attributes: ['id_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+                        },
+                        {
+                            model: Facturas,
+                            attributes: ['id_factura', 'folio_factura', 'total_factura'],
+                            required: false,
+                        },
+                        {
+                            model: Remision,
+                            attributes: ['id_remision', 'folio_remision', 'total_remision'],
+                            required: false,
+                        },
+                    ],
+                },
+            ],
+            order: [['fecha_pago', 'DESC']],
+        });
+    },
+
     // Todos los pagos de una CxC
     getByIdCxC: async (id_cxc: string) => {
         return await Pago_CxC.findAll({
@@ -211,6 +261,96 @@ export const Pago_CxCRepository = {
             ],
             order: [['fecha_pago', 'ASC']],
         });
+    },
+
+    // ─── SIGUIENTE CONSECUTIVO DE RECIBO PARA UN AGENTE ──────────────────────────
+    //  Busca el mayor consecutivo ya usado con el patrón {cod}_{N} y devuelve N+1.
+    //  El regex asegura que solo se consideren filas con formato correcto.
+    getSiguienteConsecutivoAgente: async (cod_identi_agente: string): Promise<number> => {
+        const rows = await dbLocal.query<{ siguiente: number }>(`
+            SELECT COALESCE(
+                MAX(CAST(SPLIT_PART(numero_recibo, '_', 2) AS INTEGER)),
+                0
+            ) + 1 AS siguiente
+            FROM pago_cxc
+            WHERE numero_recibo ~ :patron
+        `, {
+            replacements: { patron: `^${cod_identi_agente}_[0-9]+$` },
+            type: QueryTypes.SELECT,
+        });
+        return Number(rows[0]?.siguiente ?? 1);
+    },
+
+    // ─── DATOS PARA EL RECIBO DE COBRANZA PDF ────────────────────────────────────
+    //  Agrupa todos los pagos de un numero_recibo y devuelve la estructura lista
+    //  para pasarla directamente a generarReciboPDFBuffer().
+    getDatosRecibo: async (numero_recibo: string) => {
+        type RawRow = {
+            numero_recibo:  string;
+            fecha_emision:  string;
+            razon_social:   string;
+            nombre_cliente: string;
+            ciudad:         string;
+            notas:          string | null;
+            abonos:         string;   // JSON array devuelto por Postgres
+        };
+
+        const rows = await dbLocal.query<RawRow>(`
+            SELECT
+                p.numero_recibo,
+                TO_CHAR(MIN(p.fecha_pago), 'YYYY-MM-DD')                                        AS fecha_emision,
+                MAX(ca.razon_social_cliente_alm)                                                  AS razon_social,
+                MAX(COALESCE(ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm))              AS nombre_cliente,
+                MAX(COALESCE(mun.nombre_municipio || ', ' || est.nombre_estado, ''))              AS ciudad,
+                MIN(p.notas)                                                                      AS notas,
+                JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                        'folio_documento', COALESCE(f.folio_factura, r.folio_remision::TEXT, ''),
+                        'valor_documento', cxc.monto_total,
+                        'id_forma_pago',   p.id_forma_pago,
+                        'referencia_pago', p.referencia_pago,
+                        'fecha_deposito',  TO_CHAR(p.fecha_pago, 'YYYY-MM-DD'),
+                        'monto',           p.monto_pago
+                    ) ORDER BY p.fecha_pago
+                ) AS abonos
+            FROM pago_cxc          p
+            JOIN cuenta_por_cobrar cxc ON cxc.id_cxc          = p.id_cxc
+            JOIN cliente_almacen   ca  ON ca.id_cliente_alm   = cxc.id_cliente_alm
+            LEFT JOIN colonia       col ON col.id_colonia      = ca.id_colonia_cliente_alm
+            LEFT JOIN municipio     mun ON mun.id_municipio   = col.id_municipio
+            LEFT JOIN estado        est ON est.id_estado       = mun.id_estado
+            LEFT JOIN facturas      f   ON f.id_factura        = cxc.id_factura
+            LEFT JOIN remision      r   ON r.id_remision       = cxc.id_remision
+            WHERE p.numero_recibo = :numero_recibo
+              AND p.estatus_pago != 'CAN'
+            GROUP BY p.numero_recibo
+        `, {
+            replacements: { numero_recibo },
+            type: QueryTypes.SELECT,
+        });
+
+        if (!rows.length) return null;
+
+        const raw    = rows[0];
+        const abonos = (Array.isArray(raw.abonos) ? raw.abonos : JSON.parse(raw.abonos as any))
+            .map((a: any) => ({
+                folio_documento: String(a.folio_documento ?? ''),
+                valor_documento: Number(a.valor_documento),
+                id_forma_pago:   String(a.id_forma_pago ?? ''),
+                referencia_pago: a.referencia_pago as string | null ?? null,
+                fecha_deposito:  String(a.fecha_deposito ?? ''),
+                monto:           Number(a.monto),
+            }));
+
+        return {
+            numero_recibo:  raw.numero_recibo,
+            fecha_emision:  raw.fecha_emision,
+            razon_social:   raw.razon_social,
+            nombre_cliente: raw.nombre_cliente,
+            ciudad:         raw.ciudad ?? '',
+            notas:          raw.notas ?? null,
+            abonos,
+        };
     },
 
     // Historial completo de pagos de una CxC incluyendo datos del CFDI de pago

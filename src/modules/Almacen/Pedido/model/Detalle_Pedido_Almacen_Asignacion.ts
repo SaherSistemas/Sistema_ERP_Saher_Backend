@@ -92,4 +92,6 @@ export default class Detalle_Pedido_Almacen_Asignacion extends Model {
     @BelongsTo(() => Detalle_Pedido_Almacen)
     declare detalle?: Detalle_Pedido_Almacen;
 
+    @BelongsTo(() => Empleado, { foreignKey: 'id_usuario', as: 'surtidor' })
+    declare surtidor?: Empleado;
 }

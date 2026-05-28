@@ -23,8 +23,10 @@ router.get('/:id_pedido_alm/detalle_asignado_chequeo', Pedido_AlmacenController.
 router.post('/:id_pedido_alm/chequeo_articulo', Pedido_AlmacenController.checarArticulo)
 
 // 1. RUTAS ESPECÍFICAS PRIMERO
+router.get('/historial',    Pedido_AlmacenController.getHistorialPorFecha);
 router.get('/cod/:cod', Pedido_AlmacenController.getByCodInterno);
 router.get('/:id_pedido/detalles', Pedido_AlmacenController.getDetalles);
+router.get('/:id_pedido_alm/resumen-completo', Pedido_AlmacenController.getResumenCompleto);
 
 // 2. RUTA GENÉRICA AL FINAL
 router.get('/:id', Pedido_AlmacenController.getByID);

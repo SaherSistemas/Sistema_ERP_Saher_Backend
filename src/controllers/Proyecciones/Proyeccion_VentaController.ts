@@ -26,7 +26,7 @@ export class Proyeccion_VentaController {
                 cod_int_artic,
                 Number(ventana_dias)
             );
-
+            console.log(JSON.stringify(proyeccionVenta, null, 2));
             res.status(200).json(proyeccionVenta);
             //res.status(200).json({ message: "Ruta de pruebas exitosa." });
         } catch (error) {

@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 
-import { col, fn, Op, Sequelize } from 'sequelize';
+import { col, fn, Op, QueryTypes, Sequelize } from 'sequelize';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 
 import { ICreateOAcumularDetallesSolicitados } from '../interface/Detalle_Compra_Solicitado.interface';
@@ -9,6 +9,7 @@ import Compra_Proveedor from '../model/Compra_Proveedor';
 import Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
 import Detalle_Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/Detalle_Factura_Compra_Proveedor';
 import Tipo_IVA from '../../../Catalogos/Articulos/model/Tipo_IVA';
+import { dbLocal } from '../../../../config/db';
 
 
 export const Detalle_Compra_SolicitadoRepository = {
@@ -65,23 +66,24 @@ export const Detalle_Compra_SolicitadoRepository = {
     return detalles;
   },
   getCantidadTransitoPorArticulo: async (id_artic: string) => {
-    const rows = await Detalle_Compra_Solicitado.findOne({
-      attributes: [[fn('SUM', col('cantidad_detcompsol')), 'total_transito']],
-      include: [
-        {
-          model: Compra_Proveedor,
-          attributes: [],
-          required: true,
-          where: {
-            estado_comp: ['C', 'A', 'E', 'L', 'K']
-          }
-        }
-      ],
-      where: { idarticulo_detcompsol: id_artic },
-      raw: true
+    const rows = await dbLocal.query(`
+    SELECT 
+      c.id_comp,
+      c.estado_comp,
+      SUM(d.cantidad_detcompsol) AS total_transito,
+      p.nomcort_prove AS proveedor
+    FROM detalle_compra_solicitado d
+    INNER JOIN compra_proveedor c ON c.id_comp = d.idcompr_detcompsol
+    INNER JOIN proveedor p ON p.id_prove = c.idprove_comp
+    WHERE d.idarticulo_detcompsol = :id_artic
+      AND c.estado_comp IN ('C', 'A', 'E', 'L', 'K')
+    GROUP BY c.id_comp, c.estado_comp, p.nomcort_prove
+  `, {
+      replacements: { id_artic },
+      type: QueryTypes.SELECT
     });
-    //  console.log("ROWWSS", rows);
-    return Number((rows as any)?.total_transito ?? 0);
+
+    return rows as { id_comp: string; estado_comp: string; total_transito: number; proveedor: string }[];
   },
   addDetallesCompraSolicitado: async (data: ICreateOAcumularDetallesSolicitados) => {
     //console.log("DATAAA", data);

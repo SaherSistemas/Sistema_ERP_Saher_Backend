@@ -48,11 +48,6 @@ class Agente_de_Venta extends Model {
   })
   declare fecha_baja_agente: Date;
 
-  @Column({
-    type: DataType.DECIMAL(3, 2)
-  })
-  declare comision_agente: number;
-
   @Default(true)
   @Column({
     type: DataType.BOOLEAN

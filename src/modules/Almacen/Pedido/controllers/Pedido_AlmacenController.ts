@@ -229,4 +229,28 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // GET /pedido/historial?fecha=YYYY-MM-DD
+  static getHistorialPorFecha = async (req: Request, res: Response) => {
+    try {
+      const { fecha } = req.query as { fecha?: string };
+      if (!fecha) { res.status(400).json({ mensaje: 'Parámetro fecha requerido (YYYY-MM-DD).' }); return; }
+      const data = await Pedido_AlmacenService.getAllByFecha(fecha);
+      res.status(200).json(data);
+    } catch (error: any) {
+      res.status(500).json({ mensaje: error.message || 'Error al obtener el historial.' });
+    }
+  };
+
+  // GET /pedido/:id_pedido_alm/resumen-completo
+  static getResumenCompleto = async (req: Request, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const data = await Pedido_AlmacenService.getResumenCompleto(id_pedido_alm);
+      res.status(200).json(data);
+    } catch (error: any) {
+      console.log(error);
+      res.status(error.status || 500).json({ mensaje: error.message || 'Error al obtener el resumen del pedido.' });
+    }
+  };
+
 }

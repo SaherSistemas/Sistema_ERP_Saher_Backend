@@ -34,6 +34,7 @@ router.get('/cliente/:id_cliente_alm', CxCController.getByCliente);
 
 // ─── PAGOS ────────────────────────────────────────────────────────────────────
 router.get('/pagos/pendientes', CxCController.getPagosParaAplicar);
+router.get('/pagos/aplicados', CxCController.getPagosAplicados);
 router.get('/pagos/historial/:id_cxc', CxCController.getHistorialCxC);
 router.get('/pagos/mis-recibos', authMiddleware, CxCController.getMisRecibos);
 router.post('/:id_cxc/pago', CxCController.capturarPago);
@@ -46,6 +47,10 @@ router.get('/cfdi-por-timbrar', CxCController.getCFDIPorTimbrar);
 router.get('/pagos/sin-cfdi', CxCController.getPagosAplicadosSinCFDI);
 router.post('/timbrar-pagos', CxCController.timbrarPagosPendientes);
 router.post('/pago/:id_pago_cxc/timbrar-manual', CxCController.timbrarManual);
+
+// ─── RECIBO DE COBRANZA PDF ───────────────────────────────────────────────────
+// GET /api/cxc/recibo/:numero_recibo/pdf
+router.get('/recibo/:numero_recibo/pdf', CxCController.getReciboPDF);
 
 // ─── JOBS ─────────────────────────────────────────────────────────────────────
 router.patch('/marcar-vencidas', CxCController.marcarVencidas);

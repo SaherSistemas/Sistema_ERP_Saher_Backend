@@ -157,6 +157,23 @@ export class CxCController {
         }
     };
 
+    // ─── PAGOS APLICADOS (comisiones) ─────────────────────────────────────────
+    // GET /api/cxc/pagos/aplicados
+    //   ?fecha_inicio=YYYY-MM-DD&fecha_fin=YYYY-MM-DD  (opcionales)
+    // Devuelve todos los APL con fecha_vencimiento de la CxC incluida para que
+    // el frontend pueda calcular comisiones por agente en tiempo real.
+
+    static getPagosAplicados = async (req: Request, res: Response) => {
+        try {
+            const { fecha_inicio, fecha_fin } = req.query as { fecha_inicio?: string; fecha_fin?: string };
+            const pagos = await CxCService.getPagosAplicados({ fecha_inicio, fecha_fin });
+            res.status(200).json({ pagos });
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error.message ?? 'Error al obtener los pagos aplicados.' });
+        }
+    };
+
     // ─── PAGOS APL SIN CFDI ───────────────────────────────────────────────────
     static getPagosAplicadosSinCFDI = async (req: Request, res: Response) => {
         try {
@@ -288,6 +305,25 @@ export class CxCController {
             console.error(error);
             const status = /no encontrado|no está en estatus CAP|excede|mayor a 0/.test(error.message) ? 400 : 500;
             res.status(status).json({ message: error.message ?? 'Error al editar el pago.' });
+        }
+    };
+
+    // ─── RECIBO DE COBRANZA PDF ───────────────────────────────────────────────
+    // GET /api/cxc/recibo/:numero_recibo/pdf
+    // Devuelve el PDF del recibo como stream inline (application/pdf).
+
+    static getReciboPDF = async (req: Request, res: Response) => {
+        try {
+            const { numero_recibo } = req.params;
+            const buffer = await CxCService.generarReciboPDF(numero_recibo);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="recibo-${numero_recibo}.pdf"`);
+            res.setHeader('Content-Length', buffer.length);
+            res.send(buffer);
+        } catch (error: any) {
+            console.error(error);
+            const status = /no encontrado/i.test(error.message) ? 404 : 500;
+            res.status(status).json({ message: error.message ?? 'Error al generar el recibo PDF.' });
         }
     };
 

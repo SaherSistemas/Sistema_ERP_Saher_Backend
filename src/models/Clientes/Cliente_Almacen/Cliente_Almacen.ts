@@ -93,6 +93,9 @@ class Cliente_Almacen extends Model {
   })
   declare limite_credito_cliente_alm: number;
 
+  @Column({ type: DataType.DECIMAL(12, 2), allowNull: true })
+  declare limite_por_factura: number | null;
+
   @Column({
     type: DataType.SMALLINT
   })

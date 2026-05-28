@@ -7,8 +7,66 @@ import { CrearStockUbicacionLoteDTO, StockUpsertRow } from '../interface/Stock_U
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import LoteArticuloSucursal from '../../Lotes/model/Lote_Articulo_Sucursal';
 import Ubicacion_Sucursal from '../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal';
+import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
 
 export const Stock_Ubicacion_LoteRepository = {
+
+    getExistencias: async (id_empresa: string, id_articulo?: string) => {
+        // 1. Obtener TODAS las empresas (sin filtrar por grupo)
+        const empresas = await Empresa_SucursalRepository.getAll()
+
+        const empresaIds = empresas.map((e: any) => e.id_empre);
+
+        // 2. Stock de TODAS las empresas
+        const stockGrupo = await Stock_Ubicacion_Lote.findAll({
+            where: {
+                id_empresa_sucursal: { [Op.in]: empresaIds },
+                ...(id_articulo && { id_articulo })
+            },
+            attributes: [
+                'id_empresa_sucursal',
+                'id_articulo',
+                [fn('COALESCE', fn('SUM', col('cantidad')), 0), 'existencia_total'],
+                [fn('COALESCE', fn('SUM', literal(`cantidad - COALESCE(cantidad_apartada, 0)`)), 0), 'existencia_disponible'],
+            ],
+            group: ['id_empresa_sucursal', 'id_articulo'],
+            raw: true,
+        }) as any[];
+
+        // 3. Separar la empresa principal
+        const stockPrincipal = stockGrupo.find(
+            (s: any) => s.id_empresa_sucursal === id_empresa
+        );
+
+        // 4. Totales globales
+        const existencia_total_grupo = stockGrupo.reduce(
+            (acc: number, s: any) => acc + Number(s.existencia_total), 0
+        );
+        const existencia_disponible_grupo = stockGrupo.reduce(
+            (acc: number, s: any) => acc + Number(s.existencia_disponible), 0
+        );
+
+        // 5. Mapear TODAS las empresas (con o sin stock)
+        const empresasConStock = empresas.map((empresa: any) => {
+            const stock = stockGrupo.find(
+                (s: any) => s.id_empresa_sucursal === empresa.id_empre
+            );
+            return {
+                id_empre: empresa.id_empre,
+                nombre: empresa.nom_empre,
+                existencia_total: Number(stock?.existencia_total ?? 0),
+                existencia_disponible: Number(stock?.existencia_disponible ?? 0),
+            };
+        });
+
+        return {
+            existencia_total: Number(stockPrincipal?.existencia_total ?? 0),
+            existencia_disponible: Number(stockPrincipal?.existencia_disponible ?? 0),
+            existencia_total_grupo,
+            existencia_disponible_grupo,
+            empresas: empresasConStock,
+        };
+    },
     findOneByUbicacionYLote: async (id_ubicacion_sucursal: string, id_lote: string, tx?: Transaction) =>
         Stock_Ubicacion_Lote.findOne({
             where: { id_ubicacion_sucursal, id_lote },
@@ -185,6 +243,36 @@ export const Stock_Ubicacion_LoteRepository = {
             },
             { transaction: tx }
         );
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DESCONTAR STOCK AL FACTURAR
+    //   Por cada lote registrado en detalle_pedido_almacen_lote del pedido:
+    //   · cantidad          -= lo surtido   (nunca baja de 0)
+    //   · cantidad_apartada -= lo surtido   (nunca baja de 0)
+    // ─────────────────────────────────────────────────────────────────────────
+    descontarStockPorPedido: async (id_pedido_alm: string, t: Transaction) => {
+        await dbLocal.query(`
+            UPDATE stock_ubicacion_lote AS sul
+            SET
+                cantidad          = GREATEST(0, sul.cantidad          - lp.total),
+                cantidad_apartada = GREATEST(0, sul.cantidad_apartada - lp.total)
+            FROM (
+                SELECT
+                    dpal.id_lote_sucursal,
+                    SUM(dpal.cantidad) AS total
+                FROM detalle_pedido_almacen      dpa
+                JOIN detalle_pedido_almacen_lote dpal
+                    ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+                WHERE dpa.id_pedido_almacen = :id_pedido_alm
+                GROUP BY dpal.id_lote_sucursal
+            ) AS lp
+            WHERE sul.id_lote = lp.id_lote_sucursal
+        `, {
+            replacements: { id_pedido_alm },
+            type: QueryTypes.UPDATE,
+            transaction: t,
+        });
     },
 
     getLotesMinimosConUbicaciones: async (

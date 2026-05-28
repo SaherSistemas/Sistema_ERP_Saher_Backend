@@ -15,6 +15,7 @@ import Pedido_Almacen from './Pedido_Almacen';
 import Detalle_Pedido_Almacen_Asignacion from './Detalle_Pedido_Almacen_Asignacion';
 import Detalle_Pedido_Almacen_Lote from './Detalle_Pedido_Almacen_Lote';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import Detalle_Pedido_Almacen_Chequeo from './Detalle_Pedido_Almacen_Chequeo'; // 1. importar
 
 @Table({
   tableName: 'detalle_pedido_almacen',
@@ -59,5 +60,7 @@ export default class Detalle_Pedido_Almacen extends Model {
   declare lotes?: Detalle_Pedido_Almacen_Lote[];
 
 
+  @HasMany(() => Detalle_Pedido_Almacen_Chequeo, { foreignKey: 'id_detalle_pedido_almacen' })
+  declare chequeos?: Detalle_Pedido_Almacen_Chequeo[];
 
 }

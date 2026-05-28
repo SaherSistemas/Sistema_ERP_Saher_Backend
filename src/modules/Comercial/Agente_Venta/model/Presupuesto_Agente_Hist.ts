@@ -1,4 +1,4 @@
-import { Table, Column, Model, DataType, PrimaryKey, ForeignKey } from 'sequelize-typescript';
+import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, BelongsTo } from 'sequelize-typescript';
 import Presupuesto_Agente from './Presupuesto_Agente';
 
 @Table({
@@ -12,6 +12,9 @@ class Presupuesto_Agente_Hist extends Model {
   @ForeignKey(() => Presupuesto_Agente)
   @Column(DataType.UUID)
   declare id_presupuesto_agente: string;
+
+  @BelongsTo(() => Presupuesto_Agente)
+  presupuesto_agente: Presupuesto_Agente;
 
   @Column(DataType.DECIMAL(12, 2))
   declare monto_asignado: number;

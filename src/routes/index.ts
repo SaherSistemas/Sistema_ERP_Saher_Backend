@@ -28,6 +28,7 @@ import permisoUsuarioRouter from '../modules/Seguridad/routes/Permiso_UsuarioRou
 import agenteRouter from '../modules/Comercial/Agente_Venta/routes/AgenteRouter';
 import Presupuesto_AgenteRouter from '../modules/Comercial/Agente_Venta/routes/Presupuesto_AgenteRouter';
 import PrioridadAgenteRouter from '../modules/Comercial/Agente_Venta/routes/PrioridadAgenteReglasRouter';
+import ComisionReglaAgenteRouter from '../modules/Comercial/Agente_Venta/routes/Comision_Regla_AgenteRouter';
 
 import cat_Regimen_fiscalRouter from '../modules/Catalogos/routes/Cat_Regimen_FiscalRouter';
 import cat_Tipo_ContratoRouter from '../modules/Catalogos/routes/Cat_Tipo_ContratoRouter';
@@ -134,6 +135,7 @@ import facturacionRouter from '../modules/Facturas/routes/FacturacionRouter'
 import comercialRouter from '../modules/Comercial/router'
 
 import impresionesRouter from '../modules/Impresiones/router'
+import inventarioRouter from '../modules/Inventario/router'
 const router = Router();
 
 router.use(generalLimiter);
@@ -167,6 +169,7 @@ router.use('/usuario', usuarioRouter);
 router.use('/agente', agenteRouter);
 router.use('/presupuesto_agente', Presupuesto_AgenteRouter);
 router.use('/prioridad_agente', PrioridadAgenteRouter);
+router.use('/comision-reglas', ComisionReglaAgenteRouter);
 
 router.use('/permiso', permisoRouter);
 router.use('/permiso_rol', permisoRolRouter);
@@ -267,6 +270,7 @@ router.use('/proyeccion', ProyecionRouter);
 router.use('/uploads', uploadsRouter)
 
 router.use('/almacen', almacenRouter)
+router.use('/inventario', inventarioRouter)
 router.use('/facturas', facturacionRouter)
 
 router.use('/comercial', comercialRouter)
