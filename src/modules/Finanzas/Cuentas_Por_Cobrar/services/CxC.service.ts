@@ -628,4 +628,8 @@ export const CxCService = {
             throw err;
         }
     },
+
+    getSaldoHistorico: async (id_cliente_alm: string, fecha_corte: string) => {
+        return await CxCRepository.getSaldoHistorico(id_cliente_alm, fecha_corte);
+    },
 };

@@ -25,7 +25,7 @@ export class Pedido_Almacen_EmpaqueController {
         id_pedido_alm,
         req.user.id_referencia_persona
       );
-      console.log(resultado)
+      //  console.log(resultado)
       res.status(200).json(resultado);
     } catch (error: any) {
       console.log(error)

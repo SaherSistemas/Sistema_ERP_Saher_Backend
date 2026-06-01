@@ -447,7 +447,7 @@ export const FacturacionService = {
                 use:               'G02',
                 related_documents: [{
                     relationship: '01',
-                    uuid:         origen.uuid_sat,
+                    documents: [origen.uuid_sat],   // strings, no objetos
                 }],
                 currency: 'MXN',
             });
@@ -582,7 +582,7 @@ export const FacturacionService = {
                 use:               'G02',
                 related_documents: [{
                     relationship: '01',
-                    uuid:         factura.uuid_relacionado,
+                    documents: [factura.uuid_relacionado],   // strings UUID
                 }],
                 currency: 'MXN',
             });

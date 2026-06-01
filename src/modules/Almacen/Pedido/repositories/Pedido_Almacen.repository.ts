@@ -26,7 +26,9 @@ export const Pedido_AlmacenRepository = {
   /*EMPACADO */
   pedidoListoParaEmpacar: async (codigo: string) => {
     const where: any = {
-      status_pedido_alm: 'CH'
+      status_pedido_alm: {
+        [Op.in]: ['CH', 'FA']
+      }
     };
 
     if (isUUID(codigo)) {

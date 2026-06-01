@@ -133,6 +133,8 @@ import almacenRouter from '../modules/Almacen/router'
 import facturacionRouter from '../modules/Facturas/routes/FacturacionRouter'
 
 import comercialRouter from '../modules/Comercial/router'
+import devolucionClienteRouter from '../modules/Comercial/Devoluciones_Cliente/routes/Devolucion_Cliente.router'
+import notaCreditoClienteRouter from '../modules/Comercial/Notas_Credito_Cliente/routes/Nota_Credito_Cliente.router'
 
 import impresionesRouter from '../modules/Impresiones/router'
 import inventarioRouter from '../modules/Inventario/router'
@@ -274,7 +276,8 @@ router.use('/inventario', inventarioRouter)
 router.use('/facturas', facturacionRouter)
 
 router.use('/comercial', comercialRouter)
-
+router.use('/devolucion_cliente', devolucionClienteRouter)
+router.use('/notas-credito', notaCreditoClienteRouter)
 
 router.use('/impresiones', impresionesRouter);
 export default router;

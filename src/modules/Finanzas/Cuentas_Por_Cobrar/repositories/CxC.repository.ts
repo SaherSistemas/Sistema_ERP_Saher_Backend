@@ -444,4 +444,127 @@ export const CxCRepository = {
             },
         };
     },
+
+    // ── Saldo deudor al día X ─────────────────────────────────────────────────
+    //
+    //  Reconstituye el saldo de un cliente en una fecha de corte pasada.
+    //  Lógica:
+    //    · Solo considera CxC creadas ≤ fecha_corte
+    //    · Monto original = total de la factura o remisión (no el monto_total actual,
+    //      que puede haber sido modificado por devoluciones posteriores)
+    //    · Pagado hasta esa fecha = Σ pago_cxc.monto_pago donde
+    //        fecha_pago ≤ fecha_corte  Y  estatus IN ('APL','DEV')
+    //    · Solo devuelve filas con saldo > 0 en esa fecha
+    //
+    getSaldoHistorico: async (id_cliente_alm: string, fecha_corte: string): Promise<{
+        cliente: { razon_social: string; nom_corto: string; rfc: string } | null;
+        fecha_corte: string;
+        resumen: {
+            total_saldo:   number;
+            total_vencido: number;
+            total_vigente: number;
+            num_facturas:  number;
+        };
+        detalle: Array<{
+            id_cxc:           string;
+            folio_documento:  string;
+            fecha_emision:    string;
+            fecha_vencimiento: string;
+            monto_original:   number;
+            pagado_hasta_fecha: number;
+            saldo_en_fecha:   number;
+            vencida_en_fecha: boolean;
+        }>;
+    }> => {
+        // ── 1. Datos del cliente ──────────────────────────────────────────────
+        const cliente = await Cliente_Almacen.findByPk(id_cliente_alm, {
+            attributes: ['razon_social_cliente_alm', 'nom_corto_cliente_alm', 'rfc_cliente_alm'],
+        });
+
+        // ── 2. Detalle de CxC con saldo en la fecha de corte ─────────────────
+        const rows = await dbLocal.query<{
+            id_cxc:             string;
+            folio_documento:    string;
+            fecha_emision:      string;
+            fecha_vencimiento:  string;
+            monto_original:     string;
+            pagado_hasta_fecha: string;
+            saldo_en_fecha:     string;
+            vencida_en_fecha:   boolean;
+        }>(`
+            SELECT
+                cxc.id_cxc,
+                COALESCE(f.folio_factura, r.folio_remision::TEXT, '—')  AS folio_documento,
+                TO_CHAR(cxc."createdAt"::DATE, 'YYYY-MM-DD')            AS fecha_emision,
+                TO_CHAR(cxc.fecha_vencimiento,  'YYYY-MM-DD')           AS fecha_vencimiento,
+                COALESCE(f.total_factura, r.total_remision, cxc.monto_total)
+                                                                         AS monto_original,
+                COALESCE(SUM(
+                    CASE WHEN p.estatus_pago IN ('APL','DEV')
+                              AND p.fecha_pago::DATE <= :fecha_corte
+                         THEN p.monto_pago ELSE 0 END
+                ), 0)                                                    AS pagado_hasta_fecha,
+                GREATEST(0,
+                    COALESCE(f.total_factura, r.total_remision, cxc.monto_total)
+                    - COALESCE(SUM(
+                        CASE WHEN p.estatus_pago IN ('APL','DEV')
+                                  AND p.fecha_pago::DATE <= :fecha_corte
+                             THEN p.monto_pago ELSE 0 END
+                      ), 0)
+                )                                                        AS saldo_en_fecha,
+                (cxc.fecha_vencimiento < :fecha_corte::DATE)            AS vencida_en_fecha
+            FROM cuenta_por_cobrar      cxc
+            LEFT JOIN facturas          f ON f.id_factura  = cxc.id_factura
+            LEFT JOIN remision          r ON r.id_remision = cxc.id_remision
+            LEFT JOIN pago_cxc          p ON p.id_cxc      = cxc.id_cxc
+            WHERE cxc.id_cliente_alm = :id_cliente_alm
+              AND cxc."createdAt"::DATE <= :fecha_corte
+            GROUP BY
+                cxc.id_cxc, cxc."createdAt", cxc.fecha_vencimiento, cxc.monto_total,
+                f.folio_factura, f.total_factura,
+                r.folio_remision, r.total_remision
+            HAVING GREATEST(0,
+                COALESCE(f.total_factura, r.total_remision, cxc.monto_total)
+                - COALESCE(SUM(
+                    CASE WHEN p.estatus_pago IN ('APL','DEV')
+                              AND p.fecha_pago::DATE <= :fecha_corte
+                         THEN p.monto_pago ELSE 0 END
+                  ), 0)
+            ) > 0
+            ORDER BY cxc."createdAt" ASC
+        `, {
+            replacements: { id_cliente_alm, fecha_corte },
+            type: QueryTypes.SELECT,
+        });
+
+        const detalle = rows.map(r => ({
+            id_cxc:             r.id_cxc,
+            folio_documento:    r.folio_documento,
+            fecha_emision:      r.fecha_emision,
+            fecha_vencimiento:  r.fecha_vencimiento,
+            monto_original:     +Number(r.monto_original).toFixed(2),
+            pagado_hasta_fecha: +Number(r.pagado_hasta_fecha).toFixed(2),
+            saldo_en_fecha:     +Number(r.saldo_en_fecha).toFixed(2),
+            vencida_en_fecha:   Boolean(r.vencida_en_fecha),
+        }));
+
+        const total_saldo   = detalle.reduce((s, r) => s + r.saldo_en_fecha, 0);
+        const total_vencido = detalle.filter(r => r.vencida_en_fecha).reduce((s, r) => s + r.saldo_en_fecha, 0);
+
+        return {
+            cliente: cliente ? {
+                razon_social: (cliente as any).razon_social_cliente_alm,
+                nom_corto:    (cliente as any).nom_corto_cliente_alm,
+                rfc:          (cliente as any).rfc_cliente_alm,
+            } : null,
+            fecha_corte,
+            resumen: {
+                total_saldo:   +total_saldo.toFixed(2),
+                total_vencido: +total_vencido.toFixed(2),
+                total_vigente: +(total_saldo - total_vencido).toFixed(2),
+                num_facturas:  detalle.length,
+            },
+            detalle,
+        };
+    },
 };

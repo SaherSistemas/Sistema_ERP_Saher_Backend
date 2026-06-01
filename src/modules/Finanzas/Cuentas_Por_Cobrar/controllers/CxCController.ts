@@ -341,4 +341,29 @@ export class CxCController {
             res.status(status).json({ message: error?.message ?? 'Error al cancelar el pago.' });
         }
     };
+
+    // ─── SALDO HISTÓRICO AL DÍA X ────────────────────────────────────────────
+    // GET /api/finanzas/cxc/saldo-historico/:id_cliente_alm?fecha_corte=YYYY-MM-DD
+
+    static getSaldoHistorico = async (req: Request, res: Response) => {
+        try {
+            const { id_cliente_alm } = req.params;
+            const fecha_corte = String(req.query.fecha_corte ?? '');
+
+            if (!fecha_corte || !/^\d{4}-\d{2}-\d{2}$/.test(fecha_corte)) {
+                res.status(400).json({ message: 'Se requiere fecha_corte en formato YYYY-MM-DD.' });
+                return;
+            }
+            if (!id_cliente_alm) {
+                res.status(400).json({ message: 'Se requiere id_cliente_alm.' });
+                return;
+            }
+
+            const resultado = await CxCService.getSaldoHistorico(id_cliente_alm, fecha_corte);
+            res.status(200).json(resultado);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message ?? 'Error al calcular saldo histórico.' });
+        }
+    };
 }

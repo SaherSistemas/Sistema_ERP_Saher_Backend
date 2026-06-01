@@ -215,6 +215,7 @@ export const Pago_CxCRepository = {
     },
 
     // Pagos APL que no tienen FacturaPagoCFDI asociado (necesitan timbrado manual)
+    // Excluye pagos DEV (generados por devolución) — el CFDI-E ya es su comprobante fiscal.
     getPagosAplicadosSinCFDI: async () => {
         const { Op } = await import('sequelize');
 
@@ -227,7 +228,7 @@ export const Pago_CxCRepository = {
 
         return await Pago_CxC.findAll({
             where: {
-                estatus_pago: 'APL',
+                estatus_pago: 'APL',   // DEV queda excluido explícitamente
                 ...(idsConCFDI.length > 0 ? { id_pago_cxc: { [Op.notIn]: idsConCFDI } } : {}),
             },
             include: [
