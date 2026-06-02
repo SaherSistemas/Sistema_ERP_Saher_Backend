@@ -22,8 +22,16 @@ router.post('/asignar_pedido_chequeo/:id_pedido_alm', Pedido_AlmacenController.a
 router.get('/:id_pedido_alm/detalle_asignado_chequeo', Pedido_AlmacenController.getDetallesAsignadoChequeo);
 router.post('/:id_pedido_alm/chequeo_articulo', Pedido_AlmacenController.checarArticulo)
 
+// ── Importar desde PolyDB ─────────────────────────────────────────────────────
+// GET  /preview-polydb/lote → todos los pendientes (para import en lote)
+// GET  /preview-polydb      → primer pendiente (compatibilidad)
+// POST /importar-polydb     → crea pedido_almacen + detalles (uno a la vez)
+router.get('/preview-polydb/lote', Pedido_AlmacenController.previewPolyDBLote);
+router.get('/preview-polydb', Pedido_AlmacenController.previewPolyDB);
+router.post('/importar-polydb', Pedido_AlmacenController.importarDePolyDB);
+
 // 1. RUTAS ESPECÍFICAS PRIMERO
-router.get('/historial',    Pedido_AlmacenController.getHistorialPorFecha);
+router.get('/historial', Pedido_AlmacenController.getHistorialPorFecha);
 router.get('/cod/:cod', Pedido_AlmacenController.getByCodInterno);
 router.get('/:id_pedido/detalles', Pedido_AlmacenController.getDetalles);
 router.get('/:id_pedido_alm/resumen-completo', Pedido_AlmacenController.getResumenCompleto);

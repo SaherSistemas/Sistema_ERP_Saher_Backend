@@ -1,6 +1,6 @@
 import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
 import { v4 as uuidv4 } from 'uuid';
-import { col, fn, Op, Transaction } from "sequelize";
+import { col, fn, Op, Sequelize, Transaction } from "sequelize";
 import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 import Articulo_Ubicacion_Default from "../../../Catalogos/Articulos/feature/Articulo_Ubicacion_Default/model/Articulo_Ubicacion_Default";
 import { GetAllFilters } from "../interface/Ubicacion_Sucursal.interface";
@@ -9,7 +9,6 @@ import { Stock_Ubicacion_LoteRepository } from "../../../Inventario/Stock/reposi
 
 const norm = (v?: string | null) => (v ?? "").trim();
 const up = (v?: string | null) => norm(v).toUpperCase();
-const pad2 = (v: any) => String(v ?? "").trim().padStart(2, "0");
 export const Ubicacion_SucursalRepository = {
     findById: async (id_ubicacion_sucursal: string) => {
         return await Ubicacion_Sucursal.findByPk(id_ubicacion_sucursal);
@@ -32,14 +31,14 @@ export const Ubicacion_SucursalRepository = {
             group: ["pasillo_ub", "anaquel_ub"],
             raw: true,
         });
-
+        console.log("rows meta", rows);
         // Normaliza y arma estructura
         const anaquelesPorPasillo: Record<string, string[]> = {};
         const pasillosSet = new Set<string>();
-
         for (const r of rows as any[]) {
             const p = norm(r?.pasillo_ub);
-            const a = pad2(r?.anaquel_ub);
+            // Normaliza anaquel: quita ceros a la izquierda
+            const a = String(r?.anaquel_ub ?? "").trim().replace(/^0+(\d)/, "$1");
             if (!p || !a) continue;
 
             pasillosSet.add(p);
@@ -48,7 +47,16 @@ export const Ubicacion_SucursalRepository = {
         }
 
         const pasillos = Array.from(pasillosSet).sort();
-        for (const p of pasillos) anaquelesPorPasillo[p].sort();
+
+        // Ordenar numéricamente
+        for (const p of pasillos) {
+            anaquelesPorPasillo[p].sort((a, b) => {
+                const na = parseInt(a, 10);
+                const nb = parseInt(b, 10);
+                if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                return a.localeCompare(b);
+            });
+        }
 
         return { pasillos, anaquelesPorPasillo };
     },
@@ -67,8 +75,25 @@ export const Ubicacion_SucursalRepository = {
         }
 
         // pasillo / anaquel
-        if (f?.pasillo) where.pasillo_ub = norm(f.pasillo);
-        if (f?.anaquel) where.anaquel_ub = pad2(f.anaquel);
+
+        if (f?.pasillo) {
+            where[Op.and] = where[Op.and] || [];
+            where[Op.and].push(
+                Sequelize.where(
+                    Sequelize.fn('TRIM', Sequelize.col('pasillo_ub')),
+                    norm(f.pasillo)
+                )
+            );
+        }
+        if (f?.anaquel) {
+            where[Op.and] = where[Op.and] || [];
+            where[Op.and].push(
+                Sequelize.where(
+                    Sequelize.fn('TRIM', Sequelize.col('anaquel_ub')),
+                    f.anaquel
+                )
+            );
+        }
 
         // include defaults opcional
         const include = f?.include_defaults
@@ -91,7 +116,6 @@ export const Ubicacion_SucursalRepository = {
         // 1) trae ubicaciones
         const rows = await Ubicacion_Sucursal.findAll({
             where,
-            order: [["createdAt", "DESC"]],
             include,
         });
 
@@ -124,6 +148,7 @@ export const Ubicacion_SucursalRepository = {
             };
         });
     },
+
     existsEstanteriaLayout: async (
         id_empresa_sucursal: string,
         pasillo: string,

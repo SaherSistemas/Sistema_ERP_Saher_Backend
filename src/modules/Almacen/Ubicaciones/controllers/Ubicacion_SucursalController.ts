@@ -31,9 +31,9 @@ export const Ubicacion_SucursalController = {
                 q: req.query.q ? String(req.query.q) : undefined,
                 include_defaults: toBool(req.query.include_defaults),
             };
-
+            console.log("filters", filters);
             const data = await Ubicacion_SucursalService.getAllFiltered(id_empresa_sucursal, filters);
-           
+            //  console.log("data", data);
             res.status(200).json({ mensaje: data });
         } catch (error: any) {
             console.error(error);

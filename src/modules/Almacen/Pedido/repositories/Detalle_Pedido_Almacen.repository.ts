@@ -210,7 +210,28 @@ export const Detalle_Pedido_AlmacenRepository = {
         }
       ],
     });
-  }
+  },
 
+  // ── Inserción masiva de detalles (para importación desde PolyDB) ──────
+  bulkCreateDetalles: async (
+    items: Array<{
+      id_pedido_almacen: string;
+      id_articulo:       string;
+      cantidad:          number;
+      precio_unitario:   number;
+      es_oferta:         boolean;
+    }>,
+    t: Transaction,
+  ) => {
+    return await Detalle_Pedido_Almacen.bulkCreate(
+      items.map(i => ({
+        id_detalle_pedido_almacen: uuidv4(),
+        ...i,
+        cant_pedida: i.cantidad,
+        precio_venta: i.precio_unitario,
+      })),
+      { transaction: t }
+    );
+  },
 
 };

@@ -66,8 +66,6 @@ import Dash_ComprasRouter from './Dashboards/DashboardRouter';
 
 import ProyecionRouter from './Proyecciones/ProyecionRouter';
 //PRUEBA DE CAMBIOS
-//Lotes y Caducidades
-import lotesSolicitadoRouter from './LotesYCaducidades/LotesSolicitadoCompraRouter';
 
 //Clientes
 import ClienteMostradorRouter from './Clientes/ClienteRouter';
@@ -202,7 +200,6 @@ router.use('/compras/detalle_compra_recibido', detalleCompraRecibidoRouter);
 
 router.use('/margen_ganancia_lista', Margen_Ganancia_ListaRouter);
 
-router.use('/lotes_solicitados', lotesSolicitadoRouter);
 
 // CLIENTES
 

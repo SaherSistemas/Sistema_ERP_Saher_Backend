@@ -1,7 +1,9 @@
-import { Transaction } from 'sequelize';
+import { Op, QueryTypes, Transaction } from 'sequelize';
 
 import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
-import { dbLocal } from '../../../../config/db';
+import { dbLocal, dbPoly } from '../../../../config/db';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import ClienteAlmacen from '../../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacenCompleto } from '../interface/Pedido_Almacen';
 import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.repository';
 import { Detalle_Pedido_AlmacenRepository } from '../repositories/Detalle_Pedido_Almacen.repository';
@@ -13,6 +15,89 @@ import { ICreateDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Alm
 import { Detalle_Pedido_Almacen_ChequeoRepository } from '../repositories/Detalle_Pedido_Almacen_ChequeoRepository';
 import { Detalle_Pedido_NegadoRepository } from '../repositories/Detalle_Pedido_Negado.repository';
 import Pedido_Almacen from '../model/Pedido_Almacen';
+
+// ─── Helper privado: preview de UN pedido PolyDB por su número ───────────────
+//  Aísla los items de ese pedido específico.
+//  Esto corrige el bug original donde previewPolyDB mezclaba artículos de TODOS
+//  los pedidos con pdistatuc='P' y solo marcaba como importado al pedido N.
+async function _previewPedidoPoly(pdicdpdin: string) {
+    const [cabecera, rows] = await Promise.all([
+        dbPoly.query<{ clicdclic: string; pdicdpdin: string }>(`
+            SELECT clicdclic, pdicdpdin
+            FROM pedido
+            WHERE empcdempn = 20
+              AND pdicdpdin = :pdicdpdin
+              AND pdistatuc = 'P'
+            LIMIT 1
+        `, { type: QueryTypes.SELECT, replacements: { pdicdpdin } }),
+
+        dbPoly.query<{ artcdartn: string; pdicntpdn: string; pdiprevtn: string }>(`
+            SELECT DISTINCT p1.artcdartn, p1.pdicntpdn, p1.pdiprevtn
+            FROM pedido1 p1
+            WHERE p1.empcdempn = 20
+              AND p1.pdicdpdin = :pdicdpdin
+            ORDER BY p1.artcdartn
+        `, { type: QueryTypes.SELECT, replacements: { pdicdpdin } }),
+    ]);
+
+    if (!cabecera.length) return null;
+
+    const clicdclic = cabecera[0].clicdclic?.trim() ?? null;
+
+    let cliente_nuevo: { id_cliente_alm: string; razon_social: string; nom_corto: string } | null = null;
+    if (clicdclic) {
+        const codigoInt = parseInt(clicdclic, 10);
+        if (!isNaN(codigoInt)) {
+            const cli = await ClienteAlmacen.findOne({
+                where: { id_interno_cliente_alm: codigoInt },
+                attributes: ['id_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+                raw: true,
+            }) as any;
+            if (cli) {
+                cliente_nuevo = {
+                    id_cliente_alm: cli.id_cliente_alm,
+                    razon_social: cli.razon_social_cliente_alm,
+                    nom_corto: cli.nom_corto_cliente_alm,
+                };
+            }
+        }
+    }
+
+    const codigosPoly = rows.map(r => Number(r.artcdartn));
+    const articulos = codigosPoly.length > 0
+        ? await Articulo.findAll({
+            where: { cod_int_artic: { [Op.in]: codigosPoly } },
+            attributes: ['id_artic', 'cod_int_artic', 'des_artic', 'cod_barr_artic'],
+            raw: true,
+        }) as any[]
+        : [];
+
+    const mapaArticulos = new Map(articulos.map((a: any) => [Number(a.cod_int_artic), a]));
+
+    const items = rows.map(r => {
+        const cod = Number(r.artcdartn);
+        const art = mapaArticulos.get(cod);
+        return {
+            artcdartn:  cod,
+            cantidad:   Number(r.pdicntpdn),
+            precio:     Number(r.pdiprevtn) || 0,
+            id_artic:   art?.id_artic   ?? null,
+            des_artic:  art?.des_artic  ?? null,
+            cod_barras: art?.cod_barr_artic ?? null,
+            encontrado: !!art,
+        };
+    });
+
+    return {
+        clicdclic,
+        pdicdpdin: cabecera[0].pdicdpdin?.trim() ?? pdicdpdin,
+        cliente_nuevo,
+        items,
+        total:          items.length,
+        encontrados:    items.filter(i => i.encontrado).length,
+        no_encontrados: items.filter(i => !i.encontrado).length,
+    };
+}
 
 export const Pedido_AlmacenService = {
   /**CHEQUEO */
@@ -220,7 +305,7 @@ export const Pedido_AlmacenService = {
     return { mensaje: 'Pedido asignado al surtidor.', id_pedido_alm: pedidoMasUrgente };
   },
   getDetallesPedido: async (id_pedido_alm: string) => {
-    
+
     return await Detalle_Pedido_AlmacenRepository.findByIDPedido(id_pedido_alm);
   },
 
@@ -344,6 +429,137 @@ export const Pedido_AlmacenService = {
     const resumen = await Pedido_AlmacenRepository.getResumenCompleto(id_pedido_alm);
     if (!resumen) throw { status: 404, message: 'Pedido no encontrado.' };
     return resumen;
+  },
+
+  // ── Preview de UN pedido en PolyDB (el primero pendiente) ──────────────────
+  previewPolyDB: async () => {
+    const [primera] = await dbPoly.query<{ pdicdpdin: string }>(`
+        SELECT pdicdpdin FROM pedido
+        WHERE empcdempn = 20 AND pdistatuc = 'P'
+        ORDER BY pdicdpdin LIMIT 1
+    `, { type: QueryTypes.SELECT });
+
+    if (!primera) throw { status: 404, message: 'No hay pedidos pendientes en PolyDB.' };
+
+    const preview = await _previewPedidoPoly(primera.pdicdpdin);
+    if (!preview) throw { status: 404, message: 'No se pudo obtener el preview del pedido.' };
+    return preview;
+  },
+
+  // ── Preview de TODOS los pedidos pendientes en PolyDB ──────────────────────
+  //  Devuelve un resumen por pedido (sin el detalle de artículos) listo para
+  //  mostrarlos en la tabla de importación en lote del frontend.
+  previewPolyDBLote: async () => {
+    const pedidosPoly = await dbPoly.query<{ pdicdpdin: string }>(`
+        SELECT DISTINCT pdicdpdin
+        FROM pedido
+        WHERE empcdempn = 20 AND pdistatuc = 'P'
+        ORDER BY pdicdpdin
+    `, { type: QueryTypes.SELECT });
+
+    if (!pedidosPoly.length) return [];
+
+    const previews = await Promise.all(
+        pedidosPoly.map(async p => {
+            const preview = await _previewPedidoPoly(p.pdicdpdin);
+            if (!preview) return null;
+            return {
+                pdicdpdin:       Number(p.pdicdpdin),
+                clicdclic:       preview.clicdclic,
+                cliente_nuevo:   preview.cliente_nuevo,
+                total_articulos: preview.total,
+                encontrados:     preview.encontrados,
+                no_encontrados:  preview.no_encontrados,
+                puede_importar:  preview.encontrados > 0 && !!preview.cliente_nuevo,
+            };
+        })
+    );
+
+    return previews.filter((p): p is NonNullable<typeof p> => p !== null);
+  },
+
+  // ── Importar pedido desde PolyDB ────────────────────────────────────
+  //  Crea pedido_almacen + detalles usando solo los artículos encontrados.
+  importarDePolyDB: async (params: {
+    num_pedido: number;
+    tipo_pedido: string;
+    id_empleado: string;
+  }) => {
+    const { num_pedido, tipo_pedido } = params;
+
+    // Obtener preview ESPECÍFICO de este pedido (evita mezclar artículos de otros pedidos 'P')
+    const preview = await _previewPedidoPoly(String(num_pedido));
+    if (!preview) throw { status: 404, message: `No se encontró el pedido ${num_pedido} en PolyDB con estatus P.` };
+
+    const itemsOk = preview.items.filter(i => i.encontrado && i.cantidad > 0);
+
+    if (!itemsOk.length) throw { status: 400, message: 'Ningún artículo del pedido PolyDB está en el catálogo del nuevo sistema.' };
+    if (!preview.cliente_nuevo) throw { status: 400, message: `No se encontró el cliente con código PolyDB "${preview.clicdclic}" en el nuevo sistema.` };
+
+    const id_cliente_alm = preview.cliente_nuevo.id_cliente_alm;
+
+    // Obtener id_agente desde el cliente (campo id_agente_cliente_alm)
+    const clienteRecord = await ClienteAlmacen.findByPk(id_cliente_alm, {
+      attributes: ['id_agente_cliente_alm'],
+    });
+    if (!clienteRecord || !(clienteRecord as any).id_agente_cliente_alm) {
+      throw { status: 400, message: 'El cliente no tiene agente asignado en el nuevo sistema.' };
+    }
+    const id_agente_alm = (clienteRecord as any).id_agente_cliente_alm as string;
+
+    const t = await dbLocal.transaction();
+    //FALTA SACAR LA FECHA DE ENTREGA 
+
+    const [rowsAffected] = await dbPoly.query(`
+    UPDATE pedido
+    SET pdistatuc = 'B'
+    WHERE pdicdpdin = :num_pedido
+      AND empcdempn = 20
+      AND pdistatuc = 'P'
+  `, {
+      replacements: { num_pedido },
+      type: QueryTypes.UPDATE
+    }); 
+
+    //OBTENER FECHA MAXIMA DE ENTRAGA ALMACEN 
+    const fecha_max_entrega_alm = await Pedido_AlmacenRepository.getFechaMaxEntrega(clienteRecord.id_agente_cliente_alm);
+
+    try {
+      // Crear cabecera del pedido
+      const pedido = await Pedido_AlmacenRepository.create({
+        cod_int_pedido_alm: `POLY-${num_pedido}`,
+        status_pedido_alm: 'CA',
+        tipo_pedido_alm: tipo_pedido || 'NORMAL',
+        id_cliente_pedido_alm: id_cliente_alm,
+        id_agente_pedido_alm: id_agente_alm,
+        fecha_max_entrega_alm: fecha_max_entrega_alm,
+      }, { transaction: t });
+
+      // Crear detalles
+      await Detalle_Pedido_AlmacenRepository.bulkCreateDetalles(
+        itemsOk.map(i => ({
+          id_pedido_almacen: pedido.id_pedido_alm,
+          id_articulo: i.id_artic!,
+          cantidad: i.cantidad,
+          precio_unitario: i.precio,
+          es_oferta: false,
+        })),
+        t
+      );
+
+      await t.commit();
+
+      return {
+        id_pedido_alm: pedido.id_pedido_alm,
+        cod_int_pedido_alm: pedido.cod_int_pedido_alm,
+        articulos_importados: itemsOk.length,
+        articulos_omitidos: preview.no_encontrados,
+      };
+
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
   },
 
 };
