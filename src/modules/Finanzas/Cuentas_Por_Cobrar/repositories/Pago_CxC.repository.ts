@@ -302,7 +302,7 @@ export const Pago_CxCRepository = {
                 TO_CHAR(MIN(p.fecha_pago), 'YYYY-MM-DD')                                        AS fecha_emision,
                 MAX(ca.razon_social_cliente_alm)                                                  AS razon_social,
                 MAX(COALESCE(ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm))              AS nombre_cliente,
-                MAX(COALESCE(mun.nombre_municipio || ', ' || est.nombre_estado, ''))              AS ciudad,
+                MAX(COALESCE(ciu.nom_ciuda || ', ' || est.nom_esta, ''))                          AS ciudad,
                 MIN(p.notas)                                                                      AS notas,
                 JSON_AGG(
                     JSON_BUILD_OBJECT(
@@ -318,8 +318,8 @@ export const Pago_CxCRepository = {
             JOIN cuenta_por_cobrar cxc ON cxc.id_cxc          = p.id_cxc
             JOIN cliente_almacen   ca  ON ca.id_cliente_alm   = cxc.id_cliente_alm
             LEFT JOIN colonia       col ON col.id_colonia      = ca.id_colonia_cliente_alm
-            LEFT JOIN municipio     mun ON mun.id_municipio   = col.id_municipio
-            LEFT JOIN estado        est ON est.id_estado       = mun.id_estado
+            LEFT JOIN ciudad        ciu ON ciu.id_ciuda         = col.id_ciuda_colonia
+            LEFT JOIN estado        est ON est.id_esta          = ciu.id_esta_ciuda
             LEFT JOIN facturas      f   ON f.id_factura        = cxc.id_factura
             LEFT JOIN remision      r   ON r.id_remision       = cxc.id_remision
             WHERE p.numero_recibo = :numero_recibo

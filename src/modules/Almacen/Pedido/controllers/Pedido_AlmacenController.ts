@@ -104,7 +104,7 @@ export class Pedido_AlmacenController {
       const { id_pedido_alm } = req.params;
       //console.log("ID PEDIDO ALMACEN:", id_pedido_alm);
       const resultado = await Pedido_AlmacenService.getDetalleAsignado(req.user.id_referencia_persona, req.user.id_empresa, id_pedido_alm);
-      //console.log("DETALLES ASIGNADOS:", resultado);
+      // console.log("DETALLES ASIGNADOS:", JSON.stringify(resultado, null, 2));
       res.status(200).json(resultado);
     } catch (error) {
       console.log(error);
@@ -281,15 +281,15 @@ export class Pedido_AlmacenController {
   // Cliente y agente se resuelven desde clicdclic de PolyDB automáticamente
   static importarDePolyDB = async (req: AuthedRequest, res: Response) => {
     try {
-      const { num_pedido,tipo_pedido } = req.body;
-      if (!num_pedido ) {
+      const { num_pedido, tipo_pedido } = req.body;
+      if (!num_pedido) {
         res.status(400).json({ mensaje: 'Faltan campos: num_pedido.' });
         return;
       }
       const data = await Pedido_AlmacenService.importarDePolyDB({
-        num_pedido:        parseInt(num_pedido, 10),
-        tipo_pedido:       tipo_pedido || 'AGE',
-        id_empleado:       req.user!.id_referencia_persona,
+        num_pedido: parseInt(num_pedido, 10),
+        tipo_pedido: tipo_pedido || 'AGE',
+        id_empleado: req.user!.id_referencia_persona,
       });
       res.status(201).json(data);
     } catch (error: any) {

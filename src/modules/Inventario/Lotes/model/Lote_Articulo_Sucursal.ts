@@ -80,6 +80,12 @@ class Lote_Articulo_Sucursal extends Model {
   })
   declare estado_lote_sucursal: string;
 
+  @Default(false)
+  @Column({
+    type: DataType.BOOLEAN
+  })
+  declare migracion: boolean;
+
 
   @HasMany(() => Detalle_Pedido_Almacen_Lote, {
     foreignKey: 'id_lote_sucursal',

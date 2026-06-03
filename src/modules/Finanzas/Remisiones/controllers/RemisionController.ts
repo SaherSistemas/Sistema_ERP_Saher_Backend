@@ -45,4 +45,20 @@ export class RemisionController {
             res.status(500).json({ message: 'Error al crear la remisión.' });
         }
     };
+
+    // ─── GET /remision/:id_remision/pdf ──────────────────────────────────────
+    static getPDF = async (req: Request, res: Response) => {
+        try {
+            const { id_remision } = req.params;
+            const buffer = await RemisionService.generarPdf(id_remision);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="remision-${id_remision}.pdf"`);
+            res.setHeader('Content-Length', buffer.length);
+            res.send(buffer);
+        } catch (error: any) {
+            console.error(error);
+            const status = /no encontrada/i.test(error.message) ? 404 : 500;
+            res.status(status).json({ message: error.message ?? 'Error al generar el PDF.' });
+        }
+    };
 }

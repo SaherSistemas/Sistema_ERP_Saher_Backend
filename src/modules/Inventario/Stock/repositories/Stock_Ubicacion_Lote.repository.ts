@@ -313,7 +313,8 @@ export const Stock_Ubicacion_LoteRepository = {
                     attributes: [
                         'id_lote_sucursal',
                         'numero_lote_sucursal',
-                        'fecha_venci_lote_sucursal'
+                        'fecha_venci_lote_sucursal',
+                        'migracion'
                     ]
                 },
                 {
@@ -404,7 +405,8 @@ export const Stock_Ubicacion_LoteRepository = {
                     ? {
                         id_lote_sucursal: json.lote.id_lote_sucursal,
                         numero_lote_sucursal: json.lote.numero_lote_sucursal,
-                        fecha_venci_lote_sucursal: json.lote.fecha_venci_lote_sucursal
+                        fecha_venci_lote_sucursal: json.lote.fecha_venci_lote_sucursal,
+                        migracion: json.lote.migracion
                     }
                     : null,
                 ubicacion: json.ubicacion

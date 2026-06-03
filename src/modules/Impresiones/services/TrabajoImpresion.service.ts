@@ -4,6 +4,9 @@ import { TrabajoImpresionRepository } from "../repositories/TrabajoImpresionRepo
 import { ICreateTrabajoImpresion } from "../interface/TrabajoImpresion.interface";
 import { Bulto_PedidoRepository } from "../../Almacen/Empaque/repositories/Bulto_Pedido.repository";
 import Facturas from "../../Facturas/model/Facturas.model";
+import Remision from "../../Finanzas/Remisiones/model/Remision.model";
+import { RemisionService } from "../../Finanzas/Remisiones/services/Remision.service";
+import { guardarRemisionPdf } from "../../Finanzas/Remisiones/helpers/remision-storage.helper";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -130,6 +133,36 @@ export const TrabajoImpresionService = {
                     tipo:         'pdf',
                     ruta_archivo: factura.pdf_url,
                 }
+            };
+        }
+
+        if (tipo_documento === 'REMISION') {
+            // id_pedido_alm es el UUID o código del pedido (igual que en FACTURA).
+            // Buscamos la remisión más reciente asociada a ese pedido.
+            const pedido = UUID_REGEX.test(id_pedido_alm)
+                ? await Pedido_AlmacenRepository.getByID(id_pedido_alm)
+                : await Pedido_AlmacenRepository.getByCodInterno(id_pedido_alm);
+            if (!pedido) throw new Error('Pedido no encontrado');
+
+            const remision = await Remision.findOne({
+                where:      { id_pedido_alm: pedido.id_pedido_alm },
+                order:      [['fecha_remision', 'DESC']],
+                attributes: ['id_remision', 'folio_remision'],
+            });
+            if (!remision) throw new Error('No existe remisión para este pedido');
+
+            // Generar PDF y guardarlo en disco
+            const pdfBuffer = await RemisionService.generarPdf(remision.id_remision);
+            const rutaPdf   = guardarRemisionPdf(remision.id_remision, pdfBuffer);
+
+            data = {
+                cod_interno_pedido: `REM-${remision.folio_remision}`,
+                tipo_documento:     'REMISION',
+                id_impresora,
+                payload: {
+                    tipo:         'pdf',
+                    ruta_archivo: rutaPdf,
+                },
             };
         }
 

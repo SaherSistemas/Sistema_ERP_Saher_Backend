@@ -25,6 +25,10 @@ export const Detalle_Pedido_Almacen_LoteRepository = {
                 id_lote_sucursal: item.id_lote_sucursal,
                 id_ubicacion_sucursal: item.id_ubicacion_sucursal,
                 cantidad: Number(item.cantidad),
+                lote_factura_numero: item.lote_factura?.numero_lote ?? null,
+                lote_factura_fecha: item.lote_factura?.fecha_caducidad
+                    ? new Date(item.lote_factura.fecha_caducidad)
+                    : null,
             }));
 
         if (rows.length === 0) throw new Error("No hay lotes válidos con cantidad mayor a 0");

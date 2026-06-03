@@ -4,6 +4,7 @@ import { ICreateRemision } from '../interface/Remision.interface';
 import { RemisionRepository } from '../repositories/Remision.repository';
 import { Detalle_RemisionRepository } from '../repositories/Detalle_Remision.repository';
 import { CxCRepository } from '../../Cuentas_Por_Cobrar/repositories/CxC.repository';
+import { generarRemisionPDFBuffer } from '../helpers/remision.pdf';
 import Facturas from '../../../Facturas/model/Facturas.model';
 import Pedido_Almacen from '../../../Almacen/Pedido/model/Pedido_Almacen';
 
@@ -21,6 +22,12 @@ export const RemisionService = {
         const remision = await RemisionRepository.getByIdConDetalles(id_remision);
         if (!remision) throw new Error('Remisión no encontrada');
         return remision;
+    },
+
+    generarPdf: async (id_remision: string): Promise<Buffer> => {
+        const datos = await RemisionRepository.getDatosParaPDF(id_remision);
+        if (!datos) throw new Error('Remisión no encontrada');
+        return generarRemisionPDFBuffer(datos);
     },
 
     // El frontend solo manda id_factura + dias_credito + detalles

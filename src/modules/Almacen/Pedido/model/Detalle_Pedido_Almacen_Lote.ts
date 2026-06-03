@@ -1,4 +1,4 @@
-import { Table, Column, Model, PrimaryKey, ForeignKey, DataType, BelongsTo, Default } from 'sequelize-typescript';
+import { Table, Column, Model, PrimaryKey, ForeignKey, DataType, BelongsTo, Default, AllowNull } from 'sequelize-typescript';
 import Detalle_Pedido_Almacen from './Detalle_Pedido_Almacen';
 import LoteArticuloSucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 
@@ -22,6 +22,15 @@ class Detalle_Pedido_Almacen_Lote extends Model {
 
     @Column(DataType.SMALLINT)
     declare cantidad: number;
+
+    // Lote/caducidad que se imprime en la factura (solo para lotes de migración)
+    @AllowNull(true)
+    @Column(DataType.STRING(50))
+    declare lote_factura_numero: string | null;
+
+    @AllowNull(true)
+    @Column(DataType.DATE)
+    declare lote_factura_fecha: Date | null;
 
     @BelongsTo(() => Detalle_Pedido_Almacen)
     detalle_pedido_almacen: Detalle_Pedido_Almacen;

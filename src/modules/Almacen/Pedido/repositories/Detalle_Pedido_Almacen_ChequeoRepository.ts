@@ -130,7 +130,13 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                 {
                     model: Detalle_Pedido_Almacen_Lote,
                     as: 'detalle_lote',
-                    attributes: ['id_detalle_pedido_almacen_lote', 'id_lote_sucursal', 'cantidad'],
+                    attributes: [
+                        'id_detalle_pedido_almacen_lote',
+                        'id_lote_sucursal',
+                        'cantidad',
+                        'lote_factura_numero',
+                        'lote_factura_fecha',
+                    ],
                     required: false,
                     include: [
                         {

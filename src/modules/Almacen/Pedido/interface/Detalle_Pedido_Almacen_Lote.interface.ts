@@ -3,6 +3,11 @@ export interface IDetallePedidoAlmacenLoteItem {
     id_lote_sucursal: string;
     id_ubicacion_sucursal: string | null;
     cantidad: number;
+    /** Datos alternativos para la factura (solo lotes con migracion=true) */
+    lote_factura?: {
+        numero_lote: string | null;
+        fecha_caducidad: string | null;
+    } | null;
 }
 
 export interface INegacionPedido {

@@ -215,7 +215,7 @@ export const Pedido_AlmacenService = {
         id_usuario,
         id_pedido_alm,
       );
-    console.log("ASIGNACIÓN OBTENIDA EN SERVICIO:", asignacion);
+   // console.log("ASIGNACIÓN OBTENIDA EN SERVICIO:", asignacion);
     if (!asignacion) {
       const pendientes =
         await Detalle_Pedido_Almacen_AsignacionRepository.countPendientesByPedido(

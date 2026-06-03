@@ -80,6 +80,25 @@ class Facturas extends Model {
     @Column({ type: DataType.STRING, allowNull: true })
     declare xml_url: string;
 
+    // ── Datos del timbre SAT (se llenan al timbrar con Facturapi) ──────────
+    @Column({ type: DataType.TEXT, allowNull: true })
+    declare sello_cfdi: string | null;       // Sello digital del emisor
+
+    @Column({ type: DataType.TEXT, allowNull: true })
+    declare sello_sat: string | null;        // Sello digital del SAT
+
+    @Column({ type: DataType.TEXT, allowNull: true })
+    declare cadena_original: string | null;  // Cadena original del complemento
+
+    @Column({ type: DataType.STRING(30), allowNull: true })
+    declare no_cert_emisor: string | null;   // Número de certificado del emisor
+
+    @Column({ type: DataType.STRING(30), allowNull: true })
+    declare no_cert_sat: string | null;      // Número de certificado del SAT
+
+    @Column({ type: DataType.STRING(15), allowNull: true })
+    declare rfc_prov_cert: string | null;    // RFC del proveedor de certificación
+
     // ── FKs de origen ──────────────────────────────────────
     @ForeignKey(() => Cliente_Almacen)
     @Column({ type: DataType.UUID, allowNull: true }) //! null en tipo 'N'

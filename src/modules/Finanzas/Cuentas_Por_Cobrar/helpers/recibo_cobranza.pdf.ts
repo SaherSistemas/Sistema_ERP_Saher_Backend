@@ -74,10 +74,13 @@ export function numeroALetras(n: number): string {
 
 // ─── Generador principal ──────────────────────────────────────────────────────
 
-export function generarReciboPDFBuffer(datos: DatosRecibo): Buffer {
+export function generarReciboPDFBuffer(datos: DatosRecibo): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     const doc = new PDFDocument({ size: 'LETTER', margin: 0, info: { Title: `Recibo ${datos.numero_recibo}` } });
-    doc.on('data', (c: Buffer) => chunks.push(c));
+    doc.on('data',  (c: Buffer) => chunks.push(c));
+    doc.on('end',   () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
 
     const PW = 612;
     const MX = 32;          // margen horizontal
@@ -332,5 +335,5 @@ export function generarReciboPDFBuffer(datos: DatosRecibo): Buffer {
        .text('FARMACIAS SYG S.A. DE C.V.', MX, y, { width: CW, align: 'center' });
 
     doc.end();
-    return Buffer.concat(chunks);
+    }); // Promise
 }

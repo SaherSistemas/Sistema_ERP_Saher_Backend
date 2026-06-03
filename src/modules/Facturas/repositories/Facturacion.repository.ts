@@ -132,8 +132,8 @@ export const FacturacionRepository = {
                 ti.tipo_factor,
                 (
                     SELECT JSON_AGG(JSON_BUILD_OBJECT(
-                        'lote',        las.numero_lote_sucursal,
-                        'fecha_venci', TO_CHAR(las.fecha_venci_lote_sucursal, 'FMMM/YYYY'),
+                        'lote',        COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal),
+                        'fecha_venci', TO_CHAR(COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal), 'FMMM/YYYY'),
                         'cantidad',    dpac2.cant_chequeada
                     ))
                     FROM detalle_pedido_almacen_chequeo dpac2
