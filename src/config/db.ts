@@ -24,7 +24,7 @@ export const dbLocal = new Sequelize({
     ],
     logging: false,
 });
-
+/*
 
 export const dbPoly = new Sequelize({
     dialect: 'postgres',
@@ -40,3 +40,6 @@ export const dbPoly = new Sequelize({
     },
     logging: false,
 });
+
+PRUEBAS
+*/

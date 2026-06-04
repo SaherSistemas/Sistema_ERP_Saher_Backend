@@ -1,7 +1,7 @@
 import { Op, QueryTypes, Transaction } from 'sequelize';
 
 import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
-import { dbLocal, dbPoly } from '../../../../config/db';
+import { dbLocal,/* dbPoly */} from '../../../../config/db';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import ClienteAlmacen from '../../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacenCompleto } from '../interface/Pedido_Almacen';
@@ -20,7 +20,7 @@ import Pedido_Almacen from '../model/Pedido_Almacen';
 //  Aísla los items de ese pedido específico.
 //  Esto corrige el bug original donde previewPolyDB mezclaba artículos de TODOS
 //  los pedidos con pdistatuc='P' y solo marcaba como importado al pedido N.
-async function _previewPedidoPoly(pdicdpdin: string) {
+/*async function _previewPedidoPoly(pdicdpdin: string) {
     const [cabecera, rows] = await Promise.all([
         dbPoly.query<{ clicdclic: string; pdicdpdin: string }>(`
             SELECT clicdclic, pdicdpdin
@@ -98,7 +98,7 @@ async function _previewPedidoPoly(pdicdpdin: string) {
         no_encontrados: items.filter(i => !i.encontrado).length,
     };
 }
-
+*/
 export const Pedido_AlmacenService = {
   /**CHEQUEO */
 
@@ -432,7 +432,7 @@ export const Pedido_AlmacenService = {
   },
 
   // ── Preview de UN pedido en PolyDB (el primero pendiente) ──────────────────
-  previewPolyDB: async () => {
+  /*previewPolyDB: async () => {
     const [primera] = await dbPoly.query<{ pdicdpdin: string }>(`
         SELECT pdicdpdin FROM pedido
         WHERE empcdempn = 20 AND pdistatuc = 'P'
@@ -561,5 +561,5 @@ export const Pedido_AlmacenService = {
       throw err;
     }
   },
-
+*/
 };
