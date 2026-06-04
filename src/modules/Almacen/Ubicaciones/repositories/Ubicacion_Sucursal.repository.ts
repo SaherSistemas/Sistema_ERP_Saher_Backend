@@ -31,7 +31,7 @@ export const Ubicacion_SucursalRepository = {
             group: ["pasillo_ub", "anaquel_ub"],
             raw: true,
         });
-        console.log("rows meta", rows);
+        //  console.log("rows meta", rows);
         // Normaliza y arma estructura
         const anaquelesPorPasillo: Record<string, string[]> = {};
         const pasillosSet = new Set<string>();

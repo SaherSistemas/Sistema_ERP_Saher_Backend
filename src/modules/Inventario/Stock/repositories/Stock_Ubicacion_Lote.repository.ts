@@ -314,7 +314,7 @@ export const Stock_Ubicacion_LoteRepository = {
                         'id_lote_sucursal',
                         'numero_lote_sucursal',
                         'fecha_venci_lote_sucursal',
-                        'migracion'
+                        'migracion' //SE AGREGO PARA SABER SI EL LOTE FUE MIGRADO O ES NUEVO, YA QUE LOS MIGRADOS SE USARAN PRIMERO
                     ]
                 },
                 {

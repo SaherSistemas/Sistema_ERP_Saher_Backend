@@ -23,7 +23,7 @@ export const Ubicacion_SucursalController = {
     getAllFiltered: async (req: Request & { user?: any }, res: Response) => {
         try {
             const id_empresa_sucursal = req.user?.id_empresa || String(req.query.id_empresa || "");
-
+          //  console.log("HOLA")
             const filters = {
                 tipo: req.query.tipo ? String(req.query.tipo) : undefined,
                 pasillo: req.query.pasillo ? String(req.query.pasillo) : undefined,
@@ -31,7 +31,7 @@ export const Ubicacion_SucursalController = {
                 q: req.query.q ? String(req.query.q) : undefined,
                 include_defaults: toBool(req.query.include_defaults),
             };
-            console.log("filters", filters);
+            //  console.log("filters", filters);
             const data = await Ubicacion_SucursalService.getAllFiltered(id_empresa_sucursal, filters);
             //  console.log("data", data);
             res.status(200).json({ mensaje: data });
