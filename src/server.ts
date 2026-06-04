@@ -19,7 +19,7 @@ async function connectDatabases() {
         console.log(colors.yellow.bold('Conexión exitosa a base POLY'));
 
         //  await runMigrations();
-        await dbLocal.sync();
+        await dbLocal.sync({ alter: true });
         //await seedPermisosMenu();
         //await dbLocal.sync();    // Sincroniza modelos si es necesario
         //await dbRemota.sync();   // Solo si quieres sincronizar también la remota
