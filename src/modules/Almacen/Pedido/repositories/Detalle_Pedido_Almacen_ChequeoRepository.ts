@@ -176,6 +176,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         cantidad: number,
         id_empleado: string
     ) => {
+        //console.log(`Chequeando artículo ${cod_barras} (cantidad: ${cantidad}) para pedido ${idPedido} y empleado ${id_empleado}`);
         // Obtener todas las filas de chequeo del artículo (una por lote)
         const filas = await Detalle_Pedido_Almacen_Chequeo.findAll({
             where: { id_empleado },
@@ -188,12 +189,17 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                     model: Articulo,
                     required: true,
                     attributes: ['id_artic', 'cod_barr_artic'],
-                    where: { cod_barr_artic: cod_barras },
+                    where: {
+                        cod_barr_artic: {
+                            [Op.iLike]: `%${cod_barras.trim()}%`
+                        }
+                    },
                 }],
             }],
             order: [['fecha_asignado', 'ASC']],
         });
-
+        //    console.log("Filas encontradas para chequeo:", filas.length);
+        //  console.log("Detalle pedido incluido en filas:", filas.map(f => f.detalle_pedido?.id_detalle_pedido_almacen));
         if (!filas.length) throw new Error('Artículo no encontrado en el chequeo');
 
         const cantSurtidaTotal = filas.reduce((s, f) => s + (Number(f.cant_surtida_lote) || 0), 0);

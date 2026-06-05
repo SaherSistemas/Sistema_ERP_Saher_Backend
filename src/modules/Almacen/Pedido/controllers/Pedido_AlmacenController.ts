@@ -10,9 +10,11 @@ export class Pedido_AlmacenController {
     try {
       const { cod_barras, cantidad } = req.body
       const { id_pedido_alm } = req.params
+      //  console.log(cod_barras, cantidad, id_pedido_alm)
       const resultado = await Pedido_AlmacenService.checarArticulo(id_pedido_alm, cod_barras, cantidad, req.user.id_referencia_persona)
       res.status(200).json(resultado)
     } catch (error) {
+      console.log(error);
       const msg = error.message ?? "Error desconocido";
 
       if (msg.includes("no encontrado")) {

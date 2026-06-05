@@ -175,9 +175,11 @@ export const CatalogoComercialService = {
             raw: true,
         });
 
-        const precioMap = new Map<string, number>();
+        const precioMap = new Map<string, number | null>();
         preciosRows.forEach((p: any) => {
-            precioMap.set(p.id_artic, Number(p.precios));
+            const val = Number(p.precios);
+            // Si el precio es menor a 1 centavo se trata como sin precio
+            precioMap.set(p.id_artic, val >= 0.01 ? val : null);
         });
 
         // 7️⃣ TRANSITO (1 query)
@@ -339,9 +341,11 @@ export const CatalogoComercialService = {
             raw: true,
         });
 
-        const precioMap = new Map<string, number>();
+        const precioMap = new Map<string, number | null>();
         for (const p of preciosRows as any[]) {
-            precioMap.set(p.id_artic, Number(p.precios));
+            const val = Number(p.precios);
+            // Si el precio es menor a 1 centavo se trata como sin precio
+            precioMap.set(p.id_artic, val >= 0.01 ? val : null);
         }
 
         // 5) Tránsito

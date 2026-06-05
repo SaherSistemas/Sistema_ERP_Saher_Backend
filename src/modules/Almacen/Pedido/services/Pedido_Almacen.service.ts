@@ -9,6 +9,7 @@ import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.reposit
 import { Detalle_Pedido_AlmacenRepository } from '../repositories/Detalle_Pedido_Almacen.repository';
 import { Detalle_Pedido_Almacen_LoteRepository } from '../repositories/Detalle_Pedido_Almacen_Lote.repository';
 import { Detalle_Pedido_Almacen_AsignacionRepository } from '../repositories/Detalle_Pedido_Almacen_AsignacionRepository';
+import Detalle_Pedido_Almacen_Asignacion from '../model/Detalle_Pedido_Almacen_Asignacion';
 import { Articulo_Ubicacion_DefaultServices } from '../../../Catalogos/Articulos/feature/Articulo_Ubicacion_Default/Articulo_Ubicacion_Default.service';
 import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
 import { ICreateDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Almacen_Lote.interface';
@@ -105,7 +106,7 @@ export const Pedido_AlmacenService = {
   checarArticulo: async (id_pedido_alm: string, cod_barras: string, cantidad: number, id_empleado: string) => {
 
     const resultado = await Detalle_Pedido_Almacen_ChequeoRepository.checarArticulo(id_pedido_alm, cod_barras, cantidad, id_empleado);
-
+    
     const detallesPorChecar = await Detalle_Pedido_Almacen_ChequeoRepository.detallesPorChecar(id_pedido_alm);
     const pedidoTerminado = detallesPorChecar.length === 0;
 
@@ -250,25 +251,34 @@ export const Pedido_AlmacenService = {
     // Obtener artículos del pedido con su cantidad
     const detalles = await Detalle_Pedido_AlmacenRepository.getDetallesConArticuloPorPedido(pedidoMasUrgente);
 
-    // Para cada artículo, obtener su primera ubicación FEFO
-    const detallesConUbicacion = await Promise.all(
+    // Para cada artículo, obtener su plan FEFO completo
+    const detallesConPlan = await Promise.all(
       detalles.map(async (d) => {
         const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
           d.id_articulo,
           id_empresa,
           d.cant_pedida,
         );
-        return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? null };
+        const tieneLotes = Array.isArray(plan.detalles) && plan.detalles.length > 0;
+        return {
+          ...d,
+          ubicacion: plan.detalles[0]?.ubicacion ?? null,
+          tieneLotes,
+        };
       })
     );
 
-    // Ordenar por pasillo → anaquel → nivel → posición (mismo criterio que FEFO)
+    // Separar los que tienen stock de los que no
+    const conStock  = detallesConPlan.filter((d) => d.tieneLotes);
+    const sinStock  = detallesConPlan.filter((d) => !d.tieneLotes);
+
+    // Ordenar con stock: pasillo → anaquel → nivel → posición
     const PASILLO_ORDER: Record<string, number> = {
-      'A1': 1, 'A': 2, 'B': 3, 'C': 4, 'D': 5,
-      'E': 6, 'F': 7, 'G': 8, 'H': 9, 'H1': 10,
+      '1A': 1, 'A': 2, 'B': 3, 'C': 4, 'D': 5,
+      'E': 6, 'F': 7, 'G': 8, 'H1': 9, 'H2': 10, 'R': 11,
     };
 
-    detallesConUbicacion.sort((a, b) => {
+    conStock.sort((a, b) => {
       const ua = a.ubicacion;
       const ub = b.ubicacion;
       if (!ua && !ub) return 0;
@@ -290,7 +300,7 @@ export const Pedido_AlmacenService = {
       return (parseInt(ua.posicion) || 0) - (parseInt(ub.posicion) || 0);
     });
 
-    const detallesOrdenados = detallesConUbicacion.map((d, i) => ({
+    const detallesOrdenados = conStock.map((d, i) => ({
       id_detalle_pedido_almacen: d.id_detalle_pedido_almacen,
       orden: i + 1,
     }));
@@ -298,8 +308,45 @@ export const Pedido_AlmacenService = {
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
+
     await Pedido_AlmacenRepository.iniciarSurtido(pedidoMasUrgente, t);
-    await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(id_usuario, detallesOrdenados, t);
+
+    // Asignar los detalles con stock al surtidor (flujo normal)
+    if (detallesOrdenados.length > 0) {
+      await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(
+        id_usuario, detallesOrdenados, t
+      );
+    }
+
+    // Auto-terminar los detalles sin existencia: crear asignación TERMINADO + negado
+    if (sinStock.length > 0) {
+      const payloadSinStock = sinStock.map((d) => ({
+        id_detalle_pedido_almacen: d.id_detalle_pedido_almacen,
+        id_usuario,
+        estado: 'TERMINADO',
+        orden: 0,
+        inicio: new Date(),
+        fin: new Date(),
+      }));
+
+      const creadas = await Detalle_Pedido_Almacen_Asignacion.bulkCreate(
+        payloadSinStock, { transaction: t, returning: true }
+      );
+
+      // Crear un registro de negado por cada detalle sin existencia
+      for (const item of sinStock) {
+        await Detalle_Pedido_NegadoRepository.create(
+          {
+            id_detalle_pedido_almacen: item.id_detalle_pedido_almacen,
+            cantidad_negada: item.cant_pedida,
+            motivo: 'SIN_EXISTENCIA',
+            comentario: 'Sin existencia al momento de asignar el pedido.',
+          },
+          t
+        );
+      }
+    }
+
     await t.commit();
 
     return { mensaje: 'Pedido asignado al surtidor.', id_pedido_alm: pedidoMasUrgente };

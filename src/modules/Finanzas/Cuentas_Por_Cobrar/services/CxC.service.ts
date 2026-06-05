@@ -161,7 +161,9 @@ export const CxCService = {
         if (!agente) throw new Error('El empleado capturista no tiene un agente de venta asociado');
 
         const consecutivo   = await Pago_CxCRepository.getSiguienteConsecutivoAgente(agente.cod_identi_agente);
-        const numero_recibo = `${agente.cod_identi_agente}_${String(consecutivo).padStart(4, '0')}`;
+        const numero_recibo = data.numero_recibo_custom?.trim()
+            ? data.numero_recibo_custom.trim()
+            : `${agente.cod_identi_agente}_${String(consecutivo).padStart(4, '0')}`;
 
         // ── Transacción ───────────────────────────────────────────────────────────
         const t = await dbLocal.transaction({
