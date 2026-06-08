@@ -1,7 +1,9 @@
+import fs from 'fs';
 import type { Response } from 'express';
 import type { AuthedRequest } from '../../../middleware/auth';
 import { FacturacionService } from '../services/Facturacion.service';
 import { FacturacionRepository } from '../repositories/Facturacion.repository';
+import Facturas from '../model/Facturas.model';
 
 export class FacturacionController {
 
@@ -74,6 +76,32 @@ export class FacturacionController {
 
             const resultado = await FacturacionService.timbrarEgreso({ id_factura_origen, detalles });
             res.status(201).json(resultado);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message ?? 'Error desconocido' });
+        }
+    };
+
+    // Descarga el PDF de un traslado (tipo T, estatus GEN)
+    static descargarTrasladoPdf = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const factura = await Facturas.findByPk(id_factura);
+            if (!factura) {
+                res.status(404).json({ message: 'Factura no encontrada' });
+                return;
+            }
+            if (factura.tipo_cfdi !== 'T') {
+                res.status(400).json({ message: 'Esta factura no es un traslado' });
+                return;
+            }
+            if (!factura.pdf_url || !fs.existsSync(factura.pdf_url)) {
+                res.status(404).json({ message: 'El PDF del traslado no existe en el servidor' });
+                return;
+            }
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="TRA_${factura.folio_factura}.pdf"`);
+            fs.createReadStream(factura.pdf_url).pipe(res);
         } catch (error: any) {
             console.error(error);
             res.status(500).json({ message: error?.message ?? 'Error desconocido' });

@@ -46,4 +46,14 @@ export class RolController {
         }
     }
 
+    static deleteRol = async (req: Request, res: Response) => {
+        try {
+            const { id_rol } = req.params;
+            await RolService.deleteRol(Number(id_rol));
+            res.status(200).json({ mensaje: 'Rol eliminado correctamente.' });
+        } catch (error: any) {
+            res.status(500).json({ mensaje: error.message ?? 'Error al eliminar el rol.' });
+        }
+    }
+
 }

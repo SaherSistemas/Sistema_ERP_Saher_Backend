@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import facturasRoutes from './facturas_Compra_ProveedorRouter';
-import { authMiddleware } from '../../../../middleware/auth';
-// en un futuro: import pagosRoutes from './pagosRouter';
+import cxpRouter from './CxPRouter';
 
 const router = Router();
 
 router.use('/cxp/facturas_compra_proveedor', facturasRoutes);
-// router.use('/pagos', pagosRoutes);
+router.use('/cxp', cxpRouter);
 
 export default router;

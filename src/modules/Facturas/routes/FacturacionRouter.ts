@@ -30,4 +30,8 @@ router.post('/timbrar-egreso', authMiddleware, FacturacionController.timbrarEgre
 // POST /api/facturas/timbrar-pago
 router.post('/timbrar-pago', authMiddleware, FacturacionController.timbrarPago);
 
+// Descarga el PDF de un traslado (tipo T, estatus GEN)
+// GET /api/facturas/traslado-pdf/:id_factura
+router.get('/traslado-pdf/:id_factura', authMiddleware, FacturacionController.descargarTrasladoPdf);
+
 export default router;

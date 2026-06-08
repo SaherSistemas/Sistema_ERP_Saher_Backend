@@ -11,6 +11,7 @@ import {
     ITimbrarPagoDTO,
 } from '../interfaces/Facturacion.dto';
 import { descargarPdf, RUTA_FACTURACION, RUTA_PDFS } from '../helpers/pdf.helper';
+import { generarTrasladoPDFBuffer } from '../helpers/traslado.pdf';
 import { normalizarClaveUnidad, fmt2, fmt4 } from '../helpers/sat.helper';
 import {
     RFC_PUBLICO_GENERAL,
@@ -216,6 +217,12 @@ export const FacturacionService = {
 
         if (!conceptos.length) throw new Error('El pedido no tiene conceptos para facturar');
 
+        // ── Bifurcación: empresa propia (id_empresa_sys_anterior != null) → CFDI Traslado (T)
+        //                cliente externo (null) → CFDI Ingreso (I) normal ──────────────────
+        if (cab.id_empresa_sys_anterior != null) {
+            return FacturacionService._timbrarTraslado({ cab, conceptos, id_empresa, id_empleado });
+        }
+
         const dias_credito     = Number(cab.plazo_pago_cliente ?? 0);
         const esPublicoGeneral = cab.rfc_cliente?.toUpperCase() === RFC_PUBLICO_GENERAL;
         const limite           = Number(cab.limite_por_factura ?? 0);
@@ -355,6 +362,143 @@ export const FacturacionService = {
             flujo:          esPublicoGeneral ? 'PUBLICO_GENERAL' : 'CLIENTE_DIRECTO',
             total_facturas: facturas.length,
             facturas,
+        };
+    },
+
+    // ── CFDI Traslado (T) — para clientes empresa propia ─────────────────────
+    // No genera CxC ni remisión. Solo registra la salida de inventario y
+    // timbrá un CFDI tipo T (traslado) en Facturapi.
+    _timbrarTraslado: async ({
+        cab, conceptos, id_empresa, id_empleado,
+    }: {
+        cab:         import('../interfaces/Facturacion.types').DatosFacturacionCabecera;
+        conceptos:   ConceptoFacturacion[];
+        id_empresa:  string;
+        id_empleado: string;
+    }) => {
+        const totales  = calcularTotales(conceptos);
+        const folio    = await FacturacionRepository.getSiguienteFolio();
+        const leyenda  = cab.leyenda_factura_empre
+            ?? `Traslado Pedido: ${cab.cod_int_pedido_alm}`;
+
+        // ── 1. Registrar factura (tipo T) + stock + kardex en transacción ──────
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        let id_factura: string;
+        try {
+            const factura = await FacturacionRepository.registrarFactura({
+                folio,
+                tipo_cfdi:        'T',
+                origen_factura:   'TRA',
+                id_pedido_alm:    cab.id_pedido_alm,
+                id_cliente_alm:   cab.id_cliente_alm,
+                id_metodo_pago:   null,
+                id_forma_pago:    null,
+                uso_cfdi:         null,
+                subtotal:         totales.subtotal,
+                iva:              totales.iva,
+                total:            totales.total,
+                estatus_factura:  'GEN',          // Generado, no timbrado
+                conceptos: conceptos.map(c => ({
+                    id_articulo:     c.id_articulo,
+                    descripcion:     c.descripcion,
+                    cantidad:        c.cantidad,
+                    precio_unitario: c.precio_unitario,
+                    subtotal_linea:  c.subtotal_linea,
+                    tasa_iva:        c.tasa_iva,
+                })),
+            }, t);
+            id_factura = factura.id_factura;
+
+            await Stock_Ubicacion_LoteRepository.descontarStockPorPedido(cab.id_pedido_alm, t);
+            await Kardex_Movimiento_ArticuloRepository.registrarSalidaPorFactura({
+                id_pedido_alm: cab.id_pedido_alm,
+                id_empresa,
+                id_empleado,
+                id_factura,
+                cod_pedido:    cab.cod_int_pedido_alm,
+                t,
+            });
+            await Pedido_Almacen.update(
+                { fecha_facturado_pedido_alm: new Date(), status_pedido_alm: 'FA' },
+                { where: { id_pedido_alm: cab.id_pedido_alm }, transaction: t },
+            );
+
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+
+        // ── 2. Generar PDF de traslado (sin timbrado SAT) ─────────────────────
+        const now    = new Date();
+        const fechaStr = `${now.getDate().toString().padStart(2,'0')}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+
+        const pdfBuffer = await generarTrasladoPDFBuffer({
+            folio,
+            fecha_emision:          fechaStr,
+            cod_int_pedido:         cab.cod_int_pedido_alm,
+            nombre_agente:          cab.nombre_agente ?? null,
+            id_empresa_sys_anterior: cab.id_empresa_sys_anterior!,
+            nom_empre:              cab.nom_empre,
+            rfc_empre:              cab.rfc_empre,
+            razon_social:           cab.razon_social_cliente,
+            rfc_receptor:           cab.rfc_cliente,
+            calle_receptor:         cab.calle_cliente,
+            colonia_receptor:       cab.colonia_cliente,
+            municipio_receptor:     cab.municipio_cliente,
+            estado_receptor:        cab.estado_cliente,
+            subtotal:               totales.subtotal,
+            iva:                    totales.iva,
+            total:                  totales.total,
+            items: conceptos.map(c => ({
+                descripcion:     c.descripcion,
+                cantidad:        c.cantidad,
+                precio_unitario: c.precio_unitario,
+                subtotal_linea:  c.subtotal_linea,
+                tasa_iva:        c.tasa_iva,
+                cod_barras:      c.cod_barras,
+                unidad:          c.desc_medida,
+            })),
+        });
+
+        if (!fs.existsSync(RUTA_PDFS)) fs.mkdirSync(RUTA_PDFS, { recursive: true });
+        const pdf_url = require('path').join(RUTA_PDFS, `TRA_${folio}_${cab.cod_int_pedido_alm}.pdf`);
+        fs.writeFileSync(pdf_url, pdfBuffer);
+
+        await Facturas.update(
+            { pdf_url },
+            { where: { id_factura } },
+        );
+
+        // ── 3. LOG de INSERTs para BD vieja (solo consola por ahora) ─────────
+        const rmenufacc = `TRA-${cab.id_empresa_sys_anterior}-${folio}`;
+        const fechaHoy  = new Date().toISOString().split('T')[0];
+
+        const sqlCabecera = `
+INSERT INTO rme0010 (empcdempn, rmenufacc, prvcdprvn, rmeplazon, rmefecfad, rmefecred, rmefecpad, rmefecemd, rmedscesn, pedcdpedn, rmestatuc, rmenetopn, rmeivafan, rmerupdfc, rmeruxmlc)
+VALUES (${cab.id_empresa_sys_anterior}, '${rmenufacc}', 15, ${cab.plazo_pago_cliente}, '${fechaHoy}', NULL, NULL, NULL, 0, ${folio}, 'C', ${totales.total}, 16, '', '');`;
+
+        const sqlsDetalle = conceptos.map(c => `
+INSERT INTO rme0010d (empcdempn, rmenufacc, prvcdprvn, artcdartn, rmecanfan, rmecanren, rmecanmen, rmepreunn, rmedescon, rmedesofn, rmepreofn, rmeprentn, rmeimplnn, rmeporivn, rmeimivln, rmeafemoc, rmedesesn)
+VALUES (${cab.id_empresa_sys_anterior}, '${rmenufacc}', 15, ${c.cod_int_artic}, ${c.cantidad}, ${c.cantidad}, 0, ${c.precio_unitario}, 0, 0, ${c.precio_unitario}, ${c.precio_unitario}, ${c.subtotal_linea}, ${c.tasa_iva * 100}, ${+(c.subtotal_linea * c.tasa_iva).toFixed(2)}, 'N', 0);`
+        );
+
+        const sqlsLotes = conceptos.flatMap(c =>
+            c.lotes.map(lote => `
+INSERT INTO rme00102 (empcdempn, rmenufacc, prvcdprvn, artcdartn, rmenulotc, rmefecadd, rmepzacan)
+VALUES (${cab.id_empresa_sys_anterior}, '${rmenufacc}', 15, ${c.cod_int_artic}, '${lote.lote}', '${lote.fecha_venci}', ${lote.cantidad});`)
+        );
+
+        console.log('\n======= INSERT BD VIEJA — TRASLADO =======');
+        console.log('[CABECERA]', sqlCabecera);
+        sqlsDetalle.forEach((s, i) => console.log(`[DETALLE ${i + 1}]`, s));
+        sqlsLotes.forEach((s, i)   => console.log(`[LOTE    ${i + 1}]`, s));
+        console.log('==========================================\n');
+
+        return {
+            flujo:          'EMPRESA_PROPIA',
+            total_facturas: 1,
+            facturas: [{ id_factura, folio, uuid_sat: null, pdf_url, xml_url: null, id_remision: null }],
         };
     },
 

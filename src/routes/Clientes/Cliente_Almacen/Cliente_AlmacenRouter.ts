@@ -21,6 +21,9 @@ router.post('/', Cliente_AlmacenController.create);
 // PUT actualizar
 router.put('/:id_cliente_alm', Cliente_AlmacenController.update);
 
+// PATCH marcar/desmarcar como empresa propia (genera CFDI traslado en lugar de ingreso)
+router.patch('/:id_cliente_alm/empresa-propia', Cliente_AlmacenController.toggleEmpresaPropia);
+
 router.get('/ultimoID', Cliente_AlmacenController.ultimoID);
 // DELETE baja lógica o física
 //router.delete('/:id_cliente_alm', Cliente_AlmacenController.delete);

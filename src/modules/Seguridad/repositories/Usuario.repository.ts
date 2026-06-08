@@ -27,6 +27,10 @@ export const UsuarioRepository = {
         return Usuario.update({ status_user: status }, { where: { id_user } });
     },
 
+    updateRol: async (id_user: string, idrol_user: number) => {
+        return Usuario.update({ idrol_user }, { where: { id_user } });
+    },
+
     getAll: async () => {
         return Usuario.findAll({
             attributes: ['id_user', 'username', 'status_user', 'idrol_user'],

@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import { ArticuloService } from '../services/articulo.service';
+import { ArticuloRepository } from '../repositories/Articulo.repository';
+import { DetalleListaPreciosRepository } from '../../../Comercial/Precios/repositories/Detalle_Lista_Precio.repository';
 
 export class ArticuloController {
   static getAllPaginados = async (req: Request, res: Response) => {
@@ -125,6 +127,41 @@ export class ArticuloController {
     } catch (error) {
       //console.error(error);
       res.status(500).json({ message: 'Error al actualizar el articulo.' });
+    }
+  };
+
+  // GET /articulo/:id_artic/panel-precios
+  static getPanelPrecios = async (req: Request, res: Response) => {
+    try {
+      const { id_artic } = req.params;
+      const panel = await ArticuloRepository.getPanelPrecios(id_artic);
+      res.status(200).json(panel);
+    } catch (error: any) {
+      console.error(error);
+      res.status(error.message === 'Artículo no encontrado.' ? 404 : 500)
+         .json({ message: error.message ?? 'Error al obtener el panel de precios.' });
+    }
+  };
+
+  // PUT /articulo/:id_artic/precio
+  // Body: { id_lista_precio, precios }
+  static upsertPrecio = async (req: Request, res: Response) => {
+    try {
+      const { id_artic } = req.params;
+      const { id_lista_precio, precios } = req.body as { id_lista_precio: string; precios: number };
+      if (!id_lista_precio || precios == null) {
+        res.status(400).json({ message: 'id_lista_precio y precios son requeridos.' });
+        return;
+      }
+      const result = await DetalleListaPreciosRepository.updateOrCreate({
+        id_artic,
+        id_lista_precio,
+        precios: Number(precios),
+      });
+      res.status(200).json(result);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ message: error.message ?? 'Error al actualizar el precio.' });
     }
   };
 }

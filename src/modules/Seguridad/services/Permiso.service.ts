@@ -21,11 +21,12 @@ export const PermisoService = {
         return await PermisoRepository.create(data)
     },
     update: async (id_permiso: string, data: ICreateOrUpdatePermiso) => {
-        if (
-            !data
-        ) {
-            throw new Error("Datos invalidos.")
-        }
+        if (!data) throw new Error("Datos invalidos.")
         return await PermisoRepository.update(data, id_permiso)
+    },
+    delete: async (id_permiso: number) => {
+        const permiso = await PermisoRepository.getById(String(id_permiso));
+        if (!permiso) throw new Error('Permiso no encontrado');
+        await permiso.destroy();
     }
 }

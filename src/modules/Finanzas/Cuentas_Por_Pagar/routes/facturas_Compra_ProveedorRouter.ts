@@ -17,7 +17,7 @@ router.get('/:id_comp', Factura_Compra_ProveedorController.getByIDComp)
 // Paso 1: Definir la ruta para guardar la factura e iniciar la captura de lotes
 router.post('/guardarFacturaEIniciarCaptura', Factura_Compra_ProveedorController.guardarFacturaEIniciarCapturaLotes)
 // Paso 2: Definir la ruta para guardar la captura completa de la factura
-router.post('/guardarCapturaCompleta', Factura_Compra_ProveedorController.guardarCapturaCompleta)
+router.post('/guardarCapturaCompleta', authMiddleware, Factura_Compra_ProveedorController.guardarCapturaCompleta)
 //Paso 3: Definir la ruta para checar la mercancia que viene en la factura 
 //router.post('/checarMercanciaFactura', Factura_Compra_ProveedorController.checarMercanciaFactura)
 

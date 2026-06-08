@@ -58,6 +58,8 @@ router.patch('/marcar-vencidas', CxCController.marcarVencidas);
 // ─── SALDO HISTÓRICO ─────────────────────────────────────────────────────────
 // GET /api/finanzas/cxc/saldo-historico/:id_cliente_alm?fecha_corte=YYYY-MM-DD
 router.get('/saldo-historico/:id_cliente_alm', CxCController.getSaldoHistorico);
+// GET /api/finanzas/cxc/reporte-saldos?fecha_corte=YYYY-MM-DD&formato=pdf|xlsx
+router.get('/reporte-saldos', CxCController.reporteSaldosClientes);
 
 // ─── WILDCARD (debe ir al final para no capturar rutas nombradas) ─────────────
 router.get('/:id_cxc', CxCController.getById);

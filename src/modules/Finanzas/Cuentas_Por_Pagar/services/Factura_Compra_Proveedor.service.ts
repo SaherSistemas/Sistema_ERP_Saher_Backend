@@ -18,6 +18,7 @@ import { LotesArticuloSucursalRepository } from "../../../Inventario/Lotes/repos
 import { NotasCreditoProveedorRepository } from "../../../../repository/Devoluciones_NC/NC/NotasCreditoProveedor.repository";
 import { Faltante_Factura_ProveedorRepository } from "../../../../repository/Devoluciones_NC/Faltante_Factura_Proveedor.repository";
 import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_General.repository";
+import Cuenta_Por_Pagar from '../model/Cuenta_Por_Pagar.model';
 export const Factura_Compra_ProveedorService = {
 
     actualizarEncabezado: async (id_factura_proveedor: string, data: IActualizarEncabezadoFacturaDTO) => {
@@ -218,7 +219,45 @@ export const Factura_Compra_ProveedorService = {
                     estado_factura: estadoFactura,
                 }
             );
-            // 10) Commit
+
+            // 11) Crear CxP automáticamente si hay monto recibido
+            const montoRecibido = +(totalesRecibidos.subtotal + totalesRecibidos.iva).toFixed(2);
+            if (montoRecibido > 0) {
+                const cxpExistente = await Cuenta_Por_Pagar.findOne({
+                    where: { id_factura_proveedor },
+                    transaction: t,
+                });
+                if (!cxpExistente) {
+                    // Calcular fecha de vencimiento: usar la de la factura,
+                    // o bien fecha_emision + días de crédito del proveedor, o +30 días por defecto
+                    let fechaVencimiento: Date;
+                    if (factura.fecha_vencimiento) {
+                        fechaVencimiento = new Date(factura.fecha_vencimiento);
+                    } else {
+                        const base = factura.fecha_emision ? new Date(factura.fecha_emision) : new Date();
+                        const diasCredito = Number(factura.compra?.proveedor?.diascre_prove ?? 30);
+                        base.setDate(base.getDate() + diasCredito);
+                        fechaVencimiento = base;
+                    }
+
+                    await Cuenta_Por_Pagar.create({
+                        id_cxp:               uuidv4(),
+                        id_factura_proveedor,
+                        id_proveedor:         factura.compra.idprove_comp,
+                        folio_factura:        factura.folio_factura_proveedor ?? null,
+                        fecha_factura:        factura.fecha_emision ?? null,
+                        fecha_vencimiento:    fechaVencimiento,
+                        monto_total:          montoRecibido,
+                        monto_pagado:         0,
+                        saldo_pendiente:      montoRecibido,
+                        estatus_cxp:          'PEN',
+                        notas:                `Generada automáticamente al ${estadoFactura === 'H' ? 'checar' : 'recepcionar con faltantes'} la factura ${factura.folio_factura_proveedor ?? id_factura_proveedor}`,
+                        id_empleado_registro: id_referencia_persona ?? null,
+                    }, { transaction: t });
+                }
+            }
+
+            // 12) Commit
             await t.commit();
             return facturaChequeada;
         } catch (err) {
@@ -299,15 +338,17 @@ export const Factura_Compra_ProveedorService = {
             // (incluye tanto los recién creados como los ya guardados línea por línea)
             await Factura_Compra_ProveedorRepository.recalcularTotales(id_factura_compra_proveedor, t);
 
-            // Registrar al empleado y marcar estado factura como 'C' (capturada)
-            const empleado = await EmpleadoRepository.getByIdFlexible(id_empleado_registro_lotes);
-            if (empleado) {
-                await Factura_Compra_ProveedorRepository.actualizarEmpleadoYEstado(
-                    id_factura_compra_proveedor,
-                    empleado.id_empleado,
-                    t
-                );
-            }
+            // Registrar al empleado y marcar estado factura como 'R' (lista para chequeo)
+            // El status SIEMPRE pasa a 'R' aunque no llegue el empleado
+            const empleado = id_empleado_registro_lotes
+                ? await EmpleadoRepository.getByIdFlexible(id_empleado_registro_lotes)
+                : null;
+
+            await Factura_Compra_ProveedorRepository.actualizarEmpleadoYEstado(
+                id_factura_compra_proveedor,
+                empleado?.id_empleado ?? null,
+                t
+            );
 
             // Recalcular total_comp_factura de la compra sumando todas sus facturas (idempotente, no acumula)
             await Compra_ProveedorRepository.recalcularTotalesDesdeFacturas(id_comp, t);

@@ -25,6 +25,14 @@ export interface DatosFacturacionCabecera {
     nombre_agente:           string | null;
     // Folio
     siguiente_folio:         number;
+    // Dirección completa del receptor (para PDF traslado)
+    calle_cliente:     string;
+    colonia_cliente:   string;
+    municipio_cliente: string;
+    estado_cliente:    string;
+    // Tipo de cliente
+    // NULL = externo (Ingreso), número = empresa propia (Traslado) con su ID en el sistema viejo
+    id_empresa_sys_anterior: number | null;
 }
 
 export interface ConceptoFacturacion {
@@ -32,6 +40,7 @@ export interface ConceptoFacturacion {
     cve_sat:         string;
     sat_medida:      string;
     desc_medida:     string;
+    cod_int_artic:   number;
     cod_barras:      string;
     cantidad:        number;
     descripcion:     string;

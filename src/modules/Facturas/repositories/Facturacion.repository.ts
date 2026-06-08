@@ -83,6 +83,11 @@ export const FacturacionRepository = {
                 ca.uso_cfdi_cliente_alm                             AS uso_cfdi,
                 ca.id_forma_pago_cliente_alm                        AS forma_pago,
                 ca.id_metodo_pago_cliente_alm                       AS metodo_pago,
+                ca.id_empresa_sys_anterior,
+                ca.calle_cliente_alm                                AS calle_cliente,
+                co_ca.nom_colonia                                   AS colonia_cliente,
+                ci_ca.nom_ciuda                                     AS municipio_cliente,
+                es_ca.nom_esta                                      AS estado_cliente,
                 COALESCE(ca.plazo_pago_cliente_alm, 0)              AS plazo_pago_cliente,
                 ca.limite_por_factura,
                 pa.id_pedido_alm,
@@ -96,6 +101,8 @@ export const FacturacionRepository = {
             JOIN colonia                co_es ON co_es.id_colonia         = es.id_colonia_empre
             JOIN cliente_almacen        ca    ON ca.id_cliente_alm        = pa.id_cliente_pedido_alm
             JOIN colonia                co_ca ON co_ca.id_colonia         = ca.id_colonia_cliente_alm
+            JOIN ciudad                 ci_ca ON ci_ca.id_ciuda           = co_ca.id_ciuda_colonia
+            JOIN estado                 es_ca ON es_ca.id_esta            = ci_ca.id_esta_ciuda
             LEFT JOIN agente_de_venta   av    ON av.id_agente             = pa.id_agente_pedido_alm
             LEFT JOIN empleado          e_ag  ON e_ag.id_empleado         = av.id_empleado
             WHERE pa.id_pedido_alm = :id_pedido_alm
@@ -112,6 +119,7 @@ export const FacturacionRepository = {
     getConceptos: async (id_pedido_alm: string): Promise<ConceptoFacturacion[]> => {
         const rows = await dbLocal.query<{
             id_articulo:   string;
+            cod_int_artic: number;
             cve_sat:       string; sat_medida: string; desc_medida: string;
             cod_barras:    string; cantidad: number; descripcion: string;
             precio_unitario: number; tasa_iva: number;
@@ -120,6 +128,7 @@ export const FacturacionRepository = {
         }>(`
             SELECT
                 a.id_artic                                  AS id_articulo,
+                a.cod_int_artic,
                 a.satclave_artic                            AS cve_sat,
                 um.sat_medida,
                 um.descrip_medida                           AS desc_medida,
@@ -273,7 +282,7 @@ export const FacturacionRepository = {
 
     registrarFactura: async (dto: {
         folio:              number;
-        tipo_cfdi:          'I' | 'E';
+        tipo_cfdi:          'I' | 'E' | 'T';
         origen_factura?:    string;
         id_pedido_alm?:     string;
         id_cliente_alm:     string;
@@ -285,6 +294,7 @@ export const FacturacionRepository = {
         total:              number;
         id_factura_origen?: string;
         uuid_relacionado?:  string;
+        estatus_factura?:   'PEN' | 'GEN';
         conceptos: Array<{
             id_articulo:     string;
             descripcion:     string;
@@ -302,7 +312,7 @@ export const FacturacionRepository = {
             subtotal_factura:  dto.subtotal,
             iva_factura:       dto.iva,
             total_factura:     dto.total,
-            estatus_factura:   'PEN',
+            estatus_factura:   dto.estatus_factura ?? 'PEN',
             id_metodo_pago:    dto.id_metodo_pago    ?? null,
             id_forma_pago:     dto.id_forma_pago      ?? null,
             uso_cfdi:          dto.uso_cfdi           ?? null,

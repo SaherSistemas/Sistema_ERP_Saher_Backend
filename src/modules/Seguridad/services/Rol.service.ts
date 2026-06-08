@@ -31,5 +31,9 @@ export const RolService = {
             throw new Error("Datos invalidos.")
         }
         return await RolRepository.updateRol(data, id)
-    }
+    },
+
+    deleteRol: async (id: number) => {
+        return await RolRepository.deleteRol(id);
+    },
 }

@@ -567,4 +567,78 @@ export const CxCRepository = {
             detalle,
         };
     },
+
+    // ── Saldos globales de TODOS los clientes al día X ────────────────────────
+    getSaldosGlobalesClientes: async (fecha_corte: string) => {
+        return await dbLocal.query<{
+            id_cliente_alm: string;
+            nombre:         string;
+            rfc:            string;
+            num_facturas:   number;
+            total_saldo:    string;
+            total_vencido:  string;
+            total_vigente:  string;
+        }>(`
+            SELECT
+                ca.id_cliente_alm,
+                COALESCE(ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm) AS nombre,
+                COALESCE(ca.rfc_cliente_alm, '')   AS rfc,
+                COUNT(DISTINCT cxc.id_cxc)::int    AS num_facturas,
+                COALESCE(SUM(
+                    GREATEST(0,
+                        COALESCE(f.total_factura, r.total_remision, cxc.monto_total)
+                        - COALESCE((
+                            SELECT SUM(pg.monto_pago) FROM pago_cxc pg
+                            WHERE pg.id_cxc = cxc.id_cxc
+                              AND pg.estatus_pago IN ('APL','DEV')
+                              AND pg.fecha_pago::DATE <= :fecha_corte
+                        ), 0)
+                    )
+                ), 0) AS total_saldo,
+                COALESCE(SUM(
+                    CASE WHEN cxc.fecha_vencimiento < :fecha_corte::DATE THEN
+                        GREATEST(0,
+                            COALESCE(f.total_factura, r.total_remision, cxc.monto_total)
+                            - COALESCE((
+                                SELECT SUM(pg.monto_pago) FROM pago_cxc pg
+                                WHERE pg.id_cxc = cxc.id_cxc
+                                  AND pg.estatus_pago IN ('APL','DEV')
+                                  AND pg.fecha_pago::DATE <= :fecha_corte
+                            ), 0)
+                        )
+                    ELSE 0 END
+                ), 0) AS total_vencido,
+                COALESCE(SUM(
+                    CASE WHEN cxc.fecha_vencimiento >= :fecha_corte::DATE THEN
+                        GREATEST(0,
+                            COALESCE(f.total_factura, r.total_remision, cxc.monto_total)
+                            - COALESCE((
+                                SELECT SUM(pg.monto_pago) FROM pago_cxc pg
+                                WHERE pg.id_cxc = cxc.id_cxc
+                                  AND pg.estatus_pago IN ('APL','DEV')
+                                  AND pg.fecha_pago::DATE <= :fecha_corte
+                            ), 0)
+                        )
+                    ELSE 0 END
+                ), 0) AS total_vigente
+            FROM cliente_almacen      ca
+            INNER JOIN cuenta_por_cobrar cxc ON cxc.id_cliente_alm = ca.id_cliente_alm
+                AND cxc."createdAt"::DATE <= :fecha_corte
+            LEFT JOIN facturas  f ON f.id_factura  = cxc.id_factura
+            LEFT JOIN remision  r ON r.id_remision = cxc.id_remision
+            GROUP BY ca.id_cliente_alm, ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm, ca.rfc_cliente_alm
+            HAVING COALESCE(SUM(
+                GREATEST(0,
+                    COALESCE(f.total_factura, r.total_remision, cxc.monto_total)
+                    - COALESCE((
+                        SELECT SUM(pg.monto_pago) FROM pago_cxc pg
+                        WHERE pg.id_cxc = cxc.id_cxc
+                          AND pg.estatus_pago IN ('APL','DEV')
+                          AND pg.fecha_pago::DATE <= :fecha_corte
+                    ), 0)
+                )
+            ), 0) > 0
+            ORDER BY total_saldo DESC
+        `, { replacements: { fecha_corte }, type: QueryTypes.SELECT });
+    },
 };

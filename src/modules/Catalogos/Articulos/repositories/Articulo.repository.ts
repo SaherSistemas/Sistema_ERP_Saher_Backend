@@ -5,6 +5,9 @@ import { isUUID } from "../../../../utils/validaciones";
 import { v4 as uuidv4 } from 'uuid';
 
 import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
+import ListaPrecio from '../../../Comercial/Precios/model/Lista_Precio';
+import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
+import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
 import { Tipo_IVARepository } from './Tipo_IVA.repository';
 import Parametros_Compra from '../../../Compras/Ordenes-Compra/model/Parametros_Compra';
@@ -340,6 +343,116 @@ export const ArticuloRepository = {
             where: whereArticulo,
         });
     },
+    getPanelPrecios: async (id_artic: string) => {
+        // ── 1. Artículo ──────────────────────────────────────────────────────
+        const articulo = await Articulo.findByPk(id_artic, {
+            attributes: [
+                'id_artic', 'cod_int_artic', 'cod_barr_artic',
+                'des_artic', 'des_gener_artic', 'tipo_de_iva',
+                'id_categoria', 'id_presentacion', 'status_artic',
+            ],
+        });
+        if (!articulo) throw new Error('Artículo no encontrado.');
+
+        // ── 2. Todas las listas de precio + precio del artículo en cada una ─
+        const todasListas = await ListaPrecio.findAll({
+            attributes: ['id_lista_precio', 'nombre_lista_precio', 'cod_int_lista_precio'],
+            order: [['cod_int_lista_precio', 'ASC']],
+        });
+
+        const detallesArticulo = await DetalleListaPrecio.findAll({
+            where: { id_artic },
+            attributes: ['id_detalle_lista_precio', 'id_lista_precio', 'precios'],
+        });
+
+        const detalleByLista = new Map<string, typeof detallesArticulo[0]>();
+        detallesArticulo.forEach(d => detalleByLista.set(d.id_lista_precio, d));
+
+        const listas_precios = todasListas.map(l => ({
+            id_lista_precio: l.id_lista_precio,
+            nombre_lista_precio: l.nombre_lista_precio,
+            cod_int_lista_precio: l.cod_int_lista_precio,
+            id_detalle_lista_precio: detalleByLista.get(l.id_lista_precio)?.id_detalle_lista_precio ?? null,
+            precio_actual: Number(detalleByLista.get(l.id_lista_precio)?.precios ?? 0),
+        }));
+
+        // ── 3. Lotes activos por empresa ─────────────────────────────────────
+        const lotes = await Lote_Articulo_Sucursal.findAll({
+            where: {
+                id_artic,
+                cantidad_entrada_lote: { [Op.gt]: 0 },
+            },
+            include: [{
+                model: Empresa_Sucursal,
+                attributes: ['id_empre', 'nom_empre'],
+            }],
+            attributes: [
+                'id_lote_sucursal', 'id_empre', 'numero_lote_sucursal',
+                'cantidad_entrada_lote', 'precio_costo_lote_sucursal',
+                'estado_lote_sucursal', 'fecha_venci_lote_sucursal',
+            ],
+            order: [['fecha_venci_lote_sucursal', 'ASC']],
+        });
+
+        // ── 4. Agrupar por empresa ────────────────────────────────────────────
+        const empresaMap = new Map<string, {
+            id_empre: string; nom_empre: string;
+            unidades: number; costo_total: number;
+            lotes: {
+                id_lote: string; numero_lote: string;
+                cantidad: number; costo_unitario: number;
+                costo_total: number; estado: string;
+                vencimiento: Date | null;
+            }[];
+        }>();
+
+        let totalUnidades = 0;
+        let sumCostoXCant = 0;
+        let sumCantConCosto = 0;
+
+        for (const lote of lotes) {
+            const idEmp   = lote.id_empre;
+            const nom     = (lote as any).empresa?.nom_empre ?? '—';
+            const cant    = lote.cantidad_entrada_lote ?? 0;
+            const costo   = Number(lote.precio_costo_lote_sucursal ?? 0);
+
+            if (!empresaMap.has(idEmp)) {
+                empresaMap.set(idEmp, { id_empre: idEmp, nom_empre: nom, unidades: 0, costo_total: 0, lotes: [] });
+            }
+            const emp = empresaMap.get(idEmp)!;
+            emp.unidades   += cant;
+            emp.costo_total += cant * costo;
+            emp.lotes.push({
+                id_lote:       lote.id_lote_sucursal,
+                numero_lote:   lote.numero_lote_sucursal,
+                cantidad:      cant,
+                costo_unitario: costo,
+                costo_total:   cant * costo,
+                estado:        lote.estado_lote_sucursal,
+                vencimiento:   lote.fecha_venci_lote_sucursal,
+            });
+
+            totalUnidades += cant;
+            if (costo > 0) {
+                sumCostoXCant   += cant * costo;
+                sumCantConCosto += cant;
+            }
+        }
+
+        const costo_promedio_ponderado = sumCantConCosto > 0
+            ? sumCostoXCant / sumCantConCosto
+            : 0;
+
+        return {
+            articulo: articulo.toJSON(),
+            listas_precios,
+            costo_promedio_ponderado,
+            stock_por_empresa: [...empresaMap.values()],
+            existencia_total:       totalUnidades,
+            valor_inventario_total: sumCostoXCant,
+        };
+    },
+
     getBusquedaPaginadaVenta: async (nombre: string, id_empresa: string, page: number, limit: number) => {
         const whereArticulo = {
             [Op.or]: [

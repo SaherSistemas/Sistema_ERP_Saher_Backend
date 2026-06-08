@@ -130,19 +130,28 @@ export const Factura_Compra_ProveedorRepository = {
 
     getFacturaConDetallesParaGuardar: async (id_factura_compra_proveedor: string, t?: Transaction) => {
         const facturaInst = await Factura_Compra_Proveedor.findByPk(id_factura_compra_proveedor, {
-            attributes: ['id_factura_proveedor', 'folio_factura_proveedor', 'estado_factura_proveedor'],
+            attributes: [
+                'id_factura_proveedor', 'folio_factura_proveedor', 'estado_factura_proveedor',
+                'fecha_emision', 'fecha_vencimiento',
+            ],
             include: [
                 {
                     model: Compra_Proveedor,
                     as: 'compra',
                     attributes: ['id_comp', 'idprove_comp'],
-                    include: [{
-                        model: Compra_General,
-                        attributes: ['id_compra_general', 'id_empresa_sucursal']
-                    }]
+                    include: [
+                        {
+                            model: Compra_General,
+                            attributes: ['id_compra_general', 'id_empresa_sucursal'],
+                        },
+                        {
+                            model: Proveedor,
+                            attributes: ['id_prove', 'diascre_prove'],
+                        },
+                    ],
                 },
             ],
-            transaction: t
+            transaction: t,
         });
 
         const factura = facturaInst ? facturaInst.toJSON() : null;
@@ -356,9 +365,13 @@ export const Factura_Compra_ProveedorRepository = {
         return count > 0;
     },
 
-    actualizarEmpleadoYEstado: async (id_factura_compra_proveedor: string, id_empleado: string, t?: Transaction) => {
+    actualizarEmpleadoYEstado: async (id_factura_compra_proveedor: string, id_empleado: string | null, t?: Transaction) => {
         return await Factura_Compra_Proveedor.update(
-            { estado_factura_proveedor: 'C', fin_de_registro_lotes: new Date(), id_empleado_registro_lotes: id_empleado },
+            {
+                estado_factura_proveedor: 'R',          // 'R' = Recibida, lista para chequeo
+                fin_de_registro_lotes:    new Date(),
+                ...(id_empleado ? { id_empleado_registro_lotes: id_empleado } : {}),
+            },
             { where: { id_factura_proveedor: id_factura_compra_proveedor }, transaction: t }
         );
     },

@@ -98,4 +98,39 @@ export class Cliente_AlmacenController {
       res.status(500).json({ mensaje: 'Error al actualizar cliente.' });
     }
   };
+
+  /**
+   * PATCH /cliente_almacen/:id_cliente_alm/empresa-propia
+   * Body: { id_empresa_sys_anterior: number | null }
+   *
+   * - null   → cliente externo normal, genera CFDI tipo I (Ingreso) con CxC.
+   * - número → ID en el sistema viejo (POS). Indica empresa propia del grupo:
+   *            genera CFDI tipo T (Traslado) sin CxC. El número se usará luego
+   *            para insertar el traslado en la BD del sistema anterior.
+   */
+  static toggleEmpresaPropia = async (req: Request, res: Response) => {
+    try {
+      const { id_cliente_alm } = req.params;
+      const { id_empresa_sys_anterior } = req.body as { id_empresa_sys_anterior: number | null };
+
+      const esValido =
+        id_empresa_sys_anterior === null ||
+        (typeof id_empresa_sys_anterior === 'number' && Number.isInteger(id_empresa_sys_anterior) && id_empresa_sys_anterior > 0);
+
+      if (!esValido) {
+        res.status(400).json({ mensaje: 'id_empresa_sys_anterior debe ser null o un entero positivo.' });
+        return;
+      }
+
+      const updated = await Cliente_AlmacenService.update(id_cliente_alm, { id_empresa_sys_anterior } as any);
+      if (!updated) {
+        res.status(404).json({ mensaje: 'Cliente no encontrado.' });
+        return;
+      }
+
+      res.status(200).json({ ok: true, id_empresa_sys_anterior });
+    } catch (error) {
+      res.status(500).json({ mensaje: 'Error al actualizar cliente.' });
+    }
+  };
 }

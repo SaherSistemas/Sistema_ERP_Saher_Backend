@@ -69,16 +69,19 @@ export class Factura_Compra_ProveedorController {
         }
     }
 
-    static guardarCapturaCompleta = async (req: Request, res: Response) => {
+    static guardarCapturaCompleta = async (req: AuthedRequest, res: Response) => {
         try {
-            // Lógica para guardar los artículos de la factura
-            const data = req.body;
-            const resultado = await Factura_Compra_ProveedorService.guardarCapturaCompleta(data)
-            res.status(201).json({ mensaje: "Captura completa guardada correctamente.", resultado })
+            const id_empleado_registro_lotes = req.user?.id_referencia_persona
+                || String(req.query.id_referencia_persona || '');
 
+            const resultado = await Factura_Compra_ProveedorService.guardarCapturaCompleta({
+                ...req.body,
+                id_empleado_registro_lotes: id_empleado_registro_lotes || null,
+            });
+            res.status(201).json({ mensaje: "Captura completa guardada correctamente.", resultado });
         } catch (error) {
-            console.error(error)
-            res.status(500).json({ message: "Error al guardar los artículos de la factura." })
+            console.error(error);
+            res.status(500).json({ message: "Error al guardar los artículos de la factura." });
         }
     }
     static guardarFacturaEIniciarCapturaLotes = async (req: Request, res: Response) => {

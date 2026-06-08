@@ -9,7 +9,8 @@ import {
   BelongsTo,
   Default,
   HasOne,
-  HasMany
+  HasMany,
+  AllowNull
 } from 'sequelize-typescript';
 import Colonia from '../../Ubicacion/Colonia';
 import Cat_Regimen_Fiscal from '../../../modules/Catalogos/model/Cat_Regimen_Fiscal';
@@ -147,6 +148,16 @@ class Cliente_Almacen extends Model {
     type: DataType.UUID
   })
   declare id_lista_precio_cliente_alm: string;
+
+  /**
+   * NULL  → cliente externo normal: CFDI tipo I (Ingreso) con CxC.
+   * Número → ID numérico del cliente en el sistema anterior (POS viejo).
+   *          Indica que es empresa propia del grupo: genera CFDI tipo T (Traslado), sin CxC.
+   *          Se usará luego para insertar el traslado en la BD del sistema viejo.
+   */
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, allowNull: true })
+  declare id_empresa_sys_anterior: number | null;
 
   @BelongsTo(() => ListaPrecio)
   listaPrecio: ListaPrecio;

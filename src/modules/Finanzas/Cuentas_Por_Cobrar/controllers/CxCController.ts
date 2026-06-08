@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
 import { CxCService } from '../services/CxC.service';
+import { CxCRepository } from '../repositories/CxC.repository';
 import { AuthedRequest } from '../../../../middleware/auth';
+import { generarPDFSaldos, generarXLSXSaldos } from '../../helpers/reporte_saldos.helper';
 
 export class CxCController {
 
@@ -339,6 +341,32 @@ export class CxCController {
             console.error(error);
             const status = /no encontrado|ya aplicado|ya cancelado/.test(error.message) ? 400 : 500;
             res.status(status).json({ message: error?.message ?? 'Error al cancelar el pago.' });
+        }
+    };
+
+    // GET /api/finanzas/cxc/reporte-saldos?fecha_corte=YYYY-MM-DD&formato=pdf|xlsx
+    static reporteSaldosClientes = async (req: Request, res: Response) => {
+        try {
+            const fecha_corte = (req.query.fecha_corte as string) || new Date().toISOString().slice(0, 10);
+            const formato     = (req.query.formato as string) || 'pdf';
+
+            const rows = await CxCRepository.getSaldosGlobalesClientes(fecha_corte);
+            const filas = rows.map(r => ({
+                nombre:        r.nombre,
+                rfc:           r.rfc,
+                num_facturas:  Number(r.num_facturas),
+                total_saldo:   Number(r.total_saldo),
+                total_vencido: Number(r.total_vencido),
+                total_vigente: Number(r.total_vigente),
+            }));
+
+            if (formato === 'xlsx') {
+                return generarXLSXSaldos(res, 'Saldos de Clientes', fecha_corte, filas);
+            }
+            return generarPDFSaldos(res, 'Saldos Deudores de Clientes al Día X', fecha_corte, filas);
+        } catch (err: any) {
+            console.error(err);
+            res.status(500).json({ message: err.message ?? 'Error al generar reporte.' });
         }
     };
 

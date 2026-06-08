@@ -42,5 +42,11 @@ export const RolRepository = {
 
         if (!rol) return null;
         return await rol.update(data)
-    }
+    },
+
+    deleteRol: async (id_rol: number) => {
+        const rol = await RolRepository.getByIdFlexible(id_rol.toString());
+        if (!rol) throw new Error('Rol no encontrado.');
+        await rol.destroy();
+    },
 }
