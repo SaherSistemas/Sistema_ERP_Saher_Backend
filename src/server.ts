@@ -2,7 +2,7 @@ import express from 'express';
 import colors from 'colors';
 import morgan from 'morgan';
 import cors from 'cors';
-import { dbLocal, /*dbPoly, /*dbVieja/* dbRemota */ } from './config/db'; // Ambas conexiones
+import { dbLocal, dbPoly, /*dbVieja/* dbRemota */ } from './config/db'; // Ambas conexiones
 import router from './routes';
 import fs from 'fs';
 import path from 'path';
@@ -10,7 +10,7 @@ import path from 'path';
 async function connectDatabases() {
     try {
         await dbLocal.authenticate();
-        //  await dbPoly.authenticate(); PRUBEA CONEXION POLY
+        await dbPoly.authenticate();
         // await dbVieja.authenticate();
         // await dbRemota.authenticate();
 
@@ -19,7 +19,7 @@ async function connectDatabases() {
         console.log(colors.yellow.bold('Conexión exitosa a base POLY'));
 
         //  await runMigrations();
-        await dbLocal.sync({ alter: true });
+        await dbLocal.sync();    // Sincroniza modelos si es necesario
         //await seedPermisosMenu();
         //await dbLocal.sync();    // Sincroniza modelos si es necesario
         //await dbRemota.sync();   // Solo si quieres sincronizar también la remota

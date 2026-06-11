@@ -1,7 +1,7 @@
 import { Op, QueryTypes, Transaction } from 'sequelize';
 
 import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
-import { dbLocal,/* dbPoly */} from '../../../../config/db';
+import { dbLocal, dbPoly } from '../../../../config/db';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import ClienteAlmacen from '../../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacenCompleto } from '../interface/Pedido_Almacen';
@@ -9,7 +9,6 @@ import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.reposit
 import { Detalle_Pedido_AlmacenRepository } from '../repositories/Detalle_Pedido_Almacen.repository';
 import { Detalle_Pedido_Almacen_LoteRepository } from '../repositories/Detalle_Pedido_Almacen_Lote.repository';
 import { Detalle_Pedido_Almacen_AsignacionRepository } from '../repositories/Detalle_Pedido_Almacen_AsignacionRepository';
-import Detalle_Pedido_Almacen_Asignacion from '../model/Detalle_Pedido_Almacen_Asignacion';
 import { Articulo_Ubicacion_DefaultServices } from '../../../Catalogos/Articulos/feature/Articulo_Ubicacion_Default/Articulo_Ubicacion_Default.service';
 import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
 import { ICreateDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Almacen_Lote.interface';
@@ -21,9 +20,9 @@ import Pedido_Almacen from '../model/Pedido_Almacen';
 //  Aísla los items de ese pedido específico.
 //  Esto corrige el bug original donde previewPolyDB mezclaba artículos de TODOS
 //  los pedidos con pdistatuc='P' y solo marcaba como importado al pedido N.
-/*async function _previewPedidoPoly(pdicdpdin: string) {
-    const [cabecera, rows] = await Promise.all([
-        dbPoly.query<{ clicdclic: string; pdicdpdin: string }>(`
+async function _previewPedidoPoly(pdicdpdin: string) {
+  const [cabecera, rows] = await Promise.all([
+    dbPoly.query<{ clicdclic: string; pdicdpdin: string }>(`
             SELECT clicdclic, pdicdpdin
             FROM pedido
             WHERE empcdempn = 20
@@ -32,81 +31,81 @@ import Pedido_Almacen from '../model/Pedido_Almacen';
             LIMIT 1
         `, { type: QueryTypes.SELECT, replacements: { pdicdpdin } }),
 
-        dbPoly.query<{ artcdartn: string; pdicntpdn: string; pdiprevtn: string }>(`
+    dbPoly.query<{ artcdartn: string; pdicntpdn: string; pdiprevtn: string }>(`
             SELECT DISTINCT p1.artcdartn, p1.pdicntpdn, p1.pdiprevtn
             FROM pedido1 p1
             WHERE p1.empcdempn = 20
               AND p1.pdicdpdin = :pdicdpdin
             ORDER BY p1.artcdartn
         `, { type: QueryTypes.SELECT, replacements: { pdicdpdin } }),
-    ]);
+  ]);
 
-    if (!cabecera.length) return null;
+  if (!cabecera.length) return null;
 
-    const clicdclic = cabecera[0].clicdclic?.trim() ?? null;
+  const clicdclic = cabecera[0].clicdclic?.trim() ?? null;
 
-    let cliente_nuevo: { id_cliente_alm: string; razon_social: string; nom_corto: string } | null = null;
-    if (clicdclic) {
-        const codigoInt = parseInt(clicdclic, 10);
-        if (!isNaN(codigoInt)) {
-            const cli = await ClienteAlmacen.findOne({
-                where: { id_interno_cliente_alm: codigoInt },
-                attributes: ['id_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
-                raw: true,
-            }) as any;
-            if (cli) {
-                cliente_nuevo = {
-                    id_cliente_alm: cli.id_cliente_alm,
-                    razon_social: cli.razon_social_cliente_alm,
-                    nom_corto: cli.nom_corto_cliente_alm,
-                };
-            }
-        }
-    }
-
-    const codigosPoly = rows.map(r => Number(r.artcdartn));
-    const articulos = codigosPoly.length > 0
-        ? await Articulo.findAll({
-            where: { cod_int_artic: { [Op.in]: codigosPoly } },
-            attributes: ['id_artic', 'cod_int_artic', 'des_artic', 'cod_barr_artic'],
-            raw: true,
-        }) as any[]
-        : [];
-
-    const mapaArticulos = new Map(articulos.map((a: any) => [Number(a.cod_int_artic), a]));
-
-    const items = rows.map(r => {
-        const cod = Number(r.artcdartn);
-        const art = mapaArticulos.get(cod);
-        return {
-            artcdartn:  cod,
-            cantidad:   Number(r.pdicntpdn),
-            precio:     Number(r.pdiprevtn) || 0,
-            id_artic:   art?.id_artic   ?? null,
-            des_artic:  art?.des_artic  ?? null,
-            cod_barras: art?.cod_barr_artic ?? null,
-            encontrado: !!art,
+  let cliente_nuevo: { id_cliente_alm: string; razon_social: string; nom_corto: string } | null = null;
+  if (clicdclic) {
+    const codigoInt = parseInt(clicdclic, 10);
+    if (!isNaN(codigoInt)) {
+      const cli = await ClienteAlmacen.findOne({
+        where: { id_interno_cliente_alm: codigoInt },
+        attributes: ['id_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+        raw: true,
+      }) as any;
+      if (cli) {
+        cliente_nuevo = {
+          id_cliente_alm: cli.id_cliente_alm,
+          razon_social: cli.razon_social_cliente_alm,
+          nom_corto: cli.nom_corto_cliente_alm,
         };
-    });
+      }
+    }
+  }
 
+  const codigosPoly = rows.map(r => Number(r.artcdartn));
+  const articulos = codigosPoly.length > 0
+    ? await Articulo.findAll({
+      where: { cod_int_artic: { [Op.in]: codigosPoly } },
+      attributes: ['id_artic', 'cod_int_artic', 'des_artic', 'cod_barr_artic'],
+      raw: true,
+    }) as any[]
+    : [];
+
+  const mapaArticulos = new Map(articulos.map((a: any) => [Number(a.cod_int_artic), a]));
+
+  const items = rows.map(r => {
+    const cod = Number(r.artcdartn);
+    const art = mapaArticulos.get(cod);
     return {
-        clicdclic,
-        pdicdpdin: cabecera[0].pdicdpdin?.trim() ?? pdicdpdin,
-        cliente_nuevo,
-        items,
-        total:          items.length,
-        encontrados:    items.filter(i => i.encontrado).length,
-        no_encontrados: items.filter(i => !i.encontrado).length,
+      artcdartn: cod,
+      cantidad: Number(r.pdicntpdn),
+      precio: Number(r.pdiprevtn) || 0,
+      id_artic: art?.id_artic ?? null,
+      des_artic: art?.des_artic ?? null,
+      cod_barras: art?.cod_barr_artic ?? null,
+      encontrado: !!art,
     };
+  });
+
+  return {
+    clicdclic,
+    pdicdpdin: cabecera[0].pdicdpdin?.trim() ?? pdicdpdin,
+    cliente_nuevo,
+    items,
+    total: items.length,
+    encontrados: items.filter(i => i.encontrado).length,
+    no_encontrados: items.filter(i => !i.encontrado).length,
+  };
 }
-*/
+
 export const Pedido_AlmacenService = {
   /**CHEQUEO */
 
   checarArticulo: async (id_pedido_alm: string, cod_barras: string, cantidad: number, id_empleado: string) => {
 
     const resultado = await Detalle_Pedido_Almacen_ChequeoRepository.checarArticulo(id_pedido_alm, cod_barras, cantidad, id_empleado);
-    
+
     const detallesPorChecar = await Detalle_Pedido_Almacen_ChequeoRepository.detallesPorChecar(id_pedido_alm);
     const pedidoTerminado = detallesPorChecar.length === 0;
 
@@ -216,7 +215,7 @@ export const Pedido_AlmacenService = {
         id_usuario,
         id_pedido_alm,
       );
-   // console.log("ASIGNACIÓN OBTENIDA EN SERVICIO:", asignacion);
+    // console.log("ASIGNACIÓN OBTENIDA EN SERVICIO:", asignacion);
     if (!asignacion) {
       const pendientes =
         await Detalle_Pedido_Almacen_AsignacionRepository.countPendientesByPedido(
@@ -251,34 +250,25 @@ export const Pedido_AlmacenService = {
     // Obtener artículos del pedido con su cantidad
     const detalles = await Detalle_Pedido_AlmacenRepository.getDetallesConArticuloPorPedido(pedidoMasUrgente);
 
-    // Para cada artículo, obtener su plan FEFO completo
-    const detallesConPlan = await Promise.all(
+    // Para cada artículo, obtener su primera ubicación FEFO
+    const detallesConUbicacion = await Promise.all(
       detalles.map(async (d) => {
         const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
           d.id_articulo,
           id_empresa,
           d.cant_pedida,
         );
-        const tieneLotes = Array.isArray(plan.detalles) && plan.detalles.length > 0;
-        return {
-          ...d,
-          ubicacion: plan.detalles[0]?.ubicacion ?? null,
-          tieneLotes,
-        };
+        return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? null };
       })
     );
 
-    // Separar los que tienen stock de los que no
-    const conStock  = detallesConPlan.filter((d) => d.tieneLotes);
-    const sinStock  = detallesConPlan.filter((d) => !d.tieneLotes);
-
-    // Ordenar con stock: pasillo → anaquel → nivel → posición
+    // Ordenar por pasillo → anaquel → nivel → posición (mismo criterio que FEFO)
     const PASILLO_ORDER: Record<string, number> = {
-      '1A': 1, 'A': 2, 'B': 3, 'C': 4, 'D': 5,
-      'E': 6, 'F': 7, 'G': 8, 'H1': 9, 'H2': 10, 'R': 11,
+      'A1': 1, 'A': 2, 'B': 3, 'C': 4, 'D': 5,
+      'E': 6, 'F': 7, 'G': 8, 'H': 9, 'H1': 10,
     };
 
-    conStock.sort((a, b) => {
+    detallesConUbicacion.sort((a, b) => {
       const ua = a.ubicacion;
       const ub = b.ubicacion;
       if (!ua && !ub) return 0;
@@ -300,7 +290,7 @@ export const Pedido_AlmacenService = {
       return (parseInt(ua.posicion) || 0) - (parseInt(ub.posicion) || 0);
     });
 
-    const detallesOrdenados = conStock.map((d, i) => ({
+    const detallesOrdenados = detallesConUbicacion.map((d, i) => ({
       id_detalle_pedido_almacen: d.id_detalle_pedido_almacen,
       orden: i + 1,
     }));
@@ -308,45 +298,8 @@ export const Pedido_AlmacenService = {
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
-
     await Pedido_AlmacenRepository.iniciarSurtido(pedidoMasUrgente, t);
-
-    // Asignar los detalles con stock al surtidor (flujo normal)
-    if (detallesOrdenados.length > 0) {
-      await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(
-        id_usuario, detallesOrdenados, t
-      );
-    }
-
-    // Auto-terminar los detalles sin existencia: crear asignación TERMINADO + negado
-    if (sinStock.length > 0) {
-      const payloadSinStock = sinStock.map((d) => ({
-        id_detalle_pedido_almacen: d.id_detalle_pedido_almacen,
-        id_usuario,
-        estado: 'TERMINADO',
-        orden: 0,
-        inicio: new Date(),
-        fin: new Date(),
-      }));
-
-      const creadas = await Detalle_Pedido_Almacen_Asignacion.bulkCreate(
-        payloadSinStock, { transaction: t, returning: true }
-      );
-
-      // Crear un registro de negado por cada detalle sin existencia
-      for (const item of sinStock) {
-        await Detalle_Pedido_NegadoRepository.create(
-          {
-            id_detalle_pedido_almacen: item.id_detalle_pedido_almacen,
-            cantidad_negada: item.cant_pedida,
-            motivo: 'SIN_EXISTENCIA',
-            comentario: 'Sin existencia al momento de asignar el pedido.',
-          },
-          t
-        );
-      }
-    }
-
+    await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(id_usuario, detallesOrdenados, t);
     await t.commit();
 
     return { mensaje: 'Pedido asignado al surtidor.', id_pedido_alm: pedidoMasUrgente };
@@ -479,7 +432,7 @@ export const Pedido_AlmacenService = {
   },
 
   // ── Preview de UN pedido en PolyDB (el primero pendiente) ──────────────────
-  /*previewPolyDB: async () => {
+  previewPolyDB: async () => {
     const [primera] = await dbPoly.query<{ pdicdpdin: string }>(`
         SELECT pdicdpdin FROM pedido
         WHERE empcdempn = 20 AND pdistatuc = 'P'
@@ -507,19 +460,19 @@ export const Pedido_AlmacenService = {
     if (!pedidosPoly.length) return [];
 
     const previews = await Promise.all(
-        pedidosPoly.map(async p => {
-            const preview = await _previewPedidoPoly(p.pdicdpdin);
-            if (!preview) return null;
-            return {
-                pdicdpdin:       Number(p.pdicdpdin),
-                clicdclic:       preview.clicdclic,
-                cliente_nuevo:   preview.cliente_nuevo,
-                total_articulos: preview.total,
-                encontrados:     preview.encontrados,
-                no_encontrados:  preview.no_encontrados,
-                puede_importar:  preview.encontrados > 0 && !!preview.cliente_nuevo,
-            };
-        })
+      pedidosPoly.map(async p => {
+        const preview = await _previewPedidoPoly(p.pdicdpdin);
+        if (!preview) return null;
+        return {
+          pdicdpdin: Number(p.pdicdpdin),
+          clicdclic: preview.clicdclic,
+          cliente_nuevo: preview.cliente_nuevo,
+          total_articulos: preview.total,
+          encontrados: preview.encontrados,
+          no_encontrados: preview.no_encontrados,
+          puede_importar: preview.encontrados > 0 && !!preview.cliente_nuevo,
+        };
+      })
     );
 
     return previews.filter((p): p is NonNullable<typeof p> => p !== null);
@@ -566,7 +519,7 @@ export const Pedido_AlmacenService = {
   `, {
       replacements: { num_pedido },
       type: QueryTypes.UPDATE
-    }); 
+    });
 
     //OBTENER FECHA MAXIMA DE ENTRAGA ALMACEN 
     const fecha_max_entrega_alm = await Pedido_AlmacenRepository.getFechaMaxEntrega(clienteRecord.id_agente_cliente_alm);
@@ -608,5 +561,5 @@ export const Pedido_AlmacenService = {
       throw err;
     }
   },
-*/
+
 };

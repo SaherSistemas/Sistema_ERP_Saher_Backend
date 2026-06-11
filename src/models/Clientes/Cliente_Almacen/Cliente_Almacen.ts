@@ -159,6 +159,16 @@ class Cliente_Almacen extends Model {
   @Column({ type: DataType.INTEGER, allowNull: true })
   declare id_empresa_sys_anterior: number | null;
 
+  /**
+   * 'FAC' → empresa propia que recibe CFDI tipo I (Ingreso) timbrado + insert en POS viejo.
+   * 'TRA' → empresa propia que recibe CFDI tipo T (Traslado), sin timbrado SAT.
+   * Solo aplica cuando id_empresa_sys_anterior != null.
+   */
+  @AllowNull(false)
+  @Default('FAC')
+  @Column({ type: DataType.STRING(3) })
+  declare tipo_comprobante: string;
+
   @BelongsTo(() => ListaPrecio)
   listaPrecio: ListaPrecio;
 

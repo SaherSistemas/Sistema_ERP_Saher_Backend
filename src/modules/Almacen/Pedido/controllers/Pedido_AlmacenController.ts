@@ -10,11 +10,9 @@ export class Pedido_AlmacenController {
     try {
       const { cod_barras, cantidad } = req.body
       const { id_pedido_alm } = req.params
-      //  console.log(cod_barras, cantidad, id_pedido_alm)
       const resultado = await Pedido_AlmacenService.checarArticulo(id_pedido_alm, cod_barras, cantidad, req.user.id_referencia_persona)
       res.status(200).json(resultado)
     } catch (error) {
-      console.log(error);
       const msg = error.message ?? "Error desconocido";
 
       if (msg.includes("no encontrado")) {
@@ -257,47 +255,47 @@ export class Pedido_AlmacenController {
 
   // ── GET /pedido/preview-polydb/lote ──────────────────────────────────
   // Devuelve TODOS los pedidos pendientes en PolyDB como lista de resúmenes.
-  /* static previewPolyDBLote = async (req: Request, res: Response) => {
-     try {
-       const data = await Pedido_AlmacenService.previewPolyDBLote();
-       res.status(200).json(data);
-     } catch (error: any) {
-       res.status(error.status || 500).json({ mensaje: error.message || 'Error al consultar PolyDB.' });
-     }
-   };
- 
-   // ── GET /pedido/preview-polydb ────────────────────────────────────────
-   // Devuelve el primer pedido pendiente en PolyDB (compatibilidad).
-   static previewPolyDB = async (req: Request, res: Response) => {
-     try {
- 
-       const data = await Pedido_AlmacenService.previewPolyDB();
-       res.status(200).json(data);
-     } catch (error: any) {
-       res.status(error.status || 500).json({ mensaje: error.message || 'Error al consultar PolyDB.' });
-     }
-   };
- 
-   // ── POST /pedido/importar-polydb ──────────────────────────────────────────
-   // Body: { num_pedido, fecha_max_entrega, tipo_pedido? }
-   // Cliente y agente se resuelven desde clicdclic de PolyDB automáticamente
-   static importarDePolyDB = async (req: AuthedRequest, res: Response) => {
-     try {
-       const { num_pedido, tipo_pedido } = req.body;
-       if (!num_pedido) {
-         res.status(400).json({ mensaje: 'Faltan campos: num_pedido.' });
-         return;
-       }
-       const data = await Pedido_AlmacenService.importarDePolyDB({
-         num_pedido: parseInt(num_pedido, 10),
-         tipo_pedido: tipo_pedido || 'AGE',
-         id_empleado: req.user!.id_referencia_persona,
-       });
-       res.status(201).json(data);
-     } catch (error: any) {
-       console.log(error);
-       res.status(error.status || 500).json({ mensaje: error.message || 'Error al importar pedido de PolyDB.' });
-     }
-   };
- */
+  static previewPolyDBLote = async (req: Request, res: Response) => {
+    try {
+      const data = await Pedido_AlmacenService.previewPolyDBLote();
+      res.status(200).json(data);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ mensaje: error.message || 'Error al consultar PolyDB.' });
+    }
+  };
+
+  // ── GET /pedido/preview-polydb ────────────────────────────────────────
+  // Devuelve el primer pedido pendiente en PolyDB (compatibilidad).
+  static previewPolyDB = async (req: Request, res: Response) => {
+    try {
+
+      const data = await Pedido_AlmacenService.previewPolyDB();
+      res.status(200).json(data);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ mensaje: error.message || 'Error al consultar PolyDB.' });
+    }
+  };
+
+  // ── POST /pedido/importar-polydb ──────────────────────────────────────────
+  // Body: { num_pedido, fecha_max_entrega, tipo_pedido? }
+  // Cliente y agente se resuelven desde clicdclic de PolyDB automáticamente
+  static importarDePolyDB = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { num_pedido, tipo_pedido } = req.body;
+      if (!num_pedido) {
+        res.status(400).json({ mensaje: 'Faltan campos: num_pedido.' });
+        return;
+      }
+      const data = await Pedido_AlmacenService.importarDePolyDB({
+        num_pedido: parseInt(num_pedido, 10),
+        tipo_pedido: tipo_pedido || 'AGE',
+        id_empleado: req.user!.id_referencia_persona,
+      });
+      res.status(201).json(data);
+    } catch (error: any) {
+      console.log(error);
+      res.status(error.status || 500).json({ mensaje: error.message || 'Error al importar pedido de PolyDB.' });
+    }
+  };
+
 }

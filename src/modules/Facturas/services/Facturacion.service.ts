@@ -1,6 +1,6 @@
 import fs from 'fs';
-import { Transaction } from 'sequelize';
-import { dbLocal } from '../../../config/db';
+import { QueryTypes, Transaction } from 'sequelize';
+import { dbLocal, dbPoly } from '../../../config/db';
 import { facturapiClient } from '../../../helpers/facturapi.helper';
 import { FacturacionRepository } from '../repositories/Facturacion.repository';
 import { ConceptoFacturacion } from '../interfaces/Facturacion.types';
@@ -12,6 +12,7 @@ import {
 } from '../interfaces/Facturacion.dto';
 import { descargarPdf, RUTA_FACTURACION, RUTA_PDFS } from '../helpers/pdf.helper';
 import { generarTrasladoPDFBuffer } from '../helpers/traslado.pdf';
+import { generarTraspasoCompletoPDFBuffer, TraspasoItem } from '../helpers/traspaso.pdf';
 import { normalizarClaveUnidad, fmt2, fmt4 } from '../helpers/sat.helper';
 import {
     RFC_PUBLICO_GENERAL,
@@ -21,6 +22,8 @@ import {
     crearCxCyRemision,
 } from '../helpers/factura.helper';
 import Facturas from '../model/Facturas.model';
+import Trabajo_Impresion from '../../Impresiones/model/Trabajo_Impresion';
+import Impresora from '../../Impresiones/model/Impresora';
 import FacturaPagoCFDI from '../model/Factura_Pago_CFDI.model';
 import { Stock_Ubicacion_LoteRepository } from '../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
@@ -217,9 +220,11 @@ export const FacturacionService = {
 
         if (!conceptos.length) throw new Error('El pedido no tiene conceptos para facturar');
 
-        // ── Bifurcación: empresa propia (id_empresa_sys_anterior != null) → CFDI Traslado (T)
-        //                cliente externo (null) → CFDI Ingreso (I) normal ──────────────────
-        if (cab.id_empresa_sys_anterior != null) {
+        // ── Bifurcación:
+        //   id_empresa_sys_anterior != null  Y  tipo_comprobante = 'TRA' → CFDI tipo T (traslado sin timbrar)
+        //   id_empresa_sys_anterior != null  Y  tipo_comprobante = 'FAC' → CFDI tipo I timbrado + insert POS viejo
+        //   id_empresa_sys_anterior = null                                → CFDI tipo I normal
+        if (cab.id_empresa_sys_anterior != null && cab.tipo_comprobante === 'TRA') {
             return FacturacionService._timbrarTraslado({ cab, conceptos, id_empresa, id_empleado });
         }
 
@@ -358,11 +363,105 @@ export const FacturacionService = {
             })
         );
 
+        // ── 3. Si es empresa propia con factura normal → insertar en POS viejo ──
+        if (cab.id_empresa_sys_anterior != null) {
+            // Usamos el folio de la primera factura generada como pedcdpedn
+            const primerFolio = registros[0].folio;
+            try {
+                await FacturacionService._insertarEnPOSAntiguo({
+                    prefijo:               'FAC',
+                    id_empresa_sys_anterior: cab.id_empresa_sys_anterior,
+                    folio:                 primerFolio,
+                    plazo_pago:            cab.plazo_pago_cliente,
+                    total:                 registros[0].totales.total,
+                    conceptos,
+                });
+            } catch (errPoly) {
+                console.error('[FACTURA_EMPRESA] Error al insertar en BD vieja:', errPoly);
+                // No lanzar — la factura ya está timbrada
+            }
+        }
+
         return {
             flujo:          esPublicoGeneral ? 'PUBLICO_GENERAL' : 'CLIENTE_DIRECTO',
             total_facturas: facturas.length,
             facturas,
         };
+    },
+
+    // ── Helper compartido: insert en rme0010/rme00101/rme00102 (POS viejo) ────
+    _insertarEnPOSAntiguo: async ({
+        prefijo, id_empresa_sys_anterior, folio, plazo_pago, total, conceptos,
+    }: {
+        prefijo:               'TRA' | 'FAC';
+        id_empresa_sys_anterior: number;
+        folio:                 number;
+        plazo_pago:            number;
+        total:                 number;
+        conceptos:             ConceptoFacturacion[];
+    }) => {
+        const parseFechaVenci = (f: string): string => {
+            const [mes, anio] = f.split('/');
+            const m   = parseInt(mes,  10);
+            const a   = parseInt(anio, 10);
+            const dia = new Date(a, m, 0).getDate();
+            return `${a}-${String(m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+        };
+
+        const rmenufacc = `${prefijo}-${id_empresa_sys_anterior}-${folio}`;
+        const fechaHoy  = new Date().toISOString().split('T')[0];
+
+        const tPoly = await dbPoly.transaction();
+        try {
+            await dbPoly.query(`
+                INSERT INTO rme0010 (empcdempn, rmenufacc, prvcdprvn, rmeplazon, rmefecfad, rmefecred, rmefecpad, rmefecemd, rmedscesn, pedcdpedn, rmestatuc, rmenetopn, rmeivafan, rmerupdfc, rmeruxmlc)
+                VALUES (:empcdempn, :rmenufacc, 15, :rmeplazon, :rmefecfad, :rmefecfad, :rmefecfad, :rmefecfad, 0, :pedcdpedn, 'C', :rmenetopn, 16, '', '')
+            `, {
+                replacements: { empcdempn: id_empresa_sys_anterior, rmenufacc, rmeplazon: plazo_pago, rmefecfad: fechaHoy, pedcdpedn: folio, rmenetopn: total },
+                type: QueryTypes.INSERT,
+                transaction: tPoly,
+            });
+
+            for (const c of conceptos) {
+                await dbPoly.query(`
+                    INSERT INTO rme00101 (empcdempn, rmenufacc, prvcdprvn, artcdartn, rmecanfan, rmecanren, rmecanmen, rmepreunn, rmedescon, rmedesofn, rmepreofn, rmeprentn, rmeimplnn, rmeporivn, rmeimivln, rmeafemoc, rmedesesn)
+                    VALUES (:empcdempn, :rmenufacc, 15, :artcdartn, :cantidad, :cantidad, 0, :precio, 0, 0, :precio, :precio, :subtotal, :poriva, :imiva, 'N', 0)
+                `, {
+                    replacements: {
+                        empcdempn: id_empresa_sys_anterior, rmenufacc,
+                        artcdartn: c.cod_int_artic, cantidad: c.cantidad,
+                        precio:    c.precio_unitario, subtotal: c.subtotal_linea,
+                        poriva:    c.tasa_iva * 100,
+                        imiva:     +(c.subtotal_linea * c.tasa_iva).toFixed(2),
+                    },
+                    type: QueryTypes.INSERT,
+                    transaction: tPoly,
+                });
+
+                for (const lote of c.lotes) {
+                    await dbPoly.query(`
+                        INSERT INTO rme00102 (empcdempn, rmenufacc, prvcdprvn, artcdartn, rmenulotc, rmefecadd, rmepzacan)
+                        VALUES (:empcdempn, :rmenufacc, 15, :artcdartn, :rmenulotc, :rmefecadd, :rmepzacan)
+                    `, {
+                        replacements: {
+                            empcdempn: id_empresa_sys_anterior, rmenufacc,
+                            artcdartn: c.cod_int_artic, rmenulotc: lote.lote,
+                            rmefecadd: parseFechaVenci(lote.fecha_venci),
+                            rmepzacan: lote.cantidad,
+                        },
+                        type: QueryTypes.INSERT,
+                        transaction: tPoly,
+                    });
+                }
+            }
+
+            await tPoly.commit();
+            console.log(`[POS_ANTIGUO] Insertado — ${rmenufacc}`);
+        } catch (err) {
+            await tPoly.rollback();
+            console.error(`[POS_ANTIGUO] Error al insertar — ${rmenufacc}:`, err);
+            throw err;
+        }
     },
 
     // ── CFDI Traslado (T) — para clientes empresa propia ─────────────────────
@@ -458,6 +557,11 @@ export const FacturacionService = {
                 tasa_iva:        c.tasa_iva,
                 cod_barras:      c.cod_barras,
                 unidad:          c.desc_medida,
+                lotes:           c.lotes.map(l => ({
+                    lote:        l.lote,
+                    fecha_venci: l.fecha_venci,
+                    cantidad:    l.cantidad,
+                })),
             })),
         });
 
@@ -470,35 +574,80 @@ export const FacturacionService = {
             { where: { id_factura } },
         );
 
-        // ── 3. LOG de INSERTs para BD vieja (solo consola por ahora) ─────────
-        const rmenufacc = `TRA-${cab.id_empresa_sys_anterior}-${folio}`;
-        const fechaHoy  = new Date().toISOString().split('T')[0];
+        // ── 3. Insertar en BD vieja (dbPoly) ─────────────────────────────────
+        await FacturacionService._insertarEnPOSAntiguo({
+            prefijo:               'TRA',
+            id_empresa_sys_anterior: cab.id_empresa_sys_anterior!,
+            folio,
+            plazo_pago:            cab.plazo_pago_cliente,
+            total:                 totales.total,
+            conceptos,
+        });
 
-        const sqlCabecera = `
-INSERT INTO rme0010 (empcdempn, rmenufacc, prvcdprvn, rmeplazon, rmefecfad, rmefecred, rmefecpad, rmefecemd, rmedscesn, pedcdpedn, rmestatuc, rmenetopn, rmeivafan, rmerupdfc, rmeruxmlc)
-VALUES (${cab.id_empresa_sys_anterior}, '${rmenufacc}', 15, ${cab.plazo_pago_cliente}, '${fechaHoy}', NULL, NULL, NULL, 0, ${folio}, 'C', ${totales.total}, 16, '', '');`;
+        // ── 4. Generar documentos de traspaso (normales + receta) ─────────────
+        const itemsTraspaso: TraspasoItem[] = conceptos.map(c => ({
+            descripcion:     c.descripcion,
+            cantidad:        c.cantidad,
+            cod_int_artic:   c.cod_int_artic,
+            cod_barras:      c.cod_barras,
+            necesita_receta: c.necesita_receta,
+            lotes:           c.lotes,
+        }));
 
-        const sqlsDetalle = conceptos.map(c => `
-INSERT INTO rme0010d (empcdempn, rmenufacc, prvcdprvn, artcdartn, rmecanfan, rmecanren, rmecanmen, rmepreunn, rmedescon, rmedesofn, rmepreofn, rmeprentn, rmeimplnn, rmeporivn, rmeimivln, rmeafemoc, rmedesesn)
-VALUES (${cab.id_empresa_sys_anterior}, '${rmenufacc}', 15, ${c.cod_int_artic}, ${c.cantidad}, ${c.cantidad}, 0, ${c.precio_unitario}, 0, 0, ${c.precio_unitario}, ${c.precio_unitario}, ${c.subtotal_linea}, ${c.tasa_iva * 100}, ${+(c.subtotal_linea * c.tasa_iva).toFixed(2)}, 'N', 0);`
-        );
+        const fechaDoc    = new Date();
+        const fechaDocStr = `${String(fechaDoc.getDate()).padStart(2,'0')}/${String(fechaDoc.getMonth()+1).padStart(2,'0')}/${String(fechaDoc.getFullYear()).slice(-2)}`;
 
-        const sqlsLotes = conceptos.flatMap(c =>
-            c.lotes.map(lote => `
-INSERT INTO rme00102 (empcdempn, rmenufacc, prvcdprvn, artcdartn, rmenulotc, rmefecadd, rmepzacan)
-VALUES (${cab.id_empresa_sys_anterior}, '${rmenufacc}', 15, ${c.cod_int_artic}, '${lote.lote}', '${lote.fecha_venci}', ${lote.cantidad});`)
-        );
+        const pdfTraspasoBuffer = await generarTraspasoCompletoPDFBuffer({
+            folio,
+            folio_interno:      folio,
+            fecha:              fechaDocStr,
+            cod_int_pedido:     cab.cod_int_pedido_alm,
+            ruta:               null,
+            razon_social:       cab.razon_social_cliente,
+            rfc_receptor:       cab.rfc_cliente,
+            calle_receptor:     cab.calle_cliente,
+            colonia_receptor:   cab.colonia_cliente,
+            municipio_receptor: cab.municipio_cliente,
+            estado_receptor:    cab.estado_cliente,
+            cp_receptor:        cab.domicilio_fiscal,
+            telefono_receptor:  null,
+            nom_empre:          cab.nom_empre,
+            rfc_empre:          cab.rfc_empre,
+        }, itemsTraspaso);
 
-        console.log('\n======= INSERT BD VIEJA — TRASLADO =======');
-        console.log('[CABECERA]', sqlCabecera);
-        sqlsDetalle.forEach((s, i) => console.log(`[DETALLE ${i + 1}]`, s));
-        sqlsLotes.forEach((s, i)   => console.log(`[LOTE    ${i + 1}]`, s));
-        console.log('==========================================\n');
+        const traspaso_pdf_url = require('path').join(RUTA_PDFS, `TRA_${folio}_${cab.cod_int_pedido_alm}_traspaso.pdf`);
+        fs.writeFileSync(traspaso_pdf_url, pdfTraspasoBuffer);
+
+        // ── 5. Encolar en trabajo_impresion ───────────────────────────────────
+        try {
+            // Buscar impresora LASER activa de la empresa (si no hay, queda null)
+            const impresora = await Impresora.findOne({
+                where: { tipo_impresora: 'LASER', activa: true },
+                order: [['createdAt', 'ASC']],
+            });
+
+            await Trabajo_Impresion.create({
+                cod_interno_pedido: cab.cod_int_pedido_alm,
+                id_impresora:       impresora?.id_impresora ?? null,
+                tipo_documento:     'TRASPASO',
+                referencia_codigo:  `TRA-${cab.id_empresa_sys_anterior}-${folio}`,
+                payload: {
+                    tipo:         'pdf',
+                    ruta_archivo: traspaso_pdf_url,
+                },
+                estado:         'PENDIENTE',
+                solicitado_por: id_empleado ?? null,
+            });
+        } catch (errImp) {
+            console.error('[TRASLADO] No se pudo encolar trabajo de impresión:', errImp);
+            // No lanzar — no es crítico para el traslado
+        }
 
         return {
             flujo:          'EMPRESA_PROPIA',
             total_facturas: 1,
             facturas: [{ id_factura, folio, uuid_sat: null, pdf_url, xml_url: null, id_remision: null }],
+            traspaso_pdf:   traspaso_pdf_url,
         };
     },
 

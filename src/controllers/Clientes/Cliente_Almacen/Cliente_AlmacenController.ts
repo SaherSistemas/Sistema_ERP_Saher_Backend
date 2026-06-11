@@ -101,17 +101,19 @@ export class Cliente_AlmacenController {
 
   /**
    * PATCH /cliente_almacen/:id_cliente_alm/empresa-propia
-   * Body: { id_empresa_sys_anterior: number | null }
+   * Body: { id_empresa_sys_anterior: number | null, tipo_comprobante?: 'FAC' | 'TRA' }
    *
-   * - null   → cliente externo normal, genera CFDI tipo I (Ingreso) con CxC.
-   * - número → ID en el sistema viejo (POS). Indica empresa propia del grupo:
-   *            genera CFDI tipo T (Traslado) sin CxC. El número se usará luego
-   *            para insertar el traslado en la BD del sistema anterior.
+   * - null  → cliente externo normal (CFDI tipo I con CxC, sin insert en POS viejo)
+   * - número + 'FAC' → empresa propia con CFDI timbrado + insert POS viejo
+   * - número + 'TRA' → empresa propia con traslado interno sin timbre SAT
    */
   static toggleEmpresaPropia = async (req: Request, res: Response) => {
     try {
       const { id_cliente_alm } = req.params;
-      const { id_empresa_sys_anterior } = req.body as { id_empresa_sys_anterior: number | null };
+      const { id_empresa_sys_anterior, tipo_comprobante } = req.body as {
+        id_empresa_sys_anterior: number | null;
+        tipo_comprobante?: 'FAC' | 'TRA';
+      };
 
       const esValido =
         id_empresa_sys_anterior === null ||
@@ -122,15 +124,40 @@ export class Cliente_AlmacenController {
         return;
       }
 
-      const updated = await Cliente_AlmacenService.update(id_cliente_alm, { id_empresa_sys_anterior } as any);
+      if (tipo_comprobante && !['FAC', 'TRA'].includes(tipo_comprobante)) {
+        res.status(400).json({ mensaje: 'tipo_comprobante debe ser FAC o TRA.' });
+        return;
+      }
+
+      const updateData: any = { id_empresa_sys_anterior };
+      if (tipo_comprobante) updateData.tipo_comprobante = tipo_comprobante;
+      if (id_empresa_sys_anterior === null) updateData.tipo_comprobante = 'FAC'; // reset al quitar
+
+      const updated = await Cliente_AlmacenService.update(id_cliente_alm, updateData);
       if (!updated) {
         res.status(404).json({ mensaje: 'Cliente no encontrado.' });
         return;
       }
 
-      res.status(200).json({ ok: true, id_empresa_sys_anterior });
+      res.status(200).json({ ok: true, id_empresa_sys_anterior, tipo_comprobante: updateData.tipo_comprobante });
     } catch (error) {
       res.status(500).json({ mensaje: 'Error al actualizar cliente.' });
+    }
+  };
+
+  static toggleEstatus = async (req: Request, res: Response) => {
+    try {
+      const { id_cliente_alm } = req.params;
+      const cliente = await Cliente_AlmacenService.getByIDFlexible(id_cliente_alm);
+      if (!cliente) {
+        res.status(404).json({ mensaje: 'Cliente no encontrado.' });
+        return;
+      }
+      const nuevoEstatus = !cliente.activo_cliente_alm;
+      await Cliente_AlmacenService.update(id_cliente_alm, { activo_cliente_alm: nuevoEstatus } as any);
+      res.status(200).json({ ok: true, activo_cliente_alm: nuevoEstatus });
+    } catch (error) {
+      res.status(500).json({ mensaje: 'Error al cambiar estatus del cliente.' });
     }
   };
 }

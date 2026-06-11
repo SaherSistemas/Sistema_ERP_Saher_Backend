@@ -10,30 +10,35 @@ interface TrasladoItem {
     tasa_iva:        number;
     cod_barras?:     string;
     unidad?:         string;
+    lotes: {
+        lote:        string;
+        fecha_venci: string;
+        cantidad:    number;
+    }[];
 }
 
 export interface DatosTrasladoPDF {
-    folio:             number;
-    fecha_emision:     string;          // DD/MM/YYYY HH:mm
-    cod_int_pedido:    string;
-    nombre_agente:     string | null;
-    id_empresa_sys_anterior: number;    // ID en el sistema viejo (POS)
+    folio:               number;
+    fecha_emision:       string;          // DD/MM/YYYY HH:mm
+    cod_int_pedido:      string;
+    nombre_agente:       string | null;
+    id_empresa_sys_anterior: number;
     // Emisor
-    nom_empre:         string;
-    rfc_empre:         string;
+    nom_empre:           string;
+    rfc_empre:           string;
     // Receptor
-    razon_social:      string;
-    rfc_receptor:      string;
-    calle_receptor:    string;
-    colonia_receptor:  string;
-    municipio_receptor: string;
-    estado_receptor:   string;
+    razon_social:        string;
+    rfc_receptor:        string;
+    calle_receptor:      string;
+    colonia_receptor:    string;
+    municipio_receptor:  string;
+    estado_receptor:     string;
     // Totales
-    subtotal:          number;
-    iva:               number;
-    total:             number;
+    subtotal:            number;
+    iva:                 number;
+    total:               number;
     // Artículos
-    items:             TrasladoItem[];
+    items:               TrasladoItem[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -56,11 +61,12 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
         doc.on('error', reject);
 
         const PW    = 612;
+        const PH    = 792;
         const MX    = 28;
-        const MY    = 22;
-        const CW    = PW - MX * 2;   // 556 pts
-        const GR    = '#888888';
+        const MY    = 20;
+        const CW    = PW - MX * 2;   // 556
         const NEGRO = '#1a1a1a';
+        const GR    = '#6b7280';
         const LBORD = '#d1d5db';
         const AZUL  = '#4f46e5';
 
@@ -70,57 +76,41 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
         let y = MY;
 
         // ══════════════════════════════════════════════════════════════════════
-        // 1. HEADER — Logo | Centro | Derecha
+        // 1. HEADER
         // ══════════════════════════════════════════════════════════════════════
 
-        const LOGO_W = 80;
-        const LOGO_H = 72;
-        const MID_X  = MX + LOGO_W + 12;
-        const MID_W  = 200;
-        const RIG_X  = MID_X + MID_W + 12;
-        const RIG_W  = MX + CW - RIG_X;
+        // Logo izquierda
+        const LOGO_W = 72;
+        doc.circle(MX + 26, y + 26, 24).lineWidth(1.5).stroke('#6b7280');
+        doc.font('Helvetica-Bold').fontSize(22).fillColor('#374151')
+           .text('S', MX + 15, y + 14, { lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(11).fillColor('#374151')
+           .text('Saher', MX + 4, y + 42, { width: LOGO_W, align: 'center', lineBreak: false });
+        doc.font('Helvetica').fontSize(6).fillColor(GR)
+           .text('Distribuidora Farmacéutica', MX, y + 54, { width: LOGO_W + 4, align: 'center', lineBreak: false });
 
-        // Logo
-        doc.circle(MX + 30, y + 28, 28).lineWidth(2).stroke('#6b7280');
-        doc.font('Helvetica-Bold').fontSize(26).fillColor('#374151')
-           .text('S', MX + 17, y + 16, { lineBreak: false });
-        doc.font('Helvetica-Bold').fontSize(14).fillColor('#374151')
-           .text('Saher', MX + 4, y + 48, { width: LOGO_W, align: 'center', lineBreak: false });
-        doc.font('Helvetica').fontSize(6.5).fillColor(GR)
-           .text('Distribuidora Farmacéutica', MX, y + 62, { width: LOGO_W + 6, align: 'center', lineBreak: false });
+        // Título centro
+        doc.font('Helvetica-Bold').fontSize(15).fillColor(AZUL)
+           .text('TRASLADO DE MERCANCÍA', MX + LOGO_W + 10, y + 10, { width: CW - LOGO_W - 120, align: 'center', lineBreak: false });
 
-        // Columna central — info del documento
-        const infoRow = (label: string, val: string, iy: number) => {
-            doc.font('Helvetica-Bold').fontSize(7.5).fillColor(GR)
-               .text(label, MID_X, iy, { lineBreak: false });
+        // Recuadro folio/fecha derecha
+        const RW  = 110;
+        const RX  = MX + CW - RW;
+        doc.rect(RX, y, RW, 62).lineWidth(0.5).stroke(LBORD);
+
+        const infoR = (label: string, val: string, iy: number) => {
+            doc.font('Helvetica-Bold').fontSize(6.5).fillColor(GR)
+               .text(label, RX + 4, iy, { width: RW - 8, lineBreak: false });
             doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
-               .text(val, MID_X, iy + 9, { width: MID_W - 4, lineBreak: false });
+               .text(val, RX + 4, iy + 8, { width: RW - 8, lineBreak: false });
         };
+        infoR('Folio',           String(datos.folio),         y + 2);
+        infoR('Pedido',          datos.cod_int_pedido,        y + 21);
+        infoR('Fecha de Emisión', datos.fecha_emision,        y + 40);
 
-        infoRow('Tipo de Comprobante',    'TRASLADO DE MERCANCÍA',              y);
-        infoRow('Pedido',                 datos.cod_int_pedido,                 y + 20);
-        infoRow('Agente',                 datos.nombre_agente ?? '—',           y + 40);
-        infoRow('ID Sistema Anterior',    `#${datos.id_empresa_sys_anterior}`,  y + 60);
-
-        // Columna derecha — folio y fecha
-        const infoRowR = (label: string, val: string, iy: number) => {
-            doc.font('Helvetica-Bold').fontSize(7.5).fillColor(GR)
-               .text(label, RIG_X, iy, { lineBreak: false });
-            doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
-               .text(val, RIG_X, iy + 9, { width: RIG_W, lineBreak: false });
-        };
-
-        infoRowR('Folio',             String(datos.folio),    y);
-        infoRowR('Lugar de Expedición', 'Culiacán, Sinaloa.', y + 20);
-        infoRowR('Fecha de Emisión',  datos.fecha_emision,    y + 40);
-
-        // Título grande centrado
-        doc.font('Helvetica-Bold').fontSize(11).fillColor(AZUL)
-           .text('TRASLADO DE MERCANCÍA', MX, y + 4, { width: CW, align: 'center', lineBreak: false });
-
-        y += LOGO_H + 8;
+        y += 68;
         hline(y, MX, MX + CW, 1, '#9ca3af');
-        y += 8;
+        y += 6;
 
         // ══════════════════════════════════════════════════════════════════════
         // 2. EMISOR / RECEPTOR
@@ -129,104 +119,131 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
         const COL2 = CW / 2 - 4;
         const R_X  = MX + COL2 + 8;
 
-        doc.font('Helvetica-Bold').fontSize(8).fillColor(NEGRO)
-           .text('Emisor', MX, y);
-        doc.font('Helvetica-Bold').fontSize(8).fillColor(NEGRO)
-           .text('Receptor', R_X, y);
-        y += 12;
+        // Cabeceras
+        doc.rect(MX, y, COL2, 12).fill('#f3f4f6');
+        doc.rect(R_X, y, COL2, 12).fill('#f3f4f6');
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(NEGRO)
+           .text('EMISOR', MX + 4, y + 2, { lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(NEGRO)
+           .text('RECEPTOR', R_X + 4, y + 2, { lineBreak: false });
+        y += 14;
 
         const emisorLines = [
             datos.nom_empre.toUpperCase(),
             datos.rfc_empre,
             'PASTOR ROUIX #2314 B',
-            'INDUSTRIAL EL PALMITO',
-            'C.P.  80160',
+            'INDUSTRIAL EL PALMITO, C.P. 80160',
             'CULIACÁN, SINALOA',
         ];
-
-        const startY = y;
-        emisorLines.forEach(line => {
-            doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
-               .text(line, MX, y, { width: COL2, lineBreak: false });
-            y += 9;
-        });
-
         const receptorLines = [
             datos.razon_social.toUpperCase(),
             datos.rfc_receptor,
             datos.calle_receptor.toUpperCase(),
             datos.colonia_receptor.toUpperCase(),
             `${datos.municipio_receptor.toUpperCase()}, ${datos.estado_receptor.toUpperCase()}`,
-        ].filter(l => l.trim() !== '');
+        ];
+
+        const startY = y;
+        emisorLines.forEach(line => {
+            doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
+               .text(line, MX + 2, y, { width: COL2 - 4, lineBreak: false });
+            y += 9;
+        });
 
         let ry = startY;
         receptorLines.forEach(line => {
             doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
-               .text(line, R_X, ry, { width: COL2, lineBreak: false });
+               .text(line, R_X + 2, ry, { width: COL2 - 4, lineBreak: false });
             ry += 9;
         });
 
-        y = Math.max(y, ry) + 10;
+        // Agente debajo del emisor
+        y = Math.max(y, ry) + 4;
+        doc.font('Helvetica').fontSize(7).fillColor(GR)
+           .text(`Agente: ${datos.nombre_agente ?? '—'}   |   ID Sistema Anterior: #${datos.id_empresa_sys_anterior}`, MX + 2, y, { lineBreak: false });
+        y += 12;
+
         hline(y, MX, MX + CW, 0.5, LBORD);
-        y += 6;
+        y += 5;
 
         // ══════════════════════════════════════════════════════════════════════
-        // 3. TABLA DE ARTÍCULOS
-        // Cantidad(55) | Unidad(44) | C.Barras(108) | Descripción(215) | PrecioU(67) | Importe(67)
+        // 3. TABLA
+        // Cant(42) Unidad(36) C.Barras(88) Descripción(158) Lote(70) Caducidad(52) PrecioU(55) Importe(55)
+        // Total = 556 ✓
         // ══════════════════════════════════════════════════════════════════════
 
         const COLS = [
-            { label: 'Cantidad',    w:  55, align: 'right'  as const },
-            { label: 'Unidad',      w:  44, align: 'center' as const },
-            { label: 'C. Barras',   w: 108, align: 'left'   as const },
-            { label: 'Descripción', w: 215, align: 'left'   as const },
-            { label: 'Precio U.',   w:  67, align: 'right'  as const },
-            { label: 'Importe',     w:  67, align: 'right'  as const },
+            { label: 'Cantidad',    w:  42, align: 'right'  as const },
+            { label: 'Unidad',      w:  36, align: 'center' as const },
+            { label: 'C. Barras',   w:  88, align: 'left'   as const },
+            { label: 'Descripción', w: 158, align: 'left'   as const },
+            { label: 'Lote',        w:  70, align: 'left'   as const },
+            { label: 'Caducidad',   w:  52, align: 'center' as const },
+            { label: 'Precio U.',   w:  55, align: 'right'  as const },
+            { label: 'Importe',     w:  55, align: 'right'  as const },
         ];
 
-        const TH = 14;
-        const TR = 13;
+        const TH = 13;
+        const TR = 12;
 
-        hline(y, MX, MX + CW, 0.5, LBORD);
+        // Header tabla
+        doc.rect(MX, y, CW, TH).fill('#e5e7eb');
         let cx = MX;
         COLS.forEach(col => {
-            doc.font('Helvetica-Bold').fontSize(7.5).fillColor(NEGRO)
-               .text(col.label, cx + 4, y + 3, { width: col.w - 8, align: col.align, lineBreak: false });
+            doc.font('Helvetica-Bold').fontSize(7).fillColor(NEGRO)
+               .text(col.label, cx + 3, y + 3,
+                     { width: col.w - 6, align: col.align, lineBreak: false });
             cx += col.w;
         });
         y += TH;
-        hline(y, MX, MX + CW, 0.5, LBORD);
+        hline(y);
 
+        // Filas
+        let rowIdx = 0;
         let totalPiezas = 0;
-        datos.items.forEach((item, idx) => {
+
+        datos.items.forEach(item => {
             totalPiezas += item.cantidad;
-            if (idx % 2 === 1) {
-                doc.rect(MX, y, CW, TR).fill('#f9fafb');
-            }
-            const importe = +(item.subtotal_linea * (1 + item.tasa_iva)).toFixed(2);
+
+            // Agrupar lotes para mostrar en columna
+            const lotesStr    = item.lotes.map(l => l.lote).join('\n');
+            const caducStr    = item.lotes.map(l => l.fecha_venci).join('\n');
+
+            // Altura dinámica según número de lotes
+            const numLineas   = Math.max(item.lotes.length, 1);
+            const rowH        = Math.max(TR, numLineas * 10 + 2);
+
+            if (rowIdx % 2 === 0) doc.rect(MX, y, CW, rowH).fill('#f9fafb');
+
             const vals = [
                 item.cantidad.toFixed(4),
-                (item.unidad ?? '').substring(0, 6).toUpperCase(),
+                (item.unidad ?? 'PZA').toUpperCase(),
                 item.cod_barras ?? '',
                 item.descripcion,
+                lotesStr,
+                caducStr,
                 fmt2(item.precio_unitario),
-                fmt2(importe),
+                fmt2(item.subtotal_linea),
             ];
+
             cx = MX;
             COLS.forEach((col, ci) => {
-                doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
-                   .text(vals[ci], cx + 4, y + 3,
-                         { width: col.w - 8, align: col.align, lineBreak: false, ellipsis: true });
+                const isBold = ci === 3;
+                doc.font(isBold ? 'Helvetica-Bold' : 'Helvetica')
+                   .fontSize(7).fillColor(NEGRO)
+                   .text(vals[ci], cx + 3, y + 2,
+                         { width: col.w - 6, align: col.align, lineBreak: false, ellipsis: false });
                 cx += col.w;
             });
-            y += TR;
+
+            y += rowH;
+            rowIdx++;
         });
 
-        const blanks = Math.max(3, 8 - datos.items.length);
+        // Filas vacías mínimo 2
+        const blanks = Math.max(2, 6 - datos.items.length);
         for (let i = 0; i < blanks; i++) {
-            if ((datos.items.length + i) % 2 === 1) {
-                doc.rect(MX, y, CW, TR).fill('#f9fafb');
-            }
+            if ((rowIdx + i) % 2 === 0) doc.rect(MX, y, CW, TR).fill('#f9fafb');
             y += TR;
         }
 
@@ -238,71 +255,75 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
         // ══════════════════════════════════════════════════════════════════════
 
         doc.font('Helvetica-Bold').fontSize(8).fillColor(NEGRO)
-           .text('Total Piezas', MX + 60, y + 2, { lineBreak: false });
+           .text('Total Piezas', MX + 50, y + 2, { lineBreak: false });
         doc.font('Helvetica').fontSize(8).fillColor(NEGRO)
-           .text(totalPiezas.toFixed(4), MX + 130, y + 2, { lineBreak: false });
+           .text(totalPiezas.toFixed(4), MX + 120, y + 2, { lineBreak: false });
 
         const TLBL_W = 70;
-        const TVAL_W = 80;
+        const TVAL_W = 75;
         const TX     = MX + CW - TLBL_W - TVAL_W;
 
         const tasas    = [...new Set(datos.items.filter(d => d.tasa_iva > 0).map(d => d.tasa_iva))];
-        const ivaLabel = tasas.length === 1 ? `IVA${(tasas[0] * 100).toFixed(0)}%` : 'IVA';
+        const ivaLabel = tasas.length === 1 ? `IVA ${(tasas[0] * 100).toFixed(0)}%` : 'IVA';
 
-        const totRows = [
-            { label: 'Subtotal:', value: fmt2(datos.subtotal) },
-            { label: ivaLabel + ':', value: fmt2(datos.iva) },
-            { label: 'Total:',    value: fmt2(datos.total) },
-        ];
-
-        totRows.forEach((row, i) => {
+        [
+            { label: 'Subtotal:',     value: fmt2(datos.subtotal) },
+            { label: ivaLabel + ':',  value: fmt2(datos.iva)      },
+            { label: 'Total:',        value: fmt2(datos.total)    },
+        ].forEach((row, i) => {
             const ty      = y + i * 13;
             const isTotal = i === 2;
-            if (isTotal) {
-                doc.rect(TX, ty, TLBL_W + TVAL_W, 13).fill('#f0f0f0');
-            }
+            if (isTotal) doc.rect(TX, ty, TLBL_W + TVAL_W, 13).fill('#ede9fe');
             doc.font(isTotal ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(NEGRO)
                .text(row.label, TX, ty + 3, { width: TLBL_W, align: 'right', lineBreak: false });
             doc.font(isTotal ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(NEGRO)
                .text(row.value, TX + TLBL_W + 4, ty + 3, { width: TVAL_W - 8, align: 'right', lineBreak: false });
         });
 
-        y += totRows.length * 13 + 12;
+        y += 3 * 13 + 12;
         hline(y, MX, MX + CW, 0.5, LBORD);
-        y += 8;
+        y += 6;
 
         // ══════════════════════════════════════════════════════════════════════
-        // 5. NOTA INFORMATIVA
+        // 5. NOTA
         // ══════════════════════════════════════════════════════════════════════
 
-        doc.rect(MX, y, CW, 28).fill('#eff6ff');
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(AZUL)
-           .text('NOTA:', MX + 6, y + 5, { lineBreak: false });
-        doc.font('Helvetica').fontSize(7.5).fillColor('#1e40af')
+        doc.rect(MX, y, CW, 22).fill('#eff6ff');
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(AZUL)
+           .text('NOTA:', MX + 5, y + 4, { lineBreak: false });
+        doc.font('Helvetica').fontSize(7).fillColor('#1e40af')
            .text(
-               'Este documento es un comprobante interno de traslado de mercancía entre empresas del mismo grupo. ' +
+               'Comprobante interno de traslado de mercancía entre empresas del mismo grupo. ' +
                'No constituye un CFDI timbrado ante el SAT.',
-               MX + 40, y + 5, { width: CW - 50 },
+               MX + 38, y + 4, { width: CW - 44 },
            );
-
-        y += 38;
+        y += 30;
 
         // ══════════════════════════════════════════════════════════════════════
-        // 6. FIRMA
+        // 6. FIRMAS
         // ══════════════════════════════════════════════════════════════════════
 
-        const FW  = 160;
-        const FX1 = MX + CW / 2 - FW - 20;
-        const FX2 = MX + CW / 2 + 20;
+        const FW  = 150;
+        const FX1 = MX + 40;
+        const FX2 = MX + CW - 40 - FW;
         const FY  = y + 30;
 
         hline(FY, FX1, FX1 + FW, 0.5, '#9ca3af');
         hline(FY, FX2, FX2 + FW, 0.5, '#9ca3af');
+        doc.font('Helvetica').fontSize(7.5).fillColor(GR)
+           .text('Entregado por', FX1, FY + 4, { width: FW, align: 'center', lineBreak: false });
+        doc.font('Helvetica').fontSize(7.5).fillColor(GR)
+           .text('Recibido por',  FX2, FY + 4, { width: FW, align: 'center', lineBreak: false });
 
-        doc.font('Helvetica').fontSize(7.5).fillColor(GR)
-           .text('Entregado por', FX1, FY + 3, { width: FW, align: 'center', lineBreak: false });
-        doc.font('Helvetica').fontSize(7.5).fillColor(GR)
-           .text('Recibido por', FX2, FY + 3, { width: FW, align: 'center', lineBreak: false });
+        // ══════════════════════════════════════════════════════════════════════
+        // 7. FOOTER
+        // ══════════════════════════════════════════════════════════════════════
+
+        const FOOTER_Y = PH - 20;
+        hline(FOOTER_Y, MX, MX + CW, 0.3, '#e5e7eb');
+        doc.font('Helvetica').fontSize(6.5).fillColor(GR)
+           .text(`Folio: ${datos.folio}  |  Pedido: ${datos.cod_int_pedido}  |  ${datos.fecha_emision}`,
+                 MX, FOOTER_Y + 4, { width: CW, align: 'center', lineBreak: false });
 
         doc.end();
     });

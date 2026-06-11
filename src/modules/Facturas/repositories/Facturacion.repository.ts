@@ -84,6 +84,7 @@ export const FacturacionRepository = {
                 ca.id_forma_pago_cliente_alm                        AS forma_pago,
                 ca.id_metodo_pago_cliente_alm                       AS metodo_pago,
                 ca.id_empresa_sys_anterior,
+                COALESCE(ca.tipo_comprobante, 'FAC')                AS tipo_comprobante,
                 ca.calle_cliente_alm                                AS calle_cliente,
                 co_ca.nom_colonia                                   AS colonia_cliente,
                 ci_ca.nom_ciuda                                     AS municipio_cliente,
@@ -118,10 +119,11 @@ export const FacturacionRepository = {
 
     getConceptos: async (id_pedido_alm: string): Promise<ConceptoFacturacion[]> => {
         const rows = await dbLocal.query<{
-            id_articulo:   string;
-            cod_int_artic: number;
-            cve_sat:       string; sat_medida: string; desc_medida: string;
-            cod_barras:    string; cantidad: number; descripcion: string;
+            id_articulo:     string;
+            cod_int_artic:   number;
+            necesita_receta: boolean;
+            cve_sat:         string; sat_medida: string; desc_medida: string;
+            cod_barras:      string; cantidad: number; descripcion: string;
             precio_unitario: number; tasa_iva: number;
             impuesto_sat:  string; tipo_factor: string;
             lotes:         string;
@@ -129,6 +131,7 @@ export const FacturacionRepository = {
             SELECT
                 a.id_artic                                  AS id_articulo,
                 a.cod_int_artic,
+                a.necesita_receta,
                 a.satclave_artic                            AS cve_sat,
                 um.sat_medida,
                 um.descrip_medida                           AS desc_medida,
@@ -141,13 +144,21 @@ export const FacturacionRepository = {
                 ti.tipo_factor,
                 (
                     SELECT JSON_AGG(JSON_BUILD_OBJECT(
-                        'lote',        COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal),
-                        'fecha_venci', TO_CHAR(COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal), 'FMMM/YYYY'),
-                        'cantidad',    dpac2.cant_chequeada
+                        'lote',                   COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal),
+                        'fecha_venci',             TO_CHAR(COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal), 'FMMM/YYYY'),
+                        'cantidad',               dpac2.cant_chequeada,
+                        'folio_factura_proveedor', fcp.folio_factura_proveedor,
+                        'nom_proveedor',           pr.nomcort_prove
                     ))
                     FROM detalle_pedido_almacen_chequeo dpac2
-                    JOIN detalle_pedido_almacen_lote    dpal ON dpal.id_detalle_pedido_almacen_lote = dpac2.id_detalle_pedido_almacen_lote
-                    JOIN lote_articulo_sucursal         las  ON las.id_lote_sucursal = dpal.id_lote_sucursal
+                    JOIN detalle_pedido_almacen_lote       dpal ON dpal.id_detalle_pedido_almacen_lote = dpac2.id_detalle_pedido_almacen_lote
+                    JOIN lote_articulo_sucursal             las  ON las.id_lote_sucursal               = dpal.id_lote_sucursal
+                    LEFT JOIN lotes_recibidos_compra        lrc  ON lrc.id_loterecibido                = las.id_loterecibido_lote_sucursal
+                    LEFT JOIN detalle_compra_recibido       dcr  ON dcr.id_detcomprec                  = lrc.id_detallecompr_recibido
+                    LEFT JOIN detalle_factura_compra_proveedor dfcp ON dfcp.id_factura_proveedor_detalle = dcr.id_detalle_factura_compra_proveedor
+                    LEFT JOIN factura_compra_proveedor      fcp  ON fcp.id_factura_proveedor           = dfcp.id_factura_compra_proveedor
+                    LEFT JOIN compra_proveedor              cp   ON cp.id_comp                         = fcp.id_compra_prove_factura
+                    LEFT JOIN proveedor                     pr   ON pr.id_prove                        = cp.idprove_comp
                     WHERE dpac2.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
                       AND dpac2.estado != 'CANCELADO'
                       AND dpac2.cant_chequeada > 0
@@ -180,16 +191,25 @@ export const FacturacionRepository = {
             const tasa_iva        = Number(r.tasa_iva);
             const subtotal_linea  = +(cantidad * precio_unitario).toFixed(2);
 
+            const lotesRaw = Array.isArray(r.lotes)
+                ? r.lotes
+                : (r.lotes ? JSON.parse(r.lotes as any) : []);
+
             return {
                 ...r,
                 cantidad,
                 precio_unitario,
                 tasa_iva,
-                descuento:    0,
+                descuento:       0,
                 subtotal_linea,
-                lotes: Array.isArray(r.lotes)
-                    ? r.lotes.map((l: any) => ({ ...l, cantidad: Number(l.cantidad) }))
-                    : (r.lotes ? JSON.parse(r.lotes as any) : []),
+                necesita_receta: Boolean(r.necesita_receta),
+                lotes: lotesRaw.map((l: any) => ({
+                    lote:                   l.lote,
+                    fecha_venci:            l.fecha_venci,
+                    cantidad:               Number(l.cantidad),
+                    folio_factura_proveedor: l.folio_factura_proveedor ?? null,
+                    nom_proveedor:          l.nom_proveedor ?? null,
+                })),
             };
         });
     },

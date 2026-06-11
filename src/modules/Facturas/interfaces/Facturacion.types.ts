@@ -31,8 +31,11 @@ export interface DatosFacturacionCabecera {
     municipio_cliente: string;
     estado_cliente:    string;
     // Tipo de cliente
-    // NULL = externo (Ingreso), número = empresa propia (Traslado) con su ID en el sistema viejo
+    // NULL = externo (Ingreso normal sin insert en POS viejo)
+    // Número = empresa propia del grupo → siempre inserta en rme0010
     id_empresa_sys_anterior: number | null;
+    // 'FAC' = empresa propia con CFDI timbrado (Ingreso); 'TRA' = traslado interno sin timbre
+    tipo_comprobante:        string;
 }
 
 export interface ConceptoFacturacion {
@@ -50,7 +53,8 @@ export interface ConceptoFacturacion {
     tasa_iva:        number;
     impuesto_sat:    string;
     tipo_factor:     string;
-    lotes:           { lote: string; fecha_venci: string; cantidad: number }[];
+    necesita_receta: boolean;
+    lotes:           { lote: string; fecha_venci: string; cantidad: number; folio_factura_proveedor: string | null; nom_proveedor: string | null }[];
 }
 
 export interface DetalleParaEgreso {
