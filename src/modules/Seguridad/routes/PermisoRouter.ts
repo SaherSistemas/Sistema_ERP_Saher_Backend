@@ -10,4 +10,5 @@ router.put('/:id_permiso', PermisoController.update)
 router.delete('/:id_permiso', PermisoController.delete)
 router.post('/seed-finanzas-cxp', PermisoController.seedFinanzasCxP)
 router.post('/seed-facturacion', PermisoController.seedFacturacion)
+router.post('/seed-vales', PermisoController.seedVales)
 export default router;

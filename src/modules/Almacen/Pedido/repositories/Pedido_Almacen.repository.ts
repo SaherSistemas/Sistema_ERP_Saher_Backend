@@ -359,6 +359,61 @@ export const Pedido_AlmacenRepository = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
+  // GESTIÓN — lista con rango de fechas, status y búsqueda
+  // ══════════════════════════════════════════════════════════════════════════
+  getListaGestion: async (params: {
+    fecha_inicio: string;
+    fecha_fin:    string;
+    status?:      string;
+    busqueda?:    string;
+  }) => {
+    const { fecha_inicio, fecha_fin, status, busqueda } = params;
+    const where: any = {
+      createdAt: {
+        [Op.between]: [
+          new Date(`${fecha_inicio}T00:00:00.000`),
+          new Date(`${fecha_fin}T23:59:59.999`),
+        ],
+      },
+    };
+    if (status) where.status_pedido_alm = status;
+
+    const rows = await Pedido_Almacen.findAll({
+      where,
+      attributes: [
+        'id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'tipo_pedido_alm',
+        'createdAt', 'inicio_surtido', 'fecha_max_entrega_alm', 'fecha_entrega_al_cliente',
+      ],
+      include: [
+        {
+          model: Cliente_Almacen,
+          attributes: ['id_cliente_alm', 'id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm', 'rfc_cliente_alm', 'id_lista_precio_cliente_alm'],
+        },
+        {
+          model: Agente_de_Venta,
+          attributes: ['cod_identi_agente'],
+          include: [{ model: Empleado, attributes: ['nombre_empleado', 'ap_pat_empleado'] }],
+        },
+        {
+          model: Detalle_Pedido_Almacen,
+          attributes: ['id_detalle_pedido_almacen', 'cant_pedida', 'precio_venta', 'es_oferta'],
+          include: [{ model: Articulo, attributes: ['id_artic', 'cod_int_artic', 'des_artic', 'cod_barr_artic'] }],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    // Filtro de búsqueda en memoria (folio o nombre cliente)
+    if (!busqueda) return rows;
+    const q = busqueda.toLowerCase();
+    return rows.filter(p => {
+      const folio = (p.cod_int_pedido_alm ?? '').toLowerCase();
+      const cli   = ((p as any).cliente_almacen?.nom_corto_cliente_alm ?? (p as any).cliente_almacen?.razon_social_cliente_alm ?? '').toLowerCase();
+      return folio.includes(q) || cli.includes(q);
+    });
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
   // HISTORIAL POR FECHA — todos los pedidos de un día específico
   // ══════════════════════════════════════════════════════════════════════════
   getAllByFecha: async (fecha: string) => {

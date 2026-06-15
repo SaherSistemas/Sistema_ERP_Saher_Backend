@@ -28,6 +28,7 @@ import FacturaPagoCFDI from '../model/Factura_Pago_CFDI.model';
 import { Stock_Ubicacion_LoteRepository } from '../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
 import { Kardex_Movimiento_ArticuloRepository } from '../../Almacen/Kardex/repositories/Kardex_Movimiento_Articulo.repository';
+import EmpresaSucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
 
 export { IGenerarFacturaDTO, IDetalleEgresoDTO, ITimbrarEgresoDTO, ITimbrarPagoDTO };
 
@@ -45,22 +46,22 @@ export const FacturacionService = {
 
         if (!conceptos.length) throw new Error('El pedido no tiene conceptos para facturar');
 
-        const dias_credito       = Number(cab.plazo_pago_cliente ?? 0);
-        const esPublicoGeneral   = cab.rfc_cliente?.toUpperCase() === RFC_PUBLICO_GENERAL;
+        const dias_credito = Number(cab.plazo_pago_cliente ?? 0);
+        const esPublicoGeneral = cab.rfc_cliente?.toUpperCase() === RFC_PUBLICO_GENERAL;
 
-        const subtotal       = conceptos.reduce((s, c) => s + c.subtotal_linea, 0);
+        const subtotal = conceptos.reduce((s, c) => s + c.subtotal_linea, 0);
         const totalTraslados = conceptos.reduce((s, c) => s + c.subtotal_linea * c.tasa_iva, 0);
-        const totalNeto      = subtotal + totalTraslados;
+        const totalNeto = subtotal + totalTraslados;
 
         const mapaImpuestos = new Map<number, { subtotalTasa: number; importeIva: number }>();
         for (const c of conceptos) {
             const entry = mapaImpuestos.get(c.tasa_iva) ?? { subtotalTasa: 0, importeIva: 0 };
             entry.subtotalTasa += c.subtotal_linea;
-            entry.importeIva   += +(c.subtotal_linea * c.tasa_iva).toFixed(2);
+            entry.importeIva += +(c.subtotal_linea * c.tasa_iva).toFixed(2);
             mapaImpuestos.set(c.tasa_iva, entry);
         }
 
-        const folio   = cab.siguiente_folio;
+        const folio = cab.siguiente_folio;
         const leyenda = cab.leyenda_factura_empre
             ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
 
@@ -136,7 +137,7 @@ export const FacturacionService = {
 
         if (!fs.existsSync(RUTA_FACTURACION)) fs.mkdirSync(RUTA_FACTURACION, { recursive: true });
         const nombreArchivo = `${cab.serie_facturacion_empre}${folio}_${cab.cod_int_pedido_alm}.txt`;
-        const rutaArchivo   = require('path').join(RUTA_FACTURACION, nombreArchivo);
+        const rutaArchivo = require('path').join(RUTA_FACTURACION, nombreArchivo);
         fs.writeFileSync(rutaArchivo, lineas.join('\r\n'), 'latin1');
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
@@ -146,28 +147,28 @@ export const FacturacionService = {
 
             const factura = await FacturacionRepository.registrarFactura({
                 folio,
-                tipo_cfdi:      'I',
+                tipo_cfdi: 'I',
                 origen_factura: 'PED',
-                id_pedido_alm:  cab.id_pedido_alm,
+                id_pedido_alm: cab.id_pedido_alm,
                 id_cliente_alm: cab.id_cliente_alm,
                 id_metodo_pago: cab.metodo_pago,
-                id_forma_pago:  cab.forma_pago,
-                uso_cfdi:       cab.uso_cfdi,
-                subtotal:       totales.subtotal,
-                iva:            totales.iva,
-                total:          totales.total,
-                conceptos:      conceptos.map(c => ({
-                    id_articulo:     c.id_articulo,
-                    descripcion:     c.descripcion,
-                    cantidad:        c.cantidad,
+                id_forma_pago: cab.forma_pago,
+                uso_cfdi: cab.uso_cfdi,
+                subtotal: totales.subtotal,
+                iva: totales.iva,
+                total: totales.total,
+                conceptos: conceptos.map(c => ({
+                    id_articulo: c.id_articulo,
+                    descripcion: c.descripcion,
+                    cantidad: c.cantidad,
                     precio_unitario: c.precio_unitario,
-                    subtotal_linea:  c.subtotal_linea,
-                    tasa_iva:        c.tasa_iva,
+                    subtotal_linea: c.subtotal_linea,
+                    tasa_iva: c.tasa_iva,
                 })),
             }, t);
 
             const id_remision = await crearCxCyRemision({
-                factura_id:       factura.id_factura,
+                factura_id: factura.id_factura,
                 cab,
                 totales,
                 conceptos,
@@ -181,8 +182,8 @@ export const FacturacionService = {
                 id_pedido_alm: cab.id_pedido_alm,
                 id_empresa,
                 id_empleado,
-                id_factura:   factura.id_factura,
-                cod_pedido:   cab.cod_int_pedido_alm,
+                id_factura: factura.id_factura,
+                cod_pedido: cab.cod_int_pedido_alm,
                 t,
             });
             await Pedido_Almacen.update(
@@ -193,10 +194,10 @@ export const FacturacionService = {
             await t.commit();
 
             return {
-                ruta:             rutaArchivo,
+                ruta: rutaArchivo,
                 folio,
-                id_factura:       factura.id_factura,
-                flujo:            esPublicoGeneral ? 'PUBLICO_GENERAL' : 'CLIENTE_DIRECTO',
+                id_factura: factura.id_factura,
+                flujo: esPublicoGeneral ? 'PUBLICO_GENERAL' : 'CLIENTE_DIRECTO',
                 credito_generado: true,
                 id_remision,
             };
@@ -228,22 +229,22 @@ export const FacturacionService = {
             return FacturacionService._timbrarTraslado({ cab, conceptos, id_empresa, id_empleado });
         }
 
-        const dias_credito     = Number(cab.plazo_pago_cliente ?? 0);
+        const dias_credito = Number(cab.plazo_pago_cliente ?? 0);
         const esPublicoGeneral = cab.rfc_cliente?.toUpperCase() === RFC_PUBLICO_GENERAL;
-        const limite           = Number(cab.limite_por_factura ?? 0);
-        const leyenda          = cab.leyenda_factura_empre
+        const limite = Number(cab.limite_por_factura ?? 0);
+        const leyenda = cab.leyenda_factura_empre
             ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
 
         const particiones = particionarConceptos(conceptos, limite);
-        const basefolio   = await FacturacionRepository.getSiguienteFolio();
+        const basefolio = await FacturacionRepository.getSiguienteFolio();
 
         // ── 1. Registrar todas las facturas + CxC en una sola transacción ──────
         type RegistroIntermedio = {
-            id_factura:      string;
-            folio:           number;
-            totales:         ReturnType<typeof calcularTotales>;
-            id_remision:     string | null;
-            conceptosParte:  ConceptoFacturacion[];
+            id_factura: string;
+            folio: number;
+            totales: ReturnType<typeof calcularTotales>;
+            id_remision: string | null;
+            conceptosParte: ConceptoFacturacion[];
         };
 
         const registros: RegistroIntermedio[] = [];
@@ -252,36 +253,36 @@ export const FacturacionService = {
         try {
             for (let i = 0; i < particiones.length; i++) {
                 const conceptosParte = particiones[i];
-                const totales        = calcularTotales(conceptosParte);
-                const folio          = basefolio + i;
+                const totales = calcularTotales(conceptosParte);
+                const folio = basefolio + i;
 
                 const factura = await FacturacionRepository.registrarFactura({
                     folio,
-                    tipo_cfdi:      'I',
+                    tipo_cfdi: 'I',
                     origen_factura: 'PED',
-                    id_pedido_alm:  cab.id_pedido_alm,
+                    id_pedido_alm: cab.id_pedido_alm,
                     id_cliente_alm: cab.id_cliente_alm,
                     id_metodo_pago: cab.metodo_pago,
-                    id_forma_pago:  cab.forma_pago,
-                    uso_cfdi:       cab.uso_cfdi,
-                    subtotal:       totales.subtotal,
-                    iva:            totales.iva,
-                    total:          totales.total,
-                    conceptos:      conceptosParte.map(c => ({
-                        id_articulo:     c.id_articulo,
-                        descripcion:     c.descripcion,
-                        cantidad:        c.cantidad,
+                    id_forma_pago: cab.forma_pago,
+                    uso_cfdi: cab.uso_cfdi,
+                    subtotal: totales.subtotal,
+                    iva: totales.iva,
+                    total: totales.total,
+                    conceptos: conceptosParte.map(c => ({
+                        id_articulo: c.id_articulo,
+                        descripcion: c.descripcion,
+                        cantidad: c.cantidad,
                         precio_unitario: c.precio_unitario,
-                        subtotal_linea:  c.subtotal_linea,
-                        tasa_iva:        c.tasa_iva,
+                        subtotal_linea: c.subtotal_linea,
+                        tasa_iva: c.tasa_iva,
                     })),
                 }, t);
 
                 const id_remision = await crearCxCyRemision({
                     factura_id: factura.id_factura,
-                    cab:        { ...cab, id_cliente_alm: id_cliente_real ?? cab.id_cliente_alm },
+                    cab: { ...cab, id_cliente_alm: id_cliente_real ?? cab.id_cliente_alm },
                     totales,
-                    conceptos:  conceptosParte,
+                    conceptos: conceptosParte,
                     dias_credito,
                     esPublicoGeneral,
                 }, t);
@@ -295,8 +296,8 @@ export const FacturacionService = {
                 id_pedido_alm: cab.id_pedido_alm,
                 id_empresa,
                 id_empleado,
-                id_factura:   registros[0].id_factura,
-                cod_pedido:   cab.cod_int_pedido_alm,
+                id_factura: registros[0].id_factura,
+                cod_pedido: cab.cod_int_pedido_alm,
                 t,
             });
             await Pedido_Almacen.update(
@@ -316,43 +317,43 @@ export const FacturacionService = {
             registros.map(async ({ id_factura, folio, id_remision, conceptosParte }) => {
                 try {
                     const respuesta = await (facturapiClient.invoices as any).create({
-                        type:    'I',
+                        type: 'I',
                         customer: {
                             legal_name: esPublicoGeneral ? 'PUBLICO EN GENERAL' : cab.razon_social_cliente,
-                            tax_id:     cab.rfc_cliente,
+                            tax_id: cab.rfc_cliente,
                             tax_system: esPublicoGeneral ? '616' : cab.regimen_fiscal_cliente,
-                            address:    { zip: cab.domicilio_fiscal },
+                            address: { zip: cab.domicilio_fiscal },
                         },
                         items: conceptosParte.map(c => ({
                             quantity: c.cantidad,
                             product: {
-                                description:  buildDescripcionConcepto(c),
-                                product_key:  c.cve_sat,
-                                price:        +Number(c.precio_unitario).toFixed(2),
+                                description: buildDescripcionConcepto(c),
+                                product_key: c.cve_sat,
+                                price: +Number(c.precio_unitario).toFixed(2),
                                 tax_included: false,
-                                unit_key:     normalizarClaveUnidad(c.sat_medida),
-                                unit_name:    c.desc_medida,
+                                unit_key: normalizarClaveUnidad(c.sat_medida),
+                                unit_name: c.desc_medida,
                                 taxes: c.tasa_iva > 0
                                     ? [{ type: 'IVA', rate: c.tasa_iva, factor: 'Tasa' }]
                                     : [],
                             },
                         })),
-                        payment_form:   cab.forma_pago   || null,
-                        payment_method: cab.metodo_pago  || null,
-                        use:            cab.uso_cfdi     || null,
-                        series:         cab.serie_facturacion_empre,
-                        folio_number:   folio,
-                        conditions:     leyenda,
-                        currency:       'MXN',
+                        payment_form: cab.forma_pago || null,
+                        payment_method: cab.metodo_pago || null,
+                        use: cab.uso_cfdi || null,
+                        series: cab.serie_facturacion_empre,
+                        folio_number: folio,
+                        conditions: leyenda,
+                        currency: 'MXN',
                     });
 
                     const pdf_local = await descargarPdf(respuesta.id);
 
                     await FacturacionRepository.actualizarTimbrado(id_factura, {
-                        uuid_sat:       respuesta.uuid,
+                        uuid_sat: respuesta.uuid,
                         fecha_timbrado: new Date(respuesta.stamp?.date ?? Date.now()),
-                        pdf_url:        pdf_local,
-                        xml_url:        respuesta.xml_url,
+                        pdf_url: pdf_local,
+                        xml_url: respuesta.xml_url,
                     });
 
                     return { id_factura, folio, uuid_sat: respuesta.uuid, pdf_url: pdf_local, xml_url: respuesta.xml_url, id_remision };
@@ -369,11 +370,11 @@ export const FacturacionService = {
             const primerFolio = registros[0].folio;
             try {
                 await FacturacionService._insertarEnPOSAntiguo({
-                    prefijo:               'FAC',
+                    prefijo: 'FAC',
                     id_empresa_sys_anterior: cab.id_empresa_sys_anterior,
-                    folio:                 primerFolio,
-                    plazo_pago:            cab.plazo_pago_cliente,
-                    total:                 registros[0].totales.total,
+                    folio: primerFolio,
+                    plazo_pago: cab.plazo_pago_cliente,
+                    total: registros[0].totales.total,
                     conceptos,
                 });
             } catch (errPoly) {
@@ -383,7 +384,7 @@ export const FacturacionService = {
         }
 
         return {
-            flujo:          esPublicoGeneral ? 'PUBLICO_GENERAL' : 'CLIENTE_DIRECTO',
+            flujo: esPublicoGeneral ? 'PUBLICO_GENERAL' : 'CLIENTE_DIRECTO',
             total_facturas: facturas.length,
             facturas,
         };
@@ -393,23 +394,23 @@ export const FacturacionService = {
     _insertarEnPOSAntiguo: async ({
         prefijo, id_empresa_sys_anterior, folio, plazo_pago, total, conceptos,
     }: {
-        prefijo:               'TRA' | 'FAC';
+        prefijo: 'TRA' | 'FAC';
         id_empresa_sys_anterior: number;
-        folio:                 number;
-        plazo_pago:            number;
-        total:                 number;
-        conceptos:             ConceptoFacturacion[];
+        folio: number;
+        plazo_pago: number;
+        total: number;
+        conceptos: ConceptoFacturacion[];
     }) => {
         const parseFechaVenci = (f: string): string => {
             const [mes, anio] = f.split('/');
-            const m   = parseInt(mes,  10);
-            const a   = parseInt(anio, 10);
+            const m = parseInt(mes, 10);
+            const a = parseInt(anio, 10);
             const dia = new Date(a, m, 0).getDate();
             return `${a}-${String(m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
         };
 
         const rmenufacc = `${prefijo}-${id_empresa_sys_anterior}-${folio}`;
-        const fechaHoy  = new Date().toISOString().split('T')[0];
+        const fechaHoy = new Date().toISOString().split('T')[0];
 
         const tPoly = await dbPoly.transaction();
         try {
@@ -430,9 +431,9 @@ export const FacturacionService = {
                     replacements: {
                         empcdempn: id_empresa_sys_anterior, rmenufacc,
                         artcdartn: c.cod_int_artic, cantidad: c.cantidad,
-                        precio:    c.precio_unitario, subtotal: c.subtotal_linea,
-                        poriva:    c.tasa_iva * 100,
-                        imiva:     +(c.subtotal_linea * c.tasa_iva).toFixed(2),
+                        precio: c.precio_unitario, subtotal: c.subtotal_linea,
+                        poriva: c.tasa_iva * 100,
+                        imiva: +(c.subtotal_linea * c.tasa_iva).toFixed(2),
                     },
                     type: QueryTypes.INSERT,
                     transaction: tPoly,
@@ -470,14 +471,14 @@ export const FacturacionService = {
     _timbrarTraslado: async ({
         cab, conceptos, id_empresa, id_empleado,
     }: {
-        cab:         import('../interfaces/Facturacion.types').DatosFacturacionCabecera;
-        conceptos:   ConceptoFacturacion[];
-        id_empresa:  string;
+        cab: import('../interfaces/Facturacion.types').DatosFacturacionCabecera;
+        conceptos: ConceptoFacturacion[];
+        id_empresa: string;
         id_empleado: string;
     }) => {
-        const totales  = calcularTotales(conceptos);
-        const folio    = await FacturacionRepository.getSiguienteFolio();
-        const leyenda  = cab.leyenda_factura_empre
+        const totales = calcularTotales(conceptos);
+        const folio = await FacturacionRepository.getSiguienteFolio();
+        const leyenda = cab.leyenda_factura_empre
             ?? `Traslado Pedido: ${cab.cod_int_pedido_alm}`;
 
         // ── 1. Registrar factura (tipo T) + stock + kardex en transacción ──────
@@ -486,24 +487,24 @@ export const FacturacionService = {
         try {
             const factura = await FacturacionRepository.registrarFactura({
                 folio,
-                tipo_cfdi:        'T',
-                origen_factura:   'TRA',
-                id_pedido_alm:    cab.id_pedido_alm,
-                id_cliente_alm:   cab.id_cliente_alm,
-                id_metodo_pago:   null,
-                id_forma_pago:    null,
-                uso_cfdi:         null,
-                subtotal:         totales.subtotal,
-                iva:              totales.iva,
-                total:            totales.total,
-                estatus_factura:  'GEN',          // Generado, no timbrado
+                tipo_cfdi: 'T',
+                origen_factura: 'TRA',
+                id_pedido_alm: cab.id_pedido_alm,
+                id_cliente_alm: cab.id_cliente_alm,
+                id_metodo_pago: null,
+                id_forma_pago: null,
+                uso_cfdi: null,
+                subtotal: totales.subtotal,
+                iva: totales.iva,
+                total: totales.total,
+                estatus_factura: 'GEN',          // Generado, no timbrado
                 conceptos: conceptos.map(c => ({
-                    id_articulo:     c.id_articulo,
-                    descripcion:     c.descripcion,
-                    cantidad:        c.cantidad,
+                    id_articulo: c.id_articulo,
+                    descripcion: c.descripcion,
+                    cantidad: c.cantidad,
                     precio_unitario: c.precio_unitario,
-                    subtotal_linea:  c.subtotal_linea,
-                    tasa_iva:        c.tasa_iva,
+                    subtotal_linea: c.subtotal_linea,
+                    tasa_iva: c.tasa_iva,
                 })),
             }, t);
             id_factura = factura.id_factura;
@@ -514,7 +515,7 @@ export const FacturacionService = {
                 id_empresa,
                 id_empleado,
                 id_factura,
-                cod_pedido:    cab.cod_int_pedido_alm,
+                cod_pedido: cab.cod_int_pedido_alm,
                 t,
             });
             await Pedido_Almacen.update(
@@ -529,38 +530,38 @@ export const FacturacionService = {
         }
 
         // ── 2. Generar PDF de traslado (sin timbrado SAT) ─────────────────────
-        const now    = new Date();
-        const fechaStr = `${now.getDate().toString().padStart(2,'0')}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+        const now = new Date();
+        const fechaStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
         const pdfBuffer = await generarTrasladoPDFBuffer({
             folio,
-            fecha_emision:          fechaStr,
-            cod_int_pedido:         cab.cod_int_pedido_alm,
-            nombre_agente:          cab.nombre_agente ?? null,
+            fecha_emision: fechaStr,
+            cod_int_pedido: cab.cod_int_pedido_alm,
+            nombre_agente: cab.nombre_agente ?? null,
             id_empresa_sys_anterior: cab.id_empresa_sys_anterior!,
-            nom_empre:              cab.nom_empre,
-            rfc_empre:              cab.rfc_empre,
-            razon_social:           cab.razon_social_cliente,
-            rfc_receptor:           cab.rfc_cliente,
-            calle_receptor:         cab.calle_cliente,
-            colonia_receptor:       cab.colonia_cliente,
-            municipio_receptor:     cab.municipio_cliente,
-            estado_receptor:        cab.estado_cliente,
-            subtotal:               totales.subtotal,
-            iva:                    totales.iva,
-            total:                  totales.total,
+            nom_empre: cab.nom_empre,
+            rfc_empre: cab.rfc_empre,
+            razon_social: cab.razon_social_cliente,
+            rfc_receptor: cab.rfc_cliente,
+            calle_receptor: cab.calle_cliente,
+            colonia_receptor: cab.colonia_cliente,
+            municipio_receptor: cab.municipio_cliente,
+            estado_receptor: cab.estado_cliente,
+            subtotal: totales.subtotal,
+            iva: totales.iva,
+            total: totales.total,
             items: conceptos.map(c => ({
-                descripcion:     c.descripcion,
-                cantidad:        c.cantidad,
+                descripcion: c.descripcion,
+                cantidad: c.cantidad,
                 precio_unitario: c.precio_unitario,
-                subtotal_linea:  c.subtotal_linea,
-                tasa_iva:        c.tasa_iva,
-                cod_barras:      c.cod_barras,
-                unidad:          c.desc_medida,
-                lotes:           c.lotes.map(l => ({
-                    lote:        l.lote,
+                subtotal_linea: c.subtotal_linea,
+                tasa_iva: c.tasa_iva,
+                cod_barras: c.cod_barras,
+                unidad: c.desc_medida,
+                lotes: c.lotes.map(l => ({
+                    lote: l.lote,
                     fecha_venci: l.fecha_venci,
-                    cantidad:    l.cantidad,
+                    cantidad: l.cantidad,
                 })),
             })),
         });
@@ -576,43 +577,43 @@ export const FacturacionService = {
 
         // ── 3. Insertar en BD vieja (dbPoly) ─────────────────────────────────
         await FacturacionService._insertarEnPOSAntiguo({
-            prefijo:               'TRA',
+            prefijo: 'TRA',
             id_empresa_sys_anterior: cab.id_empresa_sys_anterior!,
             folio,
-            plazo_pago:            cab.plazo_pago_cliente,
-            total:                 totales.total,
+            plazo_pago: cab.plazo_pago_cliente,
+            total: totales.total,
             conceptos,
         });
 
         // ── 4. Generar documentos de traspaso (normales + receta) ─────────────
         const itemsTraspaso: TraspasoItem[] = conceptos.map(c => ({
-            descripcion:     c.descripcion,
-            cantidad:        c.cantidad,
-            cod_int_artic:   c.cod_int_artic,
-            cod_barras:      c.cod_barras,
+            descripcion: c.descripcion,
+            cantidad: c.cantidad,
+            cod_int_artic: c.cod_int_artic,
+            cod_barras: c.cod_barras,
             necesita_receta: c.necesita_receta,
-            lotes:           c.lotes,
+            lotes: c.lotes,
         }));
 
-        const fechaDoc    = new Date();
-        const fechaDocStr = `${String(fechaDoc.getDate()).padStart(2,'0')}/${String(fechaDoc.getMonth()+1).padStart(2,'0')}/${String(fechaDoc.getFullYear()).slice(-2)}`;
+        const fechaDoc = new Date();
+        const fechaDocStr = `${String(fechaDoc.getDate()).padStart(2, '0')}/${String(fechaDoc.getMonth() + 1).padStart(2, '0')}/${String(fechaDoc.getFullYear()).slice(-2)}`;
 
         const pdfTraspasoBuffer = await generarTraspasoCompletoPDFBuffer({
             folio,
-            folio_interno:      folio,
-            fecha:              fechaDocStr,
-            cod_int_pedido:     cab.cod_int_pedido_alm,
-            ruta:               null,
-            razon_social:       cab.razon_social_cliente,
-            rfc_receptor:       cab.rfc_cliente,
-            calle_receptor:     cab.calle_cliente,
-            colonia_receptor:   cab.colonia_cliente,
+            folio_interno: folio,
+            fecha: fechaDocStr,
+            cod_int_pedido: cab.cod_int_pedido_alm,
+            ruta: null,
+            razon_social: cab.razon_social_cliente,
+            rfc_receptor: cab.rfc_cliente,
+            calle_receptor: cab.calle_cliente,
+            colonia_receptor: cab.colonia_cliente,
             municipio_receptor: cab.municipio_cliente,
-            estado_receptor:    cab.estado_cliente,
-            cp_receptor:        cab.domicilio_fiscal,
-            telefono_receptor:  null,
-            nom_empre:          cab.nom_empre,
-            rfc_empre:          cab.rfc_empre,
+            estado_receptor: cab.estado_cliente,
+            cp_receptor: cab.domicilio_fiscal,
+            telefono_receptor: null,
+            nom_empre: cab.nom_empre,
+            rfc_empre: cab.rfc_empre,
         }, itemsTraspaso);
 
         const traspaso_pdf_url = require('path').join(RUTA_PDFS, `TRA_${folio}_${cab.cod_int_pedido_alm}_traspaso.pdf`);
@@ -628,14 +629,14 @@ export const FacturacionService = {
 
             await Trabajo_Impresion.create({
                 cod_interno_pedido: cab.cod_int_pedido_alm,
-                id_impresora:       impresora?.id_impresora ?? null,
-                tipo_documento:     'TRASPASO',
-                referencia_codigo:  `TRA-${cab.id_empresa_sys_anterior}-${folio}`,
+                id_impresora: impresora?.id_impresora ?? null,
+                tipo_documento: 'TRASPASO',
+                referencia_codigo: `TRA-${cab.id_empresa_sys_anterior}-${folio}`,
                 payload: {
-                    tipo:         'pdf',
+                    tipo: 'pdf',
                     ruta_archivo: traspaso_pdf_url,
                 },
-                estado:         'PENDIENTE',
+                estado: 'PENDIENTE',
                 solicitado_por: id_empleado ?? null,
             });
         } catch (errImp) {
@@ -644,10 +645,10 @@ export const FacturacionService = {
         }
 
         return {
-            flujo:          'EMPRESA_PROPIA',
+            flujo: 'EMPRESA_PROPIA',
             total_facturas: 1,
             facturas: [{ id_factura, folio, uuid_sat: null, pdf_url, xml_url: null, id_remision: null }],
-            traspaso_pdf:   traspaso_pdf_url,
+            traspaso_pdf: traspaso_pdf_url,
         };
     },
 
@@ -655,10 +656,10 @@ export const FacturacionService = {
     timbrarEgreso: async (dto: ITimbrarEgresoDTO) => {
 
         const origen = await FacturacionRepository.getFacturaParaTimbrar(dto.id_factura_origen);
-        if (!origen)                    throw new Error('Factura origen no encontrada');
-        if (origen.tipo_cfdi !== 'I')   throw new Error('Solo se puede crear nota de crédito de facturas tipo Ingreso');
-        if (!origen.uuid_sat)           throw new Error('La factura origen no está timbrada (sin UUID SAT)');
-        if (!dto.detalles?.length)      throw new Error('Debes especificar al menos un artículo a acreditar');
+        if (!origen) throw new Error('Factura origen no encontrada');
+        if (origen.tipo_cfdi !== 'I') throw new Error('Solo se puede crear nota de crédito de facturas tipo Ingreso');
+        if (!origen.uuid_sat) throw new Error('La factura origen no está timbrada (sin UUID SAT)');
+        if (!dto.detalles?.length) throw new Error('Debes especificar al menos un artículo a acreditar');
 
         const detallesEgreso = dto.detalles.map(d => {
             const original = origen.detalles.find(o => o.id_articulo === d.id_articulo);
@@ -668,21 +669,21 @@ export const FacturacionService = {
             }
             const subtotal_linea = +(d.cantidad * original.precio_artic).toFixed(2);
             return {
-                id_articulo:     original.id_articulo,
-                descripcion:     original.descripcion_articulo,
-                cantidad:        d.cantidad,
+                id_articulo: original.id_articulo,
+                descripcion: original.descripcion_articulo,
+                cantidad: d.cantidad,
                 precio_unitario: original.precio_artic,
                 subtotal_linea,
-                tasa_iva:        original.tasa_iva,
-                cve_sat:         original.cve_sat,
-                sat_medida:      original.sat_medida,
-                desc_medida:     original.desc_medida,
+                tasa_iva: original.tasa_iva,
+                cve_sat: original.cve_sat,
+                sat_medida: original.sat_medida,
+                desc_medida: original.desc_medida,
             };
         });
 
         const subtotal = detallesEgreso.reduce((s, d) => s + d.subtotal_linea, 0);
-        const iva      = detallesEgreso.reduce((s, d) => s + +(d.subtotal_linea * d.tasa_iva).toFixed(2), 0);
-        const total    = +(subtotal + iva).toFixed(2);
+        const iva = detallesEgreso.reduce((s, d) => s + +(d.subtotal_linea * d.tasa_iva).toFixed(2), 0);
+        const total = +(subtotal + iva).toFixed(2);
 
         const folio = await FacturacionRepository.getSiguienteFolio();
 
@@ -692,17 +693,17 @@ export const FacturacionService = {
         try {
             const factura = await FacturacionRepository.registrarFactura({
                 folio,
-                tipo_cfdi:         'E',
-                origen_factura:    'CXC',
-                id_cliente_alm:    origen.id_cliente_alm,
-                id_forma_pago:     origen.id_forma_pago,
-                uso_cfdi:          'G02',
-                subtotal:          +subtotal.toFixed(2),
-                iva:               +iva.toFixed(2),
+                tipo_cfdi: 'E',
+                origen_factura: 'CXC',
+                id_cliente_alm: origen.id_cliente_alm,
+                id_forma_pago: origen.id_forma_pago,
+                uso_cfdi: 'G02',
+                subtotal: +subtotal.toFixed(2),
+                iva: +iva.toFixed(2),
                 total,
                 id_factura_origen: dto.id_factura_origen,
-                uuid_relacionado:  origen.uuid_sat,
-                conceptos:         detallesEgreso,
+                uuid_relacionado: origen.uuid_sat,
+                conceptos: detallesEgreso,
             }, t);
 
             id_factura = factura.id_factura;
@@ -715,29 +716,29 @@ export const FacturacionService = {
 
         try {
             const respuesta = await (facturapiClient.invoices as any).create({
-                type:    'E',
+                type: 'E',
                 customer: {
                     legal_name: origen.razon_social_cliente,
-                    tax_id:     origen.rfc_cliente,
+                    tax_id: origen.rfc_cliente,
                     tax_system: origen.regimen_fiscal_cliente,
-                    address:    { zip: origen.domicilio_fiscal },
+                    address: { zip: origen.domicilio_fiscal },
                 },
                 items: detallesEgreso.map(d => ({
                     quantity: d.cantidad,
                     product: {
-                        description:  d.descripcion,
-                        product_key:  d.cve_sat,
-                        price:        +Number(d.precio_unitario).toFixed(2),
+                        description: d.descripcion,
+                        product_key: d.cve_sat,
+                        price: +Number(d.precio_unitario).toFixed(2),
                         tax_included: false,
-                        unit_key:     normalizarClaveUnidad(d.sat_medida),
-                        unit_name:    d.desc_medida,
+                        unit_key: normalizarClaveUnidad(d.sat_medida),
+                        unit_name: d.desc_medida,
                         taxes: d.tasa_iva > 0
                             ? [{ type: 'IVA', rate: Number(d.tasa_iva), factor: 'Tasa' }]
                             : [],
                     },
                 })),
-                payment_form:      origen.id_forma_pago,
-                use:               'G02',
+                payment_form: origen.id_forma_pago,
+                use: 'G02',
                 related_documents: [{
                     relationship: '01',
                     documents: [origen.uuid_sat],   // strings, no objetos
@@ -746,22 +747,22 @@ export const FacturacionService = {
             });
 
             await FacturacionRepository.actualizarTimbrado(id_factura!, {
-                uuid_sat:       respuesta.uuid,
+                uuid_sat: respuesta.uuid,
                 fecha_timbrado: new Date(respuesta.stamp?.date ?? Date.now()),
-                pdf_url:        respuesta.pdf_url,
-                xml_url:        respuesta.xml_url,
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
             });
 
             return {
-                id_factura:        id_factura!,
+                id_factura: id_factura!,
                 id_factura_origen: dto.id_factura_origen,
                 folio,
-                subtotal:          +subtotal.toFixed(2),
-                iva:               +iva.toFixed(2),
+                subtotal: +subtotal.toFixed(2),
+                iva: +iva.toFixed(2),
                 total,
-                uuid_sat:          respuesta.uuid,
-                pdf_url:           respuesta.pdf_url,
-                xml_url:           respuesta.xml_url,
+                uuid_sat: respuesta.uuid,
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
             };
 
         } catch (err: any) {
@@ -773,9 +774,9 @@ export const FacturacionService = {
     reintentarTimbrado: async (id_factura: string, id_empresa: string) => {
 
         const factura = await Facturas.findByPk(id_factura);
-        if (!factura)                            throw new Error('Factura no encontrada');
-        if (factura.estatus_factura === 'TIM')   throw new Error('La factura ya está timbrada');
-        if (factura.estatus_factura === 'CAN')   throw new Error('La factura está cancelada, no se puede reintentar');
+        if (!factura) throw new Error('Factura no encontrada');
+        if (factura.estatus_factura === 'TIM') throw new Error('La factura ya está timbrada');
+        if (factura.estatus_factura === 'CAN') throw new Error('La factura está cancelada, no se puede reintentar');
 
         // ── Tipo I: Ingreso ──────────────────────────────────────────────────
         if (factura.tipo_cfdi === 'I') {
@@ -785,94 +786,94 @@ export const FacturacionService = {
                 FacturacionRepository.getFacturaParaTimbrar(id_factura),
                 FacturacionRepository.getCabecera(factura.id_pedido_alm, id_empresa),
             ]);
-            if (!datos)                  throw new Error('No se encontraron los datos de la factura');
+            if (!datos) throw new Error('No se encontraron los datos de la factura');
             if (!datos.detalles?.length) throw new Error('La factura no tiene conceptos registrados');
 
             const esPublicoGeneral = cab.rfc_cliente?.toUpperCase() === RFC_PUBLICO_GENERAL;
-            const folio            = Number(factura.folio_factura);
-            const leyenda          = cab.leyenda_factura_empre
+            const folio = Number(factura.folio_factura);
+            const leyenda = cab.leyenda_factura_empre
                 ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
 
             const respuesta = await (facturapiClient.invoices as any).create({
-                type:    'I',
+                type: 'I',
                 customer: {
                     legal_name: esPublicoGeneral ? 'PUBLICO EN GENERAL' : datos.razon_social_cliente,
-                    tax_id:     datos.rfc_cliente,
+                    tax_id: datos.rfc_cliente,
                     tax_system: esPublicoGeneral ? '616' : datos.regimen_fiscal_cliente,
-                    address:    { zip: datos.domicilio_fiscal },
+                    address: { zip: datos.domicilio_fiscal },
                 },
                 items: datos.detalles.map(d => ({
                     quantity: d.cantidad_facturada,
                     product: {
-                        description:  d.descripcion_articulo,
-                        product_key:  d.cve_sat,
-                        price:        +Number(d.precio_artic).toFixed(2),
+                        description: d.descripcion_articulo,
+                        product_key: d.cve_sat,
+                        price: +Number(d.precio_artic).toFixed(2),
                         tax_included: false,
-                        unit_key:     normalizarClaveUnidad(d.sat_medida),
-                        unit_name:    d.desc_medida,
+                        unit_key: normalizarClaveUnidad(d.sat_medida),
+                        unit_name: d.desc_medida,
                         taxes: d.tasa_iva > 0
                             ? [{ type: 'IVA', rate: Number(d.tasa_iva), factor: 'Tasa' }]
                             : [],
                     },
                 })),
-                payment_form:   cab.forma_pago   || null,
-                payment_method: cab.metodo_pago  || null,
-                use:            cab.uso_cfdi     || null,
-                series:         cab.serie_facturacion_empre,
-                folio_number:   folio,
-                conditions:     leyenda,
-                currency:       'MXN',
+                payment_form: cab.forma_pago || null,
+                payment_method: cab.metodo_pago || null,
+                use: cab.uso_cfdi || null,
+                series: cab.serie_facturacion_empre,
+                folio_number: folio,
+                conditions: leyenda,
+                currency: 'MXN',
             });
 
             const pdf_local = await descargarPdf(respuesta.id);
 
             await FacturacionRepository.actualizarTimbrado(id_factura, {
-                uuid_sat:       respuesta.uuid,
+                uuid_sat: respuesta.uuid,
                 fecha_timbrado: new Date(respuesta.stamp?.date ?? Date.now()),
-                pdf_url:        pdf_local,
-                xml_url:        respuesta.xml_url,
+                pdf_url: pdf_local,
+                xml_url: respuesta.xml_url,
             });
 
             return {
                 id_factura,
                 folio,
                 uuid_sat: respuesta.uuid,
-                pdf_url:  pdf_local,
-                xml_url:  respuesta.xml_url,
-                flujo:    esPublicoGeneral ? 'PUBLICO_GENERAL' : 'CLIENTE_DIRECTO',
+                pdf_url: pdf_local,
+                xml_url: respuesta.xml_url,
+                flujo: esPublicoGeneral ? 'PUBLICO_GENERAL' : 'CLIENTE_DIRECTO',
             };
         }
 
         // ── Tipo E: Egreso (Nota de Crédito) ─────────────────────────────────
         if (factura.tipo_cfdi === 'E') {
             const datos = await FacturacionRepository.getFacturaParaTimbrar(id_factura);
-            if (!datos)                    throw new Error('No se encontraron los datos de la factura E');
+            if (!datos) throw new Error('No se encontraron los datos de la factura E');
             if (!factura.uuid_relacionado) throw new Error('La factura origen no tiene UUID SAT registrado');
 
             const respuesta = await (facturapiClient.invoices as any).create({
-                type:    'E',
+                type: 'E',
                 customer: {
                     legal_name: datos.razon_social_cliente,
-                    tax_id:     datos.rfc_cliente,
+                    tax_id: datos.rfc_cliente,
                     tax_system: datos.regimen_fiscal_cliente,
-                    address:    { zip: datos.domicilio_fiscal },
+                    address: { zip: datos.domicilio_fiscal },
                 },
                 items: datos.detalles.map(d => ({
                     quantity: d.cantidad_facturada,
                     product: {
-                        description:  d.descripcion_articulo,
-                        product_key:  d.cve_sat,
-                        price:        +Number(d.precio_artic).toFixed(2),
+                        description: d.descripcion_articulo,
+                        product_key: d.cve_sat,
+                        price: +Number(d.precio_artic).toFixed(2),
                         tax_included: false,
-                        unit_key:     normalizarClaveUnidad(d.sat_medida),
-                        unit_name:    d.desc_medida,
+                        unit_key: normalizarClaveUnidad(d.sat_medida),
+                        unit_name: d.desc_medida,
                         taxes: d.tasa_iva > 0
                             ? [{ type: 'IVA', rate: Number(d.tasa_iva), factor: 'Tasa' }]
                             : [],
                     },
                 })),
-                payment_form:      datos.id_forma_pago,
-                use:               'G02',
+                payment_form: datos.id_forma_pago,
+                use: 'G02',
                 related_documents: [{
                     relationship: '01',
                     documents: [factura.uuid_relacionado],   // strings UUID
@@ -881,18 +882,18 @@ export const FacturacionService = {
             });
 
             await FacturacionRepository.actualizarTimbrado(id_factura, {
-                uuid_sat:       respuesta.uuid,
+                uuid_sat: respuesta.uuid,
                 fecha_timbrado: new Date(respuesta.stamp?.date ?? Date.now()),
-                pdf_url:        respuesta.pdf_url,
-                xml_url:        respuesta.xml_url,
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
             });
 
             return {
                 id_factura,
-                folio:    Number(factura.folio_factura),
+                folio: Number(factura.folio_factura),
                 uuid_sat: respuesta.uuid,
-                pdf_url:  respuesta.pdf_url,
-                xml_url:  respuesta.xml_url,
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
             };
         }
 
@@ -907,56 +908,56 @@ export const FacturacionService = {
             if (!pagoCFDI) throw new Error('No se encontró el registro FacturaPagoCFDI para esta factura P');
 
             const origen = await FacturacionRepository.getFacturaParaTimbrar(factura.id_factura_origen);
-            if (!origen)          throw new Error('Factura origen no encontrada');
+            if (!origen) throw new Error('Factura origen no encontrada');
             if (!origen.uuid_sat) throw new Error('La factura origen no está timbrada');
 
             const respuesta = await (facturapiClient.invoices as any).create({
-                type:    'P',
+                type: 'P',
                 customer: {
                     legal_name: origen.razon_social_cliente,
-                    tax_id:     origen.rfc_cliente,
+                    tax_id: origen.rfc_cliente,
                     tax_system: origen.regimen_fiscal_cliente,
-                    address:    { zip: origen.domicilio_fiscal },
+                    address: { zip: origen.domicilio_fiscal },
                 },
                 payments: [{
-                    date:          pagoCFDI.fecha_pago,
-                    form:          pagoCFDI.forma_de_pago,
-                    amount:        Number(pagoCFDI.monto_pagado),
-                    currency:      pagoCFDI.moneda,
+                    date: pagoCFDI.fecha_pago,
+                    form: pagoCFDI.forma_de_pago,
+                    amount: Number(pagoCFDI.monto_pagado),
+                    currency: pagoCFDI.moneda,
                     exchange_rate: 1,
                     related_documents: [{
-                        uuid:               origen.uuid_sat,
-                        amount:             Number(pagoCFDI.monto_pagado),
+                        uuid: origen.uuid_sat,
+                        amount: Number(pagoCFDI.monto_pagado),
                         installment_number: pagoCFDI.num_parcialidad,
-                        last_balance:       Number(pagoCFDI.saldo_anterior),
-                        currency:           pagoCFDI.moneda,
-                        exchange_rate:      1,
+                        last_balance: Number(pagoCFDI.saldo_anterior),
+                        currency: pagoCFDI.moneda,
+                        exchange_rate: 1,
                     }],
                 }],
             });
 
             await FacturaPagoCFDI.update({
-                uuid_cfdi_pago:   respuesta.uuid,
-                pdf_url:          respuesta.pdf_url,
-                xml_url:          respuesta.xml_url,
+                uuid_cfdi_pago: respuesta.uuid,
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
                 estatus_timbrado: 'TIM',
             }, { where: { id_pago_cfdi: pagoCFDI.id_pago_cfdi } });
 
             await Facturas.update({
-                uuid_sat:        respuesta.uuid,
-                fecha_timbrado:  new Date(respuesta.stamp?.date ?? Date.now()),
-                pdf_url:         respuesta.pdf_url,
-                xml_url:         respuesta.xml_url,
+                uuid_sat: respuesta.uuid,
+                fecha_timbrado: new Date(respuesta.stamp?.date ?? Date.now()),
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
                 estatus_factura: 'TIM',
-                estatus_sat:     'vigente',
+                estatus_sat: 'vigente',
             }, { where: { id_factura } });
 
             return {
                 id_factura,
-                folio:    Number(factura.folio_factura),
+                folio: Number(factura.folio_factura),
                 uuid_sat: respuesta.uuid,
-                pdf_url:  respuesta.pdf_url,
-                xml_url:  respuesta.xml_url,
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
             };
         }
 
@@ -967,13 +968,13 @@ export const FacturacionService = {
     timbrarPago: async (dto: ITimbrarPagoDTO) => {
 
         const origen = await FacturacionRepository.getFacturaParaTimbrar(dto.id_factura);
-        if (!origen)                  throw new Error('Factura no encontrada');
+        if (!origen) throw new Error('Factura no encontrada');
         if (origen.tipo_cfdi !== 'I') throw new Error('Solo se puede generar complemento de pago de facturas tipo Ingreso');
-        if (!origen.uuid_sat)         throw new Error('La factura no está timbrada (sin UUID SAT)');
+        if (!origen.uuid_sat) throw new Error('La factura no está timbrada (sin UUID SAT)');
 
-        const moneda         = dto.moneda ?? 'MXN';
+        const moneda = dto.moneda ?? 'MXN';
         const saldo_insoluto = +(dto.saldo_anterior - dto.monto_pago).toFixed(2);
-        const folio          = await FacturacionRepository.getSiguienteFolio();
+        const folio = await FacturacionRepository.getSiguienteFolio();
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
         let id_factura_pago: string;
@@ -981,30 +982,30 @@ export const FacturacionService = {
 
         try {
             const facturaPago = await Facturas.create({
-                folio_factura:     String(folio),
-                tipo_cfdi:         'P',
-                origen_factura:    'CXC',
-                fecha_emision:     new Date(),
-                subtotal_factura:  0,
-                iva_factura:       0,
-                total_factura:     dto.monto_pago,
-                estatus_factura:   'PEN',
-                id_cliente_alm:    origen.id_cliente_alm,
+                folio_factura: String(folio),
+                tipo_cfdi: 'P',
+                origen_factura: 'CXC',
+                fecha_emision: new Date(),
+                subtotal_factura: 0,
+                iva_factura: 0,
+                total_factura: dto.monto_pago,
+                estatus_factura: 'PEN',
+                id_cliente_alm: origen.id_cliente_alm,
                 id_factura_origen: dto.id_factura,
-                uuid_relacionado:  origen.uuid_sat,
+                uuid_relacionado: origen.uuid_sat,
             }, { transaction: t });
 
             id_factura_pago = facturaPago.id_factura;
 
             const pagoCFDI = await FacturaPagoCFDI.create({
-                id_factura:       dto.id_factura,
-                id_pago_cxc:      dto.id_pago_cxc ?? null,
-                fecha_pago:       new Date(dto.fecha_pago),
-                forma_de_pago:    dto.id_forma_pago,
+                id_factura: dto.id_factura,
+                id_pago_cxc: dto.id_pago_cxc ?? null,
+                fecha_pago: new Date(dto.fecha_pago),
+                forma_de_pago: dto.id_forma_pago,
                 moneda,
-                monto_pagado:     dto.monto_pago,
-                num_parcialidad:  dto.num_parcialidad,
-                saldo_anterior:   dto.saldo_anterior,
+                monto_pagado: dto.monto_pago,
+                num_parcialidad: dto.num_parcialidad,
+                saldo_anterior: dto.saldo_anterior,
                 saldo_insoluto,
                 uuid_relacionado: origen.uuid_sat,
                 estatus_timbrado: 'PEN',
@@ -1020,53 +1021,53 @@ export const FacturacionService = {
 
         try {
             const respuesta = await (facturapiClient.invoices as any).create({
-                type:    'P',
+                type: 'P',
                 customer: {
                     legal_name: origen.razon_social_cliente,
-                    tax_id:     origen.rfc_cliente,
+                    tax_id: origen.rfc_cliente,
                     tax_system: origen.regimen_fiscal_cliente,
-                    address:    { zip: origen.domicilio_fiscal },
+                    address: { zip: origen.domicilio_fiscal },
                 },
                 payments: [{
-                    date:          new Date(dto.fecha_pago),
-                    form:          dto.id_forma_pago,
-                    amount:        dto.monto_pago,
-                    currency:      moneda,
+                    date: new Date(dto.fecha_pago),
+                    form: dto.id_forma_pago,
+                    amount: dto.monto_pago,
+                    currency: moneda,
                     exchange_rate: 1,
                     related_documents: [{
-                        uuid:               origen.uuid_sat,
-                        amount:             dto.monto_pago,
+                        uuid: origen.uuid_sat,
+                        amount: dto.monto_pago,
                         installment_number: dto.num_parcialidad,
-                        last_balance:       dto.saldo_anterior,
-                        currency:           moneda,
-                        exchange_rate:      1,
+                        last_balance: dto.saldo_anterior,
+                        currency: moneda,
+                        exchange_rate: 1,
                     }],
                 }],
             });
 
             await FacturaPagoCFDI.update({
-                uuid_cfdi_pago:   respuesta.uuid,
-                pdf_url:          respuesta.pdf_url,
-                xml_url:          respuesta.xml_url,
+                uuid_cfdi_pago: respuesta.uuid,
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
                 estatus_timbrado: 'TIM',
             }, { where: { id_pago_cfdi: id_pago_cfdi! } });
 
             await Facturas.update({
-                uuid_sat:        respuesta.uuid,
-                fecha_timbrado:  new Date(respuesta.stamp?.date ?? Date.now()),
-                pdf_url:         respuesta.pdf_url,
-                xml_url:         respuesta.xml_url,
+                uuid_sat: respuesta.uuid,
+                fecha_timbrado: new Date(respuesta.stamp?.date ?? Date.now()),
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
                 estatus_factura: 'TIM',
-                estatus_sat:     'vigente',
+                estatus_sat: 'vigente',
             }, { where: { id_factura: id_factura_pago! } });
 
             return {
                 id_factura_pago: id_factura_pago!,
-                id_pago_cfdi:    id_pago_cfdi!,
+                id_pago_cfdi: id_pago_cfdi!,
                 folio,
-                uuid_sat:        respuesta.uuid,
-                pdf_url:         respuesta.pdf_url,
-                xml_url:         respuesta.xml_url,
+                uuid_sat: respuesta.uuid,
+                pdf_url: respuesta.pdf_url,
+                xml_url: respuesta.xml_url,
             };
 
         } catch (err: any) {
@@ -1075,6 +1076,104 @@ export const FacturacionService = {
                 { where: { id_pago_cfdi: id_pago_cfdi! } }
             );
             throw new Error(`Registro Pago guardado (PEN/ERR) pero falló el timbrado en Facturapi: ${err.message}`);
+        }
+    },
+
+    // ── Timbrar consolidado de vales → 1 CFDI Público General ────────────────
+    timbrarConsolidadoVales: async (dto: {
+        id_empresa: string;
+        id_empleado: string;
+        id_cliente_alm: string | null;
+        ids_pedidos: string[];
+        conceptos: ConceptoFacturacion[];
+        periodo: string;
+    }) => {
+        const { id_empresa, id_empleado, id_cliente_alm, conceptos, periodo } = dto;
+
+        // Cabecera de empresa
+        const empresa = await EmpresaSucursal.findByPk(id_empresa);
+        if (!empresa) throw new Error('Empresa no encontrada');
+
+        const totales = calcularTotales(conceptos);
+        const folio = await FacturacionRepository.getSiguienteFolio();
+        const leyenda = `Vales de medicamentos empleados — ${periodo}`;
+
+        // Registrar factura sin pedido (id_pedido_alm = null no permitido, usamos un UUID fake)
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        let id_factura: string;
+        try {
+            const factura = await FacturacionRepository.registrarFactura({
+                folio,
+                tipo_cfdi: 'I',
+                origen_factura: 'VAL',
+                id_pedido_alm: dto.ids_pedidos[0],   // referencia al primer pedido
+                id_cliente_alm,
+                id_metodo_pago: 'PUE',
+                id_forma_pago: '01',
+                uso_cfdi: 'G01',
+                subtotal: totales.subtotal,
+                iva: totales.iva,
+                total: totales.total,
+                conceptos: conceptos.map(c => ({
+                    id_articulo: c.id_articulo,
+                    descripcion: c.descripcion,
+                    cantidad: c.cantidad,
+                    precio_unitario: c.precio_unitario,
+                    subtotal_linea: c.subtotal_linea,
+                    tasa_iva: c.tasa_iva,
+                })),
+            }, t);
+            id_factura = factura.id_factura;
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+
+        // Timbrar con Facturapi
+        try {
+            const respuesta = await (facturapiClient.invoices as any).create({
+                type: 'I',
+                customer: {
+                    legal_name: 'PUBLICO EN GENERAL',
+                    tax_id: 'XAXX010101000',
+                    tax_system: '616',
+                    address: { zip: (empresa as any).cp_empre ?? '80000' },
+                },
+                items: conceptos.map(c => ({
+                    quantity: c.cantidad,
+                    product: {
+                        description: buildDescripcionConcepto(c),
+                        product_key: c.cve_sat,
+                        price: +Number(c.precio_unitario).toFixed(2),
+                        tax_included: false,
+                        unit_key: normalizarClaveUnidad(c.sat_medida),
+                        unit_name: c.desc_medida,
+                        taxes: c.tasa_iva > 0
+                            ? [{ type: 'IVA', rate: c.tasa_iva, factor: 'Tasa' }]
+                            : [],
+                    },
+                })),
+                payment_form: '01',
+                payment_method: 'PUE',
+                use: 'G01',
+                series: (empresa as any).serie_facturacion_empre ?? 'FSH',
+                folio_number: folio,
+                conditions: leyenda,
+                currency: 'MXN',
+            });
+
+            const pdf_local = await descargarPdf(respuesta.id);
+            await FacturacionRepository.actualizarTimbrado(id_factura, {
+                uuid_sat: respuesta.uuid,
+                fecha_timbrado: new Date(respuesta.stamp?.date ?? Date.now()),
+                pdf_url: pdf_local,
+                xml_url: respuesta.xml_url,
+            });
+
+            return { id_factura, folio, uuid_sat: respuesta.uuid, pdf_url: pdf_local };
+        } catch (err: any) {
+            throw new Error(`Vales registrados pero falló el timbrado: ${err.message}`);
         }
     },
 };

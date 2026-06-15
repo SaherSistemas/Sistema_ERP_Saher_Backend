@@ -35,6 +35,7 @@ class Prioridad_Agente_Reglas extends Model {
     })
     declare hora_entrega_max: string
 
+    @Default(true)
     @Column({
         type: DataType.BOOLEAN
     })

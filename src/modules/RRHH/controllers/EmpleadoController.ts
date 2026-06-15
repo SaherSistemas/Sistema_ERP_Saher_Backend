@@ -47,14 +47,13 @@ export class EmpleadoController {
       res.status(500).json({ message: 'No se encontro el empleado' });
     }
   };
-  /*static updateEmpleado = async (req: Request, res: Response) => {
+  static updateEmpleado = async (req: Request, res: Response) => {
     try {
       const { id_empleado } = req.params;
       const data: IUpdateEmpleado = req.body;
       const updateEmpleado = await EmpleadoService.updateEmpleado(id_empleado, data);
       res.status(201).json({ mensaje: 'Empleado actualizado correctamente', empleado: updateEmpleado });
     } catch (error) {
-      //console.error(error)
       console.error(error);
       res.status(500).json({ message: 'Error al actualizar el empleado ' });
     }

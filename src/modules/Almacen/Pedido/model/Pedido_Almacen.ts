@@ -1,6 +1,6 @@
 import {
   Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique,
-  BelongsTo, Default, AllowNull, Index, CreatedAt, UpdatedAt
+  BelongsTo, HasMany, Default, AllowNull, Index, CreatedAt, UpdatedAt
 } from 'sequelize-typescript';
 
 import Cat_Status_Pedido_Almacen from './Cat_Status_Pedido_Almacen';
@@ -8,6 +8,8 @@ import Cat_Tipo_Pedido_Almacen from './Cat_Tipo_Pedido_Almacen';
 import Cliente_Almacen from '../../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Agente_de_Venta from '../../../Comercial/Agente_Venta/model/Agente_De_Venta';
 import Usuario from '../../../Seguridad/model/Usuario';
+import Empleado from '../../../RRHH/model/Empleado';
+import Detalle_Pedido_Almacen from './Detalle_Pedido_Almacen';
 // import Usuario from '../../../Usuarios/model/Usuario'; // AJUSTA RUTA/MODELO SI EXISTE
 
 @Table({
@@ -75,6 +77,24 @@ class Pedido_Almacen extends Model {
   @Default(null)
   @Column(DataType.DATE)
   declare inicio_surtido: Date | null;
+
+  // ── Vales de empleado ────────────────────────────────────────────────────
+  // 'PED' = pedido normal  |  'VALE' = vale de medicamento a empleado
+  @Default('PED')
+  @AllowNull(false)
+  @Column(DataType.STRING(4))
+  declare origen_pedido: string;
+
+  @AllowNull(true)
+  @ForeignKey(() => Empleado)
+  @Column(DataType.UUID)
+  declare id_empleado_vale: string | null;
+
+  @BelongsTo(() => Empleado)
+  declare empleado_vale: Empleado;
+
+  @HasMany(() => Detalle_Pedido_Almacen, { foreignKey: 'id_pedido_almacen' })
+  declare detalle_pedido_almacens?: Detalle_Pedido_Almacen[];
 }
 
 export default Pedido_Almacen;

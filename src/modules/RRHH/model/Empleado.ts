@@ -144,6 +144,16 @@ class Empleado extends Model {
   @Column(DataType.BOOLEAN)
   declare estatus_empleado: boolean;
 
+  @Default(0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(10, 2))
+  declare limite_credito_vale: number;
+
+  @Default(0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(10, 2))
+  declare saldo_vale_actual: number;
+
   @HasMany(() => Presupuesto_Empleado)
   declare presupuestos_empleado?: Presupuesto_Empleado[];
 

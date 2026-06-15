@@ -129,6 +129,7 @@ import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
 
 import almacenRouter from '../modules/Almacen/router'
 import facturacionRouter from '../modules/Facturas/routes/FacturacionRouter'
+import valesRouter from '../modules/Vales/routes/Vale.router'
 
 import comercialRouter from '../modules/Comercial/router'
 import devolucionClienteRouter from '../modules/Comercial/Devoluciones_Cliente/routes/Devolucion_Cliente.router'
@@ -271,6 +272,7 @@ router.use('/uploads', uploadsRouter)
 router.use('/almacen', almacenRouter)
 router.use('/inventario', inventarioRouter)
 router.use('/facturas', facturacionRouter)
+router.use('/vales', valesRouter)
 
 router.use('/comercial', comercialRouter)
 router.use('/devolucion_cliente', devolucionClienteRouter)

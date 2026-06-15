@@ -100,4 +100,5 @@ export interface IUpdateEmpleado {
     clabe_interbancaria?: string;
     salario_diario_integrado?: number;
     estatus_empleado?: boolean;
+    limite_credito_vale?: number;
 }

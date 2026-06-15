@@ -3,6 +3,7 @@ import { Pedido_AlmacenService } from '../services/Pedido_Almacen.service';
 import { ActualizarDetallesPedidoRequest } from '../interface/Pedido_Almacen';
 import { io } from '../../../../server_ws';
 import { AuthedRequest } from '../../../../middleware/auth';
+import Pedido_Almacen from '../model/Pedido_Almacen';
 
 export class Pedido_AlmacenController {
   /*CHECARRR */
@@ -226,6 +227,36 @@ export class Pedido_AlmacenController {
     } catch (error) {
       console.log(error);
       res.status(500).json({ mensaje: 'Error al eliminar pedido.' });
+    }
+  };
+
+  // PATCH /pedido/:id/fecha-entrega
+  static actualizarFechaEntrega = async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { fecha_max_entrega_alm } = req.body as { fecha_max_entrega_alm: string };
+      if (!fecha_max_entrega_alm) { res.status(400).json({ mensaje: 'fecha_max_entrega_alm requerida' }); return; }
+      await Pedido_Almacen.update({ fecha_max_entrega_alm: new Date(fecha_max_entrega_alm) }, { where: { id_pedido_alm: id } });
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ mensaje: error.message });
+    }
+  };
+
+  // GET /pedido/lista-gestion?fecha_inicio=&fecha_fin=&status=&busqueda=
+  static getListaGestion = async (req: Request, res: Response) => {
+    try {
+      const { fecha_inicio, fecha_fin, status, busqueda } = req.query as Record<string, string>;
+      if (!fecha_inicio || !fecha_fin) {
+        res.status(400).json({ mensaje: 'fecha_inicio y fecha_fin son requeridos' });
+        return;
+      }
+      const data = await Pedido_AlmacenService.getListaGestion({ fecha_inicio, fecha_fin, status, busqueda });
+      //console.log("LISTA DE GESTIÓN:", JSON.stringify(data, null, 2));
+      res.json(data);
+    } catch (error: any) {
+      console.log(error);
+      res.status(500).json({ mensaje: error.message || 'Error al obtener pedidos.' });
     }
   };
 

@@ -31,6 +31,8 @@ router.get('/preview-polydb', Pedido_AlmacenController.previewPolyDB);
 router.post('/importar-polydb', Pedido_AlmacenController.importarDePolyDB);
 
 // 1. RUTAS ESPECÍFICAS PRIMERO
+router.get('/lista-gestion', Pedido_AlmacenController.getListaGestion);
+router.patch('/:id/fecha-entrega', Pedido_AlmacenController.actualizarFechaEntrega);
 router.get('/historial', Pedido_AlmacenController.getHistorialPorFecha);
 router.get('/cod/:cod', Pedido_AlmacenController.getByCodInterno);
 router.get('/:id_pedido/detalles', Pedido_AlmacenController.getDetalles);

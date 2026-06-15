@@ -415,6 +415,10 @@ export const Pedido_AlmacenService = {
     return pedidoFull
   },
 
+  getListaGestion: async (params: { fecha_inicio: string; fecha_fin: string; status?: string; busqueda?: string }) => {
+    return await Pedido_AlmacenRepository.getListaGestion(params);
+  },
+
   // ══════════════════════════════════════════════════════════════════════
   // HISTORIAL POR FECHA
   // ══════════════════════════════════════════════════════════════════════
@@ -529,7 +533,7 @@ export const Pedido_AlmacenService = {
       const pedido = await Pedido_AlmacenRepository.create({
         cod_int_pedido_alm: `POLY-${num_pedido}`,
         status_pedido_alm: 'CA',
-        tipo_pedido_alm: tipo_pedido || 'NORMAL',
+        tipo_pedido_alm: tipo_pedido || 'AUT',
         id_cliente_pedido_alm: id_cliente_alm,
         id_agente_pedido_alm: id_agente_alm,
         fecha_max_entrega_alm: fecha_max_entrega_alm,
