@@ -203,8 +203,11 @@ export const Kardex_Movimiento_ArticuloRepository = {
              (SELECT today FROM params) AS today
       FROM public.kardex m
       WHERE m.artcdartn = :articulo::int
-        AND TRIM(UPPER(m.tmocdtpoc)) IN ('SVM')
-        AND m.empcdempn IN (2, 3, 4, 5, 6, 7, 8, 14, 15, 16, 17, 18, 19, 21) -- solo empresas del grupo ERP-Saher
+        AND (
+          (TRIM(UPPER(m.tmocdtpoc)) = 'SVM' AND m.empcdempn IN (2,3,4,5,6,7,8,14,15,16,17,18,19,21))
+          OR
+          (TRIM(UPPER(m.tmocdtpoc)) = 'SVT' AND m.empcdempn = 20)
+        )
     ),
     idx AS (
       SELECT GREATEST(0,
@@ -218,18 +221,23 @@ export const Kardex_Movimiento_ArticuloRepository = {
       FROM generate_series(0,(SELECT max_k FROM idx)) AS gs(k)
     ),
     agg AS (
-      SELECT p.k,p.start_date,p.end_date,
-             COALESCE(SUM(CASE WHEN TRIM(UPPER(m.tmocdtpoc))='SVM' THEN m.kdxcantin END),0)::bigint AS svm_total
+      SELECT p.k, p.start_date, p.end_date,
+             COALESCE(SUM(CASE WHEN TRIM(UPPER(m.tmocdtpoc))='SVM' THEN m.kdxcantin END),0)::bigint AS svm_total,
+             COALESCE(SUM(CASE WHEN TRIM(UPPER(m.tmocdtpoc))='SVT' AND m.empcdempn = 20 THEN m.kdxcantin END),0)::bigint AS svt_total
       FROM periods p
       LEFT JOIN public.kardex m
         ON m.artcdartn = :articulo::int
        AND m.kdxfechad::date BETWEEN p.start_date AND p.end_date
-       AND TRIM(UPPER(m.tmocdtpoc)) IN ('SVM')
-      GROUP BY p.k,p.start_date,p.end_date
+       AND (
+         (TRIM(UPPER(m.tmocdtpoc)) = 'SVM' AND m.empcdempn IN (2,3,4,5,6,7,8,14,15,16,17,18,19,21))
+         OR
+         (TRIM(UPPER(m.tmocdtpoc)) = 'SVT' AND m.empcdempn = 20)
+       )
+      GROUP BY p.k, p.start_date, p.end_date
     )
     SELECT ROW_NUMBER() OVER(ORDER BY k DESC) AS numero,
            to_char(start_date,'YYYY-MM-DD') || ' a ' || to_char(end_date,'YYYY-MM-DD') AS quincena,
-           svm_total, 0 AS svt_total, svm_total::bigint AS total
+           svm_total, svt_total, (svm_total + svt_total)::bigint AS total
     FROM agg
     ORDER BY k DESC;`;
 

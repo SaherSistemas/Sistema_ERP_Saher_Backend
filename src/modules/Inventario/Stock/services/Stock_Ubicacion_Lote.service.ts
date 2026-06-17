@@ -7,6 +7,7 @@ import LoteArticuloSucursal from "../../Lotes/model/Lote_Articulo_Sucursal";
 import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 import { Ubicacion_SucursalRepository } from "../../../Almacen/Ubicaciones/repositories/Ubicacion_Sucursal.repository";
 import { Detalle_Compra_SolicitadoRepository } from "../../../Compras/Ordenes-Compra/repositories/Detalle_Compra_Solicitado.repository";
+import Stock_Ubicacion_Lote from "../model/Stock_Ubicacion_Lote";
 
 
 export const Stock_Ubicacion_LoteService = {
@@ -73,4 +74,79 @@ export const Stock_Ubicacion_LoteService = {
 
     getStockByUbicacion: async (id_ubicacion_sucursal: string) =>
         Stock_Ubicacion_LoteRepository.getStockByUbicacion(id_ubicacion_sucursal),
+
+    moverStock: async (dto: {
+        id_empresa_sucursal: string;
+        id_stock_ubicacion_lote: string;
+        cantidad: number;
+        id_ubicacion_destino: string;
+    }) => {
+        const { id_empresa_sucursal, id_stock_ubicacion_lote, cantidad, id_ubicacion_destino } = dto;
+
+        if (!Number.isInteger(cantidad) || cantidad <= 0) throw new Error("cantidad debe ser entero mayor a 0");
+
+        return await dbLocal.transaction(async (tx) => {
+            // 1. Traer fila origen con lock
+            const origen = await Stock_Ubicacion_LoteRepository.findByIdForUpdate(
+                id_empresa_sucursal, id_stock_ubicacion_lote, tx
+            );
+            if (!origen) throw new Error("Stock origen no encontrado");
+
+            const disponible = origen.cantidad - origen.cantidad_apartada;
+            if (cantidad > disponible)
+                throw new Error(`Solo hay ${disponible} unidades disponibles (no apartadas) para mover`);
+
+            // 2. Validar destino
+            const destino = await Ubicacion_SucursalRepository.findById(id_ubicacion_destino);
+            if (!destino) throw new Error("Ubicación destino no existe");
+            if (destino.id_empresa_sucursal !== id_empresa_sucursal)
+                throw new Error("La ubicación destino no pertenece a esta sucursal");
+            if (destino.id_ubicacion_sucursal === origen.id_ubicacion_sucursal)
+                throw new Error("El origen y destino son la misma ubicación");
+
+            // 3. Regla: estantería solo 1 artículo distinto
+            if (destino.tipo_ubicacion === "ESTANTERIA") {
+                const ids = await Stock_Ubicacion_LoteRepository.getDistinctArticuloIdsInUbicacion(
+                    destino.id_ubicacion_sucursal, tx
+                );
+                const yaTieneOtro = ids.length > 0 && !ids.includes(origen.id_articulo);
+                if (yaTieneOtro) throw new Error("La ubicación destino ya tiene otro artículo asignado");
+            }
+
+            // 4. Descontar origen
+            const nuevaCantOrigen = origen.cantidad - cantidad;
+            if (nuevaCantOrigen === 0) {
+                await origen.destroy({ transaction: tx });
+            } else {
+                await origen.update({ cantidad: nuevaCantOrigen }, { transaction: tx });
+            }
+
+            // 5. Acumular en destino (buscar fila existente para mismo articulo+lote)
+            const filaDestino = await Stock_Ubicacion_Lote.findOne({
+                where: {
+                    id_empresa_sucursal,
+                    id_ubicacion_sucursal: id_ubicacion_destino,
+                    id_articulo: origen.id_articulo,
+                    id_lote: origen.id_lote,
+                },
+                transaction: tx,
+                lock: tx.LOCK.UPDATE,
+            });
+
+            if (filaDestino) {
+                await filaDestino.update({ cantidad: filaDestino.cantidad + cantidad }, { transaction: tx });
+            } else {
+                await Stock_Ubicacion_LoteRepository.create({
+                    id_empresa_sucursal,
+                    id_ubicacion_sucursal: id_ubicacion_destino,
+                    id_articulo: origen.id_articulo,
+                    id_lote: origen.id_lote,
+                    cantidad,
+                    cantidad_apartada: 0,
+                }, tx);
+            }
+
+            return { ok: true, movido: cantidad };
+        });
+    },
 };

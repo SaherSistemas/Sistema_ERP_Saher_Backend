@@ -154,6 +154,7 @@ export const Proyeccion_VentaService = {
         // ── 4. Series ────────────────────────────────────────────────────────
         const X = sorted.map((_, i) => i + 1);
         const ySVM = sorted.map(q => Number(q.svm_total) || 0);
+        const ySVT = sorted.map(q => Number(q.svt_total) || 0);
         const nextPeriodo = N + 1;
 
         // ── 5. STR → 30 % demanda real ───────────────────────────────────────
@@ -365,6 +366,7 @@ export const Proyeccion_VentaService = {
             numero: i + 1,
             quincena: String(p.quincena),
             svm: ySVM[i],
+            svt: ySVT[i],
             str: ySTR[i],
             str_dem: ySTR_dem[i],
             total_salidas: ySalidas[i],
@@ -377,6 +379,7 @@ export const Proyeccion_VentaService = {
             periodos: detallePorPeriodo,
             totales: {
                 svm: tot(ySVM),
+                svt: tot(ySVT),
                 str: tot(ySTR),
                 str_dem: tot(ySTR_dem),
                 salidas: tot(ySalidas),

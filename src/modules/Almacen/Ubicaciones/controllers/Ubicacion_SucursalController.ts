@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Ubicacion_SucursalService } from "../services/Ubicacion_Sucursal.service";
 import { AuthedRequest } from "../../../../middleware/auth";
+import { Stock_Ubicacion_LoteRepository } from "../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository";
 const toBool = (v: any) => String(v ?? "") === "1" || String(v ?? "").toLowerCase() === "true";
 
 export const Ubicacion_SucursalController = {
@@ -20,10 +21,10 @@ export const Ubicacion_SucursalController = {
             res.status(400).json({ message: msg });
         }
     },
+
     getAllFiltered: async (req: Request & { user?: any }, res: Response) => {
         try {
             const id_empresa_sucursal = req.user?.id_empresa || String(req.query.id_empresa || "");
-          //  console.log("HOLA")
             const filters = {
                 tipo: req.query.tipo ? String(req.query.tipo) : undefined,
                 pasillo: req.query.pasillo ? String(req.query.pasillo) : undefined,
@@ -31,9 +32,7 @@ export const Ubicacion_SucursalController = {
                 q: req.query.q ? String(req.query.q) : undefined,
                 include_defaults: toBool(req.query.include_defaults),
             };
-            //  console.log("filters", filters);
             const data = await Ubicacion_SucursalService.getAllFiltered(id_empresa_sucursal, filters);
-            //  console.log("data", data);
             res.status(200).json({ mensaje: data });
         } catch (error: any) {
             console.error(error);
@@ -52,8 +51,14 @@ export const Ubicacion_SucursalController = {
         }
     },
 
-
-
-
-
+    getStock: async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const rows = await Stock_Ubicacion_LoteRepository.getStockByUbicacion(id);
+            const plain = rows.map((r: any) => r.get({ plain: true }));
+            res.json({ mensaje: plain });
+        } catch (error: any) {
+            res.status(500).json({ message: error?.message || "Error" });
+        }
+    },
 };

@@ -50,4 +50,23 @@ export const Stock_Ubicacion_LoteController = {
             res.status(500).json({ message: error?.message || "Error" });
         }
     },
+
+    mover: async (req: Request & { user?: any }, res: Response) => {
+        try {
+            const id_empresa_sucursal = req.user?.id_empresa || req.body.id_empresa_sucursal;
+            const { id_stock_ubicacion_lote, cantidad, id_ubicacion_destino } = req.body;
+            if (!id_stock_ubicacion_lote || !cantidad || !id_ubicacion_destino)
+                throw new Error("id_stock_ubicacion_lote, cantidad e id_ubicacion_destino son requeridos");
+
+            const result = await Stock_Ubicacion_LoteService.moverStock({
+                id_empresa_sucursal,
+                id_stock_ubicacion_lote,
+                cantidad: Number(cantidad),
+                id_ubicacion_destino,
+            });
+            res.json(result);
+        } catch (error: any) {
+            res.status(400).json({ message: error?.message || "Error" });
+        }
+    },
 };

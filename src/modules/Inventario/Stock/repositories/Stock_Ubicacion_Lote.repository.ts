@@ -97,6 +97,18 @@ export const Stock_Ubicacion_LoteRepository = {
     getStockByUbicacion: async (id_ubicacion_sucursal: string) =>
         Stock_Ubicacion_Lote.findAll({
             where: { id_ubicacion_sucursal },
+            include: [
+                {
+                    model: Articulo,
+                    required: false,
+                    attributes: ['id_artic', 'des_artic', 'cod_barr_artic'],
+                },
+                {
+                    model: LoteArticuloSucursal,
+                    required: false,
+                    attributes: ['id_lote_sucursal', 'numero_lote_sucursal', 'fecha_venci_lote_sucursal'],
+                },
+            ],
             order: [["createdAt", "DESC"]],
         }),
 

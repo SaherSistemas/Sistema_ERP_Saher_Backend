@@ -97,6 +97,15 @@ class Empresa_Sucursal extends Model {
 
   @Column({ type: DataType.TEXT, allowNull: true })
   declare leyenda_factura_empre: string | null    // texto libre en la factura
+
+  @Column({ type: DataType.STRING(5) })
+  declare id_empresa_sys_anterior: string; // para migración, ID de la empresa en el sistema anterior
+
+/*
+  
+
+
+*/
   @BelongsTo(() => ListaPrecio)
   listaPrecio: ListaPrecio;
 
@@ -117,6 +126,8 @@ class Empresa_Sucursal extends Model {
 
   @HasMany(() => Caja)
   declare cajas?: Caja[];
+
+
 
 
 }
