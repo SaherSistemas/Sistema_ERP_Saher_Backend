@@ -15,7 +15,7 @@ export const Stock_Ubicacion_LoteService = {
         const enTransito = await Detalle_Compra_SolicitadoRepository.getCantidadTransitoPorArticulo(id_articulo)
         const existenciasEmpresa = await Stock_Ubicacion_LoteRepository.getExistencias(id_empresa, id_articulo);
         // console.log(existenciasEmpresa)
-        console.log(enTransito)
+        //console.log(enTransito)
         return { existenciasEmpresa, enTransito };
     },
     addStock: async (dto: IAddStockDTO) => {

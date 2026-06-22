@@ -16,7 +16,7 @@ export const Stock_Ubicacion_LoteController = {
             }
 
             const resultado = await Stock_Ubicacion_LoteService.obtenerExistencias(id_empresa, id_articulo);
-            //    console.log(resultado)
+        //    console.log((JSON.stringify(resultado, null, 2)));
             res.status(200).json(resultado);
         }
         catch (e: any) {

@@ -2,7 +2,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { col, fn, literal, Op, QueryTypes, Sequelize, Transaction } from 'sequelize';
 import Stock_Ubicacion_Lote from '../model/Stock_Ubicacion_Lote';
-import { dbLocal } from '../../../../config/db';
+import { dbLocal, dbPoly } from '../../../../config/db';
 import { CrearStockUbicacionLoteDTO, StockUpsertRow } from '../interface/Stock_Ubicacion_Lote.interface';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import LoteArticuloSucursal from '../../Lotes/model/Lote_Articulo_Sucursal';
@@ -12,16 +12,16 @@ import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucur
 export const Stock_Ubicacion_LoteRepository = {
 
     getExistencias: async (id_empresa: string, id_articulo?: string) => {
-        // 1. Obtener TODAS las empresas (sin filtrar por grupo)
-        const empresas = await Empresa_SucursalRepository.getAll()
-
+        // 1. Obtener TODAS las empresas
+        const empresas = await Empresa_SucursalRepository.getAll();
+        //console.log(empresas);
         const empresaIds = empresas.map((e: any) => e.id_empre);
 
-        // 2. Stock de TODAS las empresas
+        // 2. Stock ERP (BD local) de TODAS las empresas
         const stockGrupo = await Stock_Ubicacion_Lote.findAll({
             where: {
                 id_empresa_sucursal: { [Op.in]: empresaIds },
-                ...(id_articulo && { id_articulo })
+                ...(id_articulo && { id_articulo }),
             },
             attributes: [
                 'id_empresa_sucursal',
@@ -33,31 +33,76 @@ export const Stock_Ubicacion_LoteRepository = {
             raw: true,
         }) as any[];
 
-        // 3. Separar la empresa principal
+        // 3. Stock PolyDB (sistema viejo) para sucursales con id_empresa_sys_anterior
+        const mapStockPoly = new Map<string, number>(); // id_empre → almexistn
+        const sucursalesPoly = empresas.filter(
+            (e: any) => !e.es_empresa_principal && e.id_empresa_sys_anterior
+        );
+        if (sucursalesPoly.length > 0 && id_articulo) {
+            // Necesitamos cod_int_artic del artículo para consultar PolyDB
+            const art = await Articulo.findOne({
+                where: { id_artic: id_articulo },
+                attributes: ['cod_int_artic'],
+                raw: true,
+            }) as any;
+
+            if (art?.cod_int_artic) {
+                const empIds = sucursalesPoly.map((e: any) => Number(e.id_empresa_sys_anterior));
+                const rows = await dbPoly.query<{ empcdempn: number; almexistn: number }>(
+                    `SELECT empcdempn, COALESCE(almexistn, 0) AS almexistn
+                     FROM public.almacenes1
+                     WHERE empcdempn IN (:empIds)
+                       AND almcdalmn = 1
+                       AND artcdartn = :cod_int_artic`,
+                    {
+                        type: QueryTypes.SELECT,
+                        replacements: { empIds, cod_int_artic: Number(art.cod_int_artic) },
+                    }
+                );
+
+                // Mapear empcdempn → id_empre
+                for (const row of rows) {
+                    const empresa = sucursalesPoly.find(
+                        (e: any) => Number(e.id_empresa_sys_anterior) === row.empcdempn
+                    );
+                    if (empresa) {
+                        mapStockPoly.set((empresa as any).id_empre, Number(row.almexistn));
+                    }
+                }
+            }
+        }
+
+        // 4. Empresa principal (mi empresa)
         const stockPrincipal = stockGrupo.find(
             (s: any) => s.id_empresa_sucursal === id_empresa
         );
 
-        // 4. Totales globales
-        const existencia_total_grupo = stockGrupo.reduce(
-            (acc: number, s: any) => acc + Number(s.existencia_total), 0
-        );
-        const existencia_disponible_grupo = stockGrupo.reduce(
-            (acc: number, s: any) => acc + Number(s.existencia_disponible), 0
-        );
-
-        // 5. Mapear TODAS las empresas (con o sin stock)
+        // 5. Mapear TODAS las empresas (ERP + PolyDB donde aplique)
         const empresasConStock = empresas.map((empresa: any) => {
-            const stock = stockGrupo.find(
+            const stockErp = stockGrupo.find(
                 (s: any) => s.id_empresa_sucursal === empresa.id_empre
             );
+            const existencia_erp = Number(stockErp?.existencia_total ?? 0);
+            const existencia_disp = Number(stockErp?.existencia_disponible ?? 0);
+            const existencia_poly = mapStockPoly.get(empresa.id_empre) ?? null;
+
+            // Para sucursales con PolyDB: mostrar el dato del sistema viejo
+            const existencia_total = existencia_poly !== null ? existencia_poly : existencia_erp;
+            const existencia_disponible = existencia_poly !== null ? existencia_poly : existencia_disp;
+
             return {
                 id_empre: empresa.id_empre,
                 nombre: empresa.nom_empre,
-                existencia_total: Number(stock?.existencia_total ?? 0),
-                existencia_disponible: Number(stock?.existencia_disponible ?? 0),
+                es_empresa_principal: empresa.es_empresa_principal,
+                fuente: existencia_poly !== null ? 'poly' : 'erp',
+                existencia_total,
+                existencia_disponible,
             };
         });
+
+        // 6. Totales globales (suma de ambas fuentes)
+        const existencia_total_grupo = empresasConStock.reduce((acc, e) => acc + e.existencia_total, 0);
+        const existencia_disponible_grupo = empresasConStock.reduce((acc, e) => acc + e.existencia_disponible, 0);
 
         return {
             existencia_total: Number(stockPrincipal?.existencia_total ?? 0),

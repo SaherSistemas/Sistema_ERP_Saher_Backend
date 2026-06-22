@@ -175,12 +175,14 @@ export const Proyeccion_VentaService = {
             return 0;
         });
 
-        const STR_FACTOR = 0.30;
+        const STR_FACTOR = 0.40;
         const ySTR_dem = ySTR.map(v => Math.round(v * STR_FACTOR));
-        const ySalidas = ySVM.map((v, i) => v + ySTR_dem[i]);
+        const ySalidas = ySVM.map((v, i) => v + ySVT[i] + ySTR_dem[i]);
         const yTotal = sorted.map(q => { const v = Number(q.total); return Number.isFinite(v) ? v : 0; });
+        // yTotal del query = svm + svt (ya incluye SVT). STR se suma aparte como demanda parcial.
+        const yTotalConSTR = yTotal.map((v, i) => v + ySTR_dem[i]);
         const usaTotalRango = yTotal.some(v => v > 0);
-        const yTotalModelo = usaTotalRango ? yTotal : ySalidas;
+        const yTotalModelo = usaTotalRango ? yTotalConSTR : ySalidas;
 
         // ── 6. Ventana K_TOP ──────────────────────────────────────────────────
         const kEff = Math.min(K_TOP, N);
@@ -189,6 +191,7 @@ export const Proyeccion_VentaService = {
 
         const yTotK = recentIdxs.map(i => yTotalModelo[i]);
         const ySVMk = recentIdxs.map(i => ySVM[i]);
+        const ySVTk = recentIdxs.map(i => ySVT[i]);
         const ySTRk = recentIdxs.map(i => ySTR_dem[i]);
         const ySalK = recentIdxs.map(i => ySalidas[i]);
         const lastActual = N > 0 ? yTotalModelo[N - 1] : 0;
@@ -219,6 +222,7 @@ export const Proyeccion_VentaService = {
         let metodo: 'tendencia' | 'seasonal+tendencia' = 'tendencia';
         let proj_total = trend_total;
         let proj_svm = trend_svm;
+        let proj_svt = 0;
         let proj_str = trend_str;
         let proj_salidas = trend_salidas;
 
@@ -303,17 +307,20 @@ export const Proyeccion_VentaService = {
                 );
             }
 
-            // 9f. Distribuir SVM / STR por ratio de los últimos 5 periodos ────
+            // 9f. Distribuir SVM / SVT / STR por ratio de los últimos 5 periodos ──
             const STR_WINDOW = 5;
             const ratioWindow = Math.min(STR_WINDOW, kEff);
             const avgSVM = safeMean(ySVMk.slice(-ratioWindow));
+            const avgSVT = safeMean(ySVTk.slice(-ratioWindow));
             const avgSTR = safeMean(ySTRk.slice(-ratioWindow));
-            const avgSal = avgSVM + avgSTR;
+            const avgSal = avgSVM + avgSVT + avgSTR;
             const ratioSVM = avgSal > 0 ? avgSVM / avgSal : 1.0;
+            const ratioSVT = avgSal > 0 ? avgSVT / avgSal : 0.0;
             const ratioSTR = avgSal > 0 ? avgSTR / avgSal : 0.0;
 
             proj_salidas = proj_total;
             proj_svm = Math.round(proj_total * ratioSVM);
+            proj_svt = Math.round(proj_total * ratioSVT);
             proj_str = Math.round(proj_total * ratioSTR);
 
             // Confianza mejorada: MAPE del ensemble en el holdout
@@ -348,9 +355,11 @@ export const Proyeccion_VentaService = {
             const STR_WINDOW = 5;
             const ratioWindow = Math.min(STR_WINDOW, kEff);
             const avgSVM = safeMean(ySVMk.slice(-ratioWindow));
+            const avgSVT = safeMean(ySVTk.slice(-ratioWindow));
             const avgSTR = safeMean(ySTRk.slice(-ratioWindow));
-            const avgSal = avgSVM + avgSTR;
+            const avgSal = avgSVM + avgSVT + avgSTR;
             proj_svm = Math.round(proj_total * (avgSal > 0 ? avgSVM / avgSal : 1.0));
+            proj_svt = Math.round(proj_total * (avgSal > 0 ? avgSVT / avgSal : 0.0));
             proj_str = Math.round(proj_total * (avgSal > 0 ? avgSTR / avgSal : 0.0));
             proj_salidas = proj_total;
 
@@ -385,15 +394,16 @@ export const Proyeccion_VentaService = {
                 salidas: tot(ySalidas),
                 total: tot(yTotalModelo),
             },
-            str_factor: STR_FACTOR,
+            str_factor: STR_FACTOR,   // 40 % de traslados = demanda estimada
             proyeccion: {
                 periodo: nextPeriodo,
                 total: proj_total,
                 svm: proj_svm,
+                svt: proj_svt,
                 str: proj_str,
                 salidas: proj_salidas,
                 k_usado: kEff,
-                confianza,                    // 0-100: qué tan fiable es la proyección
+                confianza,
                 metodo,
                 componentes,
             },

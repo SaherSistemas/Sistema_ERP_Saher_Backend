@@ -18,7 +18,7 @@ export const Empresa_SucursalRepository = {
     },
     getAll: async (): Promise<IEmpresaSucursal[]> => {
         return await Empresa_Sucursal.findAll({
-            attributes: ['id_empre', 'nom_empre', 'rfc_empre', 'tipo_empre', 'calle_empre', 'id_colonia_empre', 'correo_empre', 'tele_empre', 'status_empre', 'idgrup_empre', 'id_listapreciodefault', 'createdAt', 'updatedAt'],
+            attributes: ['id_empre', 'nom_empre', 'rfc_empre', 'tipo_empre', 'calle_empre', 'id_colonia_empre', 'correo_empre', 'tele_empre', 'status_empre', 'idgrup_empre', 'id_listapreciodefault', 'createdAt', 'updatedAt', 'es_empresa_principal', 'id_empresa_sys_anterior'],
 
             include: [
                 {
