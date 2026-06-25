@@ -52,8 +52,8 @@ export class Pedido_Almacen_EmpaqueController {
     try {
       const { id_pedido_empaque } = req.params;
       const { cajas, bolsas, nota } = req.body;
-      console.log(req.body)
-      console.log(cajas, bolsas, nota)
+     // console.log(req.body)
+      //console.log(cajas, bolsas, nota)
 
       //console.log(id_pedido_empaque, cajas, bolsas, nota)
       const resultado = await Pedido_Almacen_EmpaqueService.finalizarEmpaquePedido(

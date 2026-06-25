@@ -18,4 +18,5 @@ export interface ICreateTrabajoImpresion {
     id_impresora: string;
     tipo_documento: string;
     payload: IPayload;
+    max_intentos?: number;
 }

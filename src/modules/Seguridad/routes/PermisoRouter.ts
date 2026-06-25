@@ -12,4 +12,5 @@ router.post('/seed-finanzas-cxp', PermisoController.seedFinanzasCxP)
 router.post('/seed-facturacion', PermisoController.seedFacturacion)
 router.post('/seed-vales', PermisoController.seedVales)
 router.post('/seed-inventario', PermisoController.seedInventario)
+router.post('/seed-impresiones', PermisoController.seedImpresiones)
 export default router;

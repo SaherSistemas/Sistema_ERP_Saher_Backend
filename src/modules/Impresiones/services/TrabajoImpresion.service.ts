@@ -7,16 +7,22 @@ import Facturas from "../../Facturas/model/Facturas.model";
 import Remision from "../../Finanzas/Remisiones/model/Remision.model";
 import { RemisionService } from "../../Finanzas/Remisiones/services/Remision.service";
 import { guardarRemisionPdf } from "../../Finanzas/Remisiones/helpers/remision-storage.helper";
+import { generarPdfEtiquetasTarima, DatosEtiquetaTarima } from "../helpers/etiqueta-tarima.helper";
+import { generarPdfBulto } from "../helpers/bulto-label.helper";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const TrabajoImpresionService = {
     /**CHEQUEO */
-
-    createTrabajoImpresion: async (id_pedido_alm: string, tipo_documento: string, estacion: string, id_empresa: string) => {
+    createTrabajoImpresion: async (id_pedido_alm: string, tipo_documento: string, estacion: string, id_empresa: string, extraBody?: Record<string, any>) => {
         let data: ICreateTrabajoImpresion;
 
-        const id_impresora = await ImpresoraRepository.getImpresora(id_empresa, estacion);
+        const estacionEfectiva =
+            tipo_documento === 'BULTO'          ? 'ETIQUETAS_BULTO'   :
+            tipo_documento === 'ETIQUETA_TARIMA' ? 'ETIQUETAS_TARIMA'  :
+            estacion;
+
+        const id_impresora = await ImpresoraRepository.getImpresora(id_empresa, estacionEfectiva);
         if (tipo_documento === 'PEDIDO_ALMACEN') {
             const pedido = UUID_REGEX.test(id_pedido_alm)
                 ? await Pedido_AlmacenRepository.getByID(id_pedido_alm)
@@ -40,74 +46,17 @@ export const TrabajoImpresionService = {
         }
         if (tipo_documento === 'BULTO') {
             const info = await Bulto_PedidoRepository.getInfoPedidoParaBulto(id_pedido_alm);
+            const rutaPdf = await generarPdfBulto(info);
 
             data = {
                 cod_interno_pedido: info.cod_int_pedido_alm,
-                tipo_documento: 'BULTO',
+                tipo_documento:     'BULTO',
                 id_impresora,
+                max_intentos:       1,
                 payload: {
-                    tipo: 'escpos',
-                    comandos: [
-                        { type: 'align', value: 'center' },
-                        { type: 'text', value: 'Emisor  FARMACIAS SAHER DE SINALOA S DE RL DE CV' },
-                        { type: 'text', value: '------------------------------------------------------------------------' },
-
-                        { type: 'align', value: 'left' },
-                        { type: 'text', value: 'Destinatario' },
-                        { type: 'text', value: `Razon Social:   ${info.razon_social_cliente}`, bold: true },
-                        { type: 'text', value: `Nom Comercial:  ${info.nom_corto_cliente}`,    bold: true },
-
-                        { type: 'feed', value: 1 },
-
-                        { type: 'text', value: `Fact.:     ${info.fecha_facturado ?? 'Sin fecha'}` },
-                        { type: 'text', value: `No. Pedido: ${info.cod_int_pedido_alm}` },
-
-                        { type: 'feed', value: 1 },
-
-                        { type: 'align',   value: 'center' },
-                        { type: 'barcode', symbology: 'CODE128', value: info.cod_bulto, height: 60 },
-
-                        { type: 'text', value: info.cod_int_pedido_alm, bold: true, size: 2 },
-
-                        { type: 'feed', value: 1 },
-
-                        { type: 'text', value: `Bultos:  ${info.num_bulto} de ${info.total_bulto}`, bold: true },
-
-                        { type: 'feed', value: 1 },
-
-                        { type: 'align', value: 'left' },
-                        { type: 'text', value: `Surtido:   ${info.surtidores ?? 'N/A'}` },
-                        { type: 'text', value: `Checado:   ${info.checadores ?? 'N/A'}` },
-                        { type: 'text', value: `Empacado:  ${info.empacador}` },
-
-                        { type: 'feed', value: 2 },
-
-                        { type: 'text', value: '------------------------------------------------------------------------' },
-
-                        { type: 'align', value: 'left' },
-                        { type: 'text', value: 'CodigoQR:' },
-                        { type: 'align', value: 'center' },
-                        { type: 'qr', value: info.cod_bulto, size: 2, error: 'S' },
-
-                        { type: 'feed', value: 1 },
-
-                        { type: 'align', value: 'left' },
-                        { type: 'text', value: 'Quim. Responsable:' },
-                        { type: 'text', value: 'Jesus Andres Nuñez Lopez' },
-                        { type: 'text', value: 'Ced. Prof.: 1433424' },
-                        { type: 'text', value: `Agente:  ${info.agente ?? 'N/A'}`, bold: true },
-                        { type: 'text', value: 'Aviso funcionamiento' },
-                        { type: 'text', value: 'Ciudad: Mazatlan, Sinaloa' },
-
-                        { type: 'feed', value: 2 },
-
-                        { type: 'align', value: 'center' },
-                        { type: 'text', value: 'Saher', bold: true },
-
-                        { type: 'feed', value: 3 },
-                        { type: 'cut' },
-                    ]
-                }
+                    tipo:         'pdf',
+                    ruta_archivo: rutaPdf,
+                },
             };
         }
         if (tipo_documento === 'FACTURA') {
@@ -159,6 +108,30 @@ export const TrabajoImpresionService = {
                 cod_interno_pedido: `REM-${remision.folio_remision}`,
                 tipo_documento:     'REMISION',
                 id_impresora,
+                payload: {
+                    tipo:         'pdf',
+                    ruta_archivo: rutaPdf,
+                },
+            };
+        }
+
+        if (tipo_documento === 'ETIQUETA_TARIMA') {
+            const { art, lote, lineas: lineasRaw, usuario } = extraBody ?? {};
+
+            if (!art || !lineasRaw) throw new Error('Faltan datos: art y lineas son requeridos');
+
+            const lineas: DatosEtiquetaTarima['lineas'] = Array.isArray(lineasRaw)
+                ? lineasRaw
+                : Object.values(lineasRaw);
+
+            const datos: DatosEtiquetaTarima = { art, lote: lote ?? {}, lineas, usuario };
+            const rutaPdf = await generarPdfEtiquetasTarima(datos);
+
+            data = {
+                cod_interno_pedido: `ETQ-${Date.now()}`,
+                tipo_documento:     'ETIQUETA_TARIMA',
+                id_impresora,
+                max_intentos:       1,
                 payload: {
                     tipo:         'pdf',
                     ruta_archivo: rutaPdf,

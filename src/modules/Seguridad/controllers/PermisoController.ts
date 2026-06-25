@@ -173,6 +173,37 @@ export class PermisoController {
         }
     };
 
+    // POST /permiso/seed-impresiones
+    static seedImpresiones = async (_req: Request, res: Response) => {
+        try {
+            const nuevos = [
+                { modulo_permiso: 'impresiones', accion_permiso: 'menu' },
+                { modulo_permiso: 'impresiones', accion_permiso: 'impresoras' },
+                { modulo_permiso: 'impresiones', accion_permiso: 'trabajos_impresion' },
+            ];
+
+            const existentes = await PermisoService.getAll();
+            const claves = new Set(existentes.map((p: any) => `${p.modulo_permiso}__${p.accion_permiso}`));
+
+            const creados = [];
+            for (const p of nuevos) {
+                const clave = `${p.modulo_permiso}__${p.accion_permiso}`;
+                if (!claves.has(clave)) {
+                    const creado = await PermisoService.create(p);
+                    creados.push(creado);
+                }
+            }
+
+            res.status(200).json({
+                message: `${creados.length} permisos creados, ${nuevos.length - creados.length} ya existían.`,
+                creados,
+            });
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error.message ?? 'Error al crear permisos.' });
+        }
+    };
+
     static delete = async (req: Request, res: Response) => {
         try {
             await PermisoService.delete(Number(req.params.id_permiso));
