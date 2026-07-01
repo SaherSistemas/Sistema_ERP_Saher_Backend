@@ -169,6 +169,18 @@ class Cliente_Almacen extends Model {
   @Column({ type: DataType.STRING(3) })
   declare tipo_comprobante: string;
 
+
+  /**
+    * NULL  → cliente externo normal: CFDI tipo I (Ingreso) con CxC.
+    * UUID → ID UUID del la empresa en el sistema nuevo(POS nuevo).
+    *         Indica que es empresa propia del grupo: genera CFDI tipo T (Traslado), sin CxC.
+    *         Se usará luego para insertar el traslado en la BD del sistema nuevo.
+    * Solo aplica cuando id_empresa_sys_anterior != null.
+    */
+  @AllowNull(true)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare id_empresa_sys_nuevo: string | null;
+
   @BelongsTo(() => ListaPrecio)
   listaPrecio: ListaPrecio;
 

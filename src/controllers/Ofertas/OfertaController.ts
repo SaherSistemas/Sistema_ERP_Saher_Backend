@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { OfertaService } from "../../services/Ofertas/Ofertas.service";
 import Empresa_Sucursal from "../../models/Empresa_Sucursal/Empresa_Sucursal";
+import { AuthedRequest } from "../../middleware/auth";
 
 export class OfertaController {
 
@@ -68,9 +69,10 @@ export class OfertaController {
     }
   };
 
-  static create = async (req: Request, res: Response) => {
+  static create = async (req: AuthedRequest, res: Response) => {
     try {
-      const nuevaOferta = await OfertaService.createOferta(req.body);
+      const creada_por = req.user?.id_referencia_persona ?? null;
+      const nuevaOferta = await OfertaService.createOferta({ ...req.body, creada_por });
       res.status(201).json(nuevaOferta);
 
     } catch (error: any) {
@@ -89,10 +91,11 @@ export class OfertaController {
   };
 
 
-  static update = async (req: Request, res: Response) => {
+  static update = async (req: AuthedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const data = req.body;
+      const creada_por = req.user?.id_referencia_persona ?? null;
+      const data = { ...req.body, creada_por };
       const oferta_actualizada = await OfertaService.update(id, data);
       res.status(200).json(oferta_actualizada);
     } catch (error) {

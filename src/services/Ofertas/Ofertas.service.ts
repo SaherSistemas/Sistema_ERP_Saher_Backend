@@ -50,9 +50,6 @@ export const OfertaService = {
   },
 
   update: async (id: string, data: Partial<ICreateOrUpdateOferta>) => {
-    const oferta = await OfertaRepository.getById(id);
-    if (!oferta) return null;
-    await oferta.update(data);
-    return oferta;
+    return OfertaRepository.update(id, data);
   },
 };

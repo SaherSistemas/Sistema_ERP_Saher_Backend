@@ -114,5 +114,11 @@ class ReglaOferta extends Model {
     type: DataType.BOOLEAN,
   }) declare exclusiva: boolean | null;
 
+  @Column({
+    type: DataType.JSONB,
+    allowNull: true,
+    defaultValue: null,
+  }) declare listas_precio: string[] | null;
+
 }
 export default ReglaOferta;

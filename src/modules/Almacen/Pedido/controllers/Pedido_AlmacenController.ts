@@ -131,6 +131,7 @@ export class Pedido_AlmacenController {
     try {
       const id_cliente_alm = req.query.id_cliente_alm?.toString() || '';
       const data = await Pedido_AlmacenService.pedidosEnCotizacion(id_cliente_alm);
+      // console.log("PEDIDOS EN COTIZACION:", data);
       res.status(200).json(data);
     } catch (error) {
       // console.log(error);
@@ -160,6 +161,51 @@ export class Pedido_AlmacenController {
   }
 
 
+
+  static cambiarACotizacion = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id_pedido } = req.body;
+      const [updated] = await Pedido_AlmacenService.cambiarStatusPedido(id_pedido, 'CO');
+      if (!updated) {
+        res.status(404).json({ mensaje: 'Pedido no encontrado o ya está en cotización.' });
+        return;
+      }
+      res.status(200).json({ mensaje: 'Pedido cambiado a cotización.' });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ mensaje: error.message || 'Error al cambiar a cotización.' });
+    }
+  };
+
+  static cambiarACaptura = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id_pedido } = req.body;
+      // Verifica que no tenga ya otro pedido en EC
+      const enCaptura = await Pedido_AlmacenService.pedidosEnCaptura(
+        (await Pedido_AlmacenService.getClienteDelPedido(id_pedido)) ?? ''
+      );
+      if (enCaptura.length > 0) {
+        res.status(409).json({ mensaje: 'El cliente ya tiene un pedido en captura. Termínalo antes de reactivar este.' });
+        return;
+      }
+      await Pedido_AlmacenService.cambiarStatusPedido(id_pedido, 'EC');
+      res.status(200).json({ mensaje: 'Pedido reactivado a captura.' });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ mensaje: error.message || 'Error al cambiar a captura.' });
+    }
+  };
+
+  static verificarCredito = async (req: Request, res: Response) => {
+    try {
+      const { id_pedido } = req.body;
+      const resultado = await Pedido_AlmacenService.verificarCredito(id_pedido);
+      res.status(200).json(resultado);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ mensaje: error.message || 'Error al verificar crédito.' });
+    }
+  };
 
   //FINALIZAR CAPUTRA
   static finalizarCaptura = async (req: Request, res: Response) => {

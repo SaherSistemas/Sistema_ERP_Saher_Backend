@@ -3,6 +3,7 @@ import { CatalogoComercialController } from '../controllers/CatalogoComercialCon
 
 const router = Router();
 
-router.get('/pedido', CatalogoComercialController.getCatalagoComercialArticulosPromocionadosAlmacen)
+router.get('/pedido',  CatalogoComercialController.getCatalagoComercialArticulosPromocionadosAlmacen);
 router.get('/busqueda', CatalogoComercialController.getCatalagoComercialArticulosBusqueda);
+router.get('/ofertas', CatalogoComercialController.getCatalogoArticulosConOferta);
 export default router;

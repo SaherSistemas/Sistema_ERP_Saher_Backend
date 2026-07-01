@@ -16,6 +16,7 @@ export interface IReglasOferta {
     max_usos_cliente: number;  // Máx. veces que un mismo cliente puede usar esta oferta
     max_usos_global: number;   // Máx. veces que la oferta puede usarse en total (ej: primeras 100 redenciones)
     exclusiva: boolean;        // Si es true → no se puede combinar con otras ofertas
+    listas_precio?: string[] | null;
 }
 
 export interface ICreateOrUpdateReglasOferta {
@@ -33,6 +34,7 @@ export interface ICreateOrUpdateReglasOferta {
   max_usos_cliente?: number;
   max_usos_global?: number;
   exclusiva?: boolean;
+  listas_precio?: string[] | null;
 }
 
 

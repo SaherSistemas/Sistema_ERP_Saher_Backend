@@ -14,7 +14,7 @@ import {
   Sequelize,
   literal,
 } from "sequelize";
-import ReglaOferta from "../../models/Ofertas/ReglaOferta";
+import ReglaOferta from "../../models/Ofertas/ReglaOferta"; 
 import {
   obtenerDiaSemanaISO,
   getLocalTimeInTz,
@@ -167,6 +167,7 @@ export const OfertaRepository = {
             max_usos_cliente: normNum(r.max_usos_cliente),
             max_usos_global: normNum(r.max_usos_global),
             exclusiva: r.exclusiva ?? false,
+            listas_precio: Array.isArray(r.listas_precio) && r.listas_precio.length ? r.listas_precio : null,
           })),
           { transaction: t }
         );
@@ -185,10 +186,66 @@ export const OfertaRepository = {
 
   update: async (id: string, data: Partial<ICreateOrUpdateOferta>) => {
     if (!isUUID(id)) return null;
-    const oferta = await Ofertas.findByPk(id);
 
-    if (!oferta) return null;
-    await oferta.update(data);
-    return oferta;
+    const run = async (t: Transaction) => {
+      const oferta = await Ofertas.findByPk(id, { transaction: t });
+      if (!oferta) return null;
+
+      const { alcances, reglas, ...ofertaBase } = data as ICreateOrUpdateOferta;
+
+      await oferta.update(ofertaBase, { transaction: t });
+
+      if (Array.isArray(reglas)) {
+        await ReglaOferta.destroy({ where: { id_oferta: id }, transaction: t });
+
+        const norm  = (v?: string | null) => (!v || v.trim?.() === "") ? null : v;
+        const normNum = (v: any) => (v === "" || v == null) ? null : Number(v);
+
+        if (reglas.length) {
+          await ReglaOferta.bulkCreate(
+            reglas.map(r => ({
+              id_oferta: id,
+              id_regla: uuidv4(),
+              tipo_beneficio: r.tipo_beneficio,
+              valor: normNum(r.valor),
+              cantidad_minima: normNum(r.cantidad_minima),
+              cantidad_regalo: normNum(r.cantidad_regalo),
+              articulo_gratis: norm(r.articulo_gratis),
+              monto_minimo_total: normNum(r.monto_minimo_total),
+              minimo_articulo: normNum(r.minimo_articulo),
+              tope_desc: normNum(r.tope_desc),
+              cantidad_max_dias: normNum(r.cantidad_max_dias),
+              codigo_cupon: norm(r.codigo_cupon),
+              max_usos_cliente: normNum(r.max_usos_cliente),
+              max_usos_global: normNum(r.max_usos_global),
+              exclusiva: r.exclusiva ?? false,
+              listas_precio: Array.isArray(r.listas_precio) && r.listas_precio.length ? r.listas_precio : null,
+            })),
+            { transaction: t }
+          );
+        }
+      }
+
+      if (Array.isArray(alcances)) {
+        await AlcanceOfertas.destroy({ where: { id_oferta: id }, transaction: t });
+
+        if (alcances.length) {
+          await AlcanceOfertas.bulkCreate(
+            alcances.map(a => ({
+              id_oferta: id,
+              id_alcance: uuidv4(),
+              tipo_alcance: a.tipo_alcance,
+              id_referencia: a.id_referencia || null,
+              params: a.params || null,
+            })),
+            { transaction: t }
+          );
+        }
+      }
+
+      return Ofertas.findByPk(id, { include: OfertaIncludes, transaction: t });
+    };
+
+    return dbLocal.transaction(run);
   },
 };

@@ -9,6 +9,9 @@ router.get('/enCotizacion', Pedido_AlmacenController.pedidosEnCotizacion);
 router.get('/surtir', Pedido_AlmacenController.porSurtir);
 router.put('/actualizar_detalles', Pedido_AlmacenController.actualizarDetalles)
 router.put('/finalizar_pedido', Pedido_AlmacenController.finalizarCaptura)
+router.put('/cambiar-cotizacion', Pedido_AlmacenController.cambiarACotizacion)
+router.put('/cambiar-captura', Pedido_AlmacenController.cambiarACaptura)
+router.post('/verificar-credito', Pedido_AlmacenController.verificarCredito)
 router.post('/asignar_pedido_surtidor', Pedido_AlmacenController.asignarPedidoSurtidor)
 
 router.get('/:id_pedido_alm/detalle_asignado', Pedido_AlmacenController.getDetallesAsignado);

@@ -1,4 +1,4 @@
-import { Op, QueryTypes, Transaction } from 'sequelize';
+import { fn, col, Op, QueryTypes, Transaction } from 'sequelize';
 
 import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
 import { dbLocal, dbPoly } from '../../../../config/db';
@@ -15,6 +15,8 @@ import { ICreateDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Alm
 import { Detalle_Pedido_Almacen_ChequeoRepository } from '../repositories/Detalle_Pedido_Almacen_ChequeoRepository';
 import { Detalle_Pedido_NegadoRepository } from '../repositories/Detalle_Pedido_Negado.repository';
 import Pedido_Almacen from '../model/Pedido_Almacen';
+import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
+import Cuenta_Por_Cobrar from '../../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
 
 // ─── Helper privado: preview de UN pedido PolyDB por su número ───────────────
 //  Aísla los items de ese pedido específico.
@@ -389,6 +391,127 @@ export const Pedido_AlmacenService = {
 
   actualizarDetallesPedidoServ: async (data: ActualizarDetallesPedidoRequest) => {
     return await Detalle_Pedido_AlmacenRepository.sincronizarCarrito(data);
+  },
+
+  cambiarStatusPedido: async (id_pedido: string, status: string) => {
+    return await Pedido_Almacen.update(
+      { status_pedido_alm: status },
+      { where: { id_pedido_alm: id_pedido } }
+    );
+  },
+
+  getClienteDelPedido: async (id_pedido: string): Promise<string | null> => {
+    const pedido = await Pedido_Almacen.findByPk(id_pedido, {
+      attributes: ['id_cliente_pedido_alm'],
+      raw: true,
+    }) as any;
+    return pedido?.id_cliente_pedido_alm ?? null;
+  },
+
+  verificarCredito: async (id_pedido: string): Promise<{
+    excede: boolean;
+    tiene_facturas_vencidas: boolean;
+    limite: number;
+    deuda_cxc: number;
+    total_pedidos_activos: number;
+    total_comprometido: number;
+    id_pedido?: string;
+    bloqueado: boolean; // true si excede límite O tiene facturas vencidas
+  }> => {
+    // 1. Obtener pedido y cliente
+    const pedido = await Pedido_Almacen.findByPk(id_pedido, {
+      attributes: ['id_pedido_alm', 'id_cliente_pedido_alm', 'status_pedido_alm'],
+    });
+    if (!pedido) throw new Error('Pedido no encontrado');
+
+    const cliente = await ClienteAlmacen.findByPk(pedido.id_cliente_pedido_alm, {
+      attributes: ['id_cliente_alm', 'limite_credito_cliente_alm'],
+    });
+    if (!cliente) throw new Error('Cliente no encontrado');
+
+    const limite = Number(cliente.limite_credito_cliente_alm ?? 0);
+
+    // 2. Verificar facturas vencidas (independiente del límite)
+    const facturasVencidas = await Cuenta_Por_Cobrar.count({
+      where: {
+        id_cliente_alm: pedido.id_cliente_pedido_alm,
+        estatus_cxc: 'VEN',
+      },
+    });
+    const tiene_facturas_vencidas = facturasVencidas > 0;
+
+    // 3. Deuda CxC (pendientes + parciales + vencidas)
+    const cxcResult = await Cuenta_Por_Cobrar.findOne({
+      attributes: [[fn('COALESCE', fn('SUM', col('saldo_pendiente')), 0), 'total']],
+      where: {
+        id_cliente_alm: pedido.id_cliente_pedido_alm,
+        estatus_cxc: { [Op.in]: ['PEN', 'PAR', 'VEN'] },
+      },
+      raw: true,
+    }) as any;
+    const deuda_cxc = Number(cxcResult?.total ?? 0);
+
+    // Sin límite configurado → solo bloquea por facturas vencidas
+    if (limite === 0) {
+      const bloqueado = tiene_facturas_vencidas;
+      if (bloqueado && pedido.status_pedido_alm === 'EC') {
+        await Pedido_Almacen.update(
+          { status_pedido_alm: 'CO' },
+          { where: { id_pedido_alm: id_pedido } }
+        );
+      }
+      return { excede: false, tiene_facturas_vencidas, limite: 0, deuda_cxc, total_pedidos_activos: 0, total_comprometido: deuda_cxc, id_pedido, bloqueado };
+    }
+
+    // 4. Total comprometido en pedidos EC/CA del cliente — excluyendo el pedido actual
+    const detalles = await Detalle_Pedido_Almacen.findAll({
+      attributes: ['precio_venta', 'cant_pedida'],
+      include: [{
+        model: Pedido_Almacen,
+        as: 'pedido',
+        attributes: [],
+        where: {
+          id_cliente_pedido_alm: pedido.id_cliente_pedido_alm,
+          status_pedido_alm: { [Op.in]: ['EC', 'CA'] },
+          id_pedido_alm: { [Op.ne]: id_pedido },
+        },
+        required: true,
+      }],
+      raw: true,
+    }) as any[];
+    const total_pedidos_activos = detalles.reduce(
+      (acc, d) => acc + Number(d.precio_venta) * Number(d.cant_pedida), 0
+    );
+
+    // 5. Total del pedido actual
+    const detallesPedidoActual = await Detalle_Pedido_Almacen.findAll({
+      attributes: ['precio_venta', 'cant_pedida'],
+      include: [{
+        model: Pedido_Almacen,
+        as: 'pedido',
+        attributes: [],
+        where: { id_pedido_alm: id_pedido },
+        required: true,
+      }],
+      raw: true,
+    }) as any[];
+    const total_pedido_actual = detallesPedidoActual.reduce(
+      (acc, d) => acc + Number(d.precio_venta) * Number(d.cant_pedida), 0
+    );
+
+    const total_comprometido = deuda_cxc + total_pedidos_activos + total_pedido_actual;
+    const excede = total_comprometido > limite;
+    const bloqueado = excede || tiene_facturas_vencidas;
+
+    // 6. Si bloqueado y el pedido está en EC → moverlo a CO (cotización)
+    if (bloqueado && pedido.status_pedido_alm === 'EC') {
+      await Pedido_Almacen.update(
+        { status_pedido_alm: 'CO' },
+        { where: { id_pedido_alm: id_pedido } }
+      );
+    }
+
+    return { excede, tiene_facturas_vencidas, limite, deuda_cxc, total_pedidos_activos, total_comprometido, id_pedido, bloqueado };
   },
 
 

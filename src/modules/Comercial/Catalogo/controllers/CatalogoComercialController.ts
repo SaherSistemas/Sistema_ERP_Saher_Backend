@@ -36,13 +36,25 @@ export const CatalogoComercialController = {
                 limit: Number(req.query.limit),
             };
 
-            //console.log(nombre);
             const data = await CatalogoComercialService.getCatalagoComercialArticulosBusqueda(filters);
-            //   console.log(data);
             res.status(200).json(data);
         } catch (error) {
             console.error(error);
             res.status(500).json({ mensaje: 'Error al obtener resumen de lotes' });
+        }
+    },
+    getCatalogoArticulosConOferta: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_sucursal = req.user?.id_empresa;
+            const grupoPrecio = String(req.query.grupoPrecio);
+            const data = await CatalogoComercialService.getCatalogoArticulosConOferta({
+                id_sucursal: String(id_sucursal),
+                grupoPrecio,
+            });
+            res.status(200).json(data);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ mensaje: 'Error al obtener artículos con oferta' });
         }
     },
 
