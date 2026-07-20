@@ -29,8 +29,50 @@ import { Stock_Ubicacion_LoteRepository } from '../../Inventario/Stock/repositor
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
 import { Kardex_Movimiento_ArticuloRepository } from '../../Almacen/Kardex/repositories/Kardex_Movimiento_Articulo.repository';
 import EmpresaSucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
+import Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
+import Detalle_Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Detalle_Factura_Compra_Proveedor';
+import Lote_Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Lote_Factura_Compra_Proveedor';
+import { v4 as uuidv4 } from 'uuid';
 
 export { IGenerarFacturaDTO, IDetalleEgresoDTO, ITimbrarEgresoDTO, ITimbrarPagoDTO };
+
+/** Convierte "MM/YYYY" → "YYYY-MM-01" para almacenar como DATEONLY */
+function fechaVenciToDate(fechaVenci: string): string {
+    const [mes, anio] = (fechaVenci ?? '').split('/');
+    if (!mes || !anio) return fechaVenci;
+    return `${anio}-${String(mes).padStart(2, '0')}-01`;
+}
+
+/** Devuelve los lotes del pedido agrupados por id_articulo, directo de detalle_pedido_almacen_lote */
+async function getLotesPorPedido(id_pedido_alm: string): Promise<
+    Map<string, { lote: string; fecha_caducidad: string; cantidad: number }[]>
+> {
+    const rows = await dbLocal.query<{
+        id_articulo:    string;
+        numero_lote:    string;
+        fecha_caducidad: string;
+        cantidad:       number;
+    }>(`
+        SELECT
+            dpa.id_articulo,
+            COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal) AS numero_lote,
+            TO_CHAR(COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal)::date, 'YYYY-MM-DD') AS fecha_caducidad,
+            dpal.cantidad
+        FROM detalle_pedido_almacen     dpa
+        JOIN detalle_pedido_almacen_lote dpal ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+        JOIN lote_articulo_sucursal      las  ON las.id_lote_sucursal           = dpal.id_lote_sucursal
+        WHERE dpa.id_pedido_almacen = :id_pedido_alm
+          AND dpal.cantidad > 0
+    `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT });
+
+    const mapa = new Map<string, { lote: string; fecha_caducidad: string; cantidad: number }[]>();
+    for (const r of rows) {
+        const lista = mapa.get(r.id_articulo) ?? [];
+        lista.push({ lote: r.numero_lote, fecha_caducidad: r.fecha_caducidad, cantidad: Number(r.cantidad) });
+        mapa.set(r.id_articulo, lista);
+    }
+    return mapa;
+}
 
 export const FacturacionService = {
 
@@ -381,6 +423,64 @@ export const FacturacionService = {
                 console.error('[FACTURA_EMPRESA] Error al insertar en BD vieja:', errPoly);
                 // No lanzar — la factura ya está timbrada
             }
+
+            // ── También crear "factura por recibir" en el nuevo ERP ─────────────
+            if (cab.id_empresa_sys_nuevo) {
+                try {
+                    const lotesPorArticulo = await getLotesPorPedido(cab.id_pedido_alm);
+                    const primerRegistro = registros[0];
+                    const id_factura_proveedor = uuidv4();
+                    const hoy = new Date();
+                    await Factura_Compra_Proveedor.create({
+                        id_factura_proveedor,
+                        id_compra_prove_factura: null,
+                        tipo_origen: 'TRASLADO',
+                        id_empresa_emisora: id_empresa,
+                        id_empresa_receptora: cab.id_empresa_sys_nuevo,
+                        folio_factura_proveedor: `FAC-${primerRegistro.folio}`,
+                        estado_factura_proveedor: 'C',
+                        fecha_emision: hoy,
+                        fecha_vencimiento: hoy,
+                        total_factura_proveedor: primerRegistro.totales.total,
+                        total_iva_factura: primerRegistro.totales.iva,
+                        total_recibido_factura: 0,
+                        total_iva_recibido_factura: 0,
+                        estatus_pago_factura: 'TRASLADO',
+                        url_PDF: null,
+                        url_XML: null,
+                    });
+                    for (const c of conceptos) {
+                        const id_det = uuidv4();
+                        await Detalle_Factura_Compra_Proveedor.create({
+                            id_factura_proveedor_detalle: id_det,
+                            id_factura_compra_proveedor: id_factura_proveedor,
+                            id_detcompsol: null,
+                            id_artic: c.id_articulo,
+                            cantidad_articulo_facturada: c.cantidad,
+                            precio_articulo_factura: c.precio_unitario,
+                            descuento_articulo_factura: 0,
+                            iva_articulo_factura: c.tasa_iva,
+                            checado: false,
+                        });
+                        const lotes = lotesPorArticulo.get(c.id_articulo) ?? [];
+                        if (lotes.length) {
+                            await Lote_Factura_Compra_Proveedor.bulkCreate(
+                                lotes.map(l => ({
+                                    id_lote_factura_compra_proveedor: uuidv4(),
+                                    id_det_factura_proveedor: id_det,
+                                    numero_lote: l.lote,
+                                    fecha_caducidad: l.fecha_caducidad,
+                                    cantidad_lote: l.cantidad,
+                                    precio_articulo_factura: c.precio_unitario,
+                                    observacion_lote: null,
+                                }))
+                            );
+                        }
+                    }
+                } catch (errFpr) {
+                    console.error('[FACTURA_EMPRESA] No se pudo crear factura por recibir en nuevo ERP:', errFpr);
+                }
+            }
         }
 
         return {
@@ -642,6 +742,66 @@ export const FacturacionService = {
         } catch (errImp) {
             console.error('[TRASLADO] No se pudo encolar trabajo de impresión:', errImp);
             // No lanzar — no es crítico para el traslado
+        }
+
+        // ── 6. Crear "factura por recibir" en el nuevo ERP para la empresa receptora ──
+        if (cab.id_empresa_sys_nuevo) {
+            try {
+                const lotesPorArticulo = await getLotesPorPedido(cab.id_pedido_alm);
+                const id_factura_proveedor = uuidv4();
+                const hoy = new Date();
+                await Factura_Compra_Proveedor.create({
+                    id_factura_proveedor,
+                    id_compra_prove_factura: null,
+                    tipo_origen: 'TRASLADO',
+                    id_empresa_emisora: id_empresa,
+                    id_empresa_receptora: cab.id_empresa_sys_nuevo,
+                    folio_factura_proveedor: `TRA-${folio}`,
+                    estado_factura_proveedor: 'C',
+                    fecha_emision: hoy,
+                    fecha_vencimiento: hoy,
+                    total_factura_proveedor: totales.total,
+                    total_iva_factura: totales.iva,
+                    total_recibido_factura: 0,
+                    total_iva_recibido_factura: 0,
+                    estatus_pago_factura: 'TRASLADO',
+                    url_PDF: pdf_url,
+                    url_XML: null,
+                });
+                // Crear detalles y sus lotes
+                for (const c of conceptos) {
+                    const id_det = uuidv4();
+                    await Detalle_Factura_Compra_Proveedor.create({
+                        id_factura_proveedor_detalle: id_det,
+                        id_factura_compra_proveedor: id_factura_proveedor,
+                        id_detcompsol: null,
+                        id_artic: c.id_articulo,
+                        cantidad_articulo_facturada: c.cantidad,
+                        precio_articulo_factura: c.precio_unitario,
+                        descuento_articulo_factura: 0,
+                        iva_articulo_factura: c.tasa_iva,
+                        checado: false,
+                    });
+
+                    const lotes = lotesPorArticulo.get(c.id_articulo) ?? [];
+                    if (lotes.length) {
+                        await Lote_Factura_Compra_Proveedor.bulkCreate(
+                            lotes.map(l => ({
+                                id_lote_factura_compra_proveedor: uuidv4(),
+                                id_det_factura_proveedor: id_det,
+                                numero_lote: l.lote,
+                                fecha_caducidad: l.fecha_caducidad,
+                                cantidad_lote: l.cantidad,
+                                precio_articulo_factura: c.precio_unitario,
+                                observacion_lote: null,
+                            }))
+                        );
+                    }
+                }
+            } catch (errFpr) {
+                console.error('[TRASLADO] No se pudo crear factura por recibir en nuevo ERP:', errFpr);
+                // No lanzar — el traslado ya quedó registrado
+            }
         }
 
         return {

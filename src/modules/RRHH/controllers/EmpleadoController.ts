@@ -10,7 +10,8 @@ export class EmpleadoController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
       const query = (req.query.query as string) || '';
-      const empleados = await EmpleadoService.getAllEmpleados(page, limit, query);
+      const idEmpresa = (req.query.idEmpresa as string) || undefined;
+      const empleados = await EmpleadoService.getAllEmpleados(page, limit, query, idEmpresa);
       //console.log(empleados)
       res.status(201).json(empleados);
     } catch (error) {

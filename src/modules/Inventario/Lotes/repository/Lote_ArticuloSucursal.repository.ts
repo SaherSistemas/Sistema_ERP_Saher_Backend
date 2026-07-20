@@ -435,24 +435,28 @@ export const LotesArticuloSucursalRepository = {
       ...data
     });
   },
-  bulkUpsert: async (data: ICreaterOrUdateLotesArticuloSucursal[], t?: Transaction) => {
+  bulkUpsert: async (data: ICreaterOrUdateLotesArticuloSucursal[], t?: Transaction, opciones?: { actualizarPrecio?: boolean }) => {
     if (!data || data.length === 0) return [];
-    // console.log(data)
     const rows = data.map(d => ({
       id_lote_sucursal: uuidv4(),
       ...d,
     }));
 
+    const actualizarPrecio = opciones?.actualizarPrecio ?? true;
+    const updateOnDuplicate: string[] = [
+      'cantidad_entrada_lote',
+      'estado_lote_sucursal',
+      'updatedAt',
+    ];
+    if (actualizarPrecio) {
+      updateOnDuplicate.push('precio_costo_lote_sucursal');
+    }
+
     return Lote_Articulo_Sucursal.bulkCreate(rows, {
       transaction: t,
       validate: false,
       hooks: false,
-      updateOnDuplicate: [
-        'cantidad_entrada_lote',
-        'precio_costo_lote_sucursal',
-        'estado_lote_sucursal',
-        'updatedAt',
-      ],
+      updateOnDuplicate,
     });
   },
 

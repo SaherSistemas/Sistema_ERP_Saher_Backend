@@ -86,11 +86,13 @@ export const Ubicacion_SucursalRepository = {
             );
         }
         if (f?.anaquel) {
+            // Comparar como entero para tolerar "3" y "03" indistintamente
+            const anaquelInt = parseInt(String(f.anaquel).trim(), 10);
             where[Op.and] = where[Op.and] || [];
             where[Op.and].push(
                 Sequelize.where(
-                    Sequelize.fn('TRIM', Sequelize.col('anaquel_ub')),
-                    f.anaquel
+                    Sequelize.cast(Sequelize.fn('TRIM', Sequelize.col('anaquel_ub')), 'INTEGER'),
+                    anaquelInt
                 )
             );
         }

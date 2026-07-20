@@ -15,10 +15,22 @@ import Compra_General from '../../../Compras/Ordenes-Compra/model/Compra_General
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import Detalle_Compra_Solicitado from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado';
 import Empleado from '../../../RRHH/model/Empleado';
+import EmpresaSucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
+
 export const Factura_Compra_ProveedorRepository = {
-    getAllConFiltroDeEstado: async () => {
+    getAllConFiltroDeEstado: async (id_empresa_receptora?: string) => {
+        const where: any = { estado_factura_proveedor: ["C", "R"] };
+        if (id_empresa_receptora) {
+            where[Op.or] = [
+                // traslados dirigidos a esta empresa
+                { id_empresa_receptora, tipo_origen: 'TRASLADO' },
+                // compras normales sin filtro de empresa (se filtran por compra_proveedor)
+                { tipo_origen: 'COMPRA' },
+            ];
+        }
+
         return await Factura_Compra_Proveedor.findAll({
-            where: { estado_factura_proveedor: ["C", "R"] },
+            where,
 
             // agrega el conteo como campo calculado
             attributes: {
@@ -32,11 +44,12 @@ export const Factura_Compra_ProveedorRepository = {
                 {
                     model: Detalle_Factura_Compra_Proveedor,
                     as: 'detalles_factura_compra_proveedor',
-                    attributes: [],     // importante para evitar duplicados
-                    required: false,    // factura aunque no tenga detalles
+                    attributes: [],
+                    required: false,
                 },
                 {
                     model: Compra_Proveedor,
+                    required: false,        // LEFT JOIN para que traslados (null FK) no queden fuera
                     attributes: ["id_comp", "idprove_comp"],
                     include: [
                         {
@@ -45,6 +58,12 @@ export const Factura_Compra_ProveedorRepository = {
                         },
                     ],
                 },
+                {
+                    model: EmpresaSucursal,
+                    as: 'empresa_emisora',
+                    attributes: ['id_empre', 'nom_empre'],
+                    required: false,
+                },
             ],
 
             // agrupa por las PKs incluidas
@@ -52,6 +71,7 @@ export const Factura_Compra_ProveedorRepository = {
                 "Factura_Compra_Proveedor.id_factura_proveedor",
                 "compra.id_comp",
                 "compra->proveedor.id_prove",
+                "empresa_emisora.id_empre",
             ],
         });
     },
@@ -132,7 +152,7 @@ export const Factura_Compra_ProveedorRepository = {
         const facturaInst = await Factura_Compra_Proveedor.findByPk(id_factura_compra_proveedor, {
             attributes: [
                 'id_factura_proveedor', 'folio_factura_proveedor', 'estado_factura_proveedor',
-                'fecha_emision', 'fecha_vencimiento',
+                'fecha_emision', 'fecha_vencimiento', 'tipo_origen', 'id_empresa_receptora',
             ],
             include: [
                 {

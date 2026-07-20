@@ -34,6 +34,8 @@ export interface DatosFacturacionCabecera {
     // NULL = externo (Ingreso normal sin insert en POS viejo)
     // Número = empresa propia del grupo → siempre inserta en rme0010
     id_empresa_sys_anterior: number | null;
+    // UUID empresa receptora en el nuevo ERP (para crear "factura por recibir")
+    id_empresa_sys_nuevo:    string | null;
     // 'FAC' = empresa propia con CFDI timbrado (Ingreso); 'TRA' = traslado interno sin timbre
     tipo_comprobante:        string;
 }

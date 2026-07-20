@@ -6,7 +6,8 @@
     "dev": "nodemon src/index.ts",
     "dev:api": "nodemon src/index.ts --api",
     "build": "tsc",
-    "start": "node ./dist/index.js"
+    "start": "node ./dist/index.js",
+    "seed:setup": "ts-node src/seed/setup_inicial.ts"
   },
   "author": "",
   "license": "ISC",

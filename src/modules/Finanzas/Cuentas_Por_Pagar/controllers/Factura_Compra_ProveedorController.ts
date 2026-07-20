@@ -8,11 +8,9 @@ import { AuthedRequest } from "../../../../middleware/auth";
 
 export class Factura_Compra_ProveedorController {
     static getAllConFiltroDeEstado = async (req: Request, res: Response) => {
-        // console.log("HOLA")
-
         try {
-            const facturas = await Factura_Compra_ProveedorService.getAllConFiltroDeEstado();
-            // console.log(facturas)
+            const id_empresa = (req.query.id_empresa as string) || undefined;
+            const facturas = await Factura_Compra_ProveedorService.getAllConFiltroDeEstado(id_empresa);
             res.status(200).json({ mensaje: facturas })
         } catch (error) {
             console.error(error);

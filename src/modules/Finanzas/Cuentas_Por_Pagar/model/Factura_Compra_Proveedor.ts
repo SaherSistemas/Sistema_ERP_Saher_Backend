@@ -1,7 +1,8 @@
-import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany } from "sequelize-typescript";
+import { Table, Column, DataType, Model, PrimaryKey, ForeignKey, Unique, BelongsTo, HasMany, AllowNull, Default } from "sequelize-typescript";
 import Compra_Proveedor from "../../../Compras/Ordenes-Compra/model/Compra_Proveedor";
 import Empleado from "../../../RRHH/model/Empleado";
 import Detalle_Factura_Compra_Proveedor from "./Detalle_Factura_Compra_Proveedor";
+import EmpresaSucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
 
 @Table({
     tableName: 'factura_compra_proveedor',
@@ -25,13 +26,41 @@ class Factura_Compra_Proveedor extends Model {
     declare id_factura_proveedor: string
 
     @ForeignKey(() => Compra_Proveedor)
+    @AllowNull(true)
     @Column({
-        type: DataType.UUID
+        type: DataType.UUID,
+        allowNull: true,
     })
-    declare id_compra_prove_factura: string
+    declare id_compra_prove_factura: string | null
 
     @BelongsTo(() => Compra_Proveedor, 'id_compra_prove_factura')
     compra!: Compra_Proveedor;
+
+    /**
+     * 'COMPRA'   → factura ligada a una orden de compra (flujo normal)
+     * 'TRASLADO' → originada por traslado inter-empresa del sistema de ventas
+     */
+    @Default('COMPRA')
+    @Column({ type: DataType.STRING(10), allowNull: false })
+    declare tipo_origen: string;
+
+    /** Empresa que EMITIÓ el traslado (solo cuando tipo_origen = 'TRASLADO') */
+    @ForeignKey(() => EmpresaSucursal)
+    @AllowNull(true)
+    @Column({ type: DataType.UUID, allowNull: true })
+    declare id_empresa_emisora: string | null;
+
+    @BelongsTo(() => EmpresaSucursal, 'id_empresa_emisora')
+    empresa_emisora: EmpresaSucursal;
+
+    /** Empresa que RECIBE el traslado (solo cuando tipo_origen = 'TRASLADO') */
+    @ForeignKey(() => EmpresaSucursal)
+    @AllowNull(true)
+    @Column({ type: DataType.UUID, allowNull: true })
+    declare id_empresa_receptora: string | null;
+
+    @BelongsTo(() => EmpresaSucursal, 'id_empresa_receptora')
+    empresa_receptora: EmpresaSucursal;
 
     @Column({
         type: DataType.STRING(20)

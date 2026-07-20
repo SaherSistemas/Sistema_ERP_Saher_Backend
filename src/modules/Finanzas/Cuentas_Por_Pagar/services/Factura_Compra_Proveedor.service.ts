@@ -34,8 +34,8 @@ export const Factura_Compra_ProveedorService = {
         if (!resultado) throw new Error('Factura no encontrada');
         return resultado;
     },
-    getAllConFiltroDeEstado: async () => {
-        return await Factura_Compra_ProveedorRepository.getAllConFiltroDeEstado();
+    getAllConFiltroDeEstado: async (id_empresa_receptora?: string) => {
+        return await Factura_Compra_ProveedorRepository.getAllConFiltroDeEstado(id_empresa_receptora);
     },
     finalizarChequeoFacturaProveedor: async (
         id_factura_proveedor: string,
@@ -71,45 +71,49 @@ export const Factura_Compra_ProveedorService = {
             const totalesRecibidos = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'RECIBIDA' });
             const totalesNegados = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'NEGADA' });
             const totalesFacturados = calcularTotalesFactura(detallesClasificados, { usarCantidad: 'FACTURADA' });
-            // 5) Insertar negados (EFICIENTE)
-            if (devoluciones.length > 0) {
-                const now = new Date();
-                const limite = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
-                // OJO: evita .filter + .map doble si ya sabes que devoluciones > 0
-                const detallesNegados = [];
-                for (const d of detallesClasificados) {
-                    if (d?.resumen?.status !== 'NEGADO') continue;
-                    const idArticulo = d.detalleCompraSolicitado?.idarticulo_detcompsol;
-                    if (!idArticulo) continue;
-                    detallesNegados.push({
-                        id_detcompneg: uuidv4(),
-                        idcompr_detcompneg: factura.compra.id_comp,
-                        idarticulo_detcompneg: idArticulo,
-                        cantidad_negada: d.resumen.negado,
-                        motivo_negado: 'FALTANTE_EN_CHEQUEO',
-                        recuperado: false,
-                        fecha_negado: now,
-                        fecha_limite_recuperacion: limite,
-                    });
+
+            const esTraslado = factura.tipo_origen === 'TRASLADO';
+
+            if (!esTraslado) {
+                // 5) Insertar negados
+                if (devoluciones.length > 0) {
+                    const now = new Date();
+                    const limite = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+                    const detallesNegados = [];
+                    for (const d of detallesClasificados) {
+                        if (d?.resumen?.status !== 'NEGADO') continue;
+                        const idArticulo = d.detalleCompraSolicitado?.idarticulo_detcompsol;
+                        if (!idArticulo) continue;
+                        detallesNegados.push({
+                            id_detcompneg: uuidv4(),
+                            idcompr_detcompneg: factura.compra.id_comp,
+                            idarticulo_detcompneg: idArticulo,
+                            cantidad_negada: d.resumen.negado,
+                            motivo_negado: 'FALTANTE_EN_CHEQUEO',
+                            recuperado: false,
+                            fecha_negado: now,
+                            fecha_limite_recuperacion: limite,
+                        });
+                    }
+                    if (detallesNegados.length > 0) {
+                        await Detalle_Compra_NegadosRepository.agregarProductosNegados(detallesNegados, t);
+                    }
                 }
-                if (detallesNegados.length > 0) {
-                    await Detalle_Compra_NegadosRepository.agregarProductosNegados(detallesNegados, t);
-                }
+                // 6) Actualizar totales compra proveedor
+                await Compra_ProveedorRepository.compraProveedorTerminarRecibida(
+                    factura.compra.id_comp,
+                    totalesRecibidos.subtotal,
+                    totalesRecibidos.iva,
+                    t
+                );
+                // 7) Compra general
+                await CompraGeneralRepository.actualizarTotalesCompraGeneralPorCompraProveedor(
+                    factura.compra.id_comp,
+                    totalesRecibidos.subtotal,
+                    totalesRecibidos.iva,
+                    t
+                );
             }
-            // 6) Actualizar totales compra proveedor
-            await Compra_ProveedorRepository.compraProveedorTerminarRecibida(
-                factura.compra.id_comp,
-                totalesRecibidos.subtotal,
-                totalesRecibidos.iva,
-                t
-            );
-            // 7) Compra general
-            await CompraGeneralRepository.actualizarTotalesCompraGeneralPorCompraProveedor(
-                factura.compra.id_comp,
-                totalesRecibidos.subtotal,
-                totalesRecibidos.iva,
-                t
-            );
             // 7.5) Generar NC automática + registrar faltantes si hay diferencia
             if (totalesNegados.total > 0) {
                 const folioAutoNC = `NC-AUTO-${factura.folio_factura_proveedor ?? id_factura_proveedor}-${Date.now()}`;
@@ -157,22 +161,31 @@ export const Factura_Compra_ProveedorService = {
                     await Faltante_Factura_ProveedorRepository.bulkCreate(filasFaltantes, { transaction: t });
                 }
 
-                // Hay faltantes → compra queda pendiente de devolución hasta que se reciba NC formal o dar entrada
-                await Compra_ProveedorRepository.updateEstado(factura.compra.id_comp, 'D', { transaction: t });
+                if (!esTraslado) {
+                    // Hay faltantes → compra queda pendiente de devolución
+                    await Compra_ProveedorRepository.updateEstado(factura.compra.id_comp, 'D', { transaction: t });
+                }
             }
 
             // Estado de la factura: 'D' si quedaron faltantes, 'H' si todo se recibió completo
             const estadoFactura = totalesNegados.total > 0 ? 'D' : 'H';
 
-            // 8) Darle entrada a los articulos(CREAR EL LOTE_ARTICULO_SUCURSAL Y DARLE ENTRADA EN UBICACIONLOTE_SUCURSAL)
+            // 8) Darle entrada al inventario
+            const id_empresa_para_stock = esTraslado
+                ? factura.id_empresa_receptora
+                : factura.compra?.compra_general?.id_empresa_sucursal;
+
             const lotesArticuloSucursal: ICreaterOrUdateLotesArticuloSucursal[] = [];
 
             for (const d of detallesClasificados) {
-                const idArticulo = d.detalleCompraSolicitado?.idarticulo_detcompsol;
+                // Para traslados el artículo viene directo; para compras viene por detalleCompraSolicitado
+                const idArticulo = esTraslado
+                    ? (d.articulo?.id_artic ?? d.id_artic)
+                    : d.detalleCompraSolicitado?.idarticulo_detcompsol;
                 if (!idArticulo) continue;
 
                 const recibido = Number(d?.resumen?.recibido ?? 0);
-                if (recibido <= 0) continue; // ✅ si no recibió, no entra a inventario
+                if (recibido <= 0) continue;
 
                 const lotes = Array.isArray(d.lotes_finales) ? d.lotes_finales : [];
                 for (const l of lotes) {
@@ -181,7 +194,7 @@ export const Factura_Compra_ProveedorService = {
 
                     lotesArticuloSucursal.push({
                         id_artic: idArticulo,
-                        id_empre: factura.compra.compra_general.id_empresa_sucursal, // AJUSTA si aquí debe ser sucursal
+                        id_empre: id_empresa_para_stock,
                         numero_lote_sucursal: l.numerolote_lote ?? l.numero_lote,
                         fecha_venci_lote_sucursal: l.fechavencimiento_lote ?? l.fecha_caducidad ?? null,
                         cantidad_entrada_lote: cantidad,
@@ -194,13 +207,13 @@ export const Factura_Compra_ProveedorService = {
             let lotesUpserted = [];
 
             if (lotesArticuloSucursal.length > 0) {
-                lotesUpserted = await LotesArticuloSucursalRepository.bulkUpsert(lotesArticuloSucursal, t);
+                lotesUpserted = await LotesArticuloSucursalRepository.bulkUpsert(lotesArticuloSucursal, t, { actualizarPrecio: !esTraslado });
             }
-            // console.log("LOTES UPSERTED", lotesUpserted)
+
             const stockRows = lotesUpserted.map(l => ({
-                id_empresa_sucursal: factura.compra.compra_general.id_empresa_sucursal,
+                id_empresa_sucursal: id_empresa_para_stock,
                 id_articulo: l.id_artic,
-                id_lote: l.id_lote_sucursal, // PK real
+                id_lote: l.id_lote_sucursal,
                 cantidad: l.cantidad_entrada_lote,
                 cantidad_apartada: 0,
             }));
@@ -220,40 +233,40 @@ export const Factura_Compra_ProveedorService = {
                 }
             );
 
-            // 11) Crear CxP automáticamente si hay monto recibido
-            const montoRecibido = +(totalesRecibidos.subtotal + totalesRecibidos.iva).toFixed(2);
-            if (montoRecibido > 0) {
-                const cxpExistente = await Cuenta_Por_Pagar.findOne({
-                    where: { id_factura_proveedor },
-                    transaction: t,
-                });
-                if (!cxpExistente) {
-                    // Calcular fecha de vencimiento: usar la de la factura,
-                    // o bien fecha_emision + días de crédito del proveedor, o +30 días por defecto
-                    let fechaVencimiento: Date;
-                    if (factura.fecha_vencimiento) {
-                        fechaVencimiento = new Date(factura.fecha_vencimiento);
-                    } else {
-                        const base = factura.fecha_emision ? new Date(factura.fecha_emision) : new Date();
-                        const diasCredito = Number(factura.compra?.proveedor?.diascre_prove ?? 30);
-                        base.setDate(base.getDate() + diasCredito);
-                        fechaVencimiento = base;
-                    }
+            // 11) Crear CxP automáticamente (solo para compras normales, no traslados)
+            if (!esTraslado) {
+                const montoRecibido = +(totalesRecibidos.subtotal + totalesRecibidos.iva).toFixed(2);
+                if (montoRecibido > 0) {
+                    const cxpExistente = await Cuenta_Por_Pagar.findOne({
+                        where: { id_factura_proveedor },
+                        transaction: t,
+                    });
+                    if (!cxpExistente) {
+                        let fechaVencimiento: Date;
+                        if (factura.fecha_vencimiento) {
+                            fechaVencimiento = new Date(factura.fecha_vencimiento);
+                        } else {
+                            const base = factura.fecha_emision ? new Date(factura.fecha_emision) : new Date();
+                            const diasCredito = Number(factura.compra?.proveedor?.diascre_prove ?? 30);
+                            base.setDate(base.getDate() + diasCredito);
+                            fechaVencimiento = base;
+                        }
 
-                    await Cuenta_Por_Pagar.create({
-                        id_cxp:               uuidv4(),
-                        id_factura_proveedor,
-                        id_proveedor:         factura.compra.idprove_comp,
-                        folio_factura:        factura.folio_factura_proveedor ?? null,
-                        fecha_factura:        factura.fecha_emision ?? null,
-                        fecha_vencimiento:    fechaVencimiento,
-                        monto_total:          montoRecibido,
-                        monto_pagado:         0,
-                        saldo_pendiente:      montoRecibido,
-                        estatus_cxp:          'PEN',
-                        notas:                `Generada automáticamente al ${estadoFactura === 'H' ? 'checar' : 'recepcionar con faltantes'} la factura ${factura.folio_factura_proveedor ?? id_factura_proveedor}`,
-                        id_empleado_registro: id_referencia_persona ?? null,
-                    }, { transaction: t });
+                        await Cuenta_Por_Pagar.create({
+                            id_cxp:               uuidv4(),
+                            id_factura_proveedor,
+                            id_proveedor:         factura.compra.idprove_comp,
+                            folio_factura:        factura.folio_factura_proveedor ?? null,
+                            fecha_factura:        factura.fecha_emision ?? null,
+                            fecha_vencimiento:    fechaVencimiento,
+                            monto_total:          montoRecibido,
+                            monto_pagado:         0,
+                            saldo_pendiente:      montoRecibido,
+                            estatus_cxp:          'PEN',
+                            notas:                `Generada automáticamente al ${estadoFactura === 'H' ? 'checar' : 'recepcionar con faltantes'} la factura ${factura.folio_factura_proveedor ?? id_factura_proveedor}`,
+                            id_empleado_registro: id_referencia_persona ?? null,
+                        }, { transaction: t });
+                    }
                 }
             }
 

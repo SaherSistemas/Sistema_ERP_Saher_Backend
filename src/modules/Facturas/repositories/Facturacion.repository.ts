@@ -84,6 +84,7 @@ export const FacturacionRepository = {
                 ca.id_forma_pago_cliente_alm                        AS forma_pago,
                 ca.id_metodo_pago_cliente_alm                       AS metodo_pago,
                 ca.id_empresa_sys_anterior,
+                ca.id_empresa_sys_nuevo,
                 COALESCE(ca.tipo_comprobante, 'FAC')                AS tipo_comprobante,
                 ca.calle_cliente_alm                                AS calle_cliente,
                 co_ca.nom_colonia                                   AS colonia_cliente,

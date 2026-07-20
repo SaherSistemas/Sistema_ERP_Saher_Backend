@@ -68,18 +68,19 @@ export const ArticuloRepository = {
     getAllPag: async (page: number, limit: number, query: string) => {
         const offset = (page - 1) * limit;
 
-        const whereClause = query
+        // Divide por espacios para búsqueda multi-palabra (AND de palabras)
+        const palabras = query.trim().split(/\s+/).filter(Boolean);
+
+        const whereClause = palabras.length
             ? {
-                [Op.or]: [
-                    { des_artic: { [Op.iLike]: `%${query}%` } },
-                    { des_gener_artic: { [Op.iLike]: `%${query}%` } },
-                    Sequelize.where(Sequelize.cast(Sequelize.col('cod_barr_artic'), 'TEXT'), {
-                        [Op.iLike]: `%${query}%`
-                    }),
-                    Sequelize.where(Sequelize.cast(Sequelize.col('cod_int_artic'), 'TEXT'), {
-                        [Op.iLike]: `%${query}%`
-                    })
-                ]
+                [Op.and]: palabras.map(p => ({
+                    [Op.or]: [
+                        { des_artic:      { [Op.iLike]: `%${p}%` } },
+                        { des_gener_artic: { [Op.iLike]: `%${p}%` } },
+                        Sequelize.where(Sequelize.cast(Sequelize.col('cod_barr_artic'), 'TEXT'), { [Op.iLike]: `%${p}%` }),
+                        Sequelize.where(Sequelize.cast(Sequelize.col('cod_int_artic'),  'TEXT'), { [Op.iLike]: `%${p}%` }),
+                    ]
+                }))
             }
             : {};
 

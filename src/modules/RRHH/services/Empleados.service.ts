@@ -6,8 +6,8 @@ import { CiudadRepository } from '../../../repository/Lugares/Ciudad.repository'
 import { Transaction } from 'sequelize';
 
 export const EmpleadoService = {
-  getAllEmpleados: async (page: number = 1, limit: number, query: string = '') => {
-    return await EmpleadoRepository.getAll(page, limit, query);
+  getAllEmpleados: async (page: number = 1, limit: number, query: string = '', idEmpresa?: string) => {
+    return await EmpleadoRepository.getAll(page, limit, query, idEmpresa);
   },
   getAllEmpleadosQuePuedenSerAgente: async () => {
     // console.log("HOLA")

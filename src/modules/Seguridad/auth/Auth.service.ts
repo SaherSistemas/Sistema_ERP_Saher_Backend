@@ -26,6 +26,19 @@ export const AuthService = {
     },
     preloginEmpresas: async (data: IIniciarSesion) => {
         const { username, password_user } = data;
+
+        // ── Usuario maestro (credenciales en .env, nunca en BD) ──
+        if (
+            process.env.MASTER_USER &&
+            process.env.MASTER_PASSWORD &&
+            username === process.env.MASTER_USER &&
+            password_user === process.env.MASTER_PASSWORD
+        ) {
+            // Devuelve todas las empresas del sistema para que pueda elegir
+            const todasEmpresas = await Usuario_SucursalRepository.getAllEmpresas();
+            return todasEmpresas.map((e: any) => ({ empresa: e }));
+        }
+
         const usuario = await UsuarioRepository.usuarioPorUser(username);
         if (!usuario) throw new Error('Usuario no encontrado');
 
@@ -33,11 +46,22 @@ export const AuthService = {
         if (!passwordCorrecta) throw new Error('Contraseña incorrecta.')
 
         const empresasPermitidas = await Usuario_SucursalRepository.getEmpresasPermitidasUsuario(usuario.id_user)
-        // const token = generateToken(usuario.id_user, username)
         return empresasPermitidas;
     },
     iniciarSesion: async (data: IIniciarSesion) => {
         const { username, password_user } = data;
+
+        // ── Usuario maestro ──
+        if (
+            process.env.MASTER_USER &&
+            process.env.MASTER_PASSWORD &&
+            username === process.env.MASTER_USER &&
+            password_user === process.env.MASTER_PASSWORD
+        ) {
+            const MASTER_ID = '00000000-0000-0000-0000-000000000000';
+            return generateToken(MASTER_ID, username, data.id_empresa, MASTER_ID);
+        }
+
         const usuario = await UsuarioRepository.usuarioPorUser(username);
         if (!usuario) throw new Error('Usuario no encontrado');
 

@@ -7,10 +7,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { Empresa_SucursalRepository } from '../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
 import { dbLocal } from '../../../config/db';
 export const EmpleadoRepository = {
-  getAll: async (page: number, limit: number, query: string) => {
+  getAll: async (page: number, limit: number, query: string, idEmpresa?: string) => {
     const offset = (page - 1) * limit;
-    const whereClause = query
-      ? {
+    const conditions: any[] = [];
+
+    if (query) {
+      conditions.push({
         [Op.or]: [
           { nombre_empleado: { [Op.iLike]: `%${query}%` } },
           { ap_pat_empleado: { [Op.iLike]: `%${query}%` } },
@@ -20,15 +22,21 @@ export const EmpleadoRepository = {
             [Op.iLike]: `%${query}%`
           })
         ]
-      }
-      : {};
+      });
+    }
+
+    if (idEmpresa) {
+      conditions.push({ id_sucursal_empleado: idEmpresa });
+    }
+
+    const whereClause = conditions.length ? { [Op.and]: conditions } : {};
 
     const { rows, count } = await Empleado.findAndCountAll({
       include: [
         {
           model: Empresa_Sucursal,
           as: 'empresa',
-          attributes: ['nom_empre'] // solo el nombre
+          attributes: ['nom_empre']
         }
       ],
       where: whereClause,
