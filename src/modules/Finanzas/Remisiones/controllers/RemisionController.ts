@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { Request, Response } from 'express';
 import { RemisionService } from '../services/Remision.service';
-import { RUTA_PDFS_REMISIONES } from '../../Facturas/helpers/pdf.helper';
+import { RUTA_PDFS_REMISIONES } from '../../../Facturas/helpers/pdf.helper';
 
 export class RemisionController {
 
