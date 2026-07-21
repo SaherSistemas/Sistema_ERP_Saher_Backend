@@ -39,5 +39,13 @@ export class Margen_Ganancia_ListaController {
         }
     };
 
+    static getArticulosPendientes = async (req: Request, res: Response) => {
+        try {
+            const pendientes = await Margen_Ganancia_ListaService.getArticulosPendientes();
+            res.status(200).json(pendientes);
+        } catch (error) {
+            res.status(500).json({ message: "Error al obtener artículos pendientes", error });
+        }
+    };
 }
 

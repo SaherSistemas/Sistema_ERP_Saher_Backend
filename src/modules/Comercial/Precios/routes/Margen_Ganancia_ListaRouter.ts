@@ -4,6 +4,7 @@ import { Margen_Ganancia_ListaController } from "../controllers/Margen_Ganancia_
 const router = Router();
 
 router.get("/", Margen_Ganancia_ListaController.getAll);
+router.get("/pendientes", Margen_Ganancia_ListaController.getArticulosPendientes);
 
 router.post("/", Margen_Ganancia_ListaController.create);
 router.put("/update/:id", Margen_Ganancia_ListaController.update);

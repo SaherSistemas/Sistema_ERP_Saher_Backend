@@ -5,6 +5,7 @@ import { ICreateOrUpdateStockSucursal, IDataProductosStockConDevolucion } from "
 import { Grupo_Empresa_Lista_PrecioRepository } from "../../modules/Comercial/Precios/repositories/Grupo_Empresa_Lista_Precio.repository";
 import { DetalleListaPreciosRepository } from "../../modules/Comercial/Precios/repositories/Detalle_Lista_Precio.repository";
 import { Margen_Ganancia_ListaRepository } from "../../modules/Comercial/Precios/repositories/Margen_Ganancia_Lista.repository";
+import { Margen_Especial_ArticuloRepository } from "../../modules/Comercial/Precios/repositories/Margen_Especial_Articulo.repository";
 import { Empresa_SucursalRepository } from "../../repository/Empresa_Sucursal/Empresa_Sucursal.repository";
 import { StockSucursalRepository } from "../../repository/Stock/Stock_Sucursal.repository";
 import { ICreaterOrUdateLotesArticuloSucursal } from "../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface";
@@ -123,19 +124,33 @@ export const StockSucursalService = {
 
                 await StockSucursalRepository.updateCantidadExistencia(id_empresa, producto.id_artic, { transaction: t });
 
-                // 🟢 Aplicar precios a listas
-                const margenesFiltrados = (await Margen_Ganancia_ListaRepository.getByProducto(
+                // 🟢 Aplicar precios a listas (cascade: margen especial → categoría → skip)
+                const margenesCat = (await Margen_Ganancia_ListaRepository.getByProducto(
                     modeloArticulo.id_categoria,
                     modeloArticulo.id_presentacion,
                     { transaction: t }
                 )).filter(m => idsListasGrupo.includes(m.id_lista_precio));
+                const margenesCatMap = new Map(margenesCat.map(m => [m.id_lista_precio, Number(m.margen)]));
 
-                for (const margen of margenesFiltrados) {
-                    const margenNum = margen.margen;
-                    const precioPorLista = costoPromedioActualizado / (1 - (margenNum / 100));
+                for (const idLista of idsListasGrupo) {
+                    // 1) Margen especial por artículo (vigente)
+                    let margenPct = await Margen_Especial_ArticuloRepository.getMargenVigenteByListaYArticulo(
+                        idLista, producto.id_artic, { transaction: t }
+                    );
+
+                    // 2) Fallback: margen de categoría
+                    if (margenPct === null) margenPct = margenesCatMap.get(idLista) ?? null;
+
+                    // 3) Sin margen configurado → no tocar precio de esta lista
+                    if (margenPct === null) continue;
+
+                    const divisor = 1 - (margenPct / 100);
+                    if (divisor <= 0) continue;
+                    const precioPorLista = costoPromedioActualizado / divisor;
+                    if (!Number.isFinite(precioPorLista) || precioPorLista <= 0) continue;
 
                     const detallePrecio: ICreateOrUpdateIDetalleListaPrecio = {
-                        id_lista_precio: margen.lista_precio.id_lista_precio,
+                        id_lista_precio: idLista,
                         id_artic: producto.id_artic,
                         precios: precioPorLista
                     };

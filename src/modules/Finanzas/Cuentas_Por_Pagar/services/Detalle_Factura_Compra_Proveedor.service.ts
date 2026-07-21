@@ -9,6 +9,7 @@ import { LotesArticuloSucursalRepository } from "../../../Inventario/Lotes/repos
 import { Empresa_SucursalRepository } from "../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository";
 import { Grupo_Empresa_Lista_PrecioRepository } from "../../../Comercial/Precios/repositories/Grupo_Empresa_Lista_Precio.repository";
 import { Margen_Ganancia_ListaRepository } from "../../../Comercial/Precios/repositories/Margen_Ganancia_Lista.repository";
+import { Margen_Especial_ArticuloRepository } from "../../../Comercial/Precios/repositories/Margen_Especial_Articulo.repository";
 import { DetalleListaPreciosRepository } from "../../../Comercial/Precios/repositories/Detalle_Lista_Precio.repository";
 import { ICreateOrUpdateIDetalleListaPrecio } from "../../../Comercial/Precios/interface/Detalle_Lista_Pecios.interface";
 import Detalle_Compra_Solicitado from "../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado";
@@ -78,36 +79,42 @@ export const Detalle_Factura_Compra_ProveedorService = {
                         .getSoloListasDePrecioPorIDGrupo(grupoEmpresa.idgrup_empre);
                     const idsListasGrupo = listasDePrecioGrupo.map(l => l.id_list_precio);
                     console.log("IDS LISTAS GRUPO:", idsListasGrupo);
-                    const margenesFiltrados = (await Margen_Ganancia_ListaRepository.getByProducto(
+                    // Cascade: margen especial → categoría → skip
+                    const margenesCat = (await Margen_Ganancia_ListaRepository.getByProducto(
                         modeloArticulo.id_categoria,
                         modeloArticulo.id_presentacion,
                         { transaction: t }
                     )).filter(m => idsListasGrupo.includes(m.id_lista_precio));
-                    //    console.log("MARGENES FILTRADOS:", margenesFiltrados);
-                    for (const margen of margenesFiltrados) {
-                        const margenPct = Number(margen.margen) || 0;
-                        const divisor = 1 - (margenPct / 100);
+                    const margenesCatMap = new Map(margenesCat.map(m => [m.id_lista_precio, Number(m.margen)]));
 
-                        // Si el margen es 100 % o más el precio sería infinito — se omite
+                    for (const idLista of idsListasGrupo) {
+                        // 1) Margen especial por artículo (vigente)
+                        let margenPct: number | null = await Margen_Especial_ArticuloRepository
+                            .getMargenVigenteByListaYArticulo(idLista, id_artic, { transaction: t });
+
+                        // 2) Fallback: margen de categoría
+                        if (margenPct === null) margenPct = margenesCatMap.get(idLista) ?? null;
+
+                        // 3) Sin margen configurado → no tocar precio de esta lista
+                        if (margenPct === null) continue;
+
+                        const divisor = 1 - (margenPct / 100);
                         if (divisor <= 0) {
-                            console.warn(`Margen inválido (${margenPct}%) en lista ${margen.lista_precio?.id_lista_precio} — se omite`);
+                            console.warn(`Margen inválido (${margenPct}%) en lista ${idLista} — se omite`);
                             continue;
                         }
 
                         const precioPorLista = costoPromedioActualizado / divisor;
-
-                        // Última guardia: nunca guardar NaN / Infinity / negativos
                         if (!Number.isFinite(precioPorLista) || precioPorLista <= 0) {
                             console.warn(`Precio calculado inválido (${precioPorLista}) — se omite`);
                             continue;
                         }
 
                         const detallePrecio: ICreateOrUpdateIDetalleListaPrecio = {
-                            id_lista_precio: margen.lista_precio.id_lista_precio,
+                            id_lista_precio: idLista,
                             id_artic,
                             precios: precioPorLista,
                         };
-                        //console.log(detallePrecio);
                         await DetalleListaPreciosRepository.updateOrCreate(detallePrecio, { transaction: t });
                     }
                 }

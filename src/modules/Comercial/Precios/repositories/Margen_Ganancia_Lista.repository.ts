@@ -1,7 +1,8 @@
 import Margen_Ganancia_Lista from "../model/Margen_Ganancia_Lista";
 import { v4 } from "uuid";
-import { Op, Transaction } from "sequelize";
+import { Op, Transaction, QueryTypes } from "sequelize";
 import { IMargen_Ganancia_ListaCreate } from "../interface/Marge_Ganancia_Lista.interface";
+import { dbLocal } from "../../../../config/db";
 
 export const Margen_Ganancia_ListaRepository = {
     getAll: async () => {
@@ -34,5 +35,55 @@ export const Margen_Ganancia_ListaRepository = {
                 id_margen
             }
         });
-    }
+    },
+
+    getArticulosPendientes: async () => {
+        return dbLocal.query<{
+            id_artic: string;
+            des_artic: string;
+            cod_int_artic: string | null;
+            nom_categoria: string | null;
+            nom_presentacion: string | null;
+            problema: 'sin_precio' | 'sin_margen' | 'sin_todo';
+        }>(`
+            SELECT
+                a.id_artic,
+                a.des_artic,
+                a.cod_int_artic,
+                c.nom_categoria,
+                p.nom_presentacion,
+                CASE
+                    WHEN NOT EXISTS (
+                        SELECT 1 FROM detalle_lista_precio dlp WHERE dlp.id_artic = a.id_artic
+                    ) AND NOT EXISTS (
+                        SELECT 1 FROM margen_ganancia_lista mgl
+                        WHERE mgl.id_categoria = a.id_categoria AND mgl.id_presentacion = a.id_presentacion
+                    ) AND NOT EXISTS (
+                        SELECT 1 FROM margen_especial_articulo mea WHERE mea.id_articulo = a.id_artic
+                    ) THEN 'sin_todo'
+                    WHEN NOT EXISTS (
+                        SELECT 1 FROM detalle_lista_precio dlp WHERE dlp.id_artic = a.id_artic
+                    ) THEN 'sin_precio'
+                    ELSE 'sin_margen'
+                END AS problema
+            FROM articulo a
+            LEFT JOIN categoria_articulo c ON c.id_categoria = a.id_categoria
+            LEFT JOIN presentacion_articulo p ON p.id_presentacion = a.id_presentacion
+            WHERE (
+                NOT EXISTS (
+                    SELECT 1 FROM detalle_lista_precio dlp WHERE dlp.id_artic = a.id_artic
+                )
+                OR (
+                    NOT EXISTS (
+                        SELECT 1 FROM margen_ganancia_lista mgl
+                        WHERE mgl.id_categoria = a.id_categoria AND mgl.id_presentacion = a.id_presentacion
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM margen_especial_articulo mea WHERE mea.id_articulo = a.id_artic
+                    )
+                )
+            )
+            ORDER BY a.cod_int_artic ASC NULLS LAST
+        `, { type: QueryTypes.SELECT });
+    },
 }

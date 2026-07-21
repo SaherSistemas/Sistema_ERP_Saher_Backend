@@ -24,7 +24,6 @@ class Colonia extends Model {
   })
   declare id_colonia: string;
 
-  @Unique
   @Column({
     type: DataType.INTEGER,
     allowNull: false
@@ -37,7 +36,6 @@ class Colonia extends Model {
   })
   declare id_ciuda_colonia: string;
 
-  @Unique
   @Column({
     type: DataType.STRING(50),
     allowNull: false

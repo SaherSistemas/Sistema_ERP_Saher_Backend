@@ -18,4 +18,7 @@ export const Margen_Ganancia_ListaService = {
         return await Margen_Ganancia_ListaRepository.update(id_margen, data);
     },
 
+    getArticulosPendientes: async () => {
+        return await Margen_Ganancia_ListaRepository.getArticulosPendientes();
+    },
 }

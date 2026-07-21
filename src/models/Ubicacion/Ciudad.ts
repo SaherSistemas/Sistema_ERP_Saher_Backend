@@ -4,7 +4,14 @@ import Empleado from "../../modules/RRHH/model/Empleado";
 import Colonia from "./Colonia";
 
 @Table({
-    tableName: 'ciudad'
+    tableName: 'ciudad',
+    indexes: [
+        {
+            unique: true,
+            fields: ['id_esta_ciuda', 'nom_ciuda'],
+            name: 'ciudad_estado_nombre_unique'
+        }
+    ]
 })
 class Ciudad extends Model {
     @PrimaryKey
@@ -27,9 +34,9 @@ class Ciudad extends Model {
     })
     declare id_esta_ciuda: string;
 
-    @Unique
     @Column({
         type: DataType.STRING(100)
+        // sin @Unique aquí — la unicidad ahora es compuesta (estado + nombre)
     })
     declare nom_ciuda: string;
 
@@ -42,7 +49,6 @@ class Ciudad extends Model {
 
     @BelongsTo(() => Estado)
     estado: Estado;
-
 
     @HasMany(() => Empleado)
     empleados: Empleado[];

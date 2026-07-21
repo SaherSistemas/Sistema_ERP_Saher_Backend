@@ -58,6 +58,7 @@ import detalle_CompraRouter from '../modules/Compras/Ordenes-Compra/routes/detal
 import factura_compra_ProveedorRouter from '../modules/Finanzas/Cuentas_Por_Pagar/routes/facturas_Compra_ProveedorRouter';
 
 import Margen_Ganancia_ListaRouter from '../modules/Comercial/Precios/routes/Margen_Ganancia_ListaRouter';
+import Margen_Especial_ArticuloRouter from '../modules/Comercial/Precios/routes/Margen_Especial_ArticuloRouter';
 
 
 import notaCreditoRouter from './Devoluciones_NC/notaCreditoRouter';
@@ -200,6 +201,7 @@ router.use('/compras/detalle_compra_negado', detalleCompraNegadoRouter);
 router.use('/compras/detalle_compra_recibido', detalleCompraRecibidoRouter);
 
 router.use('/margen_ganancia_lista', Margen_Ganancia_ListaRouter);
+router.use('/margen_especial_articulo', Margen_Especial_ArticuloRouter);
 
 
 // CLIENTES
