@@ -136,6 +136,7 @@ export const Presupuesto_EmpleadoService = {
 
     const empleadosFormateados = data.empleados.map((e: any) => ({
       id_presupuesto_empleado: e.id_presupuesto_empleado,
+      id_empleado: e.id_empleado,
       nombre_empleado: `${e.empleado?.nombre_empleado ?? ""} ${
         e.empleado?.ap_pat_empleado ?? ""
       } ${e.empleado?.ap_mat_empleado ?? ""}`.trim(),

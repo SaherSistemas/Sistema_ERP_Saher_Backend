@@ -196,64 +196,8 @@ export const VentaRepository = {
         { transaction: t }
       );
 
-      // crear detalle
-      let createdDetalleModels: DetalleVenta[] = [];
-
-      if (detalle_venta.length) {
-        const payloadDetalles = detalle_venta.map((d: any) => ({
-          id_venta,
-          id_artic: d.id_artic,
-          cantidad: d.cantidad,
-          precio_unitario: d.precio_unitario,
-          temp_line_id: d.temp_line_id ?? null,
-        }));
-
-        createdDetalleModels = await DetalleVenta.bulkCreate(payloadDetalles, {
-          transaction: t,
-          returning: true,
-        });
-      }
-
-      const totalVenta = createdDetalleModels.reduce((acc, det) => {
-        return acc + Number(det.cantidad) * Number(det.precio_unitario);
-      }, 0);
-
-      await venta.update({ total: totalVenta }, { transaction: t });
-
-      if (venta_pago.length) {
-        const payloadPagos = venta_pago.map((p: any) => ({
-          id_venta,
-          id_metodo_pago: p.id_metodo_pago,
-          monto: p.monto,
-        }));
-        await Venta_Pago.bulkCreate(payloadPagos, { transaction: t });
-      }
-
+      // El service gestiona detalle y pagos manualmente; el repository solo crea el header
       const tempMap: DetalleLookupMap = new Map();
-
-      for (const d of createdDetalleModels) {
-        const temp = (d as any).temp_line_id as string | null;
-        if (!temp) continue;
-
-        const id_articulo = (d as any).id_artic ?? (d as any).id_articulo;
-
-        if (!id_articulo)
-          throw new Error("Falta id_articulo en detalle_venta.");
-
-        tempMap.set(temp, {
-          id_detalle_venta: d.id_detalle_venta,
-          id_articulo,
-        });
-      }
-
-      if (venta_pago.length) {
-        const payloadPagos = venta_pago.map((p: any) => ({
-          id_venta,
-          id_metodo_pago: p.id_metodo_pago,
-          monto: p.monto,
-        }));
-        await Venta_Pago.bulkCreate(payloadPagos, { transaction: t });
-      }
 
       const debeCrearReceta =
         venta.status_venta === "CONFIRMADA" &&

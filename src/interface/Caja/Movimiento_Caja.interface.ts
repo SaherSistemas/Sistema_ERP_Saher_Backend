@@ -16,7 +16,7 @@ export type ConceptoMovimiento =
     | "AJUSTE DE CAJA"
     | "APERTURA DE CAJA"
     | "CIERRE DE CAJA"
-    | string;
+    | "FONDO INICIAL";
 
 
 export interface IMovimientoCaja {

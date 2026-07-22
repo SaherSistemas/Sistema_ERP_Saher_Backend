@@ -30,6 +30,9 @@ export interface IDetalleVentaInput {
   id_artic: string;
   cantidad: number;
   precio_unitario: number;
+  precio_original?: number | null;
+  descuento_articulo?: number | null;
+  iva_renglon?: number | null;
   total_renglon: number;
   temp_line_id?: string | null;
   lote_usado: ILoteUsadoVentaInput[];

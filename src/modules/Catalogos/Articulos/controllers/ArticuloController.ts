@@ -40,7 +40,7 @@ export class ArticuloController {
     try {
       const id_empresa = req.query.id_empresa as string;
       const { cantidad, cod_barr_artic } = req.params;
-
+      console.log('id_empresa:', id_empresa, 'cantidad:', cantidad, 'cod_barr_artic:', cod_barr_artic);
       const resultado = await ArticuloService.getAllParaVenta(id_empresa, Number(cantidad), cod_barr_artic);
       res.status(200).json(resultado);
     } catch (error: any) {
@@ -139,7 +139,7 @@ export class ArticuloController {
     } catch (error: any) {
       console.error(error);
       res.status(error.message === 'Artículo no encontrado.' ? 404 : 500)
-         .json({ message: error.message ?? 'Error al obtener el panel de precios.' });
+        .json({ message: error.message ?? 'Error al obtener el panel de precios.' });
     }
   };
 

@@ -60,6 +60,17 @@ export class CorteCajaController {
     }
   };
 
+  static getCortesAbiertosporEmpresa = async (req: Request, res: Response) => {
+    try {
+      const { id_empresa } = req.params;
+      const cortes = await CorteCajaService.getCortesAbiertosporEmpresa(id_empresa);
+      res.status(200).json(cortes);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ mensaje: 'Error al obtener cortes abiertos.' });
+    }
+  };
+
   static getCantidadCortesPorCaja = async (req: Request, res: Response) => {
     try {
       const { id_caja } = req.params;

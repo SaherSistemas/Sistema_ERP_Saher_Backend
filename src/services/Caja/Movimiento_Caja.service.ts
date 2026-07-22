@@ -42,25 +42,29 @@ export const MovimientoCajaService = {
 
         if (esSalida) {
 
-            const corte = await CorteCajaRepository.getCorteAbiertoByCaja(data.id_caja);
-            if (!corte) {
-                throw new Error("No hay corte abierto para realizar retiros.");
-            }
+            // Las cancelaciones de venta son reversiones contables: no requieren fondos físicos
+            const esCancelacion = data.concepto_movimiento === 'CANCELACION DE VENTA';
 
-            const saldoActual = await CorteCajaService.calcularTotalCaja(corte.id_corte);
+            if (!esCancelacion) {
+                const corte = await CorteCajaRepository.getCorteAbiertoByCaja(data.id_caja);
+                if (!corte) {
+                    throw new Error("No hay corte abierto para realizar retiros.");
+                }
 
-            const montoSolicitado = Math.abs(data.monto_movimiento);
+                const saldoActual = await CorteCajaService.calcularTotalCaja(corte.id_corte);
+                const montoSolicitado = Math.abs(data.monto_movimiento);
 
-            if (montoSolicitado > saldoActual) {
-                throw new Error(
-                    `Fondos insuficientes en el corte. ` +
-                    `Saldo actual: $${saldoActual.toFixed(2)}, ` +
-                    `retiro solicitado: $${montoSolicitado.toFixed(2)}`
-                );
+                if (montoSolicitado > saldoActual) {
+                    throw new Error(
+                        `Fondos insuficientes en el corte. ` +
+                        `Saldo actual: $${saldoActual.toFixed(2)}, ` +
+                        `retiro solicitado: $${montoSolicitado.toFixed(2)}`
+                    );
+                }
             }
 
             // Normalizar monto negativo
-            data.monto_movimiento = -montoSolicitado;
+            data.monto_movimiento = -Math.abs(data.monto_movimiento);
         }
 
         // Entradas (ventas)

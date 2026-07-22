@@ -56,11 +56,6 @@ class Lote_Articulo_Sucursal extends Model {
   })
   declare cantidad_entrada_lote: number;
 
-  @Default(0)
-  @Column({
-    type: DataType.INTEGER
-  })
-  declare cantidad_apartada_lote: number;
 
   //CAMPO PARA SABER DE QUE LOTE FUE RECIBIDO
   @ForeignKey(() => LotesRecibidosCompra)

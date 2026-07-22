@@ -8,6 +8,7 @@ router.get("/", Asignacion_Empleado_SucursalController.getAll);
 router.get("/empleado/:id_empleado", Asignacion_Empleado_SucursalController.getAllByEmpleado);
 router.get("/resumen/empleados", Asignacion_Empleado_SucursalController.getResumenPorEmpleado);
 router.get("/sin-asignacion/:id_empre", Asignacion_Empleado_SucursalController.getEmpleadosSinAsignacionEmpresa);
+router.get("/activos-hoy/:id_empre", Asignacion_Empleado_SucursalController.getEmpleadosActivosHoy);
 
 
 router.post("/", Asignacion_Empleado_SucursalController.create);

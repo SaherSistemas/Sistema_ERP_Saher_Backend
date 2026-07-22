@@ -29,26 +29,12 @@ export const LotesArticuloSucursalRepository = {
       raw: true
     });
   },
-  apartarCantidad: async (id_lote_sucursal: string, cantidad_apartar: number, transaction?: Transaction) => {
-    // Actualiza el lote sumando a cantidad_apartada_lote
-    return await Lote_Articulo_Sucursal.update(
-      {
-        cantidad_apartada_lote:
-          // Sequelize permite hacer operaciones incrementales
-          Sequelize.literal(`cantidad_apartada_lote + ${cantidad_apartar}`)
-      },
-      {
-        where: { id_lote_sucursal },
-        transaction
-      }
-    );
-  },
+
   getExistencia: async (id_artic: string, id_sucursal: string) => {
     // 1. Consulta principal: totales
     const result: any = await Lote_Articulo_Sucursal.findOne({
       attributes: [
         [fn('SUM', col('cantidad_entrada_lote')), 'existencia_total'],
-        [fn('SUM', literal(`cantidad_entrada_lote - COALESCE(cantidad_apartada_lote, 0)`)), 'existencia_disponible'],
         [fn('MIN', col('fecha_venci_lote_sucursal')), 'fecha_caduca_mas_corta']
       ],
       where: {
@@ -120,7 +106,6 @@ export const LotesArticuloSucursalRepository = {
       attributes: [
         'id_artic',
         [fn('SUM', col('cantidad_entrada_lote')), 'existencia_total'],
-        [fn('SUM', literal(`cantidad_entrada_lote - COALESCE(cantidad_apartada_lote, 0)`)), 'existencia_disponible'],
         [fn('MIN', col('fecha_venci_lote_sucursal')), 'fecha_caduca_mas_corta']
       ],
       where: {

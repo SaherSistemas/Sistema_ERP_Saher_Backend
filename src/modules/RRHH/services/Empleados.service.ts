@@ -9,6 +9,10 @@ export const EmpleadoService = {
   getAllEmpleados: async (page: number = 1, limit: number, query: string = '', idEmpresa?: string) => {
     return await EmpleadoRepository.getAll(page, limit, query, idEmpresa);
   },
+  getByNombreRol: async (nom_rol: string, query: string = '') => {
+    return await EmpleadoRepository.getByNombreRol(nom_rol, query);
+  },
+
   getAllEmpleadosQuePuedenSerAgente: async () => {
     // console.log("HOLA")
     return await EmpleadoRepository.getAllEmpleadosQuePuedenSerAgente();

@@ -138,6 +138,7 @@ import notaCreditoClienteRouter from '../modules/Comercial/Notas_Credito_Cliente
 
 import impresionesRouter from '../modules/Impresiones/router'
 import inventarioRouter from '../modules/Inventario/router'
+import RetoRouter from '../modules/Gamificacion/routes/RetoRouter';
 const router = Router();
 
 router.use(generalLimiter);
@@ -281,4 +282,5 @@ router.use('/devolucion_cliente', devolucionClienteRouter)
 router.use('/notas-credito', notaCreditoClienteRouter)
 
 router.use('/impresiones', impresionesRouter);
+router.use('/retos', RetoRouter);
 export default router;

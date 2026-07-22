@@ -19,6 +19,19 @@ export class EmpleadoController {
       res.status(500).json({ message: 'Error al obtener todos los empleados' });
     }
   };
+  static getByNombreRol = async (req: Request, res: Response) => {
+    try {
+      const nom_rol = (req.query.nom_rol as string) || '';
+      const query = (req.query.query as string) || '';
+      if (!nom_rol) { res.status(400).json({ message: 'nom_rol requerido' }); return; }
+      const empleados = await EmpleadoService.getByNombreRol(nom_rol, query);
+      res.status(200).json(empleados);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Error al obtener empleados por rol' });
+    }
+  };
+
   static getAllEmpleadoPuedeSerAgente = async (req: Request, res: Response) => {
     try {
       const empleados = await EmpleadoService.getAllEmpleadosQuePuedenSerAgente();

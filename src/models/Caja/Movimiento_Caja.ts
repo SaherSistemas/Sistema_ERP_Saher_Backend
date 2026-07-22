@@ -33,9 +33,9 @@ class Movimiento_Caja extends Model {
     idcorte: CorteCaja;
 
     @Column({
-        type: DataType.STRING(30),
+        type: DataType.ENUM("INGRESO", "RETIRO", "REVERSO", "AJUSTE", "APERTURA", "CIERRE"),
     })
-    declare tipo_movimiento: string;
+    declare tipo_movimiento: "INGRESO" | "RETIRO" | "REVERSO" | "AJUSTE" | "APERTURA" | "CIERRE";
 
     @Column({
         type: DataType.STRING(50),

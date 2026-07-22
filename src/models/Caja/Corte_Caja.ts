@@ -71,12 +71,12 @@ class CorteCaja extends Model {
     })
     declare total_venta: number;
 
-    // @Column({
-    //     type: DataType.DECIMAL(10, 2),
-    //     allowNull: false,
-    //     defaultValue: 0,
-    // })
-    // declare total_movimientos: number;
+    @Column({
+        type: DataType.DECIMAL(10, 2),
+        allowNull: true,
+        defaultValue: 0,
+    })
+    declare total_movimientos: number;
 
     @Column({
         type: DataType.DECIMAL(10, 2),

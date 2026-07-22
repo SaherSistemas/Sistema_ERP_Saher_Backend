@@ -22,6 +22,7 @@ export class Presupuesto_EmpleadoController {
           data: result,
         });
     } catch (error) {
+     // console.log(error)
       res
         .status(500)
         .json({ mensaje: "Error al crear el presupuesto de empleado." });
@@ -33,12 +34,12 @@ export class Presupuesto_EmpleadoController {
     const { id_empre, id_presupuesto } = req.params;
     try {
       const empleados = await Presupuesto_EmpleadoService.getEmpleadosNoAsignados(
-        id_empre, 
+        id_empre,
         id_presupuesto
       );
       res.status(200).json(empleados);
     } catch (error) {
-      console.error("Error al obtener empleados no asignados:", error);
+      // console.error("Error al obtener empleados no asignados:", error);
       res.status(500).json({ message: "Error interno al obtener empleados no asignados." });
     }
   }
@@ -62,7 +63,7 @@ export class Presupuesto_EmpleadoController {
         data: result,
       });
     } catch (error) {
-      console.error("[Presupuesto_EmpleadoController.update]", error);
+      // console.error("[Presupuesto_EmpleadoController.update]", error);
       res
         .status(500)
         .json({ error: error.message || "Error interno del servidor" });
@@ -87,7 +88,7 @@ export class Presupuesto_EmpleadoController {
       );
       res.status(200).json(result);
     } catch (error) {
-      console.error("[Presupuesto_EmpleadoController.getByPresupuesto]", error);
+      // console.error("[Presupuesto_EmpleadoController.getByPresupuesto]", error);
       res
         .status(500)
         .json({ error: error.message || "Error interno del servidor" });
@@ -105,7 +106,7 @@ export class Presupuesto_EmpleadoController {
         data: result,
       });
     } catch (error) {
-      console.error("[Presupuesto_EmpleadoController.delete]", error);
+      // console.error("[Presupuesto_EmpleadoController.delete]", error);
       res
         .status(500)
         .json({

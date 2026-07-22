@@ -52,6 +52,25 @@ class DetalleVenta extends Model {
 
   @Column({
     type: DataType.DECIMAL(10, 2),
+    allowNull: true,
+  })
+  declare precio_original: number | null;
+
+  @Column({
+    type: DataType.DECIMAL(10, 2),
+    allowNull: true,
+    defaultValue: 0,
+  })
+  declare descuento_articulo: number | null;
+
+  @Column({
+    type: DataType.DECIMAL(10, 2),
+    allowNull: true,
+  })
+  declare iva_renglon: number | null;
+
+  @Column({
+    type: DataType.DECIMAL(10, 2),
   })
   declare total_renglon: number;
 

@@ -50,7 +50,7 @@ class Asignacion_Empleado_Sucursal extends Model {
         allowNull: false,
         defaultValue: "COMPLETO",
     })
-    declare turno: "AM" | "PM";
+    declare turno: "AM" | "PM" | "COMPLETO";
 
     @Column({
         type: DataType.STRING,

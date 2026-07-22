@@ -19,6 +19,10 @@ export const CorteCajaService = {
         return await CorteCajaRepository.getAllByCaja(id_caja);
     },
 
+    getCortesAbiertosporEmpresa: async (id_empre: string) => {
+        return await CorteCajaRepository.getCortesAbiertosporEmpresa(id_empre);
+    },
+
     calcularTotalCaja: async (id_corte: string) => {
         const movimientos = await Movimiento_Caja.findAll({
             where: { id_corte },

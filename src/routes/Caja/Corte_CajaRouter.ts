@@ -7,6 +7,7 @@ router.get('/:id_corte', CorteCajaController.getByID);
 router.get('/', CorteCajaController.getAll);
 
 router.get('/caja/:id_caja', CorteCajaController.getAllByCaja);
+router.get('/empresa/:id_empresa/abiertos', CorteCajaController.getCortesAbiertosporEmpresa);
 
 router.post('/abrir/:id_caja', CorteCajaController.create);
 router.patch('/cerrar/:id_caja', CorteCajaController.update);

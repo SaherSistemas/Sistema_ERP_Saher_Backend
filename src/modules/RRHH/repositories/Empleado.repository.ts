@@ -147,4 +147,24 @@ export const EmpleadoRepository = {
       { type: QueryTypes.SELECT }
     );
   },
+
+  getByNombreRol: async (nom_rol: string, query: string = '') => {
+    const params: any[] = [`%${nom_rol}%`];
+    let filtroNombre = '';
+    if (query) {
+      params.push(`%${query}%`);
+      filtroNombre = `AND (e.nombre_empleado ILIKE $${params.length} OR e.ap_pat_empleado ILIKE $${params.length} OR e.ap_mat_empleado ILIKE $${params.length})`;
+    }
+    return dbLocal.query<any>(
+      `SELECT DISTINCT e.id_empleado, e.nombre_empleado, e.ap_pat_empleado, e.ap_mat_empleado,
+              e.idinterno_empleado AS num_interno_empleado
+       FROM empleado e
+       INNER JOIN usuario u ON u.id_referencia_persona = e.id_empleado AND u.status_user = true
+       INNER JOIN rol r ON r.id_rol = u.idrol_user AND r.nom_rol ILIKE $1
+       WHERE e.estatus_empleado = true
+       ${filtroNombre}
+       ORDER BY e.nombre_empleado ASC`,
+      { type: QueryTypes.SELECT, bind: params }
+    );
+  },
 };

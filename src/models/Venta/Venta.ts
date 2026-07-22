@@ -76,14 +76,50 @@ class Venta extends Model {
   declare total_venta: number;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.DECIMAL(10, 2),
+    allowNull: true,
   })
-  declare tipo_venta: string;
+  declare subtotal: number | null;
 
   @Column({
-    type: DataType.STRING,
+    type: DataType.DECIMAL(10, 2),
+    allowNull: true,
   })
-  declare status_venta: String;
+  declare iva_total: number | null;
+
+  @Column({
+    type: DataType.DECIMAL(10, 2),
+    allowNull: true,
+  })
+  declare descuento_total: number | null;
+
+  @Column({
+    type: DataType.DECIMAL(10, 2),
+    allowNull: true,
+  })
+  declare cambio: number | null;
+
+  @Column({
+    type: DataType.ENUM("CONTADO", "CREDITO", "APARTADO", "MOSTRADOR"),
+  })
+  declare tipo_venta: "CONTADO" | "CREDITO" | "APARTADO" | "MOSTRADOR";
+
+  @Column({
+    type: DataType.ENUM("CONFIRMADA", "PENDIENTE", "CANCELADA"),
+  })
+  declare status_venta: "CONFIRMADA" | "PENDIENTE" | "CANCELADA";
+
+  @Column({
+    type: DataType.TEXT,
+    allowNull: true,
+  })
+  declare motivo_cancelacion: string | null;
+
+  @Column({
+    type: DataType.DATE,
+    allowNull: true,
+  })
+  declare fecha_cancelacion: Date | null;
 
   @HasMany(() => UsoOferta)
   usooferta?: UsoOferta[];

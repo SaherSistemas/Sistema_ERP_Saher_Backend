@@ -203,4 +203,20 @@ export const Asignacion_Empleado_SucursalService = {
       throw error;
     }
   },
+
+  getEmpleadosActivosHoy: async (id_empre: string, fechaStr?: string) => {
+    // Pasamos Date para mantener la firma del repositorio; el repo extrae YYYY-MM-DD internamente.
+    const fecha = fechaStr ? new Date(`${fechaStr}T12:00:00Z`) : new Date();
+    const asignaciones = await Asignacion_Empleado_SucursalRepository.getEmpleadosActivosHoy(id_empre, fecha);
+    return asignaciones.map(a => ({
+      id_asignacion: a.id_asignacion,
+      tipo: a.tipo,
+      turno: a.turno,
+      id_empleado: a.id_empleado,
+      nombre_completo: a.empleado
+        ? `${a.empleado.nombre_empleado} ${a.empleado.ap_pat_empleado} ${a.empleado.ap_mat_empleado ?? ''}`.trim()
+        : '—',
+      num_interno: (a.empleado as any)?.num_interno_empleado ?? null,
+    }));
+  },
 };

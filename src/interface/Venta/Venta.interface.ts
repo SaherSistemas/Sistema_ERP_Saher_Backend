@@ -6,6 +6,9 @@ import {
 } from "../../interface/Venta/Venta_Pago.interface";
 import { IRecetaDesdeVenta } from "../RecetaMedica/RecetaMedica.interface";
 
+export type TipoVenta = "CONTADO" | "CREDITO" | "APARTADO" | "MOSTRADOR";
+export type StatusVenta = "CONFIRMADA" | "PENDIENTE" | "CANCELADA";
+
 export interface IVenta {
   id_venta: string;
   id_caja: string;
@@ -14,9 +17,12 @@ export interface IVenta {
   id_empleado?: string;
   id_empre: string;
   total_venta: number;
-  tipo_venta: string;
-  id_metodo_pago: string;
-  status_venta: "CONFIRMADA" | "PENDIENTE" | "CANCELADA";
+  subtotal?: number | null;
+  iva_total?: number | null;
+  descuento_total?: number | null;
+  cambio?: number | null;
+  tipo_venta: TipoVenta;
+  status_venta: StatusVenta;
   motivo_cancelacion?: string | null;
   fecha_cancelacion?: Date | null;
   detalle_venta: IDetalleVenta[];
@@ -26,13 +32,16 @@ export interface IVenta {
 export interface ICreateOrUpdateVenta {
   id_caja: string;
   id_corte: string | null;
-  id_cliente: string;
+  id_cliente?: string | null;
   id_empleado: string;
   id_empre: string;
   total_venta: number;
-  tipo_venta: string;
-  id_metodo_pago: string;
-  status_venta: "CONFIRMADA" | "PENDIENTE" | "CANCELADA";
+  subtotal?: number | null;
+  iva_total?: number | null;
+  descuento_total?: number | null;
+  cambio?: number | null;
+  tipo_venta: TipoVenta;
+  status_venta: StatusVenta;
   motivo_cancelacion?: string | null;
   fecha_cancelacion?: Date | null;
   detalle_venta: IDetalleVenta[];
@@ -40,15 +49,18 @@ export interface ICreateOrUpdateVenta {
 }
 
 export interface IVentaInput {
-
   id_cliente?: string;
   id_empleado?: string;
   id_empre: string;
   id_caja: string;
   id_corte: string | null;
   total_venta: number;
-  tipo_venta: string;
-  status_venta: "CONFIRMADA" | "PENDIENTE" | "CANCELADA";
+  subtotal?: number | null;
+  iva_total?: number | null;
+  descuento_total?: number | null;
+  cambio?: number | null;
+  tipo_venta: TipoVenta;
+  status_venta: StatusVenta;
   detalle_venta: IDetalleVentaInput[];
   venta_pago: IVentaPagoInput[];
   recetaPayload?: IRecetaDesdeVenta;

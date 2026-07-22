@@ -20,7 +20,11 @@ class Monedero extends Model {
   declare id_monedero: string;
 
   @Column({
-    type: DataType.FLOAT,
+    type: DataType.DECIMAL(12, 2),
+    get(this: any) {
+      const raw = this.getDataValue("saldo_monedero");
+      return raw === null ? null : Number(raw);
+    },
   })
   declare saldo_monedero: number;
 

@@ -3,6 +3,7 @@ import { EmpleadoController } from '../controllers/EmpleadoController';
 
 const router = Router();
 router.get('/sin-usuario', EmpleadoController.getAllSinUsuario);
+router.get('/por-rol', EmpleadoController.getByNombreRol);
 router.get('/', EmpleadoController.getAllEmpleados);
 router.get('/puede_ser_agente', EmpleadoController.getAllEmpleadoPuedeSerAgente);
 router.get('/:id_empleado', EmpleadoController.getEmpleadoByID);

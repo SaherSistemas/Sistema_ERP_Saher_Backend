@@ -95,6 +95,18 @@ export class Asignacion_Empleado_SucursalController {
   };
 
 
+  static getEmpleadosActivosHoy = async (req: Request, res: Response) => {
+    try {
+      const { id_empre } = req.params;
+      const { fecha } = req.query as any;
+      const result = await Asignacion_Empleado_SucursalService.getEmpleadosActivosHoy(id_empre, fecha);
+      res.status(200).json(result);
+    } catch (error: any) {
+      console.log(error)
+      res.status(500).json({ error: error.message || 'Error al obtener empleados activos hoy' });
+    }
+  };
+
   static update = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;

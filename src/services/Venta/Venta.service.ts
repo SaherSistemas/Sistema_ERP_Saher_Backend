@@ -5,19 +5,28 @@ import {
 import { VentaRepository } from "../../repository/Venta/Venta.repository";
 import { DetalleVentaRepository } from "../../repository/Venta/Detalle_Venta.repository";
 import { dbLocal } from "../../config/db";
+import { RetoService } from "../../modules/Gamificacion/service/Reto.service";
+import Articulo from "../../modules/Catalogos/Articulos/model/Articulo";
 import { VentaPagoRepository } from "../../repository/Venta/Venta_Pago.repository";
 import { LoteUsadoVentaRepository } from "../../repository/LotesYCaducidad/Lote_Usado_Venta.repository";
 import { RecetaMedicaService } from "../RecetaMedica/RecetaMedica.service";
 import { MovimientoCajaRepository } from "../../repository/Caja/Movimiento_Caja.repository";
 import CorteCaja from "../../models/Caja/Corte_Caja";
 import LoteArticuloSucursal from "../../modules/Inventario/Lotes/model/Lote_Articulo_Sucursal";
+import Stock_Ubicacion_Lote from "../../modules/Inventario/Stock/model/Stock_Ubicacion_Lote";
 import { EmpleadoService } from "../../modules/RRHH/services/Empleados.service";
 import { Transaction } from "sequelize";
 import { MovimientoCajaService } from "../Caja/Movimiento_Caja.service";
 import { MonederoService } from "../Clientes/Monedero/Monedero.service";
 import { MetodoPagoService } from "../Caja/Metodo_de_Pago.service";
 import { IDetalleVentaInput } from "../../interface/Venta/Detalle_Venta.interface";
-import { LotesArticuloSucursalRepository } from "../../modules/Inventario/Lotes/repository/Lote_ArticuloSucursal.repository";
+import { UsoOfertaRepository } from "../../repository/Ofertas/UsoOferta.repository";
+import {
+  fetchIVAMap,
+  fetchOfertaMap,
+  desglosarIVA,
+  calcDescuentoRenglon,
+} from "../../utils/checkout.utils";
 
 export type DetalleLookupInfo = {
   id_detalle_venta: string;
@@ -56,6 +65,10 @@ export const VentaService = {
           id_corte: data.id_corte ?? null,
           id_empre: data.id_empre,
           total_venta: data.total_venta,
+          subtotal: data.subtotal ?? null,
+          iva_total: data.iva_total ?? null,
+          descuento_total: data.descuento_total ?? null,
+          cambio: data.cambio ?? null,
           tipo_venta: data.tipo_venta,
           status_venta: data.status_venta,
           detalle_venta: [],
@@ -68,13 +81,38 @@ export const VentaService = {
 
       const tempToDetalle: DetalleLookupMap = new Map();
 
-      await procesarInventarioVenta(
+      const totalesCheckout = await procesarInventarioVenta(
         id_venta,
         data.detalle_venta,
         data.id_empre,
         t,
         tempToDetalle
       );
+
+      // Actualizar header de venta con totales calculados
+      await venta.update(
+        {
+          subtotal: totalesCheckout.subtotal,
+          iva_total: totalesCheckout.iva_total,
+          descuento_total: totalesCheckout.descuento_total,
+        },
+        { transaction: t }
+      );
+
+      // Registrar uso de ofertas (solo si hay cliente)
+      if (venta.id_cliente && totalesCheckout.ofertasAplicadas.length > 0) {
+        const ofertasUnicas = [
+          ...new Map(
+            totalesCheckout.ofertasAplicadas.map((o) => [o.id_oferta, o])
+          ).values(),
+        ];
+        for (const uso of ofertasUnicas) {
+          await UsoOfertaRepository.create(
+            { id_oferta: uso.id_oferta, id_cliente: venta.id_cliente, id_venta },
+            { transaction: t }
+          );
+        }
+      }
 
       await registrarPagosVenta(id_venta, data.venta_pago, t);
 
@@ -92,8 +130,6 @@ export const VentaService = {
           t
         );
       }
-
-
 
       if (venta.status_venta === "CONFIRMADA") {
         for (const p of data.venta_pago) {
@@ -114,9 +150,6 @@ export const VentaService = {
       }
 
       if (venta.status_venta === "CONFIRMADA" && venta.id_cliente) {
-
-        const idMetodoMonedero = await MetodoPagoService.getIdByClave("MONEDERO", t);
-
         const totalPagadoNoMonedero = data.venta_pago
           .filter(p => p.id_metodo_pago !== idMetodoMonedero)
           .reduce((sum, p) => sum + Number(p.monto), 0);
@@ -160,6 +193,36 @@ export const VentaService = {
       });
 
       await t.commit();
+
+      // Actualizar progreso de retos (fire-and-forget, no bloquea la respuesta)
+      if (venta.status_venta === 'CONFIRMADA' && data.id_empleado && data.id_corte) {
+        setImmediate(async () => {
+          try {
+            const arts = await Articulo.findAll({
+              where: { id_artic: data.detalle_venta.map((d: any) => d.id_artic) },
+              attributes: ['id_artic', 'id_categoria'],
+            });
+            const catMap = new Map(arts.map(a => [a.id_artic, a.id_categoria]));
+            await RetoService.actualizarProgresoVenta({
+              id_empleado: idEmpleadoUUID,
+              id_empresa: data.id_empre,
+              id_corte: data.id_corte,
+              fecha_dia: new Date().toISOString().slice(0, 10),
+              total_venta: data.total_venta,
+              num_ventas_incremento: 1,
+              detalles: data.detalle_venta.map((d: any) => ({
+                id_artic: d.id_artic,
+                id_categoria: catMap.get(d.id_artic) ?? undefined,
+                cantidad: d.cantidad,
+                precio_unitario: Number(d.precio_unitario),
+              })),
+            });
+          } catch (err) {
+            console.error('[Retos] Error actualizando progreso:', err);
+          }
+        });
+      }
+
       return { message: "Venta creada exitosamente", venta: ventaCompleta };
     } catch (e) {
       await t.rollback();
@@ -200,7 +263,7 @@ export const VentaService = {
       }
 
       if (venta.id_corte) {
-        const corte = await CorteCaja.findByPk(venta.id_corte);
+        const corte = await CorteCaja.findByPk(venta.id_corte, { transaction: t });
         if (corte && corte.status_corte === false) {
           const err = new Error('No puedes cancelar una venta de un corte cerrado');
           (err as any).status = 409;
@@ -210,22 +273,22 @@ export const VentaService = {
 
       for (const det of venta.detalle_venta) {
         for (const lu of det.lote_usado) {
-          const lote = await LoteArticuloSucursal.findByPk(
-            lu.id_lote_sucursal,
-            { transaction: t, lock: t.LOCK.UPDATE }
-          );
+          // Devolver stock a stock_ubicacion_lote (primer registro disponible del lote)
+          const stockRows = await Stock_Ubicacion_Lote.findAll({
+            where: { id_lote: lu.id_lote_sucursal },
+            order: [['cantidad', 'ASC']],
+            transaction: t,
+            lock: t.LOCK.UPDATE,
+          });
 
-          if (!lote) {
-            throw new Error(`Lote ${lu.id_lote_sucursal} no encontrado.`);
+          if (stockRows.length > 0) {
+            // Suma de vuelta al primer registro encontrado
+            const row = stockRows[0];
+            await row.update(
+              { cantidad: Number(row.cantidad) + Number(lu.cantidad_utilizada) },
+              { transaction: t }
+            );
           }
-
-          await lote.update(
-            {
-              cantidad_entrada_lote:
-                Number(lote.cantidad_entrada_lote) + Number(lu.cantidad_utilizada),
-            },
-            { transaction: t }
-          );
 
           await LoteUsadoVentaRepository.create(
             {
@@ -279,53 +342,94 @@ export const VentaService = {
 };
 
 
+type TotalesCheckout = {
+  subtotal: number;
+  iva_total: number;
+  descuento_total: number;
+  ofertasAplicadas: Array<{ id_oferta: string; id_venta: string }>;
+};
+
 async function procesarInventarioVenta(
   id_venta: string,
   detalles: any[],
   id_empre: string,
   t: Transaction,
   tempToDetalle: Map<string, any>
-) {
-  for (const detalle of detalles) {
+): Promise<TotalesCheckout> {
+  const idsArticulos = detalles.map((d) => d.id_artic as string);
 
+  // Fetch IVA y ofertas en paralelo (una query cada uno, fuera del loop)
+  const [ivaMap, ofertaMap] = await Promise.all([
+    fetchIVAMap(idsArticulos),
+    fetchOfertaMap(idsArticulos, id_empre),
+  ]);
+
+  let subtotal = 0;
+  let iva_total = 0;
+  let descuento_total = 0;
+  const ofertasAplicadas: Array<{ id_oferta: string; id_venta: string }> = [];
+
+  for (const detalle of detalles) {
     const { lote_usado = [], temp_line_id, ...colsDetalle } = detalle;
 
-    // const detalleVenta = await DetalleVentaRepository.create(
-    //   { id_venta, ...detalle },
-    //   { transaction: t }
-    // );
+    const cantidad = Number(colsDetalle.cantidad);
+    const precioOriginal = Number(colsDetalle.precio_unitario);
+
+    // Aplicar oferta si existe
+    const oferta = ofertaMap.get(colsDetalle.id_artic) ?? null;
+    let descuento = 0;
+    let precioConDescuento = precioOriginal;
+
+    if (oferta) {
+      const res = calcDescuentoRenglon(precioOriginal, cantidad, oferta);
+      precioConDescuento = res.precioConDescuento;
+      descuento = res.descuento;
+    }
+
+    const total_renglon = +(precioConDescuento * cantidad - (oferta?.tipo_beneficio === "BOGO" ? descuento : 0)).toFixed(2);
+    // Para PORCENTAJE/MONTO_FIJO el descuento ya está en precioConDescuento
+    const totalRenglonFinal = oferta?.tipo_beneficio === "BOGO"
+      ? +(precioOriginal * cantidad - descuento).toFixed(2)
+      : +(precioConDescuento * cantidad).toFixed(2);
+
+    // Desglosar IVA (precios incluyen IVA)
+    const iva = ivaMap.get(colsDetalle.id_artic) ?? { porcentaje: 0, tipo_factor: "Exento" as const };
+    const { subtotal_renglon, iva_renglon } = desglosarIVA(
+      oferta ? precioConDescuento : precioOriginal,
+      cantidad,
+      iva
+    );
+
+    // Acumular totales del header
+    subtotal += subtotal_renglon;
+    iva_total += iva_renglon;
+    descuento_total += descuento;
 
     const columnasValidas: IDetalleVentaInput = {
       id_venta,
       id_artic: colsDetalle.id_artic,
-      cantidad: colsDetalle.cantidad,
-      precio_unitario: colsDetalle.precio_unitario,
-      total_renglon:
-        colsDetalle.total_renglon ??
-        colsDetalle.total ??
-        colsDetalle.cantidad * colsDetalle.precio_unitario,
-
+      cantidad,
+      precio_unitario: precioOriginal,
+      precio_original: precioOriginal,
+      descuento_articulo: descuento,
+      iva_renglon,
+      total_renglon: totalRenglonFinal,
       temp_line_id: temp_line_id ?? null,
-
       lote_usado: lote_usado ?? [],
     };
-
 
     const detalleVenta = await DetalleVentaRepository.create(
       columnasValidas,
       { transaction: t }
     );
 
+    if (oferta) {
+      ofertasAplicadas.push({ id_oferta: oferta.id_oferta, id_venta });
+    }
 
     if (temp_line_id) {
-      const id_articulo =
-        (colsDetalle as any).id_artic ??
-        (colsDetalle as any).id_articulo;
-
-      if (!id_articulo) {
-        throw new Error("Falta id_articulo en detalle_venta.");
-      }
-
+      const id_articulo = colsDetalle.id_artic ?? colsDetalle.id_articulo;
+      if (!id_articulo) throw new Error("Falta id_articulo en detalle_venta.");
       tempToDetalle.set(String(temp_line_id), {
         id_detalle_venta: detalleVenta.id_detalle_venta,
         id_articulo,
@@ -333,49 +437,41 @@ async function procesarInventarioVenta(
     }
 
     if (!lote_usado || lote_usado.length === 0) {
-      throw new Error(
-        `Faltan lotes usados para el artículo ${colsDetalle.id_artic}.`
-      );
+      throw new Error(`Faltan lotes usados para el artículo ${colsDetalle.id_artic}.`);
     }
 
     let acumulado = 0;
 
     for (const lu of lote_usado) {
-
       if (!lu.id_lote_sucursal)
         throw new Error("Falta id_lote_sucursal en lote_usado.");
-
       if (!lu.cantidad_utilizada || lu.cantidad_utilizada <= 0)
         throw new Error("cantidad_utilizada inválida.");
 
-      const lote =
-        await LotesArticuloSucursalRepository.findByPkInEmpresaArticulo(
-          lu.id_lote_sucursal,
-          id_empre,
-          colsDetalle.id_artic,
-          {
-            transaction: t,
-            lock: t.LOCK.UPDATE,
-            skipLocked: false,
-          }
-        );
+      let restante = Number(lu.cantidad_utilizada);
 
-      if (!lote) {
-        throw new Error("El lote no existe o no pertenece a esa empresa/artículo.");
+      const stockRows = await Stock_Ubicacion_Lote.findAll({
+        where: { id_lote: lu.id_lote_sucursal },
+        order: [["cantidad", "ASC"]],
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+
+      if (!stockRows.length) {
+        throw new Error(`No hay stock en ubicación para el lote ${lu.id_lote_sucursal}.`);
       }
 
-      const stock = Number(lote.cantidad_entrada_lote);
-
-      if (stock < lu.cantidad_utilizada) {
-        throw new Error(
-          `Stock insuficiente en el lote ${lote.numero_lote_sucursal}.`
-        );
+      const totalDisponible = stockRows.reduce((s, r) => s + Number(r.cantidad), 0);
+      if (totalDisponible < lu.cantidad_utilizada) {
+        throw new Error(`Stock insuficiente en ubicación para el lote ${lu.id_lote_sucursal}.`);
       }
 
-      await lote.update(
-        { cantidad_entrada_lote: stock - lu.cantidad_utilizada },
-        { transaction: t }
-      );
+      for (const row of stockRows) {
+        if (restante <= 0) break;
+        const tomar = Math.min(Number(row.cantidad), restante);
+        await row.update({ cantidad: Number(row.cantidad) - tomar }, { transaction: t });
+        restante -= tomar;
+      }
 
       await LoteUsadoVentaRepository.create(
         {
@@ -389,12 +485,19 @@ async function procesarInventarioVenta(
       acumulado += lu.cantidad_utilizada;
     }
 
-    if (acumulado !== colsDetalle.cantidad) {
+    if (acumulado !== cantidad) {
       throw new Error(
-        `La suma de lotes usados (${acumulado}) no coincide con la cantidad vendida (${colsDetalle.cantidad}).`
+        `La suma de lotes usados (${acumulado}) no coincide con la cantidad vendida (${cantidad}).`
       );
     }
   }
+
+  return {
+    subtotal: +subtotal.toFixed(2),
+    iva_total: +iva_total.toFixed(2),
+    descuento_total: +descuento_total.toFixed(2),
+    ofertasAplicadas,
+  };
 }
 
 async function registrarPagosVenta(id_venta: string, pagos: any[], t: Transaction) {

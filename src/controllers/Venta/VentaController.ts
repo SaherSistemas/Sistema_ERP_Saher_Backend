@@ -17,8 +17,6 @@ export class VentaController {
     try {
       const { id_corte } = req.params;
       const resumen = await VentaService.getResumenCorte(id_corte);
-      console.log("Conexión usada para Venta:", Venta.sequelize?.config?.database);
-
       res.status(200).json(resumen);
     } catch (error) {
       console.error(error);
@@ -34,15 +32,13 @@ export class VentaController {
       const { id_empleado, motivo } = req.body;
 
       if (!id_empleado) {
-        res.status(400).json({
-          mensaje: "id_empleado es requerido para cancelar la venta."
-        });
+        res.status(400).json({ mensaje: "id_empleado es requerido para cancelar la venta." });
+        return;
       }
 
       if (!motivo || motivo.trim() === "") {
-        res.status(400).json({
-          mensaje: "Debes enviar un motivo de cancelación."
-        });
+        res.status(400).json({ mensaje: "Debes enviar un motivo de cancelación." });
+        return;
       }
 
       const result = await VentaService.cancelarVenta({
@@ -86,9 +82,7 @@ export class VentaController {
       console.error("Error al crear venta:", e);
 
       if (e.status === 404) {
-        res
-          .status(404)
-          .json({ message: e.message || "Empleado no encontrado" });
+        res.status(404).json({ message: e.message || "Empleado no encontrado" });
       }
 
       if (e.status === 400) {

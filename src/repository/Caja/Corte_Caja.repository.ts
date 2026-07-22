@@ -40,6 +40,19 @@ export const CorteCajaRepository = {
     });
   },
 
+  getCortesAbiertosporEmpresa: async (id_empre: string) => {
+    return await CorteCaja.findAll({
+      where: { status_corte: true },
+      include: [{
+        model: Caja,
+        attributes: ['nombre_caja', 'id_empre'],
+        where: { id_empre, activa: true },
+        required: true,
+      }],
+      order: [['fecha_apertura', 'DESC']],
+    });
+  },
+
   getByIDFlexible: async (id_corte: string) => {
     if (isUUID(id_corte)) {
       return await CorteCaja.findByPk(id_corte);
@@ -107,21 +120,14 @@ export const CorteCajaRepository = {
         throw new Error("No hay un corte abierto para esta caja.");
       }
 
+      // Solo ventas CONFIRMADAS en efectivo/vale del corte
       const pagos = await Venta_Pago.findAll({
-        where: {
-          "$venta.id_corte$": corte.id_corte
-        },
+        where: { "$venta.id_corte$": corte.id_corte, "$venta.status_venta$": "CONFIRMADA" },
         include: [
-          {
-            model: Venta,
-            attributes: []
-          },
-          {
-            model: Metodo_de_Pago,
-            attributes: ["nombre_metodo_pago"]
-          }
+          { model: Venta, attributes: [] },
+          { model: Metodo_de_Pago, attributes: ["nombre_metodo_pago"] },
         ],
-        transaction: t
+        transaction: t,
       });
 
       const totalVentasCaja = pagos
@@ -131,19 +137,25 @@ export const CorteCajaRepository = {
         )
         .reduce((acc, p) => acc + Number(p.monto), 0);
 
+      // Movimientos manuales: depósitos, retiros parciales, ajustes
+      // Excluimos los automáticos de ventas (ya en totalVentasCaja) y el fondo inicial (en monto_inicial)
+      const conceptosAutomaticos = new Set([
+        "VENTA",
+        "CANCELACION DE VENTA",
+        "FONDO INICIAL",
+        "APERTURA DE CAJA",
+        "CIERRE DE CAJA",
+      ]);
+
       const movimientos = await Movimiento_Caja.findAll({
         where: { id_corte: corte.id_corte },
-        transaction: t
+        transaction: t,
       });
 
-      let totalMovimientos = 0;
-      for (const mv of movimientos) {
-        if (mv.tipo_movimiento === "ENTRADA") {
-          totalMovimientos += Number(mv.monto_movimiento);
-        } else if (mv.tipo_movimiento === "SALIDA") {
-          totalMovimientos -= Number(mv.monto_movimiento);
-        }
-      }
+      // monto_movimiento ya está normalizado: positivo=ingreso, negativo=retiro
+      const totalMovimientos = movimientos
+        .filter(mv => !conceptosAutomaticos.has(mv.concepto_movimiento))
+        .reduce((acc, mv) => acc + Number(mv.monto_movimiento), 0);
 
       const montoFinal =
         Number(corte.monto_inicial) +
@@ -153,7 +165,7 @@ export const CorteCajaRepository = {
       corte.id_usuario_cierre = id_usuario_cierre;
       corte.monto_declarado = monto_declarado;
       corte.total_venta = totalVentasCaja;
-      // corte.total_movimientos = totalMovimientos;
+      corte.total_movimientos = totalMovimientos;
       corte.monto_final = montoFinal;
       corte.fecha_cierre = new Date();
       corte.status_corte = false;

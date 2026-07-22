@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { col, fn, Transaction } from "sequelize";
+import { col, fn, literal, Transaction } from "sequelize";
 import { Op } from "sequelize";
 import Asignacion_Empleado_Sucursal from "../../models/Presupuestos/Asignacion_Empleado_Sucursal";
 import { ICreateOrUpdateAsignacion_Empleado_Sucursal } from "../../interface/Presupuestos/Asignacion_Empleado_Sucursal.interface";
@@ -200,5 +200,49 @@ export const Asignacion_Empleado_SucursalRepository = {
 
     await asignacion.update({ activo: false }, { transaction });
     return asignacion;
+  },
+
+  /**
+   * Retorna empleados con asignación activa en la sucursal para una fecha dada.
+   * Incluye tipo FIJO (sin fecha_fin obligatoria) y TEMPORAL/COBERTURA cuya ventana
+   * abarca la fecha solicitada.
+   */
+  getEmpleadosActivosHoy: async (id_empre: string, fecha: Date) => {
+    // Usamos comparación DATE en PostgreSQL para evitar desfase de zona horaria.
+    // fecha puede llegar como "2026-07-21" o como Date; normalizamos a YYYY-MM-DD.
+    const fechaStr = fecha instanceof Date
+      ? fecha.toISOString().slice(0, 10)
+      : String(fecha).slice(0, 10);
+
+    return Asignacion_Empleado_Sucursal.findAll({
+      where: {
+        id_empre,
+        activo: true,
+        [Op.or]: [
+          // FIJO: fecha_inicio::date <= hoy
+          {
+            tipo: 'FIJO',
+            [Op.and]: [literal(`"fecha_inicio"::date <= '${fechaStr}'::date`)],
+          },
+          // TEMPORAL / COBERTURA: fecha_inicio <= hoy <= fecha_fin (comparación DATE)
+          {
+            tipo: { [Op.in]: ['TEMPORAL', 'COBERTURA'] },
+            [Op.and]: [
+              literal(`"fecha_inicio"::date <= '${fechaStr}'::date`),
+              literal(`"fecha_fin"::date >= '${fechaStr}'::date`),
+            ],
+          },
+        ],
+      },
+      include: [
+        {
+          model: Empleado,
+          attributes: ['id_empleado', 'nombre_empleado', 'ap_pat_empleado', 'ap_mat_empleado'],
+        },
+      ],
+      order: [
+        [{ model: Empleado, as: 'empleado' }, 'nombre_empleado', 'ASC'],
+      ],
+    });
   },
 };
