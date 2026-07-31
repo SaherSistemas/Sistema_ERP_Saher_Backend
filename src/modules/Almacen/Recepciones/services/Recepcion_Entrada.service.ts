@@ -1,11 +1,18 @@
+import fs from "fs";
+import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { ICreateRecepcionEntradaDTO, IListRecepcionesQuery } from "../interface/Recepcion_Entrada.interface";
 import { Recepcion_EntradaRepository } from "../repositories/Recepcion_Entrada.repository";
 
-function base64PngToBuffer(dataUrl: string): Buffer {
+const FIRMAS_DIR = path.join(__dirname, "../../../../../uploads/recepciones");
+
+function guardarFirmaEnDisco(dataUrl: string, id_recepcion: string): string {
     const m = dataUrl?.match(/^data:image\/png;base64,(.+)$/);
-    if (!m) throw new Error("Firma inválida. Se esperaba PNG base64 (data:image/png;base64,...)");
-    return Buffer.from(m[1], "base64");
+    if (!m) throw new Error("Firma inválida. Se esperaba PNG base64.");
+    if (!fs.existsSync(FIRMAS_DIR)) fs.mkdirSync(FIRMAS_DIR, { recursive: true });
+    const filename = `${id_recepcion}.png`;
+    fs.writeFileSync(path.join(FIRMAS_DIR, filename), Buffer.from(m[1], "base64"));
+    return `/uploads/recepciones/${filename}`;
 }
 
 export const Recepcion_EntradaService = {
@@ -13,7 +20,6 @@ export const Recepcion_EntradaService = {
         const entidad = (dto.entidad_recibo ?? "").trim();
         const nombreEntrega = (dto.nombre_persona_entrega ?? "").trim();
         const tipo = dto.tipo_entidad;
-
         const cajas = Number(dto.cantidad_cajas ?? 0);
         const bolsas = Number(dto.cantidad_bolsas ?? 0);
         const tarimas = Number(dto.cantidad_tarimas ?? 0);
@@ -22,14 +28,10 @@ export const Recepcion_EntradaService = {
         if (!tipo) throw new Error("tipo_entidad es requerido");
         if (!nombreEntrega) throw new Error("nombre_persona_entrega es requerido");
         if (!dto.firma) throw new Error("Firma requerida");
-
-        if (cajas <= 0 && bolsas <= 0 && tarimas <= 0) {
-            throw new Error("Debes capturar al menos una cantidad (cajas/bolsas/tarimas)");
-        }
-
-        const firma_png = base64PngToBuffer(dto.firma);
+        if (cajas <= 0 && bolsas <= 0 && tarimas <= 0) throw new Error("Debes capturar al menos una cantidad");
 
         const id_recepcion = uuidv4();
+        const firma_url = guardarFirmaEnDisco(dto.firma, id_recepcion);
 
         const creado = await Recepcion_EntradaRepository.create({
             id_recepcion,
@@ -41,8 +43,7 @@ export const Recepcion_EntradaService = {
             cantidad_bolsas: bolsas,
             cantidad_tarimas: tarimas,
             observaciones: dto.observaciones?.trim() || null,
-            firma_png,
-            firma_mime: "image/png",
+            firma_url,
             id_empleado_recibe,
             fecha_recepcion: new Date(),
         });
@@ -51,21 +52,12 @@ export const Recepcion_EntradaService = {
     },
 
     getById: async (id_recepcion: string) => {
-        const rec = await Recepcion_EntradaRepository.findById(id_recepcion, false);
+        const rec = await Recepcion_EntradaRepository.findById(id_recepcion);
         if (!rec) throw new Error("Recepción no encontrada");
-        return {
-            ...rec.toJSON(),
-            firma_url: `/almacen/recepciones/${id_recepcion}/firma`,
-        };
-    },
-
-    getFirma: async (id_recepcion: string) => {
-        const rec = await Recepcion_EntradaRepository.findById(id_recepcion, true);
-        if (!rec) throw new Error("Recepción no encontrada");
-        return { firma_png: rec.firma_png, firma_mime: rec.firma_mime || "image/png" };
+        return rec.toJSON();
     },
 
     list: async (query: IListRecepcionesQuery, id_empresa: string) => {
-        return await Recepcion_EntradaRepository.list({ ...query, }, id_empresa);
+        return await Recepcion_EntradaRepository.list(query, id_empresa);
     },
 };

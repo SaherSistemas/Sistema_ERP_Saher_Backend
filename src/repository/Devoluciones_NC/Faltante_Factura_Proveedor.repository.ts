@@ -123,6 +123,20 @@ export const Faltante_Factura_ProveedorRepository = {
     },
 
     /**
+     * Reduce cantidad_faltante de un registro pendiente (entrada parcial).
+     */
+    reducirCantidad: async (
+        id_faltante: string,
+        nueva_cantidad: number,
+        options?: { transaction?: Transaction }
+    ) => {
+        return await Faltante_Factura_Proveedor.update(
+            { cantidad_faltante: nueva_cantidad },
+            { where: { id_faltante }, transaction: options?.transaction }
+        );
+    },
+
+    /**
      * Crea múltiples faltantes de una vez (usado en finalizarChequeo).
      */
     bulkCreate: async (

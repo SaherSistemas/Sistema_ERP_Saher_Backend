@@ -61,7 +61,8 @@ export const Cliente_AlmacenRepository = {
       offset,
       order: [['createdAt', 'DESC']]
     });
-
+    console.log('ROWS');
+    console.log(rows);
     return {
       items: rows,
       totalItems: count,

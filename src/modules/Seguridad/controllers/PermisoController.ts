@@ -209,6 +209,9 @@ export class PermisoController {
         try {
             const nuevos = [
                 { modulo_permiso: 'punto_de_venta', accion_permiso: 'retos_ventas' },
+                { modulo_permiso: 'punto_de_venta', accion_permiso: 'tablero_retos' },
+                { modulo_permiso: 'punto_de_venta', accion_permiso: 'categorias_empresa' },
+                { modulo_permiso: 'punto_de_venta', accion_permiso: 'imagenes_publicidad' },
             ];
 
             const existentes = await PermisoService.getAll();

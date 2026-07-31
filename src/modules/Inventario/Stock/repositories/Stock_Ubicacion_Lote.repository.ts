@@ -171,6 +171,7 @@ export const Stock_Ubicacion_LoteRepository = {
         const whereStock: any = {
             id_empresa_sucursal,
             id_ubicacion_sucursal: { [Op.is]: null }, // pendientes
+            cantidad: { [Op.gt]: 0 },
         };
 
         const includeArticulo: any = {

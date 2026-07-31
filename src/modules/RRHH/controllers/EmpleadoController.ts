@@ -65,6 +65,7 @@ export class EmpleadoController {
     try {
       const { id_empleado } = req.params;
       const data: IUpdateEmpleado = req.body;
+      // console.log('Datos recibidos para actualizar empleado:', data);
       const updateEmpleado = await EmpleadoService.updateEmpleado(id_empleado, data);
       res.status(201).json({ mensaje: 'Empleado actualizado correctamente', empleado: updateEmpleado });
     } catch (error) {

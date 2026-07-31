@@ -3,6 +3,7 @@ import Compra_Proveedor from "../../../Compras/Ordenes-Compra/model/Compra_Prove
 import Empleado from "../../../RRHH/model/Empleado";
 import Detalle_Factura_Compra_Proveedor from "./Detalle_Factura_Compra_Proveedor";
 import EmpresaSucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
+import NotasCreditoProveedor from "../../../../models/Devolucion_NC/NC/NotasCreditoProveedor";
 
 @Table({
     tableName: 'factura_compra_proveedor',
@@ -197,6 +198,9 @@ class Factura_Compra_Proveedor extends Model {
     //HASMANY
     @HasMany(() => Detalle_Factura_Compra_Proveedor)
     detalles_factura_compra_proveedor!: Detalle_Factura_Compra_Proveedor[];
+
+    @HasMany(() => NotasCreditoProveedor, 'id_factura_proveedor')
+    notas_credito!: NotasCreditoProveedor[];
 
 }
 

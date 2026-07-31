@@ -18,8 +18,8 @@ export const Cliente_AlmacenService = {
     estado: string;
   }) => {
     const agente = await AgenteRepository.getByIdEmpleado(params.id_empleado);
-    // console.log('AGENTE');
-    //console.log(agente);
+    console.log('AGENTE');
+    console.log(agente);
     const newParams = {
       id_agente: agente.id_agente, // el que necesita el repository
       page: params.page,

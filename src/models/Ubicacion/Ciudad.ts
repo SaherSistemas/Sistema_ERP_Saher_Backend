@@ -5,13 +5,7 @@ import Colonia from "./Colonia";
 
 @Table({
     tableName: 'ciudad',
-    indexes: [
-        {
-            unique: true,
-            fields: ['id_esta_ciuda', 'nom_ciuda'],
-            name: 'ciudad_estado_nombre_unique'
-        }
-    ]
+
 })
 class Ciudad extends Model {
     @PrimaryKey
@@ -21,7 +15,6 @@ class Ciudad extends Model {
     })
     declare id_ciuda: string;
 
-    @Unique
     @Column({
         type: DataType.INTEGER,
         allowNull: false

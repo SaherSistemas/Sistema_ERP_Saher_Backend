@@ -12,6 +12,8 @@ import { LoteUsadoVentaRepository } from "../../repository/LotesYCaducidad/Lote_
 import { RecetaMedicaService } from "../RecetaMedica/RecetaMedica.service";
 import { MovimientoCajaRepository } from "../../repository/Caja/Movimiento_Caja.repository";
 import CorteCaja from "../../models/Caja/Corte_Caja";
+import Caja from "../../models/Caja/Caja";
+import { CorteCajaService } from "../Caja/Corte_Caja.service";
 import LoteArticuloSucursal from "../../modules/Inventario/Lotes/model/Lote_Articulo_Sucursal";
 import Stock_Ubicacion_Lote from "../../modules/Inventario/Stock/model/Stock_Ubicacion_Lote";
 import { EmpleadoService } from "../../modules/RRHH/services/Empleados.service";
@@ -194,6 +196,39 @@ export const VentaService = {
 
       await t.commit();
 
+      // Retiro automático si se supera el límite de caja
+      let retiroAutomatico: { monto: number; limite: number } | null = null;
+      if (venta.status_venta === 'CONFIRMADA' && data.id_corte) {
+        try {
+          const caja = await Caja.findByPk(venta.id_caja);
+          if (caja && caja.monto_limite_retiro != null) {
+            const saldo = await CorteCajaService.calcularTotalCaja(data.id_corte!);
+            if (saldo > Number(caja.monto_limite_retiro)) {
+              const corte = await CorteCaja.findByPk(data.id_corte);
+              if (corte) {
+                const montoRetiro = saldo - Number(corte.monto_inicial);
+                if (montoRetiro > 0) {
+                  const idEfectivo = await MetodoPagoService.getIdByClave('EFECTIVO');
+                  await MovimientoCajaService.createMovimientoCaja({
+                    id_caja: venta.id_caja,
+                    id_corte: data.id_corte!,
+                    tipo_movimiento: 'RETIRO',
+                    concepto_movimiento: 'RETIRO PARCIAL',
+                    id_metodo_pago: idEfectivo,
+                    monto_movimiento: montoRetiro,
+                    referencia: `RETIRO AUTOMÁTICO — límite $${Number(caja.monto_limite_retiro).toFixed(2)}`,
+                    id_empleado: corte.id_usuario_apertura,
+                  });
+                  retiroAutomatico = { monto: montoRetiro, limite: Number(caja.monto_limite_retiro) };
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[AutoRetiro] Error en retiro automático:', err);
+        }
+      }
+
       // Actualizar progreso de retos (fire-and-forget, no bloquea la respuesta)
       if (venta.status_venta === 'CONFIRMADA' && data.id_empleado && data.id_corte) {
         setImmediate(async () => {
@@ -223,7 +258,7 @@ export const VentaService = {
         });
       }
 
-      return { message: "Venta creada exitosamente", venta: ventaCompleta };
+      return { message: "Venta creada exitosamente", venta: ventaCompleta, retiro_automatico: retiroAutomatico };
     } catch (e) {
       await t.rollback();
       throw e;
@@ -450,15 +485,29 @@ async function procesarInventarioVenta(
 
       let restante = Number(lu.cantidad_utilizada);
 
-      const stockRows = await Stock_Ubicacion_Lote.findAll({
+      let stockRows = await Stock_Ubicacion_Lote.findAll({
         where: { id_lote: lu.id_lote_sucursal },
         order: [["cantidad", "ASC"]],
         transaction: t,
         lock: t.LOCK.UPDATE,
       });
 
+      // Lotes migrados o sin ubicación asignada: crear fila de stock on-the-fly
       if (!stockRows.length) {
-        throw new Error(`No hay stock en ubicación para el lote ${lu.id_lote_sucursal}.`);
+        const lote = await LoteArticuloSucursal.findByPk(lu.id_lote_sucursal, { transaction: t });
+        if (!lote) throw new Error(`Lote ${lu.id_lote_sucursal} no encontrado.`);
+        const nuevaFila = await Stock_Ubicacion_Lote.create(
+          {
+            id_articulo: lote.id_artic,
+            id_empresa_sucursal: lote.id_empre,
+            id_lote: lote.id_lote_sucursal,
+            id_ubicacion_sucursal: null,
+            cantidad: lote.cantidad_entrada_lote,
+            cantidad_apartada: 0,
+          },
+          { transaction: t }
+        );
+        stockRows = [nuevaFila];
       }
 
       const totalDisponible = stockRows.reduce((s, r) => s + Number(r.cantidad), 0);

@@ -1,6 +1,6 @@
 import {
   Table, Column, Model, DataType, PrimaryKey,
-  ForeignKey
+  ForeignKey, BelongsTo
 } from "sequelize-typescript";
 import Empleado from "../../../RRHH/model/Empleado";
 import Empresa_Sucursal from "../../../../models/Empresa_Sucursal/Empresa_Sucursal";
@@ -38,15 +38,15 @@ export default class Recepcion_Entrada extends Model {
   @Column({ type: DataType.TEXT })
   declare observaciones?: string;
 
-  @Column({ type: DataType.BLOB, allowNull: false }) // Postgres -> BYTEA
-  declare firma_png: Buffer;
-
-  @Column({ type: DataType.STRING(50), allowNull: false, defaultValue: "image/png" })
-  declare firma_mime: string;
+  @Column({ type: DataType.STRING(300), allowNull: false })
+  declare firma_url: string;
 
   @ForeignKey(() => Empleado)
   @Column({ type: DataType.UUID, allowNull: false })
   declare id_empleado_recibe: string;
+
+  @BelongsTo(() => Empleado)
+  declare empleado: Empleado;
 
   @Column({ type: DataType.DATE, defaultValue: DataType.NOW })
   declare fecha_recepcion: Date;

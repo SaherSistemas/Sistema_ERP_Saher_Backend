@@ -8,7 +8,7 @@ export const Categoria_ArticuloRepository = {
         const whereClause = query
             ? {
                 nom_categoria: {
-                    [Op.iLike]: `%${query}%`, // busca sin importar mayúsculas/minúsculas
+                    [Op.iLike]: `%${query}%`,
                 },
             }
             : {};

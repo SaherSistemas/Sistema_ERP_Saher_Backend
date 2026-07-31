@@ -15,4 +15,7 @@ export interface IListRecepcionesQuery {
     search?: string;
     limit?: number;
     offset?: number;
+    fecha_desde?: string;   // YYYY-MM-DD
+    fecha_hasta?: string;   // YYYY-MM-DD
+    tipo_entidad?: string;  // PROVEEDOR | PAQUETERIA | MENSAJERIA | OTRO
 }

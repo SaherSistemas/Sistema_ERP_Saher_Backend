@@ -7,4 +7,5 @@ export interface ICategoria_Articulo {
 export interface ICreateOrUpdateCategoria_Articulo {
     nom_categoria: string
     id_tipoproducto: string
+    id_empre?: string | null  // null = global, UUID = exclusiva de esa empresa
 }

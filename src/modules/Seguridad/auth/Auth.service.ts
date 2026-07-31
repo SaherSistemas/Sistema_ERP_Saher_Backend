@@ -68,7 +68,13 @@ export const AuthService = {
         const passwordCorrecta = await checkPassword(password_user, usuario.password_user);
         if (!passwordCorrecta) throw new Error('Contraseña incorrecta.')
 
-        const token = generateToken(usuario.id_user, username, data.id_empresa, usuario.id_referencia_persona)
+        let nombre_completo: string | undefined;
+        try {
+            const emp = await EmpleadoRepository.getByIdFlexible(usuario.id_referencia_persona);
+            if (emp) nombre_completo = `${emp.nombre_empleado} ${emp.ap_pat_empleado} ${emp.ap_mat_empleado ?? ''}`.trim();
+        } catch { /* si falla, el token sigue sin nombre */ }
+
+        const token = generateToken(usuario.id_user, username, data.id_empresa, usuario.id_referencia_persona, nombre_completo)
         return token;
     },
     cambiarContra: async (data: ICambiarContrasena) => {

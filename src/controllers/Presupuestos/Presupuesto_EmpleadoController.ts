@@ -95,6 +95,26 @@ export class Presupuesto_EmpleadoController {
     }
   };
 
+  static getHistorialByEmpleado = async (req: Request, res: Response) => {
+    try {
+      const { id_empleado } = req.params;
+      const result = await Presupuesto_EmpleadoService.getHistorialByEmpleado(id_empleado);
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
+  static getPerfilByEmpleadoEmpresa = async (req: Request, res: Response) => {
+    try {
+      const { id_empleado, id_empre } = req.params;
+      const result = await Presupuesto_EmpleadoService.getPerfilByEmpleadoEmpresa(id_empleado, id_empre);
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+
   static delete = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;

@@ -24,11 +24,8 @@ class Categoria_Articulo extends Model {
     })
     declare id_tipoproducto: string
 
-
     @BelongsTo(() => Tipo_Articulo)
     tipoArticulo: Tipo_Articulo;
-
-
 }
 
 

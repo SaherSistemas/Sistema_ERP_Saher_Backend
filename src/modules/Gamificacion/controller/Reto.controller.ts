@@ -80,4 +80,27 @@ export const RetoController = {
             res.json(logros);
         } catch (e) { res.status(500).json({ message: 'Error al obtener historial', error: e }); }
     },
+
+    getEmpleadoPeriodoDetalle: async (req: Request, res: Response) => {
+        try {
+            const { id_empleado, id_empresa, periodo_ref, tipo_periodo } = req.query as any;
+            if (!id_empleado || !id_empresa || !periodo_ref || !tipo_periodo) {
+                res.status(400).json({ message: 'Faltan parámetros' }); return;
+            }
+            const data = await RetoService.getEmpleadoPeriodoDetalle(id_empleado, id_empresa, periodo_ref, tipo_periodo);
+            res.json(data);
+        } catch (e) {
+          //  console.log(e)
+            res.status(500).json({ message: 'Error al obtener detalle', error: e });
+        }
+    },
+
+    getHistorialPorReto: async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const data = await RetoService.getHistorialPorReto(id);
+            if (!data) { res.status(404).json({ message: 'Reto no encontrado' }); return; }
+            res.json(data);
+        } catch (e) { res.status(500).json({ message: 'Error al obtener historial del reto', error: e }); }
+    },
 };

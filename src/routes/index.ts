@@ -54,6 +54,7 @@ import parametos_CompraRouter from '../modules/Compras/Ordenes-Compra/routes/par
 import comprasRouter from '../modules/Compras/Ordenes-Compra/routes/ComprasGeneralRouter';
 import comprasProveedorRouter from '../modules/Compras/Ordenes-Compra/routes/ComprasProveedorRouter';
 import detalle_CompraRouter from '../modules/Compras/Ordenes-Compra/routes/detalle_CompraRouter';
+import compraDirectaRouter from '../modules/Compras/CompraDirecta/route/CompraDirecta.route';
 
 import factura_compra_ProveedorRouter from '../modules/Finanzas/Cuentas_Por_Pagar/routes/facturas_Compra_ProveedorRouter';
 
@@ -139,6 +140,8 @@ import notaCreditoClienteRouter from '../modules/Comercial/Notas_Credito_Cliente
 import impresionesRouter from '../modules/Impresiones/router'
 import inventarioRouter from '../modules/Inventario/router'
 import RetoRouter from '../modules/Gamificacion/routes/RetoRouter';
+import CategoriaEmpresaRouter from '../modules/Gamificacion/routes/Categoria_EmpresaRouter';
+import ImagenPublicidadRouter from '../modules/Publicidad/routes/Imagen_PublicidadRouter';
 const router = Router();
 
 router.use(generalLimiter);
@@ -197,6 +200,7 @@ router.use('/parametros_compra', parametos_CompraRouter);
 router.use('/compras', comprasRouter);
 router.use('/compras_proveedor', comprasProveedorRouter);
 router.use('/compras/detalle_compra', detalle_CompraRouter);
+router.use('/compras/directa', compraDirectaRouter);
 
 router.use('/compras/detalle_compra_negado', detalleCompraNegadoRouter);
 router.use('/compras/detalle_compra_recibido', detalleCompraRecibidoRouter);
@@ -283,4 +287,6 @@ router.use('/notas-credito', notaCreditoClienteRouter)
 
 router.use('/impresiones', impresionesRouter);
 router.use('/retos', RetoRouter);
+router.use('/categoria_empresa', CategoriaEmpresaRouter);
+router.use('/imagen_publicidad', ImagenPublicidadRouter);
 export default router;

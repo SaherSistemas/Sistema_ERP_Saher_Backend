@@ -2,8 +2,9 @@ import {
   ILotesArticuloSucursal,
   ICreaterOrUdateLotesArticuloSucursal
 } from '../../../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface';
-import { Op } from 'sequelize';
+import { fn, col, Op } from 'sequelize';
 import { LotesArticuloSucursalRepository } from '../repository/Lote_ArticuloSucursal.repository';
+import Stock_Ubicacion_Lote from '../../Stock/model/Stock_Ubicacion_Lote';
 
 export const LotesArticuloSucursalService = {
   getAll: async (): Promise<ILotesArticuloSucursal[]> => {
@@ -52,9 +53,30 @@ export const LotesArticuloSucursalService = {
     if (opts?.ordenar === 'fifo') order = [['createdAt', 'ASC']];
     if (opts?.ordenar === 'recientes') order = [['createdAt', 'DESC']];
 
-    return await LotesArticuloSucursalRepository.listByEmpresaArticulo(id_empre, id_artic, {
+    const lotes = await LotesArticuloSucursalRepository.listByEmpresaArticulo(id_empre, id_artic, {
       where,
       order
+    });
+
+    if (!lotes.length) return [];
+
+    // Suma el stock real de stock_ubicacion_lote por lote
+    const loteIds = lotes.map(l => l.id_lote_sucursal);
+    const stockRows = await Stock_Ubicacion_Lote.findAll({
+      where: { id_lote: loteIds, id_empresa_sucursal: id_empre },
+      attributes: ['id_lote', [fn('SUM', col('cantidad')), 'cantidad_total']],
+      group: ['id_lote'],
+      raw: true,
+    }) as any[];
+
+    const stockMap = new Map<string, number>(
+      stockRows.map(s => [s.id_lote, Number(s.cantidad_total ?? 0)])
+    );
+
+    return lotes.map(l => {
+      const json = l.toJSON() as any;
+      json.cantidad_lote_sucursal = stockMap.get(l.id_lote_sucursal) ?? 0;
+      return json;
     });
   },
   getExistenciaTotal: async (id_empre: string, id_artic: string): Promise<number> => {

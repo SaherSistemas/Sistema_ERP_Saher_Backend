@@ -7,6 +7,7 @@ import Proveedor from '../../../Compras/Proveedores/model/Proveedor';
 import Cat_Forma_De_Pago from '../../../Catalogos/model/Cat_Forma_De_Pago';
 import Empleado from '../../../RRHH/model/Empleado';
 import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
+import NotasCreditoProveedor from '../../../../models/Devolucion_NC/NC/NotasCreditoProveedor';
 
 
 export const CxPRepository = {
@@ -14,22 +15,22 @@ export const CxPRepository = {
     // ── Lista de CxP con filtros ──────────────────────────────────────────────
     getAll: async (filtros: {
         id_proveedor?: string;
-        estatus_cxp?:  string;
+        estatus_cxp?: string;
         fecha_inicio?: string;
-        fecha_fin?:    string;
-        vencidas?:     boolean;
+        fecha_fin?: string;
+        vencidas?: boolean;
     }) => {
         const where: any = {};
         if (filtros.id_proveedor) where.id_proveedor = filtros.id_proveedor;
-        if (filtros.estatus_cxp)  where.estatus_cxp  = filtros.estatus_cxp;
+        if (filtros.estatus_cxp) where.estatus_cxp = filtros.estatus_cxp;
         if (filtros.vencidas) {
             where.fecha_vencimiento = { [Op.lt]: new Date() };
-            where.saldo_pendiente   = { [Op.gt]: 0 };
+            where.saldo_pendiente = { [Op.gt]: 0 };
         }
         if (filtros.fecha_inicio || filtros.fecha_fin) {
             where.fecha_vencimiento = {};
             if (filtros.fecha_inicio) where.fecha_vencimiento[Op.gte] = new Date(filtros.fecha_inicio);
-            if (filtros.fecha_fin)    where.fecha_vencimiento[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
+            if (filtros.fecha_fin) where.fecha_vencimiento[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
         }
 
         return await Cuenta_Por_Pagar.findAll({
@@ -47,7 +48,7 @@ export const CxPRepository = {
             where: { id_proveedor },
             include: [
                 { model: Proveedor, attributes: ['id_prove', 'nomcort_prove', 'razsoc_prove'] },
-                { model: Pago_CxP,  as: 'pagos', include: [{ model: Cat_Forma_De_Pago }] },
+                { model: Pago_CxP, as: 'pagos', include: [{ model: Cat_Forma_De_Pago }] },
             ],
             order: [['fecha_vencimiento', 'ASC']],
         });
@@ -57,13 +58,36 @@ export const CxPRepository = {
     getById: async (id_cxp: string) => {
         return await Cuenta_Por_Pagar.findByPk(id_cxp, {
             include: [
-                { model: Proveedor, attributes: ['id_prove', 'nomcort_prove', 'razsoc_prove', 'rfc_prove', 'limicre_prove'] },
+                { model: Proveedor, attributes: ['id_prove', 'nomcort_prove', 'razsoc_prove', 'rfc_prove', 'limicre_prove', 'diascre_prove'] },
                 {
                     model: Pago_CxP, as: 'pagos',
                     include: [
                         { model: Cat_Forma_De_Pago },
                         { model: Empleado, attributes: ['id_empleado', 'nombre_empleado', 'ap_pat_empleado'] },
                     ],
+                },
+                {
+                    model: Factura_Compra_Proveedor,
+                    attributes: [
+                        'id_factura_proveedor',
+                        'folio_factura_proveedor',
+                        'fecha_emision',
+                        'total_factura_proveedor',
+                        'total_iva_factura',
+                        'total_recibido_factura',
+                        'total_iva_recibido_factura',
+                        'url_PDF',
+                        'url_XML',
+                        'estado_factura_proveedor',
+                    ],
+                    include: [
+                        {
+                            model: NotasCreditoProveedor,
+                            attributes: ['id_nc', 'folio_nc', 'total_nc', 'estado_nc', 'fecha_emision'],
+                            required: false,
+                        },
+                    ],
+                    required: false,
                 },
             ],
         });
@@ -72,38 +96,38 @@ export const CxPRepository = {
     // ── Crear CxP ────────────────────────────────────────────────────────────
     create: async (data: {
         id_factura_proveedor?: string;
-        id_proveedor:    string;
-        folio_factura?:  string;
-        fecha_factura?:  string;
+        id_proveedor: string;
+        folio_factura?: string;
+        fecha_factura?: string;
         fecha_vencimiento: string;
-        monto_total:     number;
-        notas?:          string;
+        monto_total: number;
+        notas?: string;
         id_empleado_registro?: string;
     }) => {
         return await Cuenta_Por_Pagar.create({
-            id_cxp:               uuidv4(),
+            id_cxp: uuidv4(),
             id_factura_proveedor: data.id_factura_proveedor ?? null,
-            id_proveedor:         data.id_proveedor,
-            folio_factura:        data.folio_factura ?? null,
-            fecha_factura:        data.fecha_factura ? new Date(data.fecha_factura) : null,
-            fecha_vencimiento:    new Date(data.fecha_vencimiento),
-            monto_total:          data.monto_total,
-            monto_pagado:         0,
-            saldo_pendiente:      data.monto_total,
-            estatus_cxp:          'PEN',
-            notas:                data.notas ?? null,
+            id_proveedor: data.id_proveedor,
+            folio_factura: data.folio_factura ?? null,
+            fecha_factura: data.fecha_factura ? new Date(data.fecha_factura) : null,
+            fecha_vencimiento: new Date(data.fecha_vencimiento),
+            monto_total: data.monto_total,
+            monto_pagado: 0,
+            saldo_pendiente: data.monto_total,
+            estatus_cxp: 'PEN',
+            notas: data.notas ?? null,
             id_empleado_registro: data.id_empleado_registro ?? null,
         });
     },
 
     // ── Registrar pago + actualizar saldo ─────────────────────────────────────
     registrarPago: async (data: {
-        id_cxp:           string;
-        monto_pago:       number;
-        fecha_pago:       string;
-        id_forma_pago?:   string;
+        id_cxp: string;
+        monto_pago: number;
+        fecha_pago: string;
+        id_forma_pago?: string;
         referencia_pago?: string;
-        notas?:           string;
+        notas?: string;
         url_comprobante?: string;
         id_empleado_captura?: string;
     }) => {
@@ -118,28 +142,28 @@ export const CxPRepository = {
 
             // Crear pago
             const pago = await Pago_CxP.create({
-                id_pago_cxp:        uuidv4(),
-                id_cxp:             data.id_cxp,
-                monto_pago:         data.monto_pago,
-                fecha_pago:         new Date(data.fecha_pago),
-                id_forma_pago:      data.id_forma_pago ?? null,
-                referencia_pago:    data.referencia_pago ?? null,
-                notas:              data.notas ?? null,
-                url_comprobante:    data.url_comprobante ?? null,
+                id_pago_cxp: uuidv4(),
+                id_cxp: data.id_cxp,
+                monto_pago: data.monto_pago,
+                fecha_pago: new Date(data.fecha_pago),
+                id_forma_pago: data.id_forma_pago ?? null,
+                referencia_pago: data.referencia_pago ?? null,
+                notas: data.notas ?? null,
+                url_comprobante: data.url_comprobante ?? null,
                 id_empleado_captura: data.id_empleado_captura ?? null,
-                estatus_pago:       'APL',
-                created_at:         new Date(),
+                estatus_pago: 'APL',
+                created_at: new Date(),
             }, { transaction: t });
 
             // Actualizar saldo
-            const nuevoMontoPagado  = +(Number(cxp.monto_pagado) + data.monto_pago).toFixed(2);
-            const nuevoSaldo        = +(Number(cxp.monto_total)   - nuevoMontoPagado).toFixed(2);
-            const nuevoEstatus      = nuevoSaldo <= 0 ? 'PAG' : 'PAR';
+            const nuevoMontoPagado = +(Number(cxp.monto_pagado) + data.monto_pago).toFixed(2);
+            const nuevoSaldo = +(Number(cxp.monto_total) - nuevoMontoPagado).toFixed(2);
+            const nuevoEstatus = nuevoSaldo <= 0 ? 'PAG' : 'PAR';
 
             await Cuenta_Por_Pagar.update({
-                monto_pagado:    nuevoMontoPagado,
+                monto_pagado: nuevoMontoPagado,
                 saldo_pendiente: Math.max(0, nuevoSaldo),
-                estatus_cxp:     nuevoEstatus,
+                estatus_cxp: nuevoEstatus,
             }, { where: { id_cxp: data.id_cxp }, transaction: t });
 
             // Si quedó pagada, marcar la factura como PAGADA
@@ -169,13 +193,13 @@ export const CxPRepository = {
     // ── Dashboard: resumen general ────────────────────────────────────────────
     getResumen: async () => {
         const rows = await dbLocal.query<{
-            total_facturas:    number;
-            total_pendiente:   number;
-            total_vencido:     number;
-            total_pagado_mes:  number;
+            total_facturas: number;
+            total_pendiente: number;
+            total_vencido: number;
+            total_pagado_mes: number;
         }>(`
             SELECT
-                COUNT(*)::int                                                               AS total_facturas,
+                COUNT(CASE WHEN estatus_cxp IN ('PEN','PAR','VEN') THEN 1 END)::int         AS total_facturas,
                 COALESCE(SUM(CASE WHEN estatus_cxp IN ('PEN','PAR','VEN') THEN saldo_pendiente ELSE 0 END), 0) AS total_pendiente,
                 COALESCE(SUM(CASE WHEN estatus_cxp = 'VEN' THEN saldo_pendiente ELSE 0 END), 0)               AS total_vencido,
                 COALESCE(SUM(CASE WHEN DATE_TRUNC('month', "updatedAt") = DATE_TRUNC('month', NOW())
@@ -194,14 +218,14 @@ export const CxPRepository = {
         });
 
         const rows = await dbLocal.query<{
-            id_cxp:             string;
-            folio_factura:      string;
-            fecha_factura:      string;
-            fecha_vencimiento:  string;
-            monto_original:     string;
+            id_cxp: string;
+            folio_factura: string;
+            fecha_factura: string;
+            fecha_vencimiento: string;
+            monto_original: string;
             pagado_hasta_fecha: string;
-            saldo_en_fecha:     string;
-            vencida_en_fecha:   boolean;
+            saldo_en_fecha: string;
+            vencida_en_fecha: boolean;
         }>(`
             SELECT
                 cxp.id_cxp,
@@ -244,30 +268,30 @@ export const CxPRepository = {
         });
 
         const detalle = rows.map(r => ({
-            id_cxp:             r.id_cxp,
-            folio_factura:      r.folio_factura,
-            fecha_factura:      r.fecha_factura,
-            fecha_vencimiento:  r.fecha_vencimiento,
-            monto_original:     Number(r.monto_original),
+            id_cxp: r.id_cxp,
+            folio_factura: r.folio_factura,
+            fecha_factura: r.fecha_factura,
+            fecha_vencimiento: r.fecha_vencimiento,
+            monto_original: Number(r.monto_original),
             pagado_hasta_fecha: Number(r.pagado_hasta_fecha),
-            saldo_en_fecha:     Number(r.saldo_en_fecha),
-            vencida_en_fecha:   r.vencida_en_fecha,
+            saldo_en_fecha: Number(r.saldo_en_fecha),
+            vencida_en_fecha: r.vencida_en_fecha,
         }));
 
-        const total_saldo   = detalle.reduce((s, r) => s + r.saldo_en_fecha,   0);
+        const total_saldo = detalle.reduce((s, r) => s + r.saldo_en_fecha, 0);
         const total_vencido = detalle.filter(r => r.vencida_en_fecha).reduce((s, r) => s + r.saldo_en_fecha, 0);
 
         return {
             proveedor: proveedor ? {
-                nombre:    proveedor.nomcort_prove || proveedor.razsoc_prove,
-                rfc:       proveedor.rfc_prove,
+                nombre: proveedor.nomcort_prove || proveedor.razsoc_prove,
+                rfc: proveedor.rfc_prove,
             } : null,
             fecha_corte,
             resumen: {
                 total_saldo,
                 total_vencido,
-                total_vigente:  total_saldo - total_vencido,
-                num_facturas:   detalle.length,
+                total_vigente: total_saldo - total_vencido,
+                num_facturas: detalle.length,
             },
             detalle,
         };
@@ -276,11 +300,11 @@ export const CxPRepository = {
     // ── Saldos globales de TODOS los proveedores al día X ────────────────────
     getSaldosGlobalesProveedores: async (fecha_corte: string) => {
         return await dbLocal.query<{
-            id_prove:      string;
-            nombre:        string;
-            rfc:           string;
-            num_facturas:  number;
-            total_saldo:   string;
+            id_prove: string;
+            nombre: string;
+            rfc: string;
+            num_facturas: number;
+            total_saldo: string;
             total_vencido: string;
             total_vigente: string;
         }>(`
@@ -336,10 +360,10 @@ export const CxPRepository = {
     // ── Dashboard: crédito por proveedor ──────────────────────────────────────
     getCreditoPorProveedor: async () => {
         const rows = await dbLocal.query<{
-            id_prove:      string;
-            nombre:        string;
+            id_prove: string;
+            nombre: string;
             limite_credito: number;
-            usado:         number;
+            usado: number;
         }>(`
             SELECT
                 p.id_prove,
@@ -364,9 +388,9 @@ export const CxPRepository = {
     // ── Dashboard: antigüedad de saldos ───────────────────────────────────────
     getAntiguedad: async () => {
         const rows = await dbLocal.query<{
-            tramo:  string;
-            total:  number;
-            monto:  number;
+            tramo: string;
+            total: number;
+            monto: number;
         }>(`
             SELECT tramo, total, monto
             FROM (

@@ -36,6 +36,13 @@ class Caja extends Model {
     })
     declare activa: boolean;
 
+    @Column({
+        type: DataType.DECIMAL(10, 2),
+        allowNull: true,
+        defaultValue: null,
+    })
+    declare monto_limite_retiro: number | null;
+
     @HasMany(() => Venta)
     declare ventas?: Venta[];
 

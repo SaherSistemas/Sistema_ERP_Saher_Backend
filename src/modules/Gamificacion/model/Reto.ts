@@ -5,9 +5,10 @@ import {
 import Empresa_Sucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import Articulo from '../../Catalogos/Articulos/model/Articulo';
 import Categoria_Articulo from '../../Catalogos/Articulos/model/Categoria_Articulo';
+import Categoria_Empresa from './Categoria_Empresa';
 
 export type TipoReto = 'MONTO' | 'CANTIDAD_ARTICULO' | 'NUM_VENTAS' | 'CATEGORIA';
-export type PeriodoReto = 'CORTE' | 'DIA';
+export type PeriodoReto = 'CORTE' | 'DIA' | 'SEMANA' | 'QUINCENAL' | 'MENSUAL' | 'FECHA_ESPECIFICA';
 export type TipoObjetivoCat = 'MONTO' | 'CANTIDAD';
 
 @Table({ tableName: 'reto', timestamps: true })
@@ -25,8 +26,12 @@ class Reto extends Model {
     @Column({ type: DataType.STRING(30), allowNull: false })
     declare tipo_reto: TipoReto;
 
-    @Column({ type: DataType.STRING(10), allowNull: false })
+    @Column({ type: DataType.STRING(20), allowNull: false })
     declare periodo: PeriodoReto;
+
+    /** Solo para FECHA_ESPECIFICA — fecha exacta del reto (YYYY-MM-DD) */
+    @Column({ type: DataType.DATEONLY, allowNull: true })
+    declare fecha_especifica: string | null;
 
     /** Valor objetivo (pesos, cantidad de piezas, número de ventas) */
     @Column({ type: DataType.DECIMAL(12, 2), allowNull: false })
@@ -40,13 +45,21 @@ class Reto extends Model {
     @BelongsTo(() => Articulo)
     declare articulo: Articulo;
 
-    /** Para CATEGORIA */
+    /** Para CATEGORIA (global, legado) */
     @ForeignKey(() => Categoria_Articulo)
     @Column({ type: DataType.UUID, allowNull: true })
     declare id_categoria: string | null;
 
     @BelongsTo(() => Categoria_Articulo)
     declare categoria: Categoria_Articulo;
+
+    /** Para CATEGORIA — categoría por empresa (nuevo sistema) */
+    @ForeignKey(() => Categoria_Empresa)
+    @Column({ type: DataType.UUID, allowNull: true })
+    declare id_categoria_empresa: string | null;
+
+    @BelongsTo(() => Categoria_Empresa)
+    declare categoria_empresa: Categoria_Empresa;
 
     /** Para CATEGORIA — mide por monto o cantidad */
     @Column({ type: DataType.STRING(10), allowNull: true })
@@ -62,6 +75,15 @@ class Reto extends Model {
     @Default(true)
     @Column({ type: DataType.BOOLEAN })
     declare activo: boolean;
+
+    /**
+     * Si está activo: el valor $ de las ventas de la categoría NO entra al presupuesto
+     * del empleado hasta que complete el reto (alcance el objetivo en pzas).
+     * Solo aplica a retos CATEGORIA con tipo_objetivo_categoria = 'CANTIDAD'.
+     */
+    @Default(false)
+    @Column({ type: DataType.BOOLEAN, allowNull: false })
+    declare excluye_monto_hasta_completar: boolean;
 
     @ForeignKey(() => Empresa_Sucursal)
     @Column({ type: DataType.UUID, allowNull: false })

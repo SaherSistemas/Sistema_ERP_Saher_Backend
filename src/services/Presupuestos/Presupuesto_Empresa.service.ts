@@ -6,7 +6,14 @@ export const Presupuesto_EmpresaService = {
     return await Presupuesto_EmpresaRepository.getAll();
   },
   create: async (data: ICreateOrUpdatePresupuesto_Empresa) => {
-    const { monto_total, turnos_planeados } = data;
+    const { monto_total, turnos_planeados, id_empre } = data;
+
+    const activo = await Presupuesto_EmpresaRepository.getAllPresupuestoVigenteEmpresa(id_empre);
+    if (activo) {
+      const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const label = `${MESES[(activo.mes ?? 1) - 1]} ${activo.anio}`;
+      throw new Error(`Ya existe un presupuesto activo (${label} — ${activo.estado_presupuesto}). Ciérralo antes de crear uno nuevo.`);
+    }
 
     const monto_por_turno =
       turnos_planeados > 0 ? monto_total / turnos_planeados : 0;

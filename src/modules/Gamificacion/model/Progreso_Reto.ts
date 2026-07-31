@@ -52,6 +52,15 @@ class Progreso_Reto extends Model {
 
     @Column({ type: DataType.DATE, allowNull: true })
     declare fecha_completado: Date | null;
+
+    /**
+     * Acumula el valor $ de ventas de categoría mientras el reto no está completado
+     * y el reto tiene excluye_monto_hasta_completar = true.
+     * Se pone a 0 al completar el reto.
+     */
+    @Default(0)
+    @Column({ type: DataType.DECIMAL(12, 2) })
+    declare monto_en_espera: number;
 }
 
 export default Progreso_Reto;

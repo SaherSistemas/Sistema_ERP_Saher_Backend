@@ -17,4 +17,10 @@ router.post('/actualizar-progreso', RetoController.actualizarProgreso);
 router.get('/puntos/:id_empleado', RetoController.getPuntosTotales);
 router.get('/logros/:id_empleado', RetoController.getHistorialLogros);
 
+// Detalle de ventas + presupuesto de un empleado en un periodo específico (antes de /:id)
+router.get('/empleado-periodo-detalle', RetoController.getEmpleadoPeriodoDetalle);
+
+// Historial de empleados por reto (admin)
+router.get('/:id/historial', RetoController.getHistorialPorReto);
+
 export default router;

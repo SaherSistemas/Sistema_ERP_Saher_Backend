@@ -1,6 +1,8 @@
 import { dbLocal } from '../../../config/db';
 import { RetoRepository } from '../repository/Reto.repository';
 import Reto from '../model/Reto';
+import Articulo_Categoria_Empresa from '../model/Articulo_Categoria_Empresa';
+import { calcularPeriodoRef } from '../utils/periodoRef';
 
 interface DetalleVentaInput {
     id_artic: string;
@@ -18,6 +20,7 @@ interface ActualizarProgresoInput {
     num_ventas_incremento: number; // siempre 1 por venta
     detalles: DetalleVentaInput[];
 }
+
 
 export const RetoService = {
 
@@ -38,6 +41,15 @@ export const RetoService = {
 
     getHistorialLogros: (id_empleado: string) => RetoRepository.getHistorialLogros(id_empleado),
 
+    getHistorialPorReto: (id_reto: string) => RetoRepository.getHistorialPorReto(id_reto),
+
+    getEmpleadoPeriodoDetalle: (
+        id_empleado: string,
+        id_empresa: string,
+        periodo_ref: string,
+        tipo_periodo: string
+    ) => RetoRepository.getEmpleadoPeriodoDetalle(id_empleado, id_empresa, periodo_ref, tipo_periodo),
+
     /**
      * Se llama tras cada venta confirmada.
      * Devuelve la lista de retos recién completados para disparar la animación en el POS.
@@ -53,8 +65,9 @@ export const RetoService = {
             for (const reto of retosActivos) {
                 if (!reto.activo) continue;
 
-                const periodo_ref = reto.periodo === 'CORTE' ? id_corte : fecha_dia;
+                const periodo_ref = calcularPeriodoRef(reto.periodo, id_corte, fecha_dia, (reto as any).fecha_especifica);
                 let incremento = 0;
+                let monto_categoria: number | undefined;
 
                 switch (reto.tipo_reto) {
                     case 'MONTO':
@@ -72,11 +85,25 @@ export const RetoService = {
                     }
 
                     case 'CATEGORIA': {
-                        const lineasCat = detalles.filter(d => d.id_categoria === reto.id_categoria);
+                        let articulosCategoria: string[] = [];
+                        if (reto.id_categoria_empresa) {
+                            const asignaciones = await Articulo_Categoria_Empresa.findAll({
+                                where: { id_categoria_empresa: reto.id_categoria_empresa },
+                                attributes: ['id_artic'],
+                            });
+                            articulosCategoria = asignaciones.map((a: any) => a.id_artic);
+                        }
+                        const lineasCat = reto.id_categoria_empresa
+                            ? detalles.filter(d => articulosCategoria.includes(d.id_artic))
+                            : detalles.filter(d => d.id_categoria === reto.id_categoria);
                         if (reto.tipo_objetivo_categoria === 'MONTO') {
                             incremento = lineasCat.reduce((s, d) => s + d.cantidad * d.precio_unitario, 0);
                         } else {
                             incremento = lineasCat.reduce((s, d) => s + d.cantidad, 0);
+                            // Si el reto excluye del presupuesto hasta completar, rastrear el valor $
+                            if ((reto as any).excluye_monto_hasta_completar) {
+                                monto_categoria = lineasCat.reduce((s, d) => s + d.cantidad * d.precio_unitario, 0);
+                            }
                         }
                         break;
                     }
@@ -85,7 +112,7 @@ export const RetoService = {
                 if (incremento <= 0) continue;
 
                 const { recienCompletado, reto: retoObj } = await RetoRepository.upsertProgreso(
-                    reto.id_reto, id_empleado, periodo_ref, incremento, t
+                    reto.id_reto, id_empleado, periodo_ref, incremento, t, monto_categoria
                 );
 
                 if (recienCompletado && retoObj) {

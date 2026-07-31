@@ -39,6 +39,11 @@ class Agente_de_Venta extends Model {
   declare cod_identi_agente: string;
 
   @Column({
+    type: DataType.STRING(100)
+  })
+  declare id_sysviejo: string;
+
+  @Column({
     type: DataType.DATE
   })
   declare fecha_alta_agente: Date;
