@@ -82,9 +82,6 @@ import ParametroCajaRouter from './Caja/Parametro_CajaRouter';
 import CajaRouter from './Caja/CajaRouter';
 import Corte_CajaRouter from './Caja/Corte_CajaRouter';
 
-//Stock
-import Stock_SucursalRouter from './Stock/Stock_SucursalRouter';
-
 //Lotes Sucursal
 import Lote_ArticuloSucursalRouter from '../modules/Inventario/Lotes/routes/Lote_ArticuloSucursalRouter';
 import Lote_Usado_VentaRouter from './LotesYCaducidades/Lote_Usado_VentaRouter';
@@ -233,9 +230,6 @@ router.use('/caja', CajaRouter);
 router.use('/corte_caja', Corte_CajaRouter);
 
 router.use('/movimiento_caja', Movimiento_CajaRouter);
-
-//Stock
-router.use('/stock', Stock_SucursalRouter);
 
 //Lote sucursal
 router.use('/lote_sucursal', Lote_ArticuloSucursalRouter);

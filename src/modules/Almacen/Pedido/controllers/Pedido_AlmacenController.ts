@@ -4,6 +4,8 @@ import { ActualizarDetallesPedidoRequest } from '../interface/Pedido_Almacen';
 import { io } from '../../../../server_ws';
 import { AuthedRequest } from '../../../../middleware/auth';
 import Pedido_Almacen from '../model/Pedido_Almacen';
+import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
+import { v4 as uuidv4 } from 'uuid';
 
 export class Pedido_AlmacenController {
   /*CHECARRR */
@@ -216,12 +218,10 @@ export class Pedido_AlmacenController {
       // Emitir el pedido a todos los surtidores conectados
       io.emit('pedido_nuevo_surtir', finalizarPedido);
       res.status(200).json(finalizarPedido);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
-      res.status(500).json({ mensaje: 'Error al finalizar pedidos.' });
+      res.status(500).json({ message: error?.message ?? 'Error al finalizar pedidos.' });
     }
-
-
   }
 
   // GET por ID
@@ -286,6 +286,49 @@ export class Pedido_AlmacenController {
       res.json({ ok: true });
     } catch (error: any) {
       res.status(500).json({ mensaje: error.message });
+    }
+  };
+
+  // GET /pedido/:id_pedido_alm/hoja-surtido
+  static getHojaSurtido = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const id_empresa = req.user?.id_empresa;
+      const data = await Pedido_AlmacenService.getHojaSurtido(id_pedido_alm, id_empresa);
+      res.json(data);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ message: error.message || 'Error al obtener hoja de surtido.' });
+    }
+  };
+
+  // POST /pedido/:id_pedido_alm/asignar-surtidor-cod
+  // Body: { cod_interno: number }
+  static asignarSurtidorPorCodigo = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const { cod_interno } = req.body as { cod_interno: number };
+      if (!cod_interno) { res.status(400).json({ message: 'cod_interno requerido' }); return; }
+      const id_empresa = req.user?.id_empresa;
+      const resultado = await Pedido_AlmacenService.asignarSurtidorPorCodigo(id_pedido_alm, Number(cod_interno), id_empresa);
+      res.json(resultado);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ message: error.message || 'Error al asignar surtidor.' });
+    }
+  };
+
+  // POST /pedido/:id_pedido_alm/finalizar-surtido-papel
+  static finalizarSurtidoPapel = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const { detalles } = req.body as { detalles: any[] };
+      if (!Array.isArray(detalles) || detalles.length === 0) {
+        res.status(400).json({ message: 'Se requiere al menos un detalle.' });
+        return;
+      }
+      const resultado = await Pedido_AlmacenService.finalizarSurtidoPapel(id_pedido_alm, detalles);
+      res.json(resultado);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ message: error.message || 'Error al finalizar surtido.' });
     }
   };
 
@@ -372,6 +415,46 @@ export class Pedido_AlmacenController {
     } catch (error: any) {
       console.log(error);
       res.status(error.status || 500).json({ mensaje: error.message || 'Error al importar pedido de PolyDB.' });
+    }
+  };
+
+  // POST /pedido/:id/detalle  — agrega un renglón al pedido (solo admin)
+  static agregarDetalle = async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { id_articulo, cant_pedida, precio_venta } = req.body as {
+        id_articulo: string; cant_pedida: number; precio_venta: number;
+      };
+      if (!id_articulo || !cant_pedida) {
+        res.status(400).json({ mensaje: 'id_articulo y cant_pedida son requeridos' }); return;
+      }
+      const pedido = await Pedido_Almacen.findByPk(id, { attributes: ['id_pedido_alm', 'status_pedido_alm'] });
+      if (!pedido) { res.status(404).json({ mensaje: 'Pedido no encontrado' }); return; }
+      const detalle = await Detalle_Pedido_Almacen.create({
+        id_detalle_pedido_almacen: uuidv4(),
+        id_pedido_almacen: id,
+        id_articulo,
+        cant_pedida: Number(cant_pedida),
+        precio_venta: Number(precio_venta ?? 0),
+        es_oferta: false,
+      });
+      res.status(201).json(detalle);
+    } catch (error: any) {
+      res.status(500).json({ mensaje: error.message });
+    }
+  };
+
+  // DELETE /pedido/:id/detalle/:id_detalle  — elimina un renglón (solo admin)
+  static eliminarDetalle = async (req: Request, res: Response) => {
+    try {
+      const { id, id_detalle } = req.params;
+      const deleted = await Detalle_Pedido_Almacen.destroy({
+        where: { id_detalle_pedido_almacen: id_detalle, id_pedido_almacen: id },
+      });
+      if (!deleted) { res.status(404).json({ mensaje: 'Detalle no encontrado' }); return; }
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ mensaje: error.message });
     }
   };
 

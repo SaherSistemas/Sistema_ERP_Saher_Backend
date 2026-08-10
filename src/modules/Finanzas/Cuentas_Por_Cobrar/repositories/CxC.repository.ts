@@ -17,15 +17,91 @@ interface ICreateCxC {
 
 export const CxCRepository = {
 
-    getAll: async () => {
-        return await Cuenta_Por_Cobrar.findAll({
-            include: [
-                { model: Cliente_Almacen, attributes: ['id_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'] },
-                { model: Facturas, attributes: ['id_factura', 'folio_factura', 'uuid_sat'], required: false },
-                { model: Remision, attributes: ['id_remision', 'folio_remision', 'fecha_remision'], required: false },
-            ],
-            order: [['fecha_vencimiento', 'ASC']],
-        });
+    getAll: async (filtros?: {
+        estatus?: string;
+        fecha_inicio?: string;
+        fecha_fin?: string;
+        cliente?: string;
+        agente?: string;
+        page?: number;
+        limit?: number;
+    }) => {
+        const page  = Number(filtros?.page  ?? 1);
+        const limit = Number(filtros?.limit ?? 50);
+        const offset = (page - 1) * limit;
+
+        const conditions: string[] = [];
+        const replacements: Record<string, any> = { limit, offset };
+
+        // "Vencida" se filtra por fecha real, no por campo estatus_cxc
+        if (filtros?.estatus === 'VEN') {
+            conditions.push(`cxc.saldo_pendiente > 0 AND cxc.fecha_vencimiento < NOW()`);
+        } else if (filtros?.estatus) {
+            conditions.push(`cxc.estatus_cxc = :estatus`);
+            replacements.estatus = filtros.estatus;
+        }
+
+        if (filtros?.cliente) {
+            conditions.push(`(LOWER(ca.razon_social_cliente_alm) LIKE :cliente OR LOWER(ca.nom_corto_cliente_alm) LIKE :cliente OR LOWER(ca.rfc_cliente_alm) LIKE :cliente)`);
+            replacements.cliente = `%${filtros.cliente.toLowerCase()}%`;
+        }
+
+        if (filtros?.agente) {
+            conditions.push(`LOWER(CONCAT(e.nombre_empleado,' ',e.ap_pat_empleado)) LIKE :agente`);
+            replacements.agente = `%${filtros.agente.toLowerCase()}%`;
+        }
+
+        if (filtros?.fecha_inicio) {
+            conditions.push(`cxc."createdAt"::date >= :fecha_inicio`);
+            replacements.fecha_inicio = filtros.fecha_inicio;
+        }
+        if (filtros?.fecha_fin) {
+            conditions.push(`cxc."createdAt"::date <= :fecha_fin`);
+            replacements.fecha_fin = filtros.fecha_fin;
+        }
+
+        const whereClause = conditions.length ? `AND ${conditions.join(' AND ')}` : '';
+
+        const [rows, [{ total }]] = await Promise.all([
+            dbLocal.query<{
+                id_cxc: string; estatus_cxc: string; monto_total: number;
+                saldo_pendiente: number; fecha_vencimiento: string; createdAt: string;
+                folio_factura: string | null; total_factura: number | null;
+                folio_remision: string | null; id_cliente_alm: string;
+                razon_social_cliente_alm: string; nom_corto_cliente_alm: string;
+                rfc_cliente_alm: string | null; nombre_agente: string | null;
+            }>(`
+                SELECT
+                    cxc.id_cxc, cxc.estatus_cxc, cxc.monto_total, cxc.saldo_pendiente,
+                    cxc.fecha_vencimiento, cxc."createdAt",
+                    f.folio_factura,
+                    cxc.monto_total AS total_factura,
+                    r.folio_remision,
+                    ca.id_cliente_alm, ca.razon_social_cliente_alm,
+                    ca.nom_corto_cliente_alm, ca.rfc_cliente_alm,
+                    CONCAT(e.nombre_empleado, ' ', e.ap_pat_empleado) AS nombre_agente
+                FROM cuenta_por_cobrar cxc
+                JOIN  cliente_almacen   ca  ON ca.id_cliente_alm = cxc.id_cliente_alm
+                LEFT JOIN facturas      f   ON f.id_factura      = cxc.id_factura
+                LEFT JOIN remision      r   ON r.id_remision     = cxc.id_remision
+                LEFT JOIN agente_de_venta av ON av.id_agente     = ca.id_agente_cliente_alm
+                LEFT JOIN empleado      e   ON e.id_empleado     = av.id_empleado
+                WHERE 1=1 ${whereClause}
+                ORDER BY cxc.fecha_vencimiento ASC
+                LIMIT :limit OFFSET :offset
+            `, { replacements, type: QueryTypes.SELECT }),
+
+            dbLocal.query<{ total: string }>(`
+                SELECT COUNT(*) AS total
+                FROM cuenta_por_cobrar cxc
+                JOIN  cliente_almacen   ca  ON ca.id_cliente_alm = cxc.id_cliente_alm
+                LEFT JOIN agente_de_venta av ON av.id_agente     = ca.id_agente_cliente_alm
+                LEFT JOIN empleado      e   ON e.id_empleado     = av.id_empleado
+                WHERE 1=1 ${whereClause}
+            `, { replacements, type: QueryTypes.SELECT }),
+        ]);
+
+        return { rows, total: Number(total) };
     },
 
     getByCliente: async (id_cliente_alm: string) => {
@@ -145,6 +221,8 @@ export const CxCRepository = {
     },
 
     // ── Resumen general (Dashboard) ───────────────────────────────────────────
+    // "Vencida" se calcula por fecha real (fecha_vencimiento < HOY AND saldo > 0),
+    // no por el campo estatus_cxc, que depende del job marcarVencidas.
     getResumenGeneral: async () => {
         const [resumen] = await dbLocal.query<{
             total_cuentas_abiertas: number;
@@ -158,15 +236,15 @@ export const CxCRepository = {
             clientes_vencidos: number;
         }>(`
             SELECT
-                COUNT(*)           FILTER (WHERE estatus_cxc IN ('PEN','PAR','VEN')) AS total_cuentas_abiertas,
-                COUNT(*)           FILTER (WHERE estatus_cxc = 'VEN')                AS cuentas_vencidas,
-                COUNT(*)           FILTER (WHERE estatus_cxc = 'PAR')                AS cuentas_parciales,
-                COUNT(*)           FILTER (WHERE estatus_cxc = 'PAG')                AS cuentas_pagadas,
-                COALESCE(SUM(saldo_pendiente) FILTER (WHERE estatus_cxc IN ('PEN','PAR','VEN')), 0) AS cartera_total,
-                COALESCE(SUM(saldo_pendiente) FILTER (WHERE estatus_cxc = 'VEN'),               0) AS cartera_vencida,
-                COALESCE(SUM(saldo_pendiente) FILTER (WHERE estatus_cxc IN ('PEN','PAR')),       0) AS cartera_vigente,
-                COUNT(DISTINCT id_cliente_alm) FILTER (WHERE estatus_cxc IN ('PEN','PAR','VEN')) AS clientes_con_deuda,
-                COUNT(DISTINCT id_cliente_alm) FILTER (WHERE estatus_cxc = 'VEN')                AS clientes_vencidos
+                COUNT(*)           FILTER (WHERE estatus_cxc IN ('PEN','PAR','VEN'))                                      AS total_cuentas_abiertas,
+                COUNT(*)           FILTER (WHERE saldo_pendiente > 0 AND fecha_vencimiento < NOW())                        AS cuentas_vencidas,
+                COUNT(*)           FILTER (WHERE estatus_cxc = 'PAR')                                                     AS cuentas_parciales,
+                COUNT(*)           FILTER (WHERE estatus_cxc = 'PAG')                                                     AS cuentas_pagadas,
+                COALESCE(SUM(saldo_pendiente) FILTER (WHERE estatus_cxc IN ('PEN','PAR','VEN')),                     0)   AS cartera_total,
+                COALESCE(SUM(saldo_pendiente) FILTER (WHERE saldo_pendiente > 0 AND fecha_vencimiento < NOW()),       0)   AS cartera_vencida,
+                COALESCE(SUM(saldo_pendiente) FILTER (WHERE estatus_cxc IN ('PEN','PAR') AND fecha_vencimiento >= NOW()), 0) AS cartera_vigente,
+                COUNT(DISTINCT id_cliente_alm) FILTER (WHERE estatus_cxc IN ('PEN','PAR','VEN'))                          AS clientes_con_deuda,
+                COUNT(DISTINCT id_cliente_alm) FILTER (WHERE saldo_pendiente > 0 AND fecha_vencimiento < NOW())            AS clientes_vencidos
             FROM cuenta_por_cobrar
         `, { type: QueryTypes.SELECT });
 
@@ -406,6 +484,7 @@ export const CxCRepository = {
             WHERE cxc.estatus_cxc IN ('PEN', 'PAR', 'VEN')
             ${whereClause}
             GROUP BY ca.id_cliente_alm, ca.razon_social_cliente_alm, ca.nom_corto_cliente_alm
+            HAVING COALESCE(SUM(cxc.saldo_pendiente), 0) > 0
             ORDER BY total_saldo DESC
         `, {
             replacements: id_cliente_alm ? { id_cliente_alm } : {},

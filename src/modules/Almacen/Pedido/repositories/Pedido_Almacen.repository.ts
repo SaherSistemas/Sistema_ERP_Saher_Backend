@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import { literal, Op, Transaction } from 'sequelize';
+import { literal, Op, QueryTypes, Transaction } from 'sequelize';
 import Pedido_Almacen from '../model/Pedido_Almacen';
+import { dbLocal } from '../../../../config/db';
 import Prioridad_Agente_Reglas from '../../../Comercial/Agente_Venta/model/Prioridad_Agente_Regla';
 import { ActualizarDetallesPedidoRequest, ICreatePedidoAlmacen } from '../interface/Pedido_Almacen';
 
@@ -387,12 +388,14 @@ export const Pedido_AlmacenRepository = {
       include: [
         {
           model: Cliente_Almacen,
-          attributes: ['id_cliente_alm', 'id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm', 'rfc_cliente_alm', 'id_lista_precio_cliente_alm'],
+          as: 'cliente',
+          attributes: ['id_cliente_alm', 'id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm', 'rfc_cliente_alm'],
         },
         {
           model: Agente_de_Venta,
+          as: 'agente',
           attributes: ['cod_identi_agente'],
-          include: [{ model: Empleado, attributes: ['nombre_empleado', 'ap_pat_empleado'] }],
+          include: [{ model: Empleado, as: 'empleado', attributes: ['nombre_empleado', 'ap_pat_empleado'] }],
         },
         {
           model: Detalle_Pedido_Almacen,
@@ -400,7 +403,12 @@ export const Pedido_AlmacenRepository = {
           include: [{ model: Articulo, attributes: ['id_artic', 'cod_int_artic', 'des_artic', 'cod_barr_artic'] }],
         },
       ],
-      order: [['createdAt', 'DESC']],
+      order: [
+        [literal(`CASE WHEN fecha_max_entrega_alm IS NULL THEN 1 ELSE 0 END`), 'ASC'],
+        ['fecha_max_entrega_alm', 'ASC'],
+        ['id_cliente_pedido_alm', 'ASC'],
+        ['createdAt', 'ASC'],
+      ],
     });
 
     // Filtro de búsqueda en memoria (folio o nombre cliente)
@@ -552,5 +560,105 @@ export const Pedido_AlmacenRepository = {
     }
 
     return { pedido, detalles, empaque, entrega };
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // HOJA DE SURTIDO — datos completos para imprimir la hoja de picking
+  // ══════════════════════════════════════════════════════════════════════════
+  getHojaSurtido: async (id_pedido_alm: string, id_empresa: string) => {
+    // Cabecera del pedido
+    const cabecera = await dbLocal.query<any>(`
+      SELECT
+        pa.id_pedido_alm,
+        pa.cod_int_pedido_alm,
+        pa.status_pedido_alm,
+        pa."createdAt" AS fecha_pedido,
+        pa.inicio_surtido,
+        ca.id_interno_cliente_alm,
+        ca.razon_social_cliente_alm,
+        ca.nom_corto_cliente_alm,
+        CONCAT(ea.nombre_empleado, ' ', ea.ap_pat_empleado) AS nombre_agente,
+        CONCAT(es.nombre_empleado, ' ', es.ap_pat_empleado) AS nombre_surtidor
+      FROM pedido_almacen pa
+      JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+      LEFT JOIN agente_de_venta av ON av.id_agente = pa.id_agente_pedido_alm
+      LEFT JOIN empleado ea ON ea.id_empleado = av.id_empleado
+      LEFT JOIN (
+        SELECT DISTINCT ON (dpa2.id_pedido_almacen) dpa2.id_pedido_almacen, adpa.id_usuario
+        FROM detalle_pedido_almacen dpa2
+        JOIN detalle_pedido_almacen_asignacion adpa ON adpa.id_detalle_pedido_almacen = dpa2.id_detalle_pedido_almacen
+        ORDER BY dpa2.id_pedido_almacen, adpa.created_at ASC
+      ) asig ON asig.id_pedido_almacen = pa.id_pedido_alm
+      LEFT JOIN empleado es ON es.id_empleado = asig.id_usuario
+      WHERE pa.id_pedido_alm = :id_pedido_alm
+      LIMIT 1
+    `, { type: QueryTypes.SELECT, replacements: { id_pedido_alm } });
+
+    if (!cabecera.length) return null;
+
+    // Items ordenados por ubicación
+    const items = await dbLocal.query<any>(`
+      SELECT
+        dpa.id_detalle_pedido_almacen,
+        dpa.cant_pedida,
+        a.id_artic,
+        a.cod_int_artic,
+        a.cod_barr_artic,
+        a.des_artic,
+        CONCAT_WS('-', us.pasillo_ub, us.anaquel_ub, us.nivel_ub, us.posicion_ub) AS ubicacion,
+        us.tarima_ub,
+        us.tipo_ubicacion,
+        COALESCE(
+          (SELECT SUM(sul.cantidad) FROM stock_ubicacion_lote sul
+           WHERE sul.id_articulo = a.id_artic AND sul.id_empresa_sucursal = :id_empresa),
+          0
+        ) AS existencia_total
+      FROM detalle_pedido_almacen dpa
+      JOIN articulo a ON a.id_artic = dpa.id_articulo
+      LEFT JOIN articulo_ubicacion_default aud
+        ON aud.id_articulo = a.id_artic AND aud.id_empresa_sucursal = :id_empresa
+      LEFT JOIN ubicacion_sucursal us ON us.id_ubicacion_sucursal = aud.id_ubicacion_default
+      WHERE dpa.id_pedido_almacen = :id_pedido_alm
+      ORDER BY us.pasillo_ub NULLS LAST, us.anaquel_ub NULLS LAST, us.nivel_ub NULLS LAST, us.posicion_ub NULLS LAST
+    `, { type: QueryTypes.SELECT, replacements: { id_pedido_alm, id_empresa } });
+
+    // Lotes asignados por item
+    const lotes = await dbLocal.query<any>(`
+      SELECT
+        dpal.id_detalle_pedido_almacen,
+        dpal.cantidad,
+        las.id_lote_sucursal,
+        las.numero_lote_sucursal,
+        las.fecha_venci_lote_sucursal,
+        las.migracion,
+        dpal.lote_factura_numero,
+        dpal.lote_factura_fecha,
+        COALESCE(
+          (SELECT SUM(sul.cantidad) FROM stock_ubicacion_lote sul
+           WHERE sul.id_lote = las.id_lote_sucursal),
+          0
+        ) AS existencia_lote
+      FROM detalle_pedido_almacen_lote dpal
+      JOIN lote_articulo_sucursal las ON las.id_lote_sucursal = dpal.id_lote_sucursal
+      WHERE dpal.id_detalle_pedido_almacen IN (
+        SELECT id_detalle_pedido_almacen FROM detalle_pedido_almacen WHERE id_pedido_almacen = :id_pedido_alm
+      )
+    `, { type: QueryTypes.SELECT, replacements: { id_pedido_alm } });
+
+    // Agrupar lotes por detalle
+    const lotesPorDetalle = new Map<string, any[]>();
+    for (const l of lotes) {
+      if (!lotesPorDetalle.has(l.id_detalle_pedido_almacen)) {
+        lotesPorDetalle.set(l.id_detalle_pedido_almacen, []);
+      }
+      lotesPorDetalle.get(l.id_detalle_pedido_almacen)!.push(l);
+    }
+
+    const itemsConLotes = items.map((item: any) => ({
+      ...item,
+      lotes: lotesPorDetalle.get(item.id_detalle_pedido_almacen) ?? [],
+    }));
+
+    return { cabecera: cabecera[0], items: itemsConLotes };
   },
 };

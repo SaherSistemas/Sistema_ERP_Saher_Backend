@@ -7,6 +7,8 @@ const router = Router();
 // ─── DASHBOARD / RESUMEN ──────────────────────────────────────────────────────
 // GET /api/cxc/resumen
 router.get('/resumen', CxCController.getResumenGeneral);
+// GET /api/cxc/dashboard/cobros-diarios?fecha_inicio=&fecha_fin=
+router.get('/dashboard/cobros-diarios', CxCController.getCobrosDiarios);
 
 // ─── CLIENTES CON SALDO + PAGO POR RECIBO ────────────────────────────────────
 // GET  /api/cxc/clientes-deudores
@@ -39,6 +41,7 @@ router.get('/pagos/historial/:id_cxc', CxCController.getHistorialCxC);
 router.get('/pagos/mis-recibos', authMiddleware, CxCController.getMisRecibos);
 router.post('/:id_cxc/pago', CxCController.capturarPago);
 router.patch('/pago/:id_pago_cxc/aplicar', CxCController.aplicarPago);
+router.patch('/recibo/:numero_recibo/aplicar', authMiddleware, CxCController.aplicarRecibo);
 router.patch('/pago/:id_pago_cxc/editar', CxCController.editarPago);
 router.patch('/pago/:id_pago_cxc/cancelar', CxCController.cancelarPago);
 

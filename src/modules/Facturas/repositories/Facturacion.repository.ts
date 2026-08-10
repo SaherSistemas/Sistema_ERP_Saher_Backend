@@ -360,6 +360,26 @@ export const FacturacionRepository = {
         return factura;
     },
 
+    getById: async (id_factura: string) => {
+        return await Facturas.findByPk(id_factura, {
+            include: [
+                {
+                    model: Detalle_Factura,
+                    attributes: ['id_detalle_fact', 'descripcion_articulo', 'cantidad_facturada', 'precio_artic', 'subtotal', 'tasa_iva', 'importe_iva'],
+                },
+                {
+                    model: Cliente_Almacen,
+                    attributes: ['razon_social_cliente_alm', 'rfc_cliente_alm', 'nom_corto_cliente_alm'],
+                },
+                {
+                    model: Pedido_Almacen,
+                    attributes: ['cod_int_pedido_alm'],
+                    required: false,
+                },
+            ],
+        });
+    },
+
     actualizarTimbrado: async (id_factura: string, data: {
         uuid_sat:       string;
         fecha_timbrado: Date;
@@ -374,5 +394,61 @@ export const FacturacionRepository = {
             estatus_factura: 'TIM',
             estatus_sat:     'vigente',
         }, { where: { id_factura } });
+    },
+
+    // ── Dashboard ────────────────────────────────────────────────────────────────
+
+    resumenDiario: async (fecha_inicio: string, fecha_fin: string) => {
+        const rows = await dbLocal.query<{ fecha: string; total: string; facturas: string }>(`
+            SELECT
+                fecha_emision::date            AS fecha,
+                SUM(total_factura)             AS total,
+                COUNT(*)                       AS facturas
+            FROM facturas
+            WHERE tipo_cfdi = 'I'
+              AND estatus_factura IN ('PEN','TIM')
+              AND fecha_emision::date BETWEEN :fecha_inicio AND :fecha_fin
+            GROUP BY fecha_emision::date
+            ORDER BY fecha_emision::date
+        `, { replacements: { fecha_inicio, fecha_fin }, type: QueryTypes.SELECT });
+        return rows.map(r => ({ fecha: r.fecha, total: Number(r.total), facturas: Number(r.facturas) }));
+    },
+
+    topClientes: async (fecha_inicio: string, fecha_fin: string, limite = 10) => {
+        const rows = await dbLocal.query<{ id_cliente_alm: string; cliente: string; total: string; facturas: string }>(`
+            SELECT
+                f.id_cliente_alm,
+                ca.nom_corto_cliente_alm       AS cliente,
+                SUM(f.total_factura)           AS total,
+                COUNT(f.id_factura)            AS facturas
+            FROM facturas f
+            JOIN cliente_almacen ca ON ca.id_cliente_alm = f.id_cliente_alm
+            WHERE f.tipo_cfdi = 'I'
+              AND f.estatus_factura IN ('PEN','TIM')
+              AND f.fecha_emision::date BETWEEN :fecha_inicio AND :fecha_fin
+            GROUP BY f.id_cliente_alm, ca.nom_corto_cliente_alm
+            ORDER BY total DESC
+            LIMIT :limite
+        `, { replacements: { fecha_inicio, fecha_fin, limite }, type: QueryTypes.SELECT });
+        return rows.map(r => ({ id_cliente_alm: r.id_cliente_alm, cliente: r.cliente, total: Number(r.total), facturas: Number(r.facturas) }));
+    },
+
+    topArticulos: async (fecha_inicio: string, fecha_fin: string, limite = 10) => {
+        const rows = await dbLocal.query<{ id_articulo: string; des_artic: string; cantidad: string; total: string }>(`
+            SELECT
+                df.id_articulo,
+                df.descripcion_articulo        AS des_artic,
+                SUM(df.cantidad_facturada)     AS cantidad,
+                SUM(df.subtotal)               AS total
+            FROM detalle_factura df
+            JOIN facturas f ON f.id_factura = df.id_factura
+            WHERE f.tipo_cfdi = 'I'
+              AND f.estatus_factura IN ('PEN','TIM')
+              AND f.fecha_emision::date BETWEEN :fecha_inicio AND :fecha_fin
+            GROUP BY df.id_articulo, df.descripcion_articulo
+            ORDER BY cantidad DESC
+            LIMIT :limite
+        `, { replacements: { fecha_inicio, fecha_fin, limite }, type: QueryTypes.SELECT });
+        return rows.map(r => ({ id_articulo: r.id_articulo, des_artic: r.des_artic, cantidad: Number(r.cantidad), total: Number(r.total) }));
     },
 };

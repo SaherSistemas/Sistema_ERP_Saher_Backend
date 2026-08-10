@@ -48,7 +48,7 @@ export class LotesArticuloSucursalController {
         empresas
       );
 
-      console.log(`[existencia] id_artic=${id_artic} empresas=${empresas.join(',')} → ${existencia_disponible}`);
+      //   console.log(`[existencia] id_artic=${id_artic} empresas=${empresas.join(',')} → ${existencia_disponible}`);
 
       res.status(200).json({ id_artic, empresas, existencia_disponible });
     } catch (error: any) {
@@ -113,7 +113,7 @@ export class LotesArticuloSucursalController {
 
   static getByID = async (req: Request, res: Response) => {
     try {
-      console.log("SI ENTRA AL GET BY ID");
+      // console.log("SI ENTRA AL GET BY ID");
       const { id } = req.params;
       const caja = await LotesArticuloSucursalService.getById(id);
       res.status(200).json(caja);
@@ -138,7 +138,7 @@ export class LotesArticuloSucursalController {
   static getResumenLotes = async (req: Request, res: Response) => {
     try {
       const { nombre, grupoPrecio, id_sucursal, page, limit } = req.query;
-      console.log(nombre);
+      // console.log(nombre);
       const data = await LotesArticuloSucursalService.getResumen({
         nombre: nombre.toString(),
         grupoPrecio: grupoPrecio?.toString(),

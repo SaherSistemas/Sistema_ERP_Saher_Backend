@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { ICompraKPISRequest } from "../../interface/Dashboard/Compras.interface";
 import { dashboardComprasService } from "../../services/Dashboard/dashboardCompras.service";
+import { dashboardOperacionesService } from "../../services/Dashboard/dashboardOperaciones.service";
 import { CompraGeneralesService } from "../../modules/Compras/Ordenes-Compra/services/Compras.service";
 import { compraProveedorService } from "../../modules/Compras/Ordenes-Compra/services/compraProveedor.service";
 
@@ -60,5 +61,34 @@ export class Dash_CompraController {
         }
     }
 
+    static getKpisOperaciones = async (_req: Request, res: Response) => {
+        try {
+            const data = await dashboardOperacionesService.getKpis();
+            res.status(200).json(data);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener KPIs operacionales.' });
+        }
+    }
 
+    static getDiasInventario = async (req: Request, res: Response) => {
+        try {
+            const limite = Number(req.query.limite ?? 30);
+            const data = await dashboardOperacionesService.getDiasInventario(limite);
+            res.status(200).json(data);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener días de inventario.' });
+        }
+    }
+
+    static getPresupuestosAgentes = async (_req: Request, res: Response) => {
+        try {
+            const data = await dashboardOperacionesService.getPresupuestosAgentes();
+            res.status(200).json(data);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al obtener presupuestos de agentes.' });
+        }
+    }
 }

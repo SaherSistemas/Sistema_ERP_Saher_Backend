@@ -1,5 +1,5 @@
 import fs from 'fs';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import type { AuthedRequest } from '../../../middleware/auth';
 import { FacturacionService } from '../services/Facturacion.service';
 import { FacturacionRepository } from '../repositories/Facturacion.repository';
@@ -13,6 +13,18 @@ export class FacturacionController {
             const id_empresa = req.user?.id_empresa;
             const resultado = await FacturacionService.reintentarTimbrado(id_factura, id_empresa);
             res.json(resultado);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message ?? 'Error desconocido' });
+        }
+    };
+
+    static getById = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const factura = await FacturacionRepository.getById(id_factura);
+            if (!factura) res.status(404).json({ message: 'Factura no encontrada' });
+            res.json(factura);
         } catch (error: any) {
             console.error(error);
             res.status(500).json({ message: error?.message ?? 'Error desconocido' });
@@ -34,7 +46,7 @@ export class FacturacionController {
     static generarTxt = async (req: AuthedRequest, res: Response) => {
         try {
             const { id_pedido_alm } = req.params;
-            const id_empresa  = req.user?.id_empresa;
+            const id_empresa = req.user?.id_empresa;
             const id_empleado = req.user?.id_referencia_persona ?? '';
             const resultado = await FacturacionService.generarTxt({ id_pedido_alm, id_empresa, id_empleado });
             res.status(201).json(resultado);
@@ -49,7 +61,7 @@ export class FacturacionController {
         try {
             const { id_pedido_alm } = req.params;
             const { id_cliente_real } = req.body ?? {};
-            const id_empresa  = req.user?.id_empresa;
+            const id_empresa = req.user?.id_empresa;
             const id_empleado = req.user?.id_referencia_persona ?? '';
             const resultado = await FacturacionService.timbrarIngreso({ id_pedido_alm, id_empresa, id_cliente_real, id_empleado });
             res.status(201).json(resultado);
@@ -143,6 +155,41 @@ export class FacturacionController {
         } catch (error: any) {
             console.error(error);
             res.status(500).json({ message: error?.message ?? 'Error desconocido' });
+        }
+    };
+
+    // ── Dashboard ────────────────────────────────────────────────────────────────
+
+    static resumenDiario = async (req: Request, res: Response) => {
+        try {
+            const { fecha_inicio, fecha_fin } = req.query as Record<string, string>;
+            if (!fecha_inicio || !fecha_fin) { res.status(400).json({ message: 'fecha_inicio y fecha_fin requeridos' }); return; }
+            const data = await FacturacionRepository.resumenDiario(fecha_inicio, fecha_fin);
+            res.json(data);
+        } catch (error: any) {
+            res.status(500).json({ message: error.message });
+        }
+    };
+
+    static topClientes = async (req: Request, res: Response) => {
+        try {
+            const { fecha_inicio, fecha_fin, limite } = req.query as Record<string, string>;
+            if (!fecha_inicio || !fecha_fin) { res.status(400).json({ message: 'fecha_inicio y fecha_fin requeridos' }); return; }
+            const data = await FacturacionRepository.topClientes(fecha_inicio, fecha_fin, Number(limite ?? 10));
+            res.json(data);
+        } catch (error: any) {
+            res.status(500).json({ message: error.message });
+        }
+    };
+
+    static topArticulos = async (req: Request, res: Response) => {
+        try {
+            const { fecha_inicio, fecha_fin, limite } = req.query as Record<string, string>;
+            if (!fecha_inicio || !fecha_fin) { res.status(400).json({ message: 'fecha_inicio y fecha_fin requeridos' }); return; }
+            const data = await FacturacionRepository.topArticulos(fecha_inicio, fecha_fin, Number(limite ?? 10));
+            res.json(data);
+        } catch (error: any) {
+            res.status(500).json({ message: error.message });
         }
     };
 }

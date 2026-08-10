@@ -1,19 +1,12 @@
 import { Table, Column, Model, DataType, PrimaryKey, ForeignKey, Default, BelongsTo } from 'sequelize-typescript';
 
 import Lista_Precios from './Lista_Precio';
-import Categoria_Articulo from '../../../Catalogos/Articulos/model/Categoria_Articulo';
+import Tipo_Articulo from '../../../Catalogos/Articulos/model/Tipo_Articulo';
 import Presentacion_Articulo from '../../../Catalogos/Articulos/model/Presentacion_Articulo';
 
 @Table({
     tableName: 'margen_ganancia_lista',
     timestamps: true,
-    indexes: [
-        {
-            unique: true,
-            name: 'unique_margen_ganancia',
-            fields: ['id_lista_precio', 'id_categoria', 'id_presentacion'],
-        },
-    ],
 })
 class Margen_Ganancia_Lista extends Model {
     @PrimaryKey
@@ -29,12 +22,12 @@ class Margen_Ganancia_Lista extends Model {
     })
     declare id_lista_precio: string;
 
-    @ForeignKey(() => Categoria_Articulo)
+    @ForeignKey(() => Tipo_Articulo)
     @Column({
         type: DataType.UUID,
-        allowNull: false,
+        allowNull: true,
     })
-    declare id_categoria: string;
+    declare id_tipo_art: string;
 
     @ForeignKey(() => Presentacion_Articulo)
     @Column({
@@ -52,8 +45,8 @@ class Margen_Ganancia_Lista extends Model {
     @BelongsTo(() => Lista_Precios)
     declare lista_precio: Lista_Precios;
 
-    @BelongsTo(() => Categoria_Articulo)
-    declare categoria: Categoria_Articulo;
+    @BelongsTo(() => Tipo_Articulo)
+    declare tipo_art: Tipo_Articulo;
 
     @BelongsTo(() => Presentacion_Articulo)
     declare presentacion: Presentacion_Articulo;

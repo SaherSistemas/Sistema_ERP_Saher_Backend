@@ -187,6 +187,10 @@ export const Pago_CxCRepository = {
         return await Pago_CxC.findByPk(id_pago_cxc);
     },
 
+    getByNumeroRecibo: async (numero_recibo: string) => {
+        return await Pago_CxC.findAll({ where: { numero_recibo } });
+    },
+
     // Edita campos de un pago CAP (antes de ser aplicado)
     editar: async (id_pago_cxc: string, campos: {
         monto_pago?: number;
@@ -376,5 +380,22 @@ export const Pago_CxCRepository = {
             ],
             order: [['fecha_pago', 'ASC']],
         });
+    },
+
+    // ── Dashboard ────────────────────────────────────────────────────────────────
+
+    cobrosDiarios: async (fecha_inicio: string, fecha_fin: string) => {
+        const rows = await dbLocal.query<{ fecha: string; total: string; pagos: string }>(`
+            SELECT
+                fecha_pago::date   AS fecha,
+                SUM(monto_pago)    AS total,
+                COUNT(*)           AS pagos
+            FROM pago_cxc
+            WHERE estatus_pago = 'APL'
+              AND fecha_pago::date BETWEEN :fecha_inicio AND :fecha_fin
+            GROUP BY fecha_pago::date
+            ORDER BY fecha_pago::date
+        `, { replacements: { fecha_inicio, fecha_fin }, type: QueryTypes.SELECT });
+        return rows.map(r => ({ fecha: r.fecha, total: Number(r.total), pagos: Number(r.pagos) }));
     },
 };

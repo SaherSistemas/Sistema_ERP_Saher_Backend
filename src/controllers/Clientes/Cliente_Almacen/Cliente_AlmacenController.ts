@@ -8,10 +8,10 @@ export class Cliente_AlmacenController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
       const clientes = await Cliente_AlmacenService.getAllPaginado(page, limit);
-      console.log(clientes)
+      // console.log(clientes)
       res.status(200).json(clientes);
     } catch (error) {
-      console.log(error);
+      // console.log(error);
       res.status(500).json({ mensaje: 'Error al obtener clientes.' });
     }
   };
@@ -32,7 +32,7 @@ export class Cliente_AlmacenController {
     try {
       const { term_search } = req.params;
       const clientes = await Cliente_AlmacenService.getClienteByTermSerch(term_search);
-      console.log(clientes)
+      //   console.log(clientes)
       res.status(200).json(clientes);
     } catch (error) {
       res.status(500).json({ mensaje: 'Error al buscar clientes.' });

@@ -5,6 +5,8 @@ import { isUUID } from '../../../utils/validaciones';
 import { ICreateClienteAlmacen } from '../../../interface/Clientes/Cliente_Almacen/Cliente_Almacen.interface';
 import Agente_de_Venta from '../../../modules/Comercial/Agente_Venta/model/Agente_De_Venta';
 import Empleado from '../../../modules/RRHH/model/Empleado';
+import { dbLocal } from '../../../config/db';
+import { QueryTypes } from 'sequelize';
 
 export const Cliente_AlmacenRepository = {
   // PAGINADO
@@ -30,41 +32,68 @@ export const Cliente_AlmacenRepository = {
     return { total: count, data: rows };
   },
 
-  // POR AGENTE
+  // POR AGENTE — incluye pedido en captura, cotización y saldo en un solo query
   getAllByAgente: async ({ id_agente, page, limit, nombre, estado }) => {
     const offset = (page - 1) * limit;
 
-    const where: any = {
-      id_agente_cliente_alm: id_agente
-    };
+    const nombreFilter = nombre && nombre.trim() !== ''
+      ? `AND (ca.razon_social_cliente_alm ILIKE :nombre OR ca.nom_corto_cliente_alm ILIKE :nombre OR ca.num_telefono_cliente_alm ILIKE :nombre OR ca.rfc_cliente_alm ILIKE :nombre)`
+      : '';
+    const estadoFilter = estado === 'A'
+      ? `AND ca.activo_cliente_alm = true`
+      : estado === 'L'
+      ? `AND ca.activo_cliente_alm = false`
+      : '';
 
-    if (nombre && nombre.trim() !== '') {
-      const term = `%${nombre.trim()}%`;
+    const replacements: any = { id_agente, limit, offset };
+    if (nombre && nombre.trim() !== '') replacements.nombre = `%${nombre.trim()}%`;
 
-      where[Op.or] = [
-        { nombre_cliente_alm: { [Op.iLike]: term } },
-        { razon_social_cliente_alm: { [Op.iLike]: term } },
-        { num_telefono_cliente_alm: { [Op.iLike]: term } },
-        { rfc_cliente_alm: { [Op.iLike]: term } }
-      ];
-    }
+    const [countResult] = await dbLocal.query<{ total: number }>(`
+      SELECT COUNT(*) AS total
+      FROM cliente_almacen ca
+      WHERE ca.id_agente_cliente_alm = :id_agente
+      ${nombreFilter} ${estadoFilter}
+    `, { replacements, type: QueryTypes.SELECT });
 
-    if (estado === 'A') {
-      where.activo_cliente_alm = true;
-    } else if (estado === 'L') {
-      where.activo_cliente_alm = false;
-    }
+    const items = await dbLocal.query<any>(`
+      SELECT
+        ca.id_cliente_alm,
+        ca.id_interno_cliente_alm,
+        ca.razon_social_cliente_alm,
+        ca.nom_corto_cliente_alm,
+        ca.activo_cliente_alm,
+        ca.num_telefono_cliente_alm,
+        ca.rfc_cliente_alm,
+        -- Pedido en captura (más reciente)
+        (SELECT id_pedido_alm FROM pedido_almacen
+         WHERE id_cliente_pedido_alm = ca.id_cliente_alm
+           AND status_pedido_alm = 'EC'
+         ORDER BY "createdAt" DESC LIMIT 1) AS id_pedido_captura,
+        -- Cotización pendiente
+        (SELECT id_pedido_alm FROM pedido_almacen
+         WHERE id_cliente_pedido_alm = ca.id_cliente_alm
+           AND status_pedido_alm = 'CO'
+         ORDER BY "createdAt" DESC LIMIT 1) AS id_pedido_cotizacion,
+        -- Saldo pendiente en CxC
+        COALESCE((
+          SELECT SUM(saldo_pendiente)
+          FROM cuenta_por_cobrar
+          WHERE id_cliente_alm = ca.id_cliente_alm
+            AND estatus_cxc IN ('PEN','PAR','VEN')
+        ), 0) AS saldo_pendiente_cxc
+      FROM cliente_almacen ca
+      WHERE ca.id_agente_cliente_alm = :id_agente
+      ${nombreFilter} ${estadoFilter}
+      ORDER BY ca."createdAt" DESC
+      LIMIT :limit OFFSET :offset
+    `, { replacements, type: QueryTypes.SELECT });
 
-    const { rows, count } = await Cliente_Almacen.findAndCountAll({
-      where,
-      limit,
-      offset,
-      order: [['createdAt', 'DESC']]
-    });
-    console.log('ROWS');
-    console.log(rows);
+    const count = Number(countResult.total);
     return {
-      items: rows,
+      items: items.map(r => ({
+        ...r,
+        saldo_pendiente_cxc: Number(r.saldo_pendiente_cxc),
+      })),
       totalItems: count,
       page,
       totalPages: Math.ceil(count / limit)

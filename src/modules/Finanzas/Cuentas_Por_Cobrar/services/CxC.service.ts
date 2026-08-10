@@ -17,6 +17,85 @@ import { generarReciboPDFBuffer } from '../helpers/recibo_cobranza.pdf';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Helper privado — timbra UN RECIBO completo (múltiples documentos) en 1 CFDI
+//  Se llama FUERA de transacción DB para no revertir la aplicación si el SAT falla
+// ─────────────────────────────────────────────────────────────────────────────
+async function _timbrarRecibo(cfdis: FacturaPagoCFDI[]): Promise<{
+    ok: boolean; uuid?: string; pdf_url?: string; xml_url?: string; error?: string;
+}> {
+    try {
+        if (cfdis.length === 0) return { ok: false, error: 'Sin registros para timbrar' };
+
+        // Obtener datos del cliente desde la primera factura (todos son del mismo cliente)
+        const primeraFactura = await Facturas.findByPk(cfdis[0].id_factura);
+        if (!primeraFactura?.uuid_sat) throw new Error('Factura sin UUID SAT');
+
+        const cliente = await Cliente_Almacen.findByPk(primeraFactura.id_cliente_alm);
+        let zip = '00000';
+        if (cliente?.id_colonia_cliente_alm) {
+            const colonia = await Colonia.findByPk(cliente.id_colonia_cliente_alm);
+            if (colonia?.cp_colonia) zip = colonia.cp_colonia;
+        }
+
+        // Construir related_documents — uno por cada pago del recibo
+        const related_documents = await Promise.all(cfdis.map(async (cfdi) => {
+            const factura = await Facturas.findByPk(cfdi.id_factura);
+            return {
+                uuid: factura?.uuid_sat ?? primeraFactura.uuid_sat,
+                amount: Number(cfdi.monto_pagado),
+                installment: cfdi.num_parcialidad,
+                last_balance: Number(cfdi.saldo_anterior),
+                currency: 'MXN',
+            };
+        }));
+
+        // Monto total del recibo
+        const montoTotal = cfdis.reduce((s, c) => s + Number(c.monto_pagado), 0);
+
+        const complement = await facturapiClient.invoices.create({
+            type: 'P',
+            customer: {
+                legal_name: cliente?.razon_social_cliente_alm ?? '',
+                tax_id: cliente?.rfc_cliente_alm ?? '',
+                tax_system: cliente?.id_regimen_fiscal_cliente_alm ?? '',
+                address: { zip },
+            },
+            payments: [{
+                date: new Date(cfdis[0].fecha_pago),
+                form: cfdis[0].forma_de_pago,
+                amount: montoTotal,
+                currency: 'MXN',
+                exchange: 1,
+                related_documents,
+            }],
+        } as any);
+
+        const uuid_cfdi = (complement as any)?.uuid ?? null;
+        const pdf_url = (complement as any)?.pdf_url ?? null;
+        const xml_url = (complement as any)?.xml_url ?? null;
+
+        // Actualizar TODOS los registros del recibo con el mismo UUID
+        await FacturaPagoCFDI.update({
+            uuid_cfdi_pago: uuid_cfdi,
+            pdf_url,
+            xml_url,
+            estatus_timbrado: uuid_cfdi ? 'TIM' : 'ERR',
+        }, { where: { id_pago_cfdi: cfdis.map(c => c.id_pago_cfdi) } });
+
+        if (!uuid_cfdi) return { ok: false, error: 'Facturapi no devolvió UUID' };
+        return { ok: true, uuid: uuid_cfdi, pdf_url, xml_url };
+
+    } catch (err: any) {
+        console.error(`[CxC] Error al timbrar recibo:`, err);
+        await FacturaPagoCFDI.update(
+            { estatus_timbrado: 'ERR' },
+            { where: { id_pago_cfdi: cfdis.map(c => c.id_pago_cfdi) } }
+        ).catch(() => { });
+        return { ok: false, error: err.message ?? 'Error desconocido' };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Helper privado — timbra un solo FacturaPagoCFDI con Facturapi
 //  Se llama FUERA de transacción DB para no revertir la aplicación si el SAT falla
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,7 +165,7 @@ async function _timbrarUno(cfdi: FacturaPagoCFDI): Promise<{
 
 export const CxCService = {
 
-    getAll: async () => CxCRepository.getAll(),
+    getAll: async (filtros?: { estatus?: string; fecha_inicio?: string; fecha_fin?: string; cliente?: string; agente?: string; page?: number; limit?: number }) => CxCRepository.getAll(filtros),
 
     getClientesDeudores: async (id_empleado: string) => {
         const agente = await AgenteRepository.getByIdEmpleado(id_empleado);
@@ -335,6 +414,98 @@ export const CxCService = {
             await t.rollback();
             throw error;
         }
+    },
+
+    // ─── APLICAR RECIBO COMPLETO (1 timbre para todos los pagos del recibo) ────
+    aplicarRecibo: async (numero_recibo: string, id_empleado_aplica: string | null) => {
+        const pagosRecibo = await Pago_CxCRepository.getByNumeroRecibo(numero_recibo);
+        if (!pagosRecibo || pagosRecibo.length === 0)
+            throw new Error('No se encontraron pagos para este recibo');
+
+        const pendientes = pagosRecibo.filter((p: any) => p.estatus_pago === 'CAP');
+        if (pendientes.length === 0)
+            throw new Error('Todos los pagos de este recibo ya fueron aplicados o cancelados');
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        const cfdisCreados: FacturaPagoCFDI[] = [];
+
+        try {
+            for (const pago of pendientes) {
+                const cxc = await CxCRepository.getById(pago.id_cxc);
+                if (!cxc || cxc.estatus_cxc === 'PAG') continue;
+
+                const saldo_anterior = Number(cxc.saldo_pendiente);
+
+                // Resolver factura
+                let id_factura_ref: string | null = cxc.id_factura ?? null;
+                if (!id_factura_ref && cxc.id_remision) {
+                    const remision = await Remision.findByPk(cxc.id_remision);
+                    if (remision) id_factura_ref = remision.id_factura;
+                }
+                const factura = id_factura_ref ? await Facturas.findByPk(id_factura_ref) : null;
+
+                const num_parcialidad = (await Pago_CxC.count({
+                    where: { id_cxc: pago.id_cxc, estatus_pago: 'APL' },
+                })) + 1;
+
+                // Marcar APL y actualizar saldo
+                await Pago_CxCRepository.marcarAplicado(pago.id_pago_cxc, id_empleado_aplica, t);
+                const cxcActualizada = await CxCRepository.aplicarPago(pago.id_cxc, Number(pago.monto_pago), t);
+
+                if (cxc.id_remision) {
+                    const nuevoEstatus =
+                        cxcActualizada.estatus_cxc === 'PAG' ? 'LIQ' :
+                        cxcActualizada.estatus_cxc === 'PAR' ? 'PAR' : 'PEN';
+                    await RemisionRepository.actualizarEstatus(cxc.id_remision, nuevoEstatus, t);
+                }
+
+                // Crear registro CFDI pendiente solo si la factura está timbrada y es PPD
+                if (factura?.uuid_sat && factura?.id_metodo_pago !== 'PUE') {
+                    const saldo_insoluto = Math.max(saldo_anterior - Number(pago.monto_pago), 0);
+                    const cfdi = await FacturaPagoCFDI.create({
+                        id_pago_cfdi: uuidv4(),
+                        id_factura: factura.id_factura,
+                        id_pago_cxc: pago.id_pago_cxc,
+                        fecha_pago: pago.fecha_pago,
+                        forma_de_pago: pago.id_forma_pago,
+                        moneda: 'MXN',
+                        monto_pagado: pago.monto_pago,
+                        num_parcialidad,
+                        saldo_anterior,
+                        saldo_insoluto,
+                        uuid_relacionado: factura.uuid_sat,
+                        uuid_cfdi_pago: null,
+                        pdf_url: null,
+                        xml_url: null,
+                        estatus_timbrado: 'PEN',
+                    }, { transaction: t });
+                    cfdisCreados.push(cfdi);
+                }
+            }
+
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+
+        // Timbrar en 1 solo CFDI fuera de transacción
+        let timbrado = null;
+        if (cfdisCreados.length > 0) {
+            timbrado = await _timbrarRecibo(cfdisCreados);
+        }
+
+        return {
+            ok: true,
+            pagos_aplicados: pendientes.length,
+            cfdis_en_timbre: cfdisCreados.length,
+            timbrado,
+            mensaje: cfdisCreados.length === 0
+                ? `${pendientes.length} pago(s) aplicados. Sin facturas PPD timbradas — no se genera CFDI.`
+                : timbrado?.ok
+                    ? `${pendientes.length} pago(s) aplicados y 1 complemento de pago timbrado.`
+                    : `${pendientes.length} pago(s) aplicados. Timbrado falló: ${timbrado?.error}`,
+        };
     },
 
     // ─────────────────────────────────────────────────────────────────────────

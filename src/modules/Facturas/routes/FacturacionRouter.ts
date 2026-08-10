@@ -8,9 +8,15 @@ const router = Router();
 // POST /api/facturas/reintentar/:id_factura
 router.post('/reintentar/:id_factura', authMiddleware, FacturacionController.reintentarTimbrado);
 
+// Dashboard
+router.get('/dashboard/resumen-diario', authMiddleware, FacturacionController.resumenDiario);
+router.get('/dashboard/top-clientes', authMiddleware, FacturacionController.topClientes);
+router.get('/dashboard/top-articulos', authMiddleware, FacturacionController.topArticulos);
+
 // Lista de facturas con filtros opcionales
 // GET /api/facturas?estatus=TIM&tipo_cfdi=I&fecha_inicio=&fecha_fin=&busqueda=&page=1&limit=50
 router.get('/', authMiddleware, FacturacionController.getList);
+router.get('/:id_factura', authMiddleware, FacturacionController.getById);
 
 // Legado: genera .txt para timbrado manual
 // POST /api/facturas/generar-txt/:id_pedido_alm

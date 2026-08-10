@@ -41,13 +41,13 @@ export const Detalle_Pedido_Almacen_LoteRepository = {
 
         // 2. Descontar stock por cada lote
         for (const row of rows) {
+            if (!row.id_stock_ubicacion_lote) continue;
             const stock = await Stock_Ubicacion_Lote.findOne({
                 where: { id_stock_ubicacion_lote: row.id_stock_ubicacion_lote },
                 transaction,
-                lock: true, // 👈 bloquea el row para evitar condiciones de carrera
+                lock: true,
             });
-
-
+            if (!stock) continue;
             await stock.update({ cantidad_apartada: row.cantidad }, { transaction });
         }
 

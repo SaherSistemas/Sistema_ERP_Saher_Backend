@@ -25,6 +25,7 @@ class Lote_Articulo_Sucursal extends Model {
   })
   declare id_lote_sucursal: string;
 
+  @Unique('uq_lote_articulo_empresa')
   @ForeignKey(() => Articulo)
   @Column({
     type: DataType.UUID
@@ -33,6 +34,7 @@ class Lote_Articulo_Sucursal extends Model {
   @BelongsTo(() => Articulo)
   declare articulo: Articulo;
 
+  @Unique('uq_lote_articulo_empresa')
   @ForeignKey(() => Empresa_Sucursal)
   @Column({
     type: DataType.UUID
@@ -41,6 +43,7 @@ class Lote_Articulo_Sucursal extends Model {
   @BelongsTo(() => Empresa_Sucursal)
   declare empresa: Empresa_Sucursal;
 
+  @Unique('uq_lote_articulo_empresa')
   @Column({
     type: DataType.STRING(50)
   })

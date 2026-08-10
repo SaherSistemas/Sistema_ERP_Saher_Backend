@@ -1,5 +1,6 @@
 import { fn, col, Op, QueryTypes, Transaction } from 'sequelize';
 
+import Empleado from '../../../RRHH/model/Empleado';
 import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
 import { dbLocal, dbPoly } from '../../../../config/db';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
@@ -556,6 +557,148 @@ export const Pedido_AlmacenService = {
     const resumen = await Pedido_AlmacenRepository.getResumenCompleto(id_pedido_alm);
     if (!resumen) throw { status: 404, message: 'Pedido no encontrado.' };
     return resumen;
+  },
+
+  // ══════════════════════════════════════════════════════════════════════
+  // HOJA DE SURTIDO
+  // ══════════════════════════════════════════════════════════════════════
+  getHojaSurtido: async (id_pedido_alm: string, id_empresa: string) => {
+    const data = await Pedido_AlmacenRepository.getHojaSurtido(id_pedido_alm, id_empresa);
+    if (!data) throw { status: 404, message: 'Pedido no encontrado.' };
+
+    // Para ítems sin lotes asignados, calcular recomendación FEFO (igual que el móvil)
+    const itemsConFefo = await Promise.all(
+      data.items.map(async (item: any) => {
+        if (item.lotes.length > 0) return item;
+        try {
+          const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
+            item.id_artic, id_empresa, Number(item.cant_pedida)
+          );
+          const lotesFefo = plan.detalles
+            .filter((d: any) => d.lote)
+            .map((d: any) => ({
+              id_detalle_pedido_almacen: item.id_detalle_pedido_almacen,
+              id_lote_sucursal: d.lote.id_lote_sucursal,
+              id_stock_ubicacion_lote: d.id_stock_ubicacion_lote,
+              id_ubicacion_sucursal: d.ubicacion?.id_ubicacion_sucursal ?? null,
+              cantidad: d.cantidad_a_tomar,
+              numero_lote_sucursal: d.lote.numero_lote_sucursal,
+              fecha_venci_lote_sucursal: d.lote.fecha_venci_lote_sucursal ?? null,
+              migracion: d.lote.migracion ?? false,
+              existencia_lote: d.cantidad_disponible,
+              lote_factura_numero: null,
+              lote_factura_fecha: null,
+              es_recomendado: true,
+            }));
+          return { ...item, lotes: lotesFefo };
+        } catch {
+          return item;
+        }
+      })
+    );
+
+    return { cabecera: data.cabecera, items: itemsConFefo };
+  },
+
+  // Finalizar surtido en papel: guarda lotes, cierra asignaciones, manda a chequeo
+  finalizarSurtidoPapel: async (
+    id_pedido_alm: string,
+    detalles: Array<{
+      id_detalle_pedido_almacen: string;
+      lotes: Array<{
+        id_lote_sucursal: string;
+        id_stock_ubicacion_lote: string | null;
+        id_ubicacion_sucursal: string | null;
+        cantidad: number;
+        lote_factura?: { numero_lote: string | null; fecha_caducidad: string | null } | null;
+      }>;
+      negacion?: { cantidad_negada: number; motivo: string; comentario?: string | null } | null;
+    }>
+  ) => {
+    const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+    try {
+      for (const detalle of detalles) {
+        const lotesValidos = detalle.lotes.filter(l => Number(l.cantidad) > 0);
+        if (lotesValidos.length > 0) {
+          await Detalle_Pedido_Almacen_LoteRepository.create({
+            id_detalle_pedido: detalle.id_detalle_pedido_almacen,
+            estado: 'SURTIDO',
+            lotes: lotesValidos.map(l => ({
+              id_stock_ubicacion_lote: l.id_stock_ubicacion_lote ?? '',
+              id_lote_sucursal: l.id_lote_sucursal,
+              id_ubicacion_sucursal: l.id_ubicacion_sucursal ?? null,
+              cantidad: Number(l.cantidad),
+              lote_factura: l.lote_factura ?? null,
+            })),
+          }, t);
+        }
+        if (detalle.negacion && detalle.negacion.cantidad_negada > 0) {
+          await Detalle_Pedido_NegadoRepository.create({
+            id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen,
+            cantidad_negada: detalle.negacion.cantidad_negada,
+            motivo: detalle.negacion.motivo,
+            comentario: detalle.negacion.comentario ?? null,
+          }, t);
+        }
+      }
+
+      await Detalle_Pedido_Almacen_AsignacionRepository.marcarTodosSurtidos(id_pedido_alm, t);
+      await Pedido_Almacen.update({ status_pedido_alm: 'SU' }, { where: { id_pedido_alm }, transaction: t });
+      await t.commit();
+      return { mensaje: 'Pedido finalizado y enviado a chequeo.' };
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+  },
+
+  // Asignar un pedido específico a un surtidor por código interno
+  asignarSurtidorPorCodigo: async (id_pedido_alm: string, cod_interno: number, id_empresa: string) => {
+    const empleado = await Empleado.findOne({ where: { idinterno_empleado: cod_interno } });
+    if (!empleado) throw { status: 404, message: `No se encontró empleado con código interno ${cod_interno}.` };
+
+    const detalles = await Detalle_Pedido_AlmacenRepository.getDetallesConArticuloPorPedido(id_pedido_alm);
+
+    const detallesConUbicacion = await Promise.all(
+      detalles.map(async (d: any) => {
+        const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(d.id_articulo, id_empresa, d.cant_pedida);
+        return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? null };
+      })
+    );
+
+    const PASILLO_ORDER: Record<string, number> = { 'A1': 1, 'A': 2, 'B': 3, 'C': 4, 'D': 5, 'E': 6, 'F': 7, 'G': 8, 'H': 9, 'H1': 10 };
+    detallesConUbicacion.sort((a: any, b: any) => {
+      const ua = a.ubicacion; const ub = b.ubicacion;
+      if (!ua && !ub) return 0; if (!ua) return 1; if (!ub) return -1;
+      const pa = PASILLO_ORDER[ua.pasillo] ?? 99; const pb = PASILLO_ORDER[ub.pasillo] ?? 99;
+      if (pa !== pb) return pa - pb;
+      const aa = parseInt(ua.anaquel) || 0; const ab = parseInt(ub.anaquel) || 0;
+      if (aa !== ab) return aa - ab;
+      const na = parseInt(ua.nivel) || 0; const nb = parseInt(ub.nivel) || 0;
+      if (na !== nb) return na - nb;
+      return (parseInt(ua.posicion) || 0) - (parseInt(ub.posicion) || 0);
+    });
+
+    const detallesOrdenados = detallesConUbicacion.map((d: any, i: number) => ({
+      id_detalle_pedido_almacen: d.id_detalle_pedido_almacen,
+      orden: i + 1,
+    }));
+
+    const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+    try {
+      await Pedido_AlmacenRepository.iniciarSurtido(id_pedido_alm, t);
+      await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(empleado.id_empleado, detallesOrdenados, t);
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    return {
+      mensaje: 'Pedido asignado al surtidor.',
+      id_pedido_alm,
+      empleado: { id_empleado: empleado.id_empleado, nombre: `${empleado.nombre_empleado} ${empleado.ap_pat_empleado}` },
+    };
   },
 
   // ── Preview de UN pedido en PolyDB (el primero pendiente) ──────────────────

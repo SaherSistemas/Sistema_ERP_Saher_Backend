@@ -1,5 +1,5 @@
-import { Transaction } from "sequelize";
-import { dbLocal } from "../../../../config/db";
+import { QueryOptionsWithType, QueryTypes, Transaction } from "sequelize";
+import { dbLocal, dbPoly } from "../../../../config/db";
 import { Detalle_Factura_Compra_ProveedorRepository } from "../repositories/Detalle_Factura_Compra_Proveedor.repository";
 import { Factura_Compra_ProveedorRepository } from "../repositories/Factura_Compra_Proveedor.repository";
 import { IModificarLotesDetalleFacturaDTO } from "../interface/Detalle_Factura_Compra_Proveedor.interface";
@@ -56,7 +56,7 @@ export const Detalle_Factura_Compra_ProveedorService = {
                 );
 
                 const modeloArticulo = await ArticuloRepository.getByPK(id_artic, { transaction: t });
-                console.log("MODELO ARTICULO:", modeloArticulo);
+                //  console.log("MODELO ARTICULO:", modeloArticulo);
                 const grupoEmpresa = await Empresa_SucursalRepository.getGrupo(data.id_empresa, { transaction: t });
                 //console.log("GRUPO EMPRESA:", grupoEmpresa);
 
@@ -75,10 +75,36 @@ export const Detalle_Factura_Compra_ProveedorService = {
                         ? (costoPromedio * totalCantidad + costoNeto * cantidadNueva) / totalUnidades
                         : costoNeto;  // si no hay stock previo, el costo promedio es el costo de esta compra
 
+                    await dbLocal.query(`
+    SELECT dblink_exec(
+        'TU_CONNECTION_STRING_AQUI',
+        format(
+            'UPDATE public.almacenes1
+             SET almultctn = %L,
+                 almcfeultd = NOW(),
+                 almcosprn = %L
+             WHERE empcdempn = 99999
+               AND almcdalmn = 20
+               AND artcdartn = %L',
+            :costoNeto,
+            :costoPromedioActualizado,
+            :codIntArtic
+        )
+    )
+`, {
+                        replacements: {
+                            costoNeto,
+                            costoPromedioActualizado,
+                            codIntArtic: modeloArticulo.cod_int_artic
+                        },
+                        type: QueryTypes.SELECT,
+                        transaction: t
+                    } as QueryOptionsWithType<QueryTypes.SELECT>);
+
                     const listasDePrecioGrupo = await Grupo_Empresa_Lista_PrecioRepository
                         .getSoloListasDePrecioPorIDGrupo(grupoEmpresa.idgrup_empre);
                     const idsListasGrupo = listasDePrecioGrupo.map(l => l.id_list_precio);
-                    console.log("IDS LISTAS GRUPO:", idsListasGrupo);
+                    //  console.log("IDS LISTAS GRUPO:", idsListasGrupo);
                     // Cascade: margen especial → categoría → skip
                     const margenesCat = (await Margen_Ganancia_ListaRepository.getByProducto(
                         modeloArticulo.id_categoria,

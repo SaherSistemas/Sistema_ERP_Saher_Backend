@@ -173,6 +173,18 @@ export const Detalle_Pedido_Almacen_AsignacionRepository = {
     },
 
 
+    marcarTodosSurtidos: async (id_pedido_alm: string, t?: Transaction) => {
+        await dbLocal.query(`
+            UPDATE detalle_pedido_almacen_asignacion
+            SET estado = 'TERMINADO', fin = NOW()
+            WHERE id_detalle_pedido_almacen IN (
+                SELECT id_detalle_pedido_almacen FROM detalle_pedido_almacen
+                WHERE id_pedido_almacen = :id_pedido_alm
+            )
+            AND estado IN ('ASIGNADO','EN_PROCESO')
+        `, { replacements: { id_pedido_alm }, transaction: t });
+    },
+
     asignarDetallesPedidoASurtidor: async (
         id_usuario: string,
         detallesOrdenados: Array<{ id_detalle_pedido_almacen: string; orden: number }>,

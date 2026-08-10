@@ -33,9 +33,16 @@ router.get('/preview-polydb/lote', Pedido_AlmacenController.previewPolyDBLote);
 router.get('/preview-polydb', Pedido_AlmacenController.previewPolyDB);
 router.post('/importar-polydb', Pedido_AlmacenController.importarDePolyDB);
 
-// 1. RUTAS ESPECÍFICAS PRIMERO
+// ── Gestión de pedidos (desktop admin) ───────────────────────────────────────
 router.get('/lista-gestion', Pedido_AlmacenController.getListaGestion);
+router.get('/:id_pedido_alm/hoja-surtido', Pedido_AlmacenController.getHojaSurtido);
+router.post('/:id_pedido_alm/asignar-surtidor-cod', Pedido_AlmacenController.asignarSurtidorPorCodigo);
+router.post('/:id_pedido_alm/finalizar-surtido-papel', Pedido_AlmacenController.finalizarSurtidoPapel);
+
+// 1. RUTAS ESPECÍFICAS PRIMERO
 router.patch('/:id/fecha-entrega', Pedido_AlmacenController.actualizarFechaEntrega);
+router.post('/:id/detalle', Pedido_AlmacenController.agregarDetalle);
+router.delete('/:id/detalle/:id_detalle', Pedido_AlmacenController.eliminarDetalle);
 router.get('/historial', Pedido_AlmacenController.getHistorialPorFecha);
 router.get('/cod/:cod', Pedido_AlmacenController.getByCodInterno);
 router.get('/:id_pedido/detalles', Pedido_AlmacenController.getDetalles);

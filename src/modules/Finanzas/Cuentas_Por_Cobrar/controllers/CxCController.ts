@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { CxCService } from '../services/CxC.service';
 import { CxCRepository } from '../repositories/CxC.repository';
+import { Pago_CxCRepository } from '../repositories/Pago_CxC.repository';
 import { AuthedRequest } from '../../../../middleware/auth';
 import { generarPDFSaldos, generarXLSXSaldos } from '../../helpers/reporte_saldos.helper';
 
@@ -44,8 +45,9 @@ export class CxCController {
 
     static getAll = async (req: Request, res: Response) => {
         try {
-            const cuentas = await CxCService.getAll();
-            res.status(200).json({ cuentas });
+            const { estatus, fecha_inicio, fecha_fin, cliente, agente, page, limit } = req.query as Record<string, string>;
+            const resultado = await CxCService.getAll({ estatus, fecha_inicio, fecha_fin, cliente, agente, page: Number(page ?? 1), limit: Number(limit ?? 50) });
+            res.status(200).json(resultado);
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: 'Error al obtener las cuentas por cobrar.' });
@@ -116,6 +118,19 @@ export class CxCController {
             console.error(error);
             const status = /no encontrado|ya fue aplicado|cancelado/.test(error.message) ? 400 : 500;
             res.status(status).json({ message: error.message ?? 'Error al aplicar el pago.' });
+        }
+    };
+
+    static aplicarRecibo = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { numero_recibo } = req.params;
+            const id_empleado_aplica = req.user?.id_referencia_persona ?? null;
+            const resultado = await CxCService.aplicarRecibo(numero_recibo, id_empleado_aplica);
+            res.status(200).json(resultado);
+        } catch (error: any) {
+            console.error(error);
+            const status = /no encontrado|ya fueron aplicados/.test(error.message) ? 400 : 500;
+            res.status(status).json({ message: error.message ?? 'Error al aplicar el recibo.' });
         }
     };
 
@@ -392,6 +407,19 @@ export class CxCController {
         } catch (error: any) {
             console.error(error);
             res.status(500).json({ message: error?.message ?? 'Error al calcular saldo histórico.' });
+        }
+    };
+
+    // ── Dashboard ────────────────────────────────────────────────────────────────
+
+    static getCobrosDiarios = async (req: Request, res: Response) => {
+        try {
+            const { fecha_inicio, fecha_fin } = req.query as Record<string, string>;
+            if (!fecha_inicio || !fecha_fin) { res.status(400).json({ message: 'fecha_inicio y fecha_fin requeridos' }); return; }
+            const data = await Pago_CxCRepository.cobrosDiarios(fecha_inicio, fecha_fin);
+            res.json(data);
+        } catch (error: any) {
+            res.status(500).json({ message: error.message });
         }
     };
 }

@@ -47,5 +47,19 @@ export class Margen_Ganancia_ListaController {
             res.status(500).json({ message: "Error al obtener artículos pendientes", error });
         }
     };
+
+    static recalcularPreciosArticulo = async (req: Request, res: Response) => {
+        try {
+            const { id_artic, id_empresa } = req.body;
+            if (!id_artic || !id_empresa) {
+                res.status(400).json({ message: 'Faltan id_artic o id_empresa' });
+                return;
+            }
+            const resultado = await Margen_Ganancia_ListaService.recalcularPreciosArticulo(id_artic, id_empresa);
+            res.status(200).json({ message: 'Precios recalculados', ...resultado });
+        } catch (error) {
+            res.status(500).json({ message: error.message || 'Error al recalcular precios', error });
+        }
+    };
 }
 

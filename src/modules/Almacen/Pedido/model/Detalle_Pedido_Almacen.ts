@@ -41,7 +41,7 @@ export default class Detalle_Pedido_Almacen extends Model {
   @BelongsTo(() => Articulo)
   articulo: Articulo;
 
-  @Column(DataType.SMALLINT)
+  @Column(DataType.INTEGER)
   declare cant_pedida: number;
 
   @Column(DataType.DECIMAL(12, 2))

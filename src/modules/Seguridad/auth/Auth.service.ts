@@ -8,6 +8,7 @@ import { isUUID } from "../../../utils/validaciones"
 import { UsuarioRepository } from "../repositories/Usuario.repository"
 import jwt from "jsonwebtoken"
 import { Usuario_SucursalRepository } from "../repositories/Usuario_Sucursal.repository"
+import Rol from "../model/Rol"
 
 export const AuthService = {
     createEmpleado: async (data: ICreateUsuario) => {
@@ -74,7 +75,15 @@ export const AuthService = {
             if (emp) nombre_completo = `${emp.nombre_empleado} ${emp.ap_pat_empleado} ${emp.ap_mat_empleado ?? ''}`.trim();
         } catch { /* si falla, el token sigue sin nombre */ }
 
-        const token = generateToken(usuario.id_user, username, data.id_empresa, usuario.id_referencia_persona, nombre_completo)
+        let prioridad: number | undefined;
+        try {
+            if (usuario.idrol_user) {
+                const rol = await Rol.findByPk(usuario.idrol_user, { attributes: ['prioridad'] });
+                if (rol) prioridad = rol.prioridad;
+            }
+        } catch { /* si falla, el token sigue sin prioridad */ }
+
+        const token = generateToken(usuario.id_user, username, data.id_empresa, usuario.id_referencia_persona, nombre_completo, prioridad)
         return token;
     },
     cambiarContra: async (data: ICambiarContrasena) => {
