@@ -214,4 +214,17 @@ export class LotesArticuloSucursalController {
           .json({ mensaje: "Error al actualizar Lotes Articulo sucursal." });
       }
     };*/
+
+  static getHistorialEntradas = async (req: Request, res: Response) => {
+    try {
+      const { id_artic } = req.params;
+      const id_empresa = req.query.id_empresa as string;
+      if (!id_artic) { res.status(400).json({ mensaje: 'id_artic requerido' }); return; }
+      const historial = await LotesArticuloSucursalService.getHistorialEntradas(id_artic, id_empresa);
+      res.status(200).json(historial);
+    } catch (error) {
+      console.error('getHistorialEntradas:', error);
+      res.status(500).json({ mensaje: 'Error al obtener historial de entradas.' });
+    }
+  };
 }

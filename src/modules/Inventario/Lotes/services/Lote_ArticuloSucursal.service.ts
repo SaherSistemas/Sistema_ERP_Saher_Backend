@@ -125,5 +125,9 @@ export const LotesArticuloSucursalService = {
     },*/
   create: async (data: ICreaterOrUdateLotesArticuloSucursal) => {
     return LotesArticuloSucursalRepository.create(data);
-  }
+  },
+
+  getHistorialEntradas: async (id_artic: string, id_empresa?: string) => {
+    return LotesArticuloSucursalRepository.getHistorialEntradas(id_artic, id_empresa);
+  },
 };

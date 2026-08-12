@@ -75,6 +75,19 @@ export const Empresa_SucursalRepository = {
             raw: true
         });
     },
+    getEmpresasDelGrupo: async (id_empresa: string) => {
+        const grupo = await Empresa_Sucursal.findOne({
+            where: { id_empre: id_empresa },
+            attributes: ['idgrup_empre'],
+            raw: true,
+        });
+        if (!grupo?.idgrup_empre) return [];
+        return Empresa_Sucursal.findAll({
+            where: { idgrup_empre: grupo.idgrup_empre },
+            attributes: ['id_empre', 'nom_empre', 'es_empresa_principal', 'id_empresa_sys_anterior'],
+            raw: true,
+        });
+    },
     getGrupo: async (id_empresa: string, options?: { transaction?: Transaction }) => {
         return await Empresa_Sucursal.findOne({
             where: {

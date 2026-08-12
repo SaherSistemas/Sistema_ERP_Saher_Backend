@@ -1,11 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Op, Sequelize, Transaction, FindOptions, fn, col, literal } from 'sequelize';
+import { Op, Sequelize, Transaction, FindOptions, fn, col, literal, QueryTypes } from 'sequelize';
 import Lote_Articulo_Sucursal from '../model/Lote_Articulo_Sucursal';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import { DetalleListaPreciosRepository } from '../../../Comercial/Precios/repositories/Detalle_Lista_Precio.repository';
 import { ICreaterOrUdateLotesArticuloSucursal, IResumenArticulo } from '../../../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface';
 import { isUUID } from '../../../../utils/validaciones';
 import { ArticuloRepository } from '../../../Catalogos/Articulos/repositories/Articulo.repository';
+import { dbLocal, dbPoly } from '../../../../config/db';
+import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 
 
 
@@ -380,29 +382,88 @@ export const LotesArticuloSucursalRepository = {
   llevarmeCostosDeLotesExistentesEnVariasEmpresas: async (
     id_artic: string,
     ids_Empresas: string[],
+    cod_int_artic?: number,
+    costoNeto?: number,
     options?: { transaction?: Transaction }
   ) => {
-    const lotesExistencia = await Lote_Articulo_Sucursal.findAll({
-      attributes: ['cantidad_entrada_lote', 'precio_costo_lote_sucursal'],
-      where: {
-        id_artic,
-        id_empre: ids_Empresas,
-        cantidad_entrada_lote: { [Op.gt]: 0 }
-      },
-      raw: true,
+    // 1) Traer TODOS los lotes con existencia (con o sin costo capturado)
+    const lotesConExistenciaReal = await dbLocal.query<{
+      id_lote_sucursal: string;
+      precio_costo_lote_sucursal: string;
+      disponible: string;
+    }>(`
+      SELECT
+          l.id_lote_sucursal,
+          l.precio_costo_lote_sucursal,
+          SUM(s.cantidad - s.cantidad_apartada) AS disponible
+      FROM stock_ubicacion_lote s
+      JOIN lote_articulo_sucursal l ON l.id_lote_sucursal = s.id_lote
+      WHERE s.id_articulo = :id_artic
+        AND s.id_empresa_sucursal IN (:ids_Empresas)
+      GROUP BY l.id_lote_sucursal, l.precio_costo_lote_sucursal
+      HAVING SUM(s.cantidad - s.cantidad_apartada) > 0
+    `, {
+      replacements: { id_artic, ids_Empresas },
+      type: QueryTypes.SELECT,
       transaction: options?.transaction
     });
 
     let totalCosto = 0;
     let totalCantidad = 0;
 
-    for (const lote of lotesExistencia) {
-      const costo = lote.precio_costo_lote_sucursal;
-      const cantidad = lote.cantidad_entrada_lote;
+    for (const lote of lotesConExistenciaReal) {
+      const cantidad = Number(lote.disponible);
+      const costoCapturado = Number(lote.precio_costo_lote_sucursal);
 
-      totalCosto += costo * cantidad;
+      // Si el lote NO tiene costo capturado, se valoriza con el costo NUEVO de la factura
+      const costoAUsar = costoCapturado > 0 ? costoCapturado : costoNeto;
+
+      totalCosto += costoAUsar * cantidad;
       totalCantidad += cantidad;
     }
+
+    // 2) Códigos legacy (empcdempn) de las empresas del grupo
+    const empresasSucursal = await Empresa_Sucursal.findAll({
+      attributes: ['id_empresa_sys_anterior'],
+      where: {
+        id_empre: ids_Empresas,
+        id_empresa_sys_anterior: { [Op.not]: null }
+      },
+      raw: true,
+      transaction: options?.transaction
+    });
+
+    const codigosEmpresaPoly = empresasSucursal
+      .map(e => e.id_empresa_sys_anterior)
+      .filter((v): v is string => v != null)
+      .map(v => Number(v));
+
+    // 3) Existencia desde PolyDB — Poly no trae costo propio, así que también se valoriza
+    //    con el costo NUEVO (ya que ahí nunca hay costo local capturado por lote)
+    let existenciaPolyTotal = 0;
+
+    if (codigosEmpresaPoly.length > 0 && cod_int_artic != null) {
+      const rowsPoly = await dbPoly.query<{ almexistn: string }>(`
+        SELECT almexistn
+        FROM public.almacenes1
+        WHERE artcdartn = :codIntArtic
+          AND empcdempn IN (:codigosEmpresaPoly)
+          AND almexistn > 0
+      `, {
+        replacements: {
+          codIntArtic: cod_int_artic,
+          codigosEmpresaPoly
+        },
+        type: QueryTypes.SELECT
+      });
+
+      for (const row of rowsPoly) {
+        existenciaPolyTotal += Number(row.almexistn);
+      }
+    }
+
+    totalCosto += costoNeto * existenciaPolyTotal;
+    totalCantidad += existenciaPolyTotal;
 
     const costoPromedio = totalCantidad > 0 ? totalCosto / totalCantidad : 0;
 
@@ -479,5 +540,50 @@ export const LotesArticuloSucursalRepository = {
     });
 
     return nuevoLote;
-  }
+  },
+
+  getHistorialEntradas: async (id_artic: string, id_empresa?: string) => {
+    const empresaFilter = id_empresa ? `AND las.id_empre = :id_empresa` : '';
+
+    const rows = await dbLocal.query<any>(`
+      SELECT
+        las.id_lote_sucursal,
+        las.numero_lote_sucursal                               AS numero_lote,
+        las."createdAt"                                        AS fecha_entrada,
+        las.cantidad_entrada_lote                              AS unidades_entrada,
+        las.precio_costo_lote_sucursal                        AS costo_unitario,
+        las.estado_lote_sucursal                              AS estado,
+        las.fecha_venci_lote_sucursal                         AS fecha_vencimiento,
+        es.nom_empre                                           AS empresa,
+        -- Stock actual restante de este lote
+        COALESCE(SUM(sul.cantidad - COALESCE(sul.cantidad_apartada, 0)), 0)::int AS stock_restante,
+        -- Proveedor: via lote_recibido → detalle_compra_recibido → compra_proveedor → proveedor
+        p.nomcort_prove                                        AS proveedor,
+        -- Días transcurridos desde la entrada
+        EXTRACT(DAY FROM NOW() - las."createdAt")::int        AS dias_desde_entrada
+      FROM lote_articulo_sucursal las
+      JOIN empresa_sucursal es ON es.id_empre = las.id_empre
+      LEFT JOIN stock_ubicacion_lote sul ON sul.id_lote = las.id_lote_sucursal
+      LEFT JOIN lotes_recibidos_compra lrc ON lrc.id_loterecibido = las.id_loterecibido_lote_sucursal
+      LEFT JOIN detalle_compra_recibido dcr ON dcr.id_detcomprec = lrc.id_detallecompr_recibido
+      LEFT JOIN detalle_factura_compra_proveedor dfcp ON dfcp.id_factura_proveedor_detalle = dcr.id_detalle_factura_compra_proveedor
+      LEFT JOIN factura_compra_proveedor fcp ON fcp.id_factura_proveedor = dfcp.id_factura_compra_proveedor
+      LEFT JOIN compra_proveedor cp ON cp.id_comp = fcp.id_compra_prove_factura
+      LEFT JOIN proveedor p ON p.id_prove = cp.idprove_comp
+      WHERE las.id_artic = :id_artic
+        ${empresaFilter}
+      GROUP BY
+        las.id_lote_sucursal, las.numero_lote_sucursal, las."createdAt",
+        las.cantidad_entrada_lote, las.precio_costo_lote_sucursal,
+        las.estado_lote_sucursal, las.fecha_venci_lote_sucursal,
+        es.nom_empre, p.nomcort_prove
+      ORDER BY las."createdAt" DESC
+      LIMIT 5
+    `, {
+      type: QueryTypes.SELECT,
+      replacements: { id_artic, ...(id_empresa ? { id_empresa } : {}) },
+    });
+
+    return rows;
+  },
 };

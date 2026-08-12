@@ -11,12 +11,11 @@ router.get('/existencia/:id_artic/:ids_empresas', LotesArticuloSucursalControlle
 // Existencia por sucursal (ruta original)
 router.get('/existenciaSucursal/:id_artic/:id_sucursal', LotesArticuloSucursalController.getExistencia);
 
+router.get('/historial-entradas/:id_artic', LotesArticuloSucursalController.getHistorialEntradas);
+router.get('/codigoBarra/:cod_barr_artic', LotesArticuloSucursalController.getLotesPorCodigoBarra);
 router.get('/:id', LotesArticuloSucursalController.getByID);
 router.get('/empresa/:id_empre/articulo/:id_artic', LotesArticuloSucursalController.getAllByEmpresaArticulo);
 router.get('/:id_empre/:id_artic/validar', LotesArticuloSucursalController.validarExistencia);
-router.get('/empresa/:id_empre/articulo/:id_artic', LotesArticuloSucursalController.getAllByEmpresaArticulo);
-
-router.get('/codigoBarra/:cod_barr_artic', LotesArticuloSucursalController.getLotesPorCodigoBarra);
 router.post('/', LotesArticuloSucursalController.create);
 
 //* AGENTE CONSUME ESTE PARA VER LAS EXISTENCIAS POR SUCURSAL  */

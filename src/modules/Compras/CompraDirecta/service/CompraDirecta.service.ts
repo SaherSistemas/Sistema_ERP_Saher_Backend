@@ -2,6 +2,7 @@ import { Transaction } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import { dbLocal } from '../../../../config/db';
 
+import { Op } from 'sequelize';
 import Compra_General from '../../Ordenes-Compra/model/Compra_General';
 import Compra_Proveedor from '../../Ordenes-Compra/model/Compra_Proveedor';
 import Factura_Compra_Proveedor from '../../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
@@ -86,6 +87,26 @@ export const CompraDirectaService = {
                 id_empleado_compra: data.id_empleado_registra ?? null,
                 id_empleado_registro_lotes: data.id_empleado_registra ?? null,
             } as any, { transaction: t });
+
+            // 3) Verificar folio duplicado para este proveedor
+            const comprasDelProveedor = await Compra_Proveedor.findAll({
+                where: { idprove_comp: data.id_proveedor },
+                attributes: ['id_comp'],
+                raw: true,
+            });
+            const idsCompras = comprasDelProveedor.map((c: any) => c.id_comp);
+            if (idsCompras.length > 0) {
+                const folioExistente = await Factura_Compra_Proveedor.findOne({
+                    where: {
+                        folio_factura_proveedor: data.folio_factura,
+                        id_compra_prove_factura: { [Op.in]: idsCompras },
+                    },
+                    transaction: t,
+                });
+                if (folioExistente) {
+                    throw new Error(`La factura con folio "${data.folio_factura}" ya existe para este proveedor.`);
+                }
+            }
 
             // 3) Factura_Compra_Proveedor
             const idFactura = uuidv4();

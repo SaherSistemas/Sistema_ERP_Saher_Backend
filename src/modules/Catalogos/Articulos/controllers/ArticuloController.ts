@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { AuthedRequest } from '../../../../middleware/auth';
 import { ArticuloService } from '../services/articulo.service';
 import { ArticuloRepository } from '../repositories/Articulo.repository';
 import { DetalleListaPreciosRepository } from '../../../Comercial/Precios/repositories/Detalle_Lista_Precio.repository';
@@ -131,10 +132,11 @@ export class ArticuloController {
   };
 
   // GET /articulo/:id_artic/panel-precios
-  static getPanelPrecios = async (req: Request, res: Response) => {
+  static getPanelPrecios = async (req: AuthedRequest, res: Response) => {
     try {
       const { id_artic } = req.params;
-      const panel = await ArticuloRepository.getPanelPrecios(id_artic);
+      const id_empresa = req.user?.id_empresa as string;
+      const panel = await ArticuloRepository.getPanelPrecios(id_artic, id_empresa);
       res.status(200).json(panel);
     } catch (error: any) {
       console.error(error);

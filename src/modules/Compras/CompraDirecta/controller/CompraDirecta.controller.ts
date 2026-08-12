@@ -16,7 +16,8 @@ export const CompraDirectaController = {
             res.status(201).json({ mensaje: 'Compra directa registrada exitosamente.', ...result });
         } catch (error: any) {
             console.error('[CompraDirecta.controller] Error:', error);
-            res.status(500).json({ mensaje: error?.message ?? 'Error al registrar la compra directa.' });
+            const esDuplicado = error?.message?.includes('ya existe');
+            res.status(esDuplicado ? 400 : 500).json({ mensaje: error?.message ?? 'Error al registrar la compra directa.' });
         }
     },
 };

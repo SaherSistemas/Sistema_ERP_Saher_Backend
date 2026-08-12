@@ -12,8 +12,8 @@ import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucur
 export const Stock_Ubicacion_LoteRepository = {
 
     getExistencias: async (id_empresa: string, id_articulo?: string) => {
-        // 1. Obtener TODAS las empresas
-        const empresas = await Empresa_SucursalRepository.getAll();
+        // 1. Obtener solo las empresas del mismo grupo
+        const empresas = await Empresa_SucursalRepository.getEmpresasDelGrupo(id_empresa);
         //console.log(empresas);
         const empresaIds = empresas.map((e: any) => e.id_empre);
 

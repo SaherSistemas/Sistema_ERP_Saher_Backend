@@ -1,4 +1,4 @@
-import { literal, Op, Sequelize, Transaction } from 'sequelize';
+import { literal, Op, QueryTypes, Sequelize, Transaction } from 'sequelize';
 import { ICreateOrUpdateArticulo } from "../interface/Articulo.interface";
 import Articulo from "../model/Articulo";
 import { isUUID } from "../../../../utils/validaciones";
@@ -9,6 +9,7 @@ import ListaPrecio from '../../../Comercial/Precios/model/Lista_Precio';
 import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
+import { dbPoly } from '../../../../config/db';
 import { Tipo_IVARepository } from './Tipo_IVA.repository';
 import Parametros_Compra from '../../../Compras/Ordenes-Compra/model/Parametros_Compra';
 import ArticuloExcluidoCompra from '../../../Compras/Ordenes-Compra/model/ArticuloExcluidoCompra';
@@ -344,7 +345,7 @@ export const ArticuloRepository = {
             where: whereArticulo,
         });
     },
-    getPanelPrecios: async (id_artic: string) => {
+    getPanelPrecios: async (id_artic: string, id_empresa?: string) => {
         // ── 1. Artículo ──────────────────────────────────────────────────────
         const articulo = await Articulo.findByPk(id_artic, {
             attributes: [
@@ -377,11 +378,17 @@ export const ArticuloRepository = {
             precio_actual: Number(detalleByLista.get(l.id_lista_precio)?.precios ?? 0),
         }));
 
-        // ── 3. Lotes activos por empresa ─────────────────────────────────────
+        // ── 3. Lotes activos por empresa (solo del grupo) ────────────────────
+        const empresasGrupo = id_empresa
+            ? await Empresa_SucursalRepository.getEmpresasDelGrupo(id_empresa)
+            : [];
+        const idsGrupo = empresasGrupo.map((e: any) => e.id_empre);
+
         const lotes = await Lote_Articulo_Sucursal.findAll({
             where: {
                 id_artic,
                 cantidad_entrada_lote: { [Op.gt]: 0 },
+                ...(idsGrupo.length > 0 && { id_empre: { [Op.in]: idsGrupo } }),
             },
             include: [{
                 model: Empresa_Sucursal,
@@ -406,6 +413,17 @@ export const ArticuloRepository = {
                 vencimiento: Date | null;
             }[];
         }>();
+
+        // Pre-inicializar todas las empresas del grupo (aunque no tengan lotes)
+        for (const emp of empresasGrupo) {
+            empresaMap.set((emp as any).id_empre, {
+                id_empre: (emp as any).id_empre,
+                nom_empre: (emp as any).nom_empre,
+                unidades: 0,
+                costo_total: 0,
+                lotes: [],
+            });
+        }
 
         let totalUnidades = 0;
         let sumCostoXCant = 0;
@@ -437,6 +455,50 @@ export const ArticuloRepository = {
             if (costo > 0) {
                 sumCostoXCant   += cant * costo;
                 sumCantConCosto += cant;
+            }
+        }
+
+        // ── 5. Stock PolyDB para sucursales del sistema viejo ────────────────
+        const sucursalesPoly = empresasGrupo.filter(
+            (e: any) => !e.es_empresa_principal && e.id_empresa_sys_anterior
+        );
+        const cod_int_artic = (articulo as any).cod_int_artic;
+        if (sucursalesPoly.length > 0 && cod_int_artic) {
+            const empIds = sucursalesPoly.map((e: any) => Number(e.id_empresa_sys_anterior));
+            const rowsPoly = await dbPoly.query<{ empcdempn: number; almexistn: number }>(
+                `SELECT empcdempn, COALESCE(almexistn, 0) AS almexistn
+                 FROM public.almacenes1
+                 WHERE empcdempn IN (:empIds)
+                   AND almcdalmn = 1
+                   AND artcdartn = :cod_int_artic`,
+                {
+                    type: QueryTypes.SELECT,
+                    replacements: { empIds, cod_int_artic: Number(cod_int_artic) },
+                }
+            );
+            for (const row of rowsPoly) {
+                const empresa = sucursalesPoly.find(
+                    (e: any) => Number(e.id_empresa_sys_anterior) === row.empcdempn
+                );
+                if (empresa) {
+                    const entry = empresaMap.get((empresa as any).id_empre);
+                    if (entry) {
+                        entry.unidades = Number(row.almexistn);
+                        // Añadir fila sintética para que el frontend muestre el total
+                        if (row.almexistn > 0) {
+                            entry.lotes.push({
+                                id_lote: 'poly',
+                                numero_lote: 'Sistema anterior',
+                                cantidad: Number(row.almexistn),
+                                costo_unitario: 0,
+                                costo_total: 0,
+                                estado: 'A',
+                                vencimiento: null,
+                            });
+                        }
+                    }
+                    totalUnidades += Number(row.almexistn);
+                }
             }
         }
 

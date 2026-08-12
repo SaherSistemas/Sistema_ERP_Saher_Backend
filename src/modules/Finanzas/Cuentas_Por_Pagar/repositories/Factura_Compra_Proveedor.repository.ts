@@ -78,8 +78,38 @@ export const Factura_Compra_ProveedorRepository = {
     actualizarEncabezado: async (id_factura_proveedor: string, data: IActualizarEncabezadoFacturaDTO) => {
         const factura = await Factura_Compra_Proveedor.findByPk(id_factura_proveedor);
         if (!factura) throw new Error('Factura no encontrada');
+
+        // Validar folio único por proveedor (si el folio cambió)
+        const folioNuevo = data.folio_factura_proveedor;
+        if (folioNuevo && folioNuevo !== factura.folio_factura_proveedor) {
+            const compraActual = await Compra_Proveedor.findByPk(factura.id_compra_prove_factura, {
+                attributes: ['idprove_comp'],
+                raw: true,
+            }) as any;
+
+            if (compraActual?.idprove_comp) {
+                const comprasDelProveedor = await Compra_Proveedor.findAll({
+                    where: { idprove_comp: compraActual.idprove_comp },
+                    attributes: ['id_comp'],
+                    raw: true,
+                });
+                const idsCompras = comprasDelProveedor.map((c: any) => c.id_comp);
+
+                const duplicado = await Factura_Compra_Proveedor.findOne({
+                    where: {
+                        folio_factura_proveedor: folioNuevo,
+                        id_compra_prove_factura: { [Op.in]: idsCompras },
+                        id_factura_proveedor: { [Op.ne]: id_factura_proveedor },
+                    },
+                });
+                if (duplicado) {
+                    throw new Error(`El folio "${folioNuevo}" ya está registrado para este proveedor.`);
+                }
+            }
+        }
+
         await factura.update({
-            folio_factura_proveedor: data.folio_factura_proveedor,
+            folio_factura_proveedor: folioNuevo,
             costo_por_envio: data.costo_por_envio,
             fecha_emision: data.fecha_emision,
             fecha_vencimiento: data.fecha_vencimiento,
@@ -229,17 +259,23 @@ export const Factura_Compra_ProveedorRepository = {
 
         if (!compraProveedor) throw new Error('Compra proveedor no encontrada');
 
-        // Validar que no exista ya ese folio
+        // Validar folio único por proveedor
+        const comprasDelProveedor = await Compra_Proveedor.findAll({
+            where: { idprove_comp: compraProveedor.idprove_comp },
+            attributes: ['id_comp'],
+            raw: true,
+        });
+        const idsComprasProveedor = comprasDelProveedor.map((c: any) => c.id_comp);
+
         const folioExistente = await Factura_Compra_Proveedor.findOne({
-            where:
-            {
+            where: {
                 folio_factura_proveedor: data.folio_factura_proveedor,
-                fecha_emision: data.fecha_emision
-            }
+                id_compra_prove_factura: { [Op.in]: idsComprasProveedor },
+            },
         });
 
         if (folioExistente) {
-            throw new Error(`El folio de factura "${data.folio_factura_proveedor}" ya existe. No se puede registrar duplicado.`);
+            throw new Error(`El folio "${data.folio_factura_proveedor}" ya está registrado para este proveedor.`);
         }
 
         const updates: any = {};

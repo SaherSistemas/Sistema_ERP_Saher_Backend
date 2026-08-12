@@ -67,40 +67,35 @@ export const Detalle_Factura_Compra_ProveedorService = {
 
                     const { costoPromedio, totalCantidad } =
                         await LotesArticuloSucursalRepository.llevarmeCostosDeLotesExistentesEnVariasEmpresas(
-                            id_artic, empresas, { transaction: t }
+                            id_artic, empresas, modeloArticulo.cod_int_artic, costoNeto, { transaction: t }
                         );
 
+                    console.log("COSTO PROMEDIO EXISTENTE:", costoPromedio, "TOTAL CANTIDAD EXISTENTE:", totalCantidad);
                     const totalUnidades = totalCantidad + cantidadNueva;
                     const costoPromedioActualizado = totalUnidades > 0
                         ? (costoPromedio * totalCantidad + costoNeto * cantidadNueva) / totalUnidades
                         : costoNeto;  // si no hay stock previo, el costo promedio es el costo de esta compra
 
-                    await dbLocal.query(`
-    SELECT dblink_exec(
-        'TU_CONNECTION_STRING_AQUI',
-        format(
-            'UPDATE public.almacenes1
-             SET almultctn = %L,
-                 almcfeultd = NOW(),
-                 almcosprn = %L
-             WHERE empcdempn = 99999
-               AND almcdalmn = 20
-               AND artcdartn = %L',
-            :costoNeto,
-            :costoPromedioActualizado,
-            :codIntArtic
-        )
-    )
+                    await dbPoly.query(`
+    INSERT INTO public.almacenes1
+        (empcdempn, almcdalmn, artcdartn, almultctn, almcfeultd, almcosprn, almexistn)
+    VALUES
+        (:empcdempn, :almcdalmn, :codIntArtic, :costoNeto, NOW(), :costoPromedioActualizado, 0)
+    ON CONFLICT (empcdempn, almcdalmn, artcdartn)
+    DO UPDATE SET
+        almultctn = EXCLUDED.almultctn,
+        almcfeultd = EXCLUDED.almcfeultd,
+        almcosprn = EXCLUDED.almcosprn
 `, {
                         replacements: {
+                            empcdempn: 99999,
+                            almcdalmn: 1,
+                            codIntArtic: modeloArticulo.cod_int_artic,
                             costoNeto,
-                            costoPromedioActualizado,
-                            codIntArtic: modeloArticulo.cod_int_artic
+                            costoPromedioActualizado
                         },
-                        type: QueryTypes.SELECT,
-                        transaction: t
-                    } as QueryOptionsWithType<QueryTypes.SELECT>);
-
+                        type: QueryTypes.INSERT
+                    });
                     const listasDePrecioGrupo = await Grupo_Empresa_Lista_PrecioRepository
                         .getSoloListasDePrecioPorIDGrupo(grupoEmpresa.idgrup_empre);
                     const idsListasGrupo = listasDePrecioGrupo.map(l => l.id_list_precio);
