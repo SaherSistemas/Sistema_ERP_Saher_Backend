@@ -8,13 +8,15 @@ import { fmt2, fmt4 } from './sat.helper';
 export const RFC_PUBLICO_GENERAL = 'XAXX010101000';
 
 export function buildDescripcionConcepto(c: ConceptoFacturacion): string {
-    let desc = c.descripcion;
+    let desc = c.descripcion.trim();
     if (c.lotes?.length) {
-        desc += ' - ' + c.lotes
-            .map(l => `Lote:${l.lote} Fec/Cad: ${l.fecha_venci} Pzas: ${fmt4(l.cantidad).padStart(13, ' ')}`)
-            .join(' ');
+        const lotesStr = c.lotes
+            .map(l => `L:${l.lote} CAD:${l.fecha_venci} PZAS:${l.cantidad}`)
+            .join(' / ');
+        desc += ` | ${lotesStr}`;
     }
-    if (c.tasa_iva > 0) desc += ` ${(c.tasa_iva * 100).toFixed(2)}%`;
+    const importe_iva = +(c.subtotal_linea * c.tasa_iva).toFixed(2);
+    if (c.tasa_iva > 0) desc += ` | IVA:$${fmt2(importe_iva)}`;
     return desc;
 }
 

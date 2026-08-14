@@ -12,153 +12,236 @@ import Colonia from '../../../../models/Ubicacion/Colonia';
 import Pago_CxC from '../model/Pago_CxC.model';
 import FacturaPagoCFDI from '../../../Facturas/model/Factura_Pago_CFDI.model';
 import Cat_Forma_De_Pago from '../../../Catalogos/model/Cat_Forma_De_Pago';
-import { facturapiClient } from '../../../../helpers/facturapi.helper';
+import { generarTxtPago, derivarSeries, EmisorTxt, ReceptorTxt, DocumentoPagoTxt } from '../../../Facturas/helpers/cfdi_txt.helper';
+import { FacturacionRepository } from '../../../Facturas/repositories/Facturacion.repository';
+import EmpresaSucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { generarReciboPDFBuffer } from '../helpers/recibo_cobranza.pdf';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Helper privado — timbra UN RECIBO completo (múltiples documentos) en 1 CFDI
-//  Se llama FUERA de transacción DB para no revertir la aplicación si el SAT falla
+//  Helper: obtiene datos del emisor desde la BD
 // ─────────────────────────────────────────────────────────────────────────────
-async function _timbrarRecibo(cfdis: FacturaPagoCFDI[]): Promise<{
-    ok: boolean; uuid?: string; pdf_url?: string; xml_url?: string; error?: string;
+async function _getEmisor(id_empresa?: string): Promise<EmisorTxt | null> {
+    const empresa = id_empresa
+        ? await EmpresaSucursal.findByPk(id_empresa, { raw: true }) as any
+        : await EmpresaSucursal.findOne({ raw: true }) as any;
+    if (!empresa) return null;
+    return {
+        nom_empre:            empresa.nom_empre,
+        rfc_empre:            empresa.rfc_empre,
+        regimen_fiscal_empre: empresa.regimen_fiscal_empre ?? '601',
+        serie_ingreso:        empresa.serie_facturacion_empre ?? 'FSH',
+        lugar_expedicion:     empresa.lugar_expedicion ?? '80160',
+    };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Helper privado — genera .txt de Complemento de Pago para un FacturaPagoCFDI
+// ─────────────────────────────────────────────────────────────────────────────
+async function _generarTxtUno(cfdi: FacturaPagoCFDI, id_empresa?: string): Promise<{
+    ok: boolean; ruta_txt?: string; error?: string;
 }> {
     try {
-        if (cfdis.length === 0) return { ok: false, error: 'Sin registros para timbrar' };
+        // Leer valores via dataValues para evitar el problema de class fields que tapan getters
+        const d = cfdi.dataValues ?? cfdi;
+        const id_pago_cfdi   = d.id_pago_cfdi;
+        const id_factura     = d.id_factura;
+        const fecha_pago     = d.fecha_pago;
+        const forma_de_pago  = d.forma_de_pago;
+        const moneda         = d.moneda ?? 'MXN';
+        const monto_pagado   = Number(d.monto_pagado);
+        const saldo_anterior = Number(d.saldo_anterior);
+        const num_parcialidad = d.num_parcialidad;
+        const uuid_relacionado = d.uuid_relacionado;
 
-        // Obtener datos del cliente desde la primera factura (todos son del mismo cliente)
-        const primeraFactura = await Facturas.findByPk(cfdis[0].id_factura);
-        if (!primeraFactura?.uuid_sat) throw new Error('Factura sin UUID SAT');
+        if (!id_pago_cfdi) return { ok: false, error: 'Registro sin PK — ignorado' };
+        if (!fecha_pago)   return { ok: false, error: 'Fecha de pago inválida' };
 
-        const cliente = await Cliente_Almacen.findByPk(primeraFactura.id_cliente_alm);
+        const fechaStr = new Date(fecha_pago).toISOString().split('T')[0];
+        if (fechaStr === 'Invalid') return { ok: false, error: 'Fecha de pago inválida' };
+
+        const factura = await Facturas.findByPk(id_factura);
+        const cliente = factura ? await Cliente_Almacen.findByPk(factura.id_cliente_alm) : null;
+        const emisor  = await _getEmisor(id_empresa);
+        if (!emisor) throw new Error('No se encontró la empresa emisora');
+
         let zip = '00000';
         if (cliente?.id_colonia_cliente_alm) {
             const colonia = await Colonia.findByPk(cliente.id_colonia_cliente_alm);
-            if (colonia?.cp_colonia) zip = colonia.cp_colonia;
+            const coloniaData = colonia?.dataValues ?? colonia;
+            if ((coloniaData as any)?.cp_colonia) zip = (coloniaData as any).cp_colonia;
         }
 
-        // Construir related_documents — uno por cada pago del recibo
-        const related_documents = await Promise.all(cfdis.map(async (cfdi) => {
-            const factura = await Facturas.findByPk(cfdi.id_factura);
-            return {
-                uuid: factura?.uuid_sat ?? primeraFactura.uuid_sat,
-                amount: Number(cfdi.monto_pagado),
-                installment: cfdi.num_parcialidad,
-                last_balance: Number(cfdi.saldo_anterior),
-                currency: 'MXN',
-            };
-        }));
+        const series = derivarSeries(emisor.serie_ingreso);
+        const folio  = await FacturacionRepository.getSiguienteFolio();
 
-        // Monto total del recibo
-        const montoTotal = cfdis.reduce((s, c) => s + Number(c.monto_pagado), 0);
+        // Registrar en facturas para reservar el folio y que el siguiente pago obtenga uno diferente
+        await Facturas.create({
+            tipo_cfdi:        'P',
+            origen_factura:   'CXC',
+            folio_factura:    String(folio),
+            fecha_emision:    new Date(fecha_pago),
+            subtotal_factura: monto_pagado,
+            iva_factura:      0,
+            total_factura:    monto_pagado,
+            estatus_factura:  'TIM',
+            id_cliente_alm:   (factura?.dataValues ?? factura as any)?.id_cliente_alm ?? null,
+        });
 
-        const complement = await facturapiClient.invoices.create({
-            type: 'P',
-            customer: {
-                legal_name: cliente?.razon_social_cliente_alm ?? '',
-                tax_id: cliente?.rfc_cliente_alm ?? '',
-                tax_system: cliente?.id_regimen_fiscal_cliente_alm ?? '',
-                address: { zip },
-            },
-            payments: [{
-                date: new Date(cfdis[0].fecha_pago),
-                form: cfdis[0].forma_de_pago,
-                amount: montoTotal,
-                currency: 'MXN',
-                exchange: 1,
-                related_documents,
+        const receptor: ReceptorTxt = {
+            razon_social:    ((cliente?.dataValues ?? cliente as any)?.razon_social_cliente_alm ?? '').toUpperCase(),
+            rfc:             (cliente?.dataValues ?? cliente as any)?.rfc_cliente_alm ?? 'XAXX010101000',
+            domicilio_fiscal: zip,
+            regimen_fiscal:  (cliente?.dataValues ?? cliente as any)?.id_regimen_fiscal_cliente_alm ?? '616',
+            uso_cfdi:        'CP01',
+        };
+
+        const facturaData   = factura?.dataValues ?? factura as any;
+        const saldo_insoluto = Math.max(saldo_anterior - monto_pagado, 0);
+
+        const { ruta } = generarTxtPago({
+            emisor, receptor, folio,
+            fecha_pago:    fechaStr,
+            id_forma_pago: forma_de_pago,
+            moneda,
+            documentos: [{
+                uuid_relacionado: facturaData?.uuid_sat ?? uuid_relacionado ?? '',
+                folio_factura:    facturaData?.folio_factura ?? String(folio),
+                serie_factura:    emisor.serie_ingreso,
+                monto_pago:       monto_pagado,
+                saldo_anterior,
+                saldo_insoluto,
+                num_parcialidad,
+                moneda,
+                tasa_iva:         0,
             }],
-        } as any);
+            nombreArchivo: `PagoDig${series.pago}${folio}-Pagos.txt`,
+        });
 
-        const uuid_cfdi = (complement as any)?.uuid ?? null;
-        const pdf_url = (complement as any)?.pdf_url ?? null;
-        const xml_url = (complement as any)?.xml_url ?? null;
-
-        // Actualizar TODOS los registros del recibo con el mismo UUID
-        await FacturaPagoCFDI.update({
-            uuid_cfdi_pago: uuid_cfdi,
-            pdf_url,
-            xml_url,
-            estatus_timbrado: uuid_cfdi ? 'TIM' : 'ERR',
-        }, { where: { id_pago_cfdi: cfdis.map(c => c.id_pago_cfdi) } });
-
-        if (!uuid_cfdi) return { ok: false, error: 'Facturapi no devolvió UUID' };
-        return { ok: true, uuid: uuid_cfdi, pdf_url, xml_url };
-
-    } catch (err: any) {
-        console.error(`[CxC] Error al timbrar recibo:`, err);
         await FacturaPagoCFDI.update(
-            { estatus_timbrado: 'ERR' },
-            { where: { id_pago_cfdi: cfdis.map(c => c.id_pago_cfdi) } }
-        ).catch(() => { });
+            { estatus_timbrado: 'TIM' },
+            { where: { id_pago_cfdi } }
+        );
+
+        return { ok: true, ruta_txt: ruta };
+    } catch (err: any) {
+        const pk = (cfdi.dataValues ?? cfdi as any).id_pago_cfdi;
+        console.error(`[CxC] Error al generar .txt id_pago_cfdi=${pk}:`, err.message, err.stack);
+        if (pk) {
+            await FacturaPagoCFDI.update(
+                { estatus_timbrado: 'ERR' },
+                { where: { id_pago_cfdi: pk } }
+            ).catch(() => { });
+        }
         return { ok: false, error: err.message ?? 'Error desconocido' };
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Helper privado — timbra un solo FacturaPagoCFDI con Facturapi
-//  Se llama FUERA de transacción DB para no revertir la aplicación si el SAT falla
+//  Helper privado — genera UN .txt por recibo con todos sus documentos (DP1, DP2…)
 // ─────────────────────────────────────────────────────────────────────────────
-async function _timbrarUno(cfdi: FacturaPagoCFDI): Promise<{
-    ok: boolean; uuid?: string; pdf_url?: string; xml_url?: string; error?: string;
+async function _generarTxtRecibo(cfdis: FacturaPagoCFDI[], id_empresa?: string): Promise<{
+    ok: boolean; ruta_txt?: string; error?: string;
 }> {
+    if (cfdis.length === 0) return { ok: false, error: 'Sin registros para generar' };
+
     try {
-        const factura = await Facturas.findByPk(cfdi.id_factura);
-        if (!factura?.uuid_sat) {
-            throw new Error('Factura sin UUID SAT — no se puede timbrar el complemento');
-        }
+        // Leer datos del primer CFDI para encabezado del pago (fecha, forma, moneda son iguales en el recibo)
+        const d0 = cfdis[0].dataValues ?? (cfdis[0] as any);
+        const fecha_pago    = d0.fecha_pago;
+        const forma_de_pago = d0.forma_de_pago;
+        const moneda        = d0.moneda ?? 'MXN';
 
-        const cliente = await Cliente_Almacen.findByPk(factura.id_cliente_alm);
+        if (!fecha_pago) return { ok: false, error: 'Fecha de pago inválida' };
+        const fechaStr = new Date(fecha_pago).toISOString().split('T')[0];
+
+        const emisor = await _getEmisor(id_empresa);
+        if (!emisor) throw new Error('No se encontró la empresa emisora');
+
+        // Obtener datos del cliente del primer CFDI (todos del recibo son del mismo cliente)
+        const factura0 = d0.id_factura ? await Facturas.findByPk(d0.id_factura) : null;
+        const clienteId = (factura0?.dataValues ?? factura0 as any)?.id_cliente_alm;
+        const cliente   = clienteId ? await Cliente_Almacen.findByPk(clienteId) : null;
+        const clienteD  = cliente?.dataValues ?? (cliente as any);
+
         let zip = '00000';
-        if (cliente?.id_colonia_cliente_alm) {
-            const colonia = await Colonia.findByPk(cliente.id_colonia_cliente_alm);
-            if (colonia?.cp_colonia) zip = colonia.cp_colonia;
+        if (clienteD?.id_colonia_cliente_alm) {
+            const colonia = await Colonia.findByPk(clienteD.id_colonia_cliente_alm);
+            const coloniaD = colonia?.dataValues ?? (colonia as any);
+            if (coloniaD?.cp_colonia) zip = coloniaD.cp_colonia;
         }
 
-        const complement = await facturapiClient.invoices.create({
-            type: 'P',
-            customer: {
-                legal_name: cliente?.razon_social_cliente_alm ?? '',
-                tax_id: cliente?.rfc_cliente_alm ?? '',
-                tax_system: cliente?.id_regimen_fiscal_cliente_alm ?? '',
-                address: { zip },
-            },
-            payments: [{
-                date: new Date(cfdi.fecha_pago),
-                form: cfdi.forma_de_pago,
-                amount: Number(cfdi.monto_pagado),
-                currency: 'MXN',
-                exchange: 1,
-                related_documents: [{
-                    uuid: factura.uuid_sat,
-                    amount: Number(cfdi.monto_pagado),
-                    installment: cfdi.num_parcialidad,
-                    last_balance: Number(cfdi.saldo_anterior),
-                    currency: 'MXN',
-                }],
-            }],
-        } as any);
+        const receptor: ReceptorTxt = {
+            razon_social:     (clienteD?.razon_social_cliente_alm ?? '').toUpperCase(),
+            rfc:              clienteD?.rfc_cliente_alm ?? 'XAXX010101000',
+            domicilio_fiscal: zip,
+            regimen_fiscal:   clienteD?.id_regimen_fiscal_cliente_alm ?? '616',
+            uso_cfdi:         'CP01',
+        };
 
-        const uuid_cfdi = (complement as any)?.uuid ?? null;
-        const pdf_url = (complement as any)?.pdf_url ?? null;
-        const xml_url = (complement as any)?.xml_url ?? null;
+        // Construir array de documentos (uno por CFDI del recibo)
+        const documentos: DocumentoPagoTxt[] = [];
+        for (const cfdi of cfdis) {
+            const d     = cfdi.dataValues ?? (cfdi as any);
+            const fact  = d.id_factura ? await Facturas.findByPk(d.id_factura) : null;
+            const factD = fact?.dataValues ?? (fact as any);
+            documentos.push({
+                uuid_relacionado: factD?.uuid_sat ?? d.uuid_relacionado ?? '',
+                folio_factura:    factD?.folio_factura ?? '',
+                serie_factura:    emisor.serie_ingreso,
+                monto_pago:       Number(d.monto_pagado),
+                saldo_anterior:   Number(d.saldo_anterior),
+                saldo_insoluto:   Math.max(Number(d.saldo_anterior) - Number(d.monto_pagado), 0),
+                num_parcialidad:  d.num_parcialidad,
+                moneda,
+                tasa_iva:         0,
+            });
+        }
 
-        await FacturaPagoCFDI.update({
-            uuid_cfdi_pago: uuid_cfdi,
-            pdf_url,
-            xml_url,
-            estatus_timbrado: uuid_cfdi ? 'TIM' : 'ERR',
-        }, { where: { id_pago_cfdi: cfdi.id_pago_cfdi } });
+        const folio  = await FacturacionRepository.getSiguienteFolio();
+        const series = derivarSeries(emisor.serie_ingreso);
 
-        if (!uuid_cfdi) return { ok: false, error: 'Facturapi no devolvió UUID' };
-        return { ok: true, uuid: uuid_cfdi, pdf_url, xml_url };
+        // Reservar folio en facturas (un solo registro por recibo)
+        await Facturas.create({
+            tipo_cfdi:        'P',
+            origen_factura:   'CXC',
+            folio_factura:    String(folio),
+            fecha_emision:    new Date(fecha_pago),
+            subtotal_factura: documentos.reduce((s, d) => s + d.monto_pago, 0),
+            iva_factura:      0,
+            total_factura:    documentos.reduce((s, d) => s + d.monto_pago, 0),
+            estatus_factura:  'TIM',
+            id_cliente_alm:   clienteId ?? null,
+        });
+
+        const { ruta } = generarTxtPago({
+            emisor, receptor, folio,
+            fecha_pago:    fechaStr,
+            id_forma_pago: forma_de_pago,
+            moneda,
+            documentos,
+            nombreArchivo: `PagoDig${series.pago}${folio}-Pagos.txt`,
+        });
+
+        // Marcar todos los CFDIs del recibo como TIM
+        for (const cfdi of cfdis) {
+            const pk = (cfdi.dataValues ?? cfdi as any).id_pago_cfdi;
+            if (pk) {
+                await FacturaPagoCFDI.update(
+                    { estatus_timbrado: 'TIM' },
+                    { where: { id_pago_cfdi: pk } }
+                ).catch(() => { });
+            }
+        }
+
+        return { ok: true, ruta_txt: ruta };
 
     } catch (err: any) {
-        console.error(`[CxC] Error al timbrar id_pago_cfdi=${cfdi.id_pago_cfdi}:`, err);
-        await FacturaPagoCFDI.update(
-            { estatus_timbrado: 'ERR' },
-            { where: { id_pago_cfdi: cfdi.id_pago_cfdi } }
-        ).catch(() => { });
+        console.error('[CxC] Error al generar .txt recibo:', err.message, err.stack);
+        for (const cfdi of cfdis) {
+            const pk = (cfdi.dataValues ?? cfdi as any).id_pago_cfdi;
+            if (pk) await FacturaPagoCFDI.update({ estatus_timbrado: 'ERR' }, { where: { id_pago_cfdi: pk } }).catch(() => { });
+        }
         return { ok: false, error: err.message ?? 'Error desconocido' };
     }
 }
@@ -392,21 +475,21 @@ export const CxCService = {
 
             await t.commit();
 
-            // 5. Timbrar automáticamente (fuera de la transacción para no revertir el pago si el SAT falla)
-            let timbrado: { ok: boolean; uuid?: string; pdf_url?: string; xml_url?: string; error?: string } | null = null;
+            // 5. Generar .txt (fuera de la transacción)
+            let timbrado: { ok: boolean; ruta_txt?: string; error?: string } | null = null;
             if (cfdiCreado) {
-                timbrado = await _timbrarUno(cfdiCreado);
+                timbrado = await _generarTxtUno(cfdiCreado);
             }
 
             const mensajeTimbrado = !factura
-                ? 'Pago aplicado. No hay factura asociada, no se genera CFDI de pago.'
+                ? 'Pago aplicado. No hay factura asociada, no se genera complemento de pago.'
                 : factura.id_metodo_pago === 'PUE'
-                    ? 'Pago aplicado. La factura es PUE — no se genera complemento de pago SAT.'
+                    ? 'Pago aplicado. La factura es PUE — no se genera complemento de pago.'
                     : !factura.uuid_sat
-                        ? 'Pago aplicado. La factura aún no está timbrada en el SAT, no se puede generar complemento de pago.'
+                        ? 'Pago aplicado. La factura no tiene UUID SAT — el .txt se generará cuando se capture el UUID.'
                         : timbrado?.ok
-                            ? 'Pago aplicado y complemento de pago timbrado correctamente.'
-                            : `Pago aplicado. El timbrado falló: ${timbrado?.error}`;
+                            ? `Pago aplicado y .txt de complemento de pago generado: ${timbrado.ruta_txt}`
+                            : `Pago aplicado. Generación de .txt falló: ${timbrado?.error}`;
 
             return { ok: true, mensaje: mensajeTimbrado, timbrado };
 
@@ -489,22 +572,22 @@ export const CxCService = {
             throw err;
         }
 
-        // Timbrar en 1 solo CFDI fuera de transacción
+        // Generar .txt por cada CFDI fuera de transacción
         let timbrado = null;
         if (cfdisCreados.length > 0) {
-            timbrado = await _timbrarRecibo(cfdisCreados);
+            timbrado = await _generarTxtRecibo(cfdisCreados);
         }
 
         return {
             ok: true,
             pagos_aplicados: pendientes.length,
-            cfdis_en_timbre: cfdisCreados.length,
+            cfdis_generados: cfdisCreados.length,
             timbrado,
             mensaje: cfdisCreados.length === 0
-                ? `${pendientes.length} pago(s) aplicados. Sin facturas PPD timbradas — no se genera CFDI.`
+                ? `${pendientes.length} pago(s) aplicados. Sin facturas PPD — no se genera complemento.`
                 : timbrado?.ok
-                    ? `${pendientes.length} pago(s) aplicados y 1 complemento de pago timbrado.`
-                    : `${pendientes.length} pago(s) aplicados. Timbrado falló: ${timbrado?.error}`,
+                    ? `${pendientes.length} pago(s) aplicados y ${cfdisCreados.length} .txt de pago generados.`
+                    : `${pendientes.length} pago(s) aplicados. Generación de .txt falló: ${timbrado?.error}`,
         };
     },
 
@@ -522,29 +605,42 @@ export const CxCService = {
         }).catch(() => { });
 
         const pendientes = await FacturaPagoCFDI.findAll({
-            where: { estatus_timbrado: { [Op.in]: ['PEN', 'ERR'] } },
+            where: {
+                estatus_timbrado: { [Op.in]: ['PEN', 'ERR'] },
+                id_pago_cfdi: { [Op.ne]: null },
+                fecha_pago:   { [Op.ne]: null },
+            },
         });
 
         if (!pendientes.length) {
             return { ok: true, mensaje: 'No hay pagos pendientes de timbrar.', timbrados: 0, errores: 0, total: 0, detalle: [] };
         }
 
-        const detalle: Array<{ id_pago_cfdi: string; estatus: 'TIM' | 'ERR'; uuid?: string; error?: string }> = [];
-        let timbrados = 0;
-        let errores = 0;
-
+        // Agrupar por id_pago_cxc (recibo) — CFDIs sin recibo van individualmente
+        const grupos = new Map<string, FacturaPagoCFDI[]>();
         for (const cfdi of pendientes) {
-            const resultado = await _timbrarUno(cfdi);
+            const d   = cfdi.dataValues ?? (cfdi as any);
+            const key = d.id_pago_cxc ?? `_solo_${d.id_pago_cfdi}`;
+            if (!grupos.has(key)) grupos.set(key, []);
+            grupos.get(key)!.push(cfdi);
+        }
+
+        const detalle: Array<{ recibo: string; estatus: 'TIM' | 'ERR'; ruta_txt?: string; error?: string }> = [];
+        let timbrados = 0;
+        let errores   = 0;
+
+        for (const [key, grupo] of grupos) {
+            const resultado = await _generarTxtRecibo(grupo);
             if (resultado.ok) {
                 timbrados++;
-                detalle.push({ id_pago_cfdi: cfdi.id_pago_cfdi, estatus: 'TIM', uuid: resultado.uuid });
+                detalle.push({ recibo: key, estatus: 'TIM', ruta_txt: resultado.ruta_txt });
             } else {
                 errores++;
-                detalle.push({ id_pago_cfdi: cfdi.id_pago_cfdi, estatus: 'ERR', error: resultado.error });
+                detalle.push({ recibo: key, estatus: 'ERR', error: resultado.error });
             }
         }
 
-        return { ok: errores === 0, timbrados, errores, total: pendientes.length, detalle };
+        return { ok: errores === 0, timbrados, errores, total: grupos.size, detalle };
     },
 
     marcarVencidas: async () => CxCRepository.marcarVencidas(),
@@ -753,13 +849,13 @@ export const CxCService = {
             estatus_timbrado: 'PEN',
         });
 
-        // Timbrar
-        const timbrado = await _timbrarUno(cfdiCreado);
+        // Generar .txt
+        const timbrado = await _generarTxtUno(cfdiCreado);
         return {
             ok: timbrado.ok,
             mensaje: timbrado.ok
-                ? 'CFDI de pago generado y timbrado correctamente.'
-                : `CFDI creado pero el timbrado falló: ${timbrado.error}`,
+                ? `Complemento de pago generado: ${timbrado.ruta_txt}`
+                : `CFDI creado pero la generación de .txt falló: ${timbrado.error}`,
             timbrado,
         };
     },

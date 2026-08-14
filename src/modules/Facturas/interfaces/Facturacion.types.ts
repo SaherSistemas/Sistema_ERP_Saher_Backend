@@ -80,6 +80,7 @@ export interface DatosFacturaParaTimbrar {
     total_factura:           number;
     id_cliente_alm:          string;
     id_forma_pago:           string;
+    folio_factura:           string | null;
     razon_social_cliente:    string;
     rfc_cliente:             string;
     regimen_fiscal_cliente:  string;

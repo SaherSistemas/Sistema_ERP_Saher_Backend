@@ -63,6 +63,7 @@ export class FacturacionController {
             const { id_cliente_real } = req.body ?? {};
             const id_empresa = req.user?.id_empresa;
             const id_empleado = req.user?.id_referencia_persona ?? '';
+            console.log('[timbrarIngreso] id_pedido_alm:', id_pedido_alm, '| id_empresa del token:', id_empresa);
             const resultado = await FacturacionService.timbrarIngreso({ id_pedido_alm, id_empresa, id_cliente_real, id_empleado });
             res.status(201).json(resultado);
         } catch (error: any) {
@@ -86,7 +87,8 @@ export class FacturacionController {
                 res.status(400).json({ message: 'detalles es requerido y debe contener al menos un artículo' });
             }
 
-            const resultado = await FacturacionService.timbrarEgreso({ id_factura_origen, detalles });
+            const id_empresa = req.user?.id_empresa;
+            const resultado = await FacturacionService.timbrarEgreso({ id_factura_origen, detalles, id_empresa });
             res.status(201).json(resultado);
         } catch (error: any) {
             console.error(error);
@@ -149,6 +151,7 @@ export class FacturacionController {
                 saldo_anterior: Number(saldo_anterior),
                 moneda,
                 id_pago_cxc,
+                id_empresa: req.user?.id_empresa,
             });
 
             res.status(201).json(resultado);

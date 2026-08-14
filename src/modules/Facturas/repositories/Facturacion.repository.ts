@@ -97,7 +97,7 @@ export const FacturacionRepository = {
                 pa.id_agente_pedido_alm                             AS id_agente_alm,
                 pa.cod_int_pedido_alm,
                 CONCAT(e_ag.nombre_empleado, ' ', e_ag.ap_pat_empleado, ' ', COALESCE(e_ag.ap_mat_empleado, '')) AS nombre_agente,
-                (SELECT COALESCE(MAX(f.folio_factura::INTEGER), 0) + 1 FROM facturas f) AS siguiente_folio
+                (SELECT COALESCE(MAX(NULLIF(regexp_replace(f.folio_factura, '[^0-9]', '', 'g'), '')::INTEGER), 0) + 1 FROM facturas f) AS siguiente_folio
             FROM pedido_almacen         pa
             JOIN empresa_sucursal       es    ON es.id_empre              = :id_empresa
             JOIN colonia                co_es ON co_es.id_colonia         = es.id_colonia_empre
@@ -217,7 +217,7 @@ export const FacturacionRepository = {
 
     getSiguienteFolio: async (): Promise<number> => {
         const rows = await dbLocal.query<{ siguiente_folio: number }>(
-            `SELECT COALESCE(MAX(f.folio_factura::INTEGER), 0) + 1 AS siguiente_folio FROM facturas f`,
+            `SELECT COALESCE(MAX(NULLIF(regexp_replace(f.folio_factura, '[^0-9]', '', 'g'), '')::INTEGER), 0) + 1 AS siguiente_folio FROM facturas f`,
             { type: QueryTypes.SELECT }
         );
         return Number(rows[0]?.siguiente_folio ?? 1);
@@ -233,6 +233,7 @@ export const FacturacionRepository = {
             total_factura:          number;
             id_cliente_alm:         string;
             id_forma_pago:          string;
+            folio_factura:          string;
             razon_social_cliente:   string;
             rfc_cliente:            string;
             regimen_fiscal_cliente: string;
@@ -243,6 +244,7 @@ export const FacturacionRepository = {
                 f.id_factura,
                 f.tipo_cfdi,
                 f.uuid_sat,
+                f.folio_factura,
                 f.subtotal_factura,
                 f.iva_factura,
                 f.total_factura,

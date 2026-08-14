@@ -13,6 +13,7 @@ export interface IDetalleEgresoDTO {
 export interface ITimbrarEgresoDTO {
     id_factura_origen: string;
     detalles:          IDetalleEgresoDTO[];
+    id_empresa?:       string;
 }
 
 export interface ITimbrarPagoDTO {
@@ -24,4 +25,5 @@ export interface ITimbrarPagoDTO {
     saldo_anterior:  number;
     moneda?:         string;
     id_pago_cxc?:    string;
+    id_empresa?:     string;
 }

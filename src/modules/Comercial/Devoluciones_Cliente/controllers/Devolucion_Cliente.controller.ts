@@ -86,6 +86,7 @@ export const DevolucionClienteController = {
                 req.params.id,
                 id_empleado_aprueba,
                 recibio_mercancia,
+                req.user?.id_empresa,
             );
 
             const fmt = (n: number) => `$${n.toFixed(2)}`;
@@ -94,15 +95,15 @@ export const DevolucionClienteController = {
                 : '';
             const msg =
                 resultado.resultado_aprobacion === 'DESCUENTO_CXC'
-                    ? `Devolución aprobada. CFDI-E: ${resultado.egreso.uuid_cfdi_egreso}. Se descontaron ${fmt(resultado.monto_devolucion)} de la CxC.${stockMsg}`
-                    : `Devolución aprobada. CFDI-E: ${resultado.egreso.uuid_cfdi_egreso}. Nota de Crédito de ${fmt(resultado.monto_devolucion)} generada.${stockMsg}`;
+                    ? `Devolución aprobada. Folio CFDI-E: ${resultado.egreso.folio}. Se descontaron ${fmt(resultado.monto_devolucion)} de la CxC.${stockMsg}`
+                    : `Devolución aprobada. Folio CFDI-E: ${resultado.egreso.folio}. Nota de Crédito de ${fmt(resultado.monto_devolucion)} generada.${stockMsg}`;
 
             res.status(200).json({
                 message:              msg,
                 resultado_aprobacion: resultado.resultado_aprobacion,
                 monto:                resultado.monto_devolucion,
-                uuid_cfdi_egreso:     resultado.egreso.uuid_cfdi_egreso,
                 folio_egreso:         resultado.egreso.folio,
+                ruta_txt:             resultado.egreso.ruta_txt,
                 recibio_mercancia,
             });
         } catch (error: any) {

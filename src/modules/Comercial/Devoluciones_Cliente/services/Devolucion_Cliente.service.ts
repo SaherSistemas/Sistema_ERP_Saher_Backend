@@ -106,13 +106,13 @@ export const DevolucionClienteService = {
     },
 
     // ── Aprobar devolución con efectos financieros ──────────────────────
-    aprobar: async (id: string, id_empleado_aprueba: string, recibio_mercancia: boolean) => {
+    aprobar: async (id: string, id_empleado_aprueba: string, recibio_mercancia: boolean, id_empresa?: string) => {
         const dev = await DevolucionClienteRepository.getById(id);
         if (!dev) throw { status: 404, message: 'Devolución no encontrada.' };
         if (dev.estatus !== 'PENDIENTE') {
             throw { status: 400, message: `Solo se pueden aprobar devoluciones en estatus PENDIENTE. Estatus actual: ${dev.estatus}` };
         }
-        const resultado = await DevolucionClienteRepository.aprobar(id, id_empleado_aprueba, recibio_mercancia);
+        const resultado = await DevolucionClienteRepository.aprobar(id, id_empleado_aprueba, recibio_mercancia, id_empresa);
         if (!resultado) throw { status: 404, message: 'Devolución no encontrada.' };
         return resultado;
     },

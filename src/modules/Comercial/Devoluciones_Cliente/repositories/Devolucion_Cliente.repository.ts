@@ -144,6 +144,7 @@ export const DevolucionClienteRepository = {
         id_devolucion_cliente: string,
         id_empleado_aprueba: string,
         recibio_mercancia: boolean,
+        id_empresa?: string,
     ) => {
 
         // ── 1. Cargar devolución ──────────────────────────────────────────
@@ -192,6 +193,7 @@ export const DevolucionClienteRepository = {
         const egreso = await timbraDevolucionEgreso({
             id_factura: dev.id_factura,
             detalles: dev.detalles,
+            id_empresa,
         });
 
         // ── 5. Efectos financieros + stock (dentro de 1 transacción) ─────
@@ -228,11 +230,11 @@ export const DevolucionClienteRepository = {
                     monto_pago: monto_devolucion,
                     fecha_pago: new Date(),
                     numero_recibo: `DEV-${id_devolucion_cliente.slice(0, 8)}`,
-                    referencia_pago: egreso.uuid_cfdi_egreso,
+                    referencia_pago: `DEV-FOLIO-${egreso.folio}`,
                     id_empleado_captura: id_empleado_aprueba,
                     id_empleado_aplica: id_empleado_aprueba,
                     fecha_aplicado: new Date(),
-                    notas: `Descuento automático — devolución aprobada. CFDI-E: ${egreso.uuid_cfdi_egreso}`,
+                    notas: `Descuento automático — devolución aprobada. CFDI-E folio: ${egreso.folio}`,
                     estatus_pago: 'DEV',
                 }, { transaction: t });
 
@@ -251,7 +253,7 @@ export const DevolucionClienteRepository = {
                     saldo_disponible: monto_devolucion,
                     estatus: 'DISPONIBLE',
                     concepto,
-                    uuid_cfdi_egreso: egreso.uuid_cfdi_egreso,
+                    uuid_cfdi_egreso: null,
                 }, { transaction: t });
 
                 resultado_aprobacion = 'NOTA_CREDITO';
@@ -265,6 +267,7 @@ export const DevolucionClienteRepository = {
                     id_devolucion_cliente: dev.id_devolucion_cliente,
                     id_empleado_aprueba,
                     folio_factura,
+                    id_empresa: id_empresa ?? '',
                     t,
                 });
             }
@@ -274,7 +277,7 @@ export const DevolucionClienteRepository = {
                 estatus: 'APROBADA',
                 resultado_aprobacion,
                 id_cxc_afectada,
-                uuid_cfdi_egreso: egreso.uuid_cfdi_egreso,
+                uuid_cfdi_egreso: null,
                 id_factura_egreso: egreso.id_factura_egreso,
                 recibio_mercancia,
                 fecha_recepcion_mercancia: recibio_mercancia ? new Date() : null,
@@ -382,14 +385,10 @@ async function registrarEntradaMercancia(params: {
     id_devolucion_cliente: string;
     id_empleado_aprueba: string;
     folio_factura: string;
+    id_empresa: string;
     t: Transaction;
 }) {
-    const { detalles, id_pedido_alm, id_devolucion_cliente, id_empleado_aprueba, folio_factura, t } = params;
-
-    // Obtener la empresa principal (siempre es la misma en este sistema)
-    const empresa = await Empresa_SucursalRepository.getEmpresaPrincipal();
-    if (!empresa) throw new Error('No se encontró la empresa para registrar entrada de mercancía.');
-    const id_empresa = (empresa as any).id_empre as string;
+    const { detalles, id_pedido_alm, id_devolucion_cliente, id_empleado_aprueba, folio_factura, id_empresa, t } = params;
 
     // Artículos con id_articulo (los genéricos sin id se omiten)
     const detallesConArticulo = detalles.filter(d => d.id_articulo);

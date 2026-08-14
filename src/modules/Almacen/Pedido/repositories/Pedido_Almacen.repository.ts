@@ -65,8 +65,9 @@ export const Pedido_AlmacenRepository = {
     // console.log("ENTRO A REPO PEDIDOS POR CHECAR")
     const pedidos = await Pedido_Almacen.findAll({
       where: {
-        status_pedido_alm: 'SU',
-        fecha_facturado_pedido_alm: null
+        status_pedido_alm: { [Op.in]: ['SU', 'CH'] },
+        fecha_facturado_pedido_alm: null,
+        fin_surtido: { [Op.ne]: null },
       },
       include: [
         {
@@ -112,7 +113,8 @@ export const Pedido_AlmacenRepository = {
   marcarPedidoComoSurtido: async (id_pedido_alm: string, t?: Transaction) => {
     const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { transaction: t });
     if (!pedido) throw new Error('Pedido no encontrado');
-    pedido.status_pedido_alm = 'SU';
+    pedido.status_pedido_alm = 'CH';
+    pedido.fin_surtido = new Date();
     await pedido.save({ transaction: t });
   },
   iniciarSurtido: async (id_pedido_alm: string, t?: Transaction) => {
@@ -596,7 +598,7 @@ export const Pedido_AlmacenRepository = {
 
     if (!cabecera.length) return null;
 
-    // Items ordenados por ubicación
+    // Items ordenados por ubicación (1 fila por detalle, JOIN de ubicación con DISTINCT ON para evitar duplicados)
     const items = await dbLocal.query<any>(`
       SELECT
         dpa.id_detalle_pedido_almacen,
@@ -615,14 +617,17 @@ export const Pedido_AlmacenRepository = {
         ) AS existencia_total
       FROM detalle_pedido_almacen dpa
       JOIN articulo a ON a.id_artic = dpa.id_articulo
-      LEFT JOIN articulo_ubicacion_default aud
-        ON aud.id_articulo = a.id_artic AND aud.id_empresa_sucursal = :id_empresa
+      LEFT JOIN (
+        SELECT DISTINCT ON (id_articulo, id_empresa_sucursal) id_articulo, id_empresa_sucursal, id_ubicacion_default
+        FROM articulo_ubicacion_default
+        ORDER BY id_articulo, id_empresa_sucursal
+      ) aud ON aud.id_articulo = a.id_artic AND aud.id_empresa_sucursal = :id_empresa
       LEFT JOIN ubicacion_sucursal us ON us.id_ubicacion_sucursal = aud.id_ubicacion_default
       WHERE dpa.id_pedido_almacen = :id_pedido_alm
       ORDER BY us.pasillo_ub NULLS LAST, us.anaquel_ub NULLS LAST, us.nivel_ub NULLS LAST, us.posicion_ub NULLS LAST
     `, { type: QueryTypes.SELECT, replacements: { id_pedido_alm, id_empresa } });
 
-    // Lotes asignados por item
+    // Lotes asignados por detalle
     const lotes = await dbLocal.query<any>(`
       SELECT
         dpal.id_detalle_pedido_almacen,

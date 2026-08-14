@@ -559,12 +559,33 @@ export const Pedido_AlmacenService = {
     return resumen;
   },
 
+  iniciarSurtido: async (id_pedido_alm: string) => {
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm);
+    if (!pedido) throw { status: 404, message: 'Pedido no encontrado.' };
+    if (pedido.status_pedido_alm !== 'SU') {
+      await Pedido_Almacen.update(
+        { status_pedido_alm: 'SU', inicio_surtido: new Date() },
+        { where: { id_pedido_alm } }
+      );
+    }
+    return { ok: true };
+  },
+
   // ══════════════════════════════════════════════════════════════════════
   // HOJA DE SURTIDO
   // ══════════════════════════════════════════════════════════════════════
   getHojaSurtido: async (id_pedido_alm: string, id_empresa: string) => {
     const data = await Pedido_AlmacenRepository.getHojaSurtido(id_pedido_alm, id_empresa);
     if (!data) throw { status: 404, message: 'Pedido no encontrado.' };
+
+    // Marcar en surtido al abrir la hoja por primera vez
+    if (data.cabecera.status_pedido_alm !== 'SU') {
+      await Pedido_Almacen.update(
+        { status_pedido_alm: 'SU', inicio_surtido: new Date() },
+        { where: { id_pedido_alm } }
+      );
+      data.cabecera.status_pedido_alm = 'SU';
+    }
 
     // Para ítems sin lotes asignados, calcular recomendación FEFO (igual que el móvil)
     const itemsConFefo = await Promise.all(
@@ -643,7 +664,7 @@ export const Pedido_AlmacenService = {
       }
 
       await Detalle_Pedido_Almacen_AsignacionRepository.marcarTodosSurtidos(id_pedido_alm, t);
-      await Pedido_Almacen.update({ status_pedido_alm: 'SU' }, { where: { id_pedido_alm }, transaction: t });
+      await Pedido_Almacen.update({ status_pedido_alm: 'CH', fin_surtido: new Date() }, { where: { id_pedido_alm }, transaction: t });
       await t.commit();
       return { mensaje: 'Pedido finalizado y enviado a chequeo.' };
     } catch (err) {

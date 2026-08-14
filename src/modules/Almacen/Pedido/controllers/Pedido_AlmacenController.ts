@@ -289,6 +289,16 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // PATCH /pedido/:id_pedido_alm/iniciar-surtido
+  static iniciarSurtido = async (req: AuthedRequest, res: Response) => {
+    try {
+      const result = await Pedido_AlmacenService.iniciarSurtido(req.params.id_pedido_alm);
+      res.json(result);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ message: error.message || 'Error al iniciar surtido.' });
+    }
+  };
+
   // GET /pedido/:id_pedido_alm/hoja-surtido
   static getHojaSurtido = async (req: AuthedRequest, res: Response) => {
     try {

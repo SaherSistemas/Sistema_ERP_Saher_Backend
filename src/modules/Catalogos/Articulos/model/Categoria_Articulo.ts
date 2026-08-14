@@ -14,7 +14,7 @@ class Categoria_Articulo extends Model {
     declare id_categoria: string
 
     @Column({
-        type: DataType.STRING(30)
+        type: DataType.STRING(100)
     })
     declare nom_categoria: string
 

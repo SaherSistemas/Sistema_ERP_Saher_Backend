@@ -78,6 +78,10 @@ class Pedido_Almacen extends Model {
   @Column(DataType.DATE)
   declare inicio_surtido: Date | null;
 
+  @Default(null)
+  @Column(DataType.DATE)
+  declare fin_surtido: Date | null;
+
   // ── Vales de empleado ────────────────────────────────────────────────────
   // 'PED' = pedido normal  |  'VALE' = vale de medicamento a empleado
   @Default('PED')
