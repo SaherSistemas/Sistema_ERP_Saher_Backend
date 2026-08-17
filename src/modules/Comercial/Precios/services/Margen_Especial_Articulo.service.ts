@@ -6,6 +6,10 @@ export const Margen_Especial_ArticuloService = {
         return Margen_Especial_ArticuloRepository.getAll();
     },
 
+    getAllPag: async (page: number, limit: number, q: string, id_lista_precio: string) => {
+        return Margen_Especial_ArticuloRepository.getAllPag(page, limit, q, id_lista_precio);
+    },
+
     getByArticulo: async (id_articulo: string) => {
         return Margen_Especial_ArticuloRepository.getByArticulo(id_articulo);
     },

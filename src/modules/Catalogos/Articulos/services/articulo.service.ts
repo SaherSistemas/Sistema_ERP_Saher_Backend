@@ -26,8 +26,8 @@ export const ArticuloService = {
     );
   },
 
-  getAllPagProductosParaCompra: async (page: number = 1, limit: number, id_empresasucursal: string) => {
-    return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_empresasucursal);
+  getAllPagProductosParaCompra: async (page: number = 1, limit: number, id_empresasucursal: string, q: string = '') => {
+    return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_empresasucursal, q);
   },
   getAllArticulosNegadosParaCompra: async (
     id_empresa_sucursal: string,

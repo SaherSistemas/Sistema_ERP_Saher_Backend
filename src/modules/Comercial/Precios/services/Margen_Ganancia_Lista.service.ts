@@ -7,6 +7,7 @@ import { Margen_Especial_ArticuloRepository } from "../repositories/Margen_Espec
 import { DetalleListaPreciosRepository } from "../repositories/Detalle_Lista_Precio.repository";
 import { ICreateOrUpdateIDetalleListaPrecio } from "../interface/Detalle_Lista_Pecios.interface";
 import { ArticuloRepository } from "../../../Catalogos/Articulos/repositories/Articulo.repository";
+import { ListaPrecioRepository } from "../repositories/Lista_Precio.repository";
 
 export const Margen_Ganancia_ListaService = {
     getAll: async () => {
@@ -38,9 +39,15 @@ export const Margen_Ganancia_ListaService = {
 
         const empresas = await Empresa_SucursalRepository.getEmpresasPorGrupo(grupoEmpresa.idgrup_empre);
         const listasDePrecio = await Grupo_Empresa_Lista_PrecioRepository.getSoloListasDePrecioPorIDGrupo(grupoEmpresa.idgrup_empre);
-        const idsListas = listasDePrecio.map((l: any) => l.id_list_precio);
+        let idsListas = listasDePrecio.map((l: any) => l.id_list_precio);
 
-        if (idsListas.length === 0) throw new Error('No hay listas de precio configuradas para este grupo');
+        // Fallback: si el grupo no tiene listas asignadas, usar todas las listas activas
+        if (idsListas.length === 0) {
+            const todasLasListas = await ListaPrecioRepository.getAll();
+            idsListas = todasLasListas.map((l: any) => l.id_lista_precio);
+        }
+
+        if (idsListas.length === 0) throw new Error('No hay listas de precio configuradas en el sistema');
 
         const { costoPromedio, totalCantidad } =
             await LotesArticuloSucursalRepository.llevarmeCostosDeLotesExistentesEnVariasEmpresas(id_artic, empresas);

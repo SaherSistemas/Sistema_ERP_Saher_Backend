@@ -53,13 +53,15 @@ export class ArticuloController {
   static getAllParaCompra = async (req: Request, res: Response) => {
     try {
       const { id_empresasucursal } = req.params;
-      const page = parseInt(req.query.page as string) || 1;
+      const page  = parseInt(req.query.page  as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
+      const q     = (req.query.q as string)?.trim() || '';
 
       const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(
         page,
         limit,
-        id_empresasucursal
+        id_empresasucursal,
+        q
       );
       // console.log(TodosArticulosParaCompra)
       res.status(200).json(TodosArticulosParaCompra);

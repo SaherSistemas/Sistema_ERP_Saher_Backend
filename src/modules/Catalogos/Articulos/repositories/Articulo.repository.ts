@@ -51,7 +51,7 @@ export const ArticuloRepository = {
     },
     getByPK: async (id_artic: string, options?: { transaction?: Transaction }) => {
         return await Articulo.findByPk(id_artic, {
-            transaction: options.transaction
+            transaction: options?.transaction
         })
     },
     getIVAPorArticulo: async (id_artic: string, costo: number) => {
@@ -128,7 +128,7 @@ export const ArticuloRepository = {
         };
     },
 
-    getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string) => {
+    getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string, q: string = '') => {
         const offset = (page - 1) * limit;
 
         const parametro = await Parametros_Compra.findOne({
@@ -154,12 +154,22 @@ export const ArticuloRepository = {
         });
         const idsCategoriasExcluidas = categoriasExcluidas.map(c => c.id_categoria_art);
 
+        const whereArticulo: any = {
+            id_artic: { [Op.notIn]: idsArticulosExcluidos },
+            id_categoria: { [Op.notIn]: idsCategoriasExcluidas },
+            status_artic: true,
+        };
+        if (q) {
+            const qEscaped = q.replace(/'/g, "''");
+            whereArticulo[Op.or] = [
+                { des_artic: { [Op.iLike]: `%${q}%` } },
+                literal(`"Articulo"."cod_int_artic"::text ILIKE '%${qEscaped}%'`),
+                literal(`"Articulo"."cod_barr_artic"::text ILIKE '%${qEscaped}%'`),
+            ];
+        }
+
         const { count, rows } = await Articulo.findAndCountAll({
-            where: {
-                id_artic: { [Op.notIn]: idsArticulosExcluidos },
-                id_categoria: { [Op.notIn]: idsCategoriasExcluidas },
-                status_artic: true
-            },
+            where: whereArticulo,
             order: [['prioridad_artic', 'ASC']],
             offset,
             attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'prioridad_artic'],

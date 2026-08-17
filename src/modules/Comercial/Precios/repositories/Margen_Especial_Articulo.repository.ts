@@ -1,3 +1,4 @@
+import { literal, Op } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import Margen_Especial_Articulo from '../model/Margen_Especial_Articulo';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
@@ -13,6 +14,46 @@ export const Margen_Especial_ArticuloRepository = {
             ],
             order: [['createdAt', 'DESC']],
         });
+    },
+
+    getAllPag: async (page: number, limit: number, q: string = '', id_lista_precio: string = '') => {
+        const offset = (page - 1) * limit;
+
+        // Filtro por lista de precio (en el modelo principal)
+        const whereMargen: any = {};
+        if (id_lista_precio) whereMargen.id_lista_precio = id_lista_precio;
+
+        // Filtro de búsqueda en artículo
+        let whereArticulo: any = undefined;
+        if (q) {
+            const qEsc = q.replace(/'/g, "''");
+            whereArticulo = {
+                [Op.or]: [
+                    { des_artic: { [Op.iLike]: `%${q}%` } },
+                    literal(`"articulO"."cod_int_artic"::text ILIKE '%${qEsc}%'`),
+                    literal(`"articulO"."cod_barr_artic"::text ILIKE '%${qEsc}%'`),
+                ],
+            };
+        }
+
+        const { count, rows } = await Margen_Especial_Articulo.findAndCountAll({
+            where: whereMargen,
+            include: [
+                {
+                    model: Articulo,
+                    attributes: ['id_artic', 'des_artic', 'cod_int_artic', 'cod_barr_artic'],
+                    where: whereArticulo,
+                    required: !!whereArticulo,
+                },
+                { model: Lista_Precio, attributes: ['id_lista_precio', 'nombre_lista_precio', 'cod_int_lista_precio'] },
+            ],
+            order: [['createdAt', 'DESC']],
+            limit,
+            offset,
+            distinct: true,
+        });
+
+        return { total: count, pagina: page, porPagina: limit, data: rows };
     },
 
     getByArticulo: async (id_articulo: string) => {

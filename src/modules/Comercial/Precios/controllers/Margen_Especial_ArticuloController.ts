@@ -13,6 +13,20 @@ export class Margen_Especial_ArticuloController {
         }
     };
 
+    // GET /margen_especial_articulo/pag?page=1&limit=25&q=&id_lista_precio=
+    static getAllPag = async (req: Request, res: Response) => {
+        try {
+            const page  = parseInt(req.query.page  as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 25;
+            const q     = (req.query.q as string)?.trim() || '';
+            const id_lista_precio = (req.query.id_lista_precio as string)?.trim() || '';
+            const data = await Margen_Especial_ArticuloService.getAllPag(page, limit, q, id_lista_precio);
+            res.json(data);
+        } catch (error: any) {
+            res.status(500).json({ message: error?.message ?? 'Error al obtener márgenes especiales' });
+        }
+    };
+
     // GET /margen_especial_articulo/articulo/:id_articulo
     static getByArticulo = async (req: Request, res: Response) => {
         try {
