@@ -1,4 +1,4 @@
-import { Transaction } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
@@ -7,6 +7,7 @@ import { ActualizarDetallesPedidoRequest, IUpdatePedidoAlmacen } from '../interf
 import Detalle_Pedido_Almacen_Lote from '../model/Detalle_Pedido_Almacen_Lote';
 import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 import Detalle_Pedido_Almacen_Chequeo from '../model/Detalle_Pedido_Almacen_Chequeo';
+import Detalle_Pedido_Negado from '../model/Detalle_Pedido_Negado';
 
 
 export const Detalle_Pedido_AlmacenRepository = {
@@ -76,9 +77,15 @@ export const Detalle_Pedido_AlmacenRepository = {
 
     const idsArticulosNuevoCarrito = carrito.map(item => item.id_articulo);
 
-    // 2. Eliminar los detalles que ya no están en el carrito
+    // 2. Eliminar los detalles que ya no están en el carrito,
+    //    excepto los que tienen registro en detalle_pedido_negado (se conservan para compras)
     const detallesAEliminar = detallesActuales.filter(d => !idsArticulosNuevoCarrito.includes(d.id_articulo));
     for (const detalle of detallesAEliminar) {
+      const tieneNegado = await Detalle_Pedido_Negado.findOne({
+        where: { id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen },
+        transaction: t,
+      });
+      if (tieneNegado) continue; // conservar — compras lo necesita
       await detalle.destroy({ transaction: t });
     }
 
@@ -110,23 +117,32 @@ export const Detalle_Pedido_AlmacenRepository = {
     return true;
   },
   getDetallesPorPedido: async (id_pedido_alm: string, t?: Transaction) => {
-    // console.log(id_pedido_alm)
-    const detalles = await Detalle_Pedido_Almacen.findAll({
-      where: {
-        id_pedido_almacen: id_pedido_alm
-      },
-      transaction: t
+    // Excluir detalles que tienen registro negado (van a compras, no al almacenista)
+    const todosDetalles = await Detalle_Pedido_Almacen.findAll({
+      where: { id_pedido_almacen: id_pedido_alm },
+      transaction: t,
     });
-    //console.log("DETALLES EN REPO:", detalles);
+    const idsNegados = (await Detalle_Pedido_Negado.findAll({
+      attributes: ['id_detalle_pedido_almacen'],
+      raw: true,
+      transaction: t,
+    })).map((r: any) => r.id_detalle_pedido_almacen);
+    const detalles = todosDetalles.filter(d => !idsNegados.includes(d.id_detalle_pedido_almacen));
     if (!detalles) throw new Error('Detalles no encontrado');
-
-
     return detalles;
   },
   getDetallesPorPedidoYLotesSurtidos: async (id_pedido_alm: string, t?: Transaction) => {
+    // Excluir detalles negados (pertenecen a compras, no al almacenista)
+    const idsNegados = (await Detalle_Pedido_Negado.findAll({
+      attributes: ['id_detalle_pedido_almacen'],
+      raw: true,
+      transaction: t,
+    })).map((r: any) => r.id_detalle_pedido_almacen);
+
     const detalles = await Detalle_Pedido_Almacen.findAll({
       where: {
-        id_pedido_almacen: id_pedido_alm
+        id_pedido_almacen: id_pedido_alm,
+        id_detalle_pedido_almacen: { [Op.notIn]: idsNegados.length ? idsNegados : ['00000000-0000-0000-0000-000000000000'] },
       },
       attributes: [
         'id_detalle_pedido_almacen',

@@ -43,6 +43,14 @@ export default class Detalle_Pedido_Negado extends Model {
     @Column(DataType.DATE)
     declare fecha: Date;
 
+    @Default(false)
+    @Column(DataType.BOOLEAN)
+    declare recuperado: boolean;
+
+    @AllowNull(true)
+    @Column(DataType.DATE)
+    declare fecha_recuperado: Date | null;
+
     @BelongsTo(() => Detalle_Pedido_Almacen)
     declare detalle: Detalle_Pedido_Almacen;
 }

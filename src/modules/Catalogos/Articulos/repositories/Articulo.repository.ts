@@ -257,7 +257,8 @@ export const ArticuloRepository = {
 
     getArticulosNegadosParaCompra: async (id_empresa_sucursal: string, page: number, limit: number) => {
         const offset = (page - 1) * limit;
-        console.log(id_empresa_sucursal)
+
+        // 1. Negados del sistema antiguo (Detalle_Compra_Negados)
         const { count, rows } = await Detalle_Compra_Negados.findAndCountAll({
             where: {
                 recuperado: false,
@@ -297,11 +298,51 @@ export const ArticuloRepository = {
             limit
         });
 
+        // 2. Negados del agente (detalle_pedido_negado motivo=SIN_EXISTENCIA)
+        //    agrupados por artículo — query SQL directa para evitar problemas de asociaciones
+        const rowsNegadosAgente: any[] = await (Articulo as any).sequelize.query(`
+            SELECT
+                a.id_artic,
+                a.des_artic,
+                a.des_gener_artic,
+                a.cod_int_artic,
+                a.cod_barr_artic,
+                SUM(dpn.cantidad_negada)              AS cantidad_negada,
+                MIN(dpn.fecha)                        AS fecha_negado,
+                MIN(dpn.fecha) + INTERVAL '7 days'   AS fecha_limite_recuperacion
+            FROM detalle_pedido_negado dpn
+            INNER JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpn.id_detalle_pedido_almacen
+            INNER JOIN articulo a ON a.id_artic = dpa.id_articulo
+            WHERE dpn.motivo = 'SIN_EXISTENCIA'
+              AND dpn.recuperado = false
+              AND dpn.fecha + INTERVAL '7 days' >= NOW()
+            GROUP BY a.id_artic, a.des_artic, a.des_gener_artic, a.cod_int_artic, a.cod_barr_artic
+        `, { type: QueryTypes.SELECT });
+
+        // Mismo shape que Detalle_Compra_Negados para que TablaProductos lo renderice igual
+        const negadosAgenteAgrupados = rowsNegadosAgente.map((r: any) => ({
+            articulo: {
+                id_artic: r.id_artic,
+                des_artic: r.des_artic,
+                des_gener_artic: r.des_gener_artic,
+                cod_int_artic: r.cod_int_artic,
+                cod_barr_artic: r.cod_barr_artic,
+                totalSolicitado: 0,
+                proveedoresDetalle: [],
+            },
+            cantidad_negada: Number(r.cantidad_negada),
+            fecha_negado: r.fecha_negado,
+            fecha_limite_recuperacion: r.fecha_limite_recuperacion,
+            motivo_negado: 'Sin existencia',
+            _fromAgent: true,
+        }));
+
         return {
             total: count,
             articulos: rows,
             page,
-            totalPages: Math.ceil(count / limit)
+            totalPages: Math.ceil(count / limit),
+            negadosAgente: negadosAgenteAgrupados,
         };
     },
 

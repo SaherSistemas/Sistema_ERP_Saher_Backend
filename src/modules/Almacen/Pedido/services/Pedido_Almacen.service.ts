@@ -123,10 +123,20 @@ export const Pedido_AlmacenService = {
   },
   getPedidoEnChequeo: async (id_empleado: string) => {
 
-    const algunoActivoParaMiUsuario = await Detalle_Pedido_Almacen_ChequeoRepository.algunPedidoAsignadoChequeo(id_empleado);
+    let algunoActivoParaMiUsuario = await Detalle_Pedido_Almacen_ChequeoRepository.algunPedidoAsignadoChequeo(id_empleado);
     const pedidosPorChecar = await Pedido_AlmacenRepository.pedidosPorChecar();
 
-    // console.log(algunoActivoParaMiUsuario)
+    // Si el pedido "activo" ya no está en la lista de pedidos por checar, limpiar registros huérfanos
+    if (algunoActivoParaMiUsuario) {
+      const pedidoSigueActivo = pedidosPorChecar.some(
+        (p: any) => p.id_pedido_alm === algunoActivoParaMiUsuario
+      );
+      if (!pedidoSigueActivo) {
+        await Detalle_Pedido_Almacen_ChequeoRepository.cancelarHuerfanos(id_empleado, algunoActivoParaMiUsuario);
+        algunoActivoParaMiUsuario = null;
+      }
+    }
+
     return {
       algunoActivoParaMiUsuario,
       pedidosPorChecar
@@ -368,21 +378,52 @@ export const Pedido_AlmacenService = {
 
 
 
-      // 5. Crear / acumular detalles
-      for (const item of data.detalle) {
+      // 5. Separar ítems con y sin existencia
+      const normales = data.detalle.filter((i: any) => Number(i.existencia_disponible ?? 1) > 0);
+      const negados  = data.detalle.filter((i: any) => Number(i.existencia_disponible ?? 1) <= 0);
+
+      const soloNegados = normales.length === 0;
+
+      // Si TODOS son negados: marcar pedido como 'NE' para que compras lo identifique
+      if (soloNegados) {
+        await nuevoPedido.update({ status_pedido_alm: 'NE' }, { transaction: t });
+      }
+
+      // Crear detalles de ítems con existencia (o todos si solo hay negados)
+      const itemsNormalesACrear = soloNegados ? [] : normales;
+      for (const item of itemsNormalesACrear) {
         await Detalle_Pedido_AlmacenRepository.addOrAccumulate(
-          {
-            ...item,
-            id_pedido_almacen: nuevoPedido.id_pedido_alm
-          },
+          { ...item, id_pedido_almacen: nuevoPedido.id_pedido_alm },
           t
         );
       }
 
-      // 6. Si todo salió bien: commit final
+      // Registrar negados (en ambos casos: mixto o solo-negados)
+      const itemsNegadosARegistrar = soloNegados ? data.detalle : negados;
+      console.log('[NEGADOS] items a registrar:', itemsNegadosARegistrar.length, JSON.stringify(itemsNegadosARegistrar.map((i: any) => ({ id_articulo: i.id_articulo, existencia: i.existencia_disponible }))));
+      for (const item of itemsNegadosARegistrar) {
+        console.log('[NEGADOS] creando detalle para:', item.id_articulo);
+        const detalle = await Detalle_Pedido_AlmacenRepository.addOrAccumulate(
+          { ...item, id_pedido_almacen: nuevoPedido.id_pedido_alm },
+          t
+        );
+        console.log('[NEGADOS] detalle creado id:', detalle.id_detalle_pedido_almacen);
+        await Detalle_Pedido_NegadoRepository.create(
+          {
+            id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen,
+            cantidad_negada: item.cantidad,
+            motivo: 'SIN_EXISTENCIA',
+            comentario: 'Artículo enviado a compras por el agente — sin existencia disponible',
+          },
+          t
+        );
+        console.log('[NEGADOS] detalle_pedido_negado creado OK');
+      }
+
+      // 6. Commit final
       await t.commit();
 
-      return nuevoPedido;
+      return { ...nuevoPedido.toJSON(), negados_count: negados.length, solo_negados: soloNegados };
     } catch (error) {
       // 5. Rollback
       await t.rollback();

@@ -5,6 +5,7 @@ const router = Router();
 
 router.post('/', Detalle_Compra_NegadoController.createDetalleCompraNegados)
 router.patch('/:id_detcompneg', Detalle_Compra_NegadoController.recuperadoTrue)
+router.patch('/agente/:id_artic', Detalle_Compra_NegadoController.recuperarNegadoAgente)
 
 
 export default router

@@ -151,6 +151,26 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         });
     },
 
+    cancelarHuerfanos: async (id_empleado: string, id_pedido_almacen: string) => {
+        const detalles = await Detalle_Pedido_Almacen.findAll({
+            where: { id_pedido_almacen },
+            attributes: ['id_detalle_pedido_almacen'],
+            raw: true,
+        });
+        const ids = detalles.map((d: any) => d.id_detalle_pedido_almacen);
+        if (!ids.length) return;
+        await Detalle_Pedido_Almacen_Chequeo.update(
+            { estado: 'CANCELADO' as EstadoAsignacionDetalle },
+            {
+                where: {
+                    id_empleado,
+                    id_detalle_pedido_almacen: { [Op.in]: ids },
+                    estado: { [Op.in]: ['ASIGNADO', 'EN_PROCESO'] },
+                },
+            }
+        );
+    },
+
     algunPedidoAsignadoChequeo: async (id_empleado: string) => {
         const asignacion = await Detalle_Pedido_Almacen_Chequeo.findOne({
             attributes: [],
