@@ -3,7 +3,7 @@ import type { AuthedRequest } from '../../../../middleware/auth';
 import { ArticuloRepository } from '../repositories/Articulo.repository';
 import { DetalleListaPreciosRepository } from '../../../Comercial/Precios/repositories/Detalle_Lista_Precio.repository';
 import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
-import { ArticuloService } from '../services/Articulo.service';
+import { ArticuloService } from '../services/articulo.service';
 
 export class ArticuloController {
   static getAllPaginados = async (req: Request, res: Response) => {
