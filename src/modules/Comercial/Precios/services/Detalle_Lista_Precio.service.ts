@@ -18,5 +18,7 @@ export class DetalleListaPrecioService {
     return await DetalleListaPreciosRepository.updateOrCreate(data);
   };
 
-
+  static getByArticulo = async (id_artic: string, id_lista_precio: string) => {
+    return await DetalleListaPreciosRepository.getByArticulo(id_artic, id_lista_precio);
+  };
 }

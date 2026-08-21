@@ -35,6 +35,7 @@ router.post('/importar-polydb', Pedido_AlmacenController.importarDePolyDB);
 
 // ── Gestión de pedidos (desktop admin) ───────────────────────────────────────
 router.get('/lista-gestion', Pedido_AlmacenController.getListaGestion);
+router.get('/resumen-gestion', Pedido_AlmacenController.getResumenGestion);
 router.get('/:id_pedido_alm/hoja-surtido', Pedido_AlmacenController.getHojaSurtido);
 router.patch('/:id_pedido_alm/iniciar-surtido', Pedido_AlmacenController.iniciarSurtido);
 router.post('/:id_pedido_alm/asignar-surtidor-cod', Pedido_AlmacenController.asignarSurtidorPorCodigo);

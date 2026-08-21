@@ -3,6 +3,7 @@ import { DetalleListaPrecioController } from "../controllers/Detalle_Lista_Preci
 const router = Router();
 
 router.get("/", DetalleListaPrecioController.getAll);
+router.get("/precio", DetalleListaPrecioController.getPrecioArticulo);
 router.post("/", DetalleListaPrecioController.create);
 router.put("/id_detalle", DetalleListaPrecioController.update);
 

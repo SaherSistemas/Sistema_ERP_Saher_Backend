@@ -37,7 +37,7 @@ export const TrabajoImpresionService = {
                     tipo: "escpos",
                     qr: {
                         datos: pedido.cod_int_pedido_alm,
-                        tamano: 1,
+                        tamano: 15,
                         correccion: "L",
                         alineacion: "centro",
                     }

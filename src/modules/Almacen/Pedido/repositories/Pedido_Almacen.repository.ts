@@ -288,7 +288,8 @@ export const Pedido_AlmacenRepository = {
 
     return await pedido.update({
       fecha_max_entrega_alm: fechaMaxEntrega,
-      status_pedido_alm: 'CA'
+      status_pedido_alm: 'CA',
+      createdAt: new Date(),
     },
       { transaction })
   },
@@ -366,11 +367,15 @@ export const Pedido_AlmacenRepository = {
   // ══════════════════════════════════════════════════════════════════════════
   getListaGestion: async (params: {
     fecha_inicio: string;
-    fecha_fin:    string;
-    status?:      string;
-    busqueda?:    string;
+    fecha_fin: string;
+    status?: string;
+    busqueda?: string;
+    page?: number;
+    limit?: number;
   }) => {
-    const { fecha_inicio, fecha_fin, status, busqueda } = params;
+    const { fecha_inicio, fecha_fin, status, busqueda, page = 1, limit = 50 } = params;
+    const offset = (page - 1) * limit;
+
     const where: any = {
       createdAt: {
         [Op.between]: [
@@ -380,8 +385,15 @@ export const Pedido_AlmacenRepository = {
       },
     };
     if (status) where.status_pedido_alm = status;
+    if (busqueda) {
+      const q = busqueda.replace(/'/g, "''");
+      where[Op.or] = [
+        literal(`"Pedido_Almacen"."cod_int_pedido_alm" ILIKE '%${q}%'`),
+        literal(`EXISTS (SELECT 1 FROM cliente_almacen ca WHERE ca.id_cliente_alm = "Pedido_Almacen".id_cliente_pedido_alm AND (ca.nom_corto_cliente_alm ILIKE '%${q}%' OR ca.razon_social_cliente_alm ILIKE '%${q}%'))`),
+      ];
+    }
 
-    const rows = await Pedido_Almacen.findAll({
+    const { count, rows } = await Pedido_Almacen.findAndCountAll({
       where,
       attributes: [
         'id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'tipo_pedido_alm',
@@ -391,7 +403,7 @@ export const Pedido_AlmacenRepository = {
         {
           model: Cliente_Almacen,
           as: 'cliente',
-          attributes: ['id_cliente_alm', 'id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm', 'rfc_cliente_alm'],
+          attributes: ['id_cliente_alm', 'id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm', 'rfc_cliente_alm', 'id_lista_precio_cliente_alm'],
         },
         {
           model: Agente_de_Venta,
@@ -406,21 +418,39 @@ export const Pedido_AlmacenRepository = {
         },
       ],
       order: [
-        [literal(`CASE WHEN fecha_max_entrega_alm IS NULL THEN 1 ELSE 0 END`), 'ASC'],
+        [literal(`CASE WHEN "Pedido_Almacen".fecha_max_entrega_alm IS NULL THEN 1 ELSE 0 END`), 'ASC'],
         ['fecha_max_entrega_alm', 'ASC'],
-        ['id_cliente_pedido_alm', 'ASC'],
         ['createdAt', 'ASC'],
       ],
+      limit,
+      offset,
+      distinct: true,
     });
 
-    // Filtro de búsqueda en memoria (folio o nombre cliente)
-    if (!busqueda) return rows;
-    const q = busqueda.toLowerCase();
-    return rows.filter(p => {
-      const folio = (p.cod_int_pedido_alm ?? '').toLowerCase();
-      const cli   = ((p as any).cliente_almacen?.nom_corto_cliente_alm ?? (p as any).cliente_almacen?.razon_social_cliente_alm ?? '').toLowerCase();
-      return folio.includes(q) || cli.includes(q);
-    });
+    return { total: count, pagina: page, porPagina: limit, data: rows };
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // RESUMEN por status en rango de fechas
+  // ══════════════════════════════════════════════════════════════════════════
+  getResumenPorStatus: async (fecha_inicio: string, fecha_fin: string) => {
+    const rows = await Pedido_Almacen.findAll({
+      where: {
+        createdAt: {
+          [Op.between]: [
+            new Date(`${fecha_inicio}T00:00:00.000`),
+            new Date(`${fecha_fin}T23:59:59.999`),
+          ],
+        },
+      },
+      attributes: ['status_pedido_alm', [dbLocal.fn('COUNT', dbLocal.col('id_pedido_alm')), 'total']],
+      group: ['status_pedido_alm'],
+      raw: true,
+    }) as any[];
+
+    const resumen: Record<string, number> = {};
+    for (const r of rows) resumen[r.status_pedido_alm] = Number(r.total);
+    return resumen;
   },
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -576,6 +606,7 @@ export const Pedido_AlmacenRepository = {
         pa.status_pedido_alm,
         pa."createdAt" AS fecha_pedido,
         pa.inicio_surtido,
+        pa.fin_surtido,
         ca.id_interno_cliente_alm,
         ca.razon_social_cliente_alm,
         ca.nom_corto_cliente_alm,

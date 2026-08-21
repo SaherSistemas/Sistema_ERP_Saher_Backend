@@ -13,6 +13,7 @@ import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import Detalle_Compra_Solicitado from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado';
 import DetalleListaPrecio from '../../Precios/model/Detalle_Lista_Precio';
 import Detalle_Pedido_Almacen from '../../../Almacen/Pedido/model/Detalle_Pedido_Almacen';
+import Pedido_Almacen from '../../../Almacen/Pedido/model/Pedido_Almacen';
 import Compra_Proveedor from '../../../Compras/Ordenes-Compra/model/Compra_Proveedor';
 import { ArticuloRepository } from '../../../Catalogos/Articulos/repositories/Articulo.repository';
 import { OfertaRepository } from '../../../../repository/Ofertas/Ofertas.repository';
@@ -45,10 +46,10 @@ function buildOfertaMap(idsArticulos: string[], ofertas: any[]): Map<string, Ofe
             for (const id of targets) {
                 if (!map.has(id)) {
                     map.set(id, {
-                        id_oferta:       oferta.id_oferta,
-                        nombre_oferta:   oferta.nombre_oferta,
-                        tipo_beneficio:  regla.tipo_beneficio,
-                        valor:           regla.valor           ?? null,
+                        id_oferta: oferta.id_oferta,
+                        nombre_oferta: oferta.nombre_oferta,
+                        tipo_beneficio: regla.tipo_beneficio,
+                        valor: regla.valor ?? null,
                         cantidad_minima: regla.cantidad_minima ?? null,
                         cantidad_regalo: regla.cantidad_regalo ?? null,
                     });
@@ -269,7 +270,29 @@ export const CatalogoComercialService = {
             transitoMap.set(t.idarticulo_detcompsol, Number(t.transito ?? 0));
         });
 
-        // 8️⃣ ARMAR RESULTADO FINAL
+        // 8️⃣ PEDIDOS CAPTURADOS (en estado CA)
+        const capturadoRows = await Detalle_Pedido_Almacen.findAll({
+            where: { id_articulo: { [Op.in]: idsArticulos } },
+            include: [{
+                model: Pedido_Almacen,
+                required: true,
+                where: { status_pedido_alm: 'CA' },
+                attributes: [],
+            }],
+            attributes: [
+                'id_articulo',
+                [fn('SUM', col('cant_pedida')), 'capturado'],
+            ],
+            group: ['id_articulo'],
+            raw: true,
+        });
+
+        const capturadoMap = new Map<string, number>();
+        capturadoRows.forEach((c: any) => {
+            capturadoMap.set(c.id_articulo, Number(c.capturado ?? 0));
+        });
+
+        // 9️⃣ ARMAR RESULTADO FINAL
         const resultado = rowsAgrupadas.map((r: any) => {
 
             const id_artic = r['articulo.id_artic'];
@@ -298,19 +321,20 @@ export const CatalogoComercialService = {
 
                 precio,
                 oferta: oferta ? {
-                    id_oferta:       oferta.id_oferta,
-                    nombre_oferta:   oferta.nombre_oferta,
-                    tipo_beneficio:  oferta.tipo_beneficio,
-                    valor:           oferta.valor,
+                    id_oferta: oferta.id_oferta,
+                    nombre_oferta: oferta.nombre_oferta,
+                    tipo_beneficio: oferta.tipo_beneficio,
+                    valor: oferta.valor,
                     cantidad_minima: oferta.cantidad_minima,
                     cantidad_regalo: oferta.cantidad_regalo,
-                    precio_oferta:   calcPrecioOferta(precio, oferta),
+                    precio_oferta: calcPrecioOferta(precio, oferta),
                 } : null,
 
                 cantidad_total: Number(r.cantidad_total ?? 0),
                 cantidad_total_checada: Number(r.cantidad_total_checada ?? 0),
 
                 transito: transitoMap.get(id_artic) ?? 0,
+                pedidos_capturado: capturadoMap.get(id_artic) ?? 0,
             };
         });
 
@@ -449,7 +473,29 @@ export const CatalogoComercialService = {
             transitoMap.set(t.idarticulo_detcompsol, Number(t.transito ?? 0));
         }
 
-        // 6) Armar salida (respetando el orden de rows)
+        // 6) Pedidos capturados (estado CA)
+        const capturadoRowsBusq = await Detalle_Pedido_Almacen.findAll({
+            where: { id_articulo: { [Op.in]: idsArticulos } },
+            include: [{
+                model: Pedido_Almacen,
+                required: true,
+                where: { status_pedido_alm: { [Op.in]: ['CA', 'SU'] }, },
+                attributes: [],
+            }],
+            attributes: [
+                'id_articulo',
+                [fn('SUM', col('cant_pedida')), 'capturado'],
+            ],
+            group: ['id_articulo'],
+            raw: true,
+        });
+
+        const capturadoMapBusq = new Map<string, number>();
+        for (const c of capturadoRowsBusq as any[]) {
+            capturadoMapBusq.set(c.id_articulo, Number(c.capturado ?? 0));
+        }
+
+        // 7) Armar salida (respetando el orden de rows)
         const items = (rows as any[]).map(r => {
             const id_artic = r.id_artic;
             const lote = loteMap.get(id_artic);
@@ -471,16 +517,17 @@ export const CatalogoComercialService = {
 
                 precio,
                 oferta: oferta ? {
-                    id_oferta:       oferta.id_oferta,
-                    nombre_oferta:   oferta.nombre_oferta,
-                    tipo_beneficio:  oferta.tipo_beneficio,
-                    valor:           oferta.valor,
+                    id_oferta: oferta.id_oferta,
+                    nombre_oferta: oferta.nombre_oferta,
+                    tipo_beneficio: oferta.tipo_beneficio,
+                    valor: oferta.valor,
                     cantidad_minima: oferta.cantidad_minima,
                     cantidad_regalo: oferta.cantidad_regalo,
-                    precio_oferta:   calcPrecioOferta(precio, oferta),
+                    precio_oferta: calcPrecioOferta(precio, oferta),
                 } : null,
 
                 transito: transitoMap.get(id_artic) ?? 0,
+                pedidos_capturado: capturadoMapBusq.get(id_artic) ?? 0,
             };
         });
 
@@ -569,30 +616,30 @@ export const CatalogoComercialService = {
         // 8️⃣ Resultado
         const items = (articulos as any[]).map(a => {
             const id_artic = a.id_artic;
-            const stock  = stockMap.get(id_artic);
-            const lote   = loteMap.get(id_artic);
+            const stock = stockMap.get(id_artic);
+            const lote = loteMap.get(id_artic);
             const precio = precioMap.get(id_artic) ?? null;
             const oferta = ofertaMap.get(id_artic) ?? null;
 
             return {
                 id_artic,
-                descripcion:          a.des_artic,
+                descripcion: a.des_artic,
                 descripcion_generica: a.des_gener_artic,
-                iva:                  a.tipo_de_iva,
-                codigo_interno:       a.cod_int_artic,
-                existencia_total:     Number(stock?.existencia_total ?? 0),
+                iva: a.tipo_de_iva,
+                codigo_interno: a.cod_int_artic,
+                existencia_total: Number(stock?.existencia_total ?? 0),
                 existencia_disponible: Number(stock?.existencia_disponible ?? 0),
                 fecha_caduca_mas_corta: lote?.fecha ?? null,
-                lote_mas_corto:         lote?.numero ?? null,
+                lote_mas_corto: lote?.numero ?? null,
                 precio,
                 oferta: oferta ? {
-                    id_oferta:       oferta.id_oferta,
-                    nombre_oferta:   oferta.nombre_oferta,
-                    tipo_beneficio:  oferta.tipo_beneficio,
-                    valor:           oferta.valor,
+                    id_oferta: oferta.id_oferta,
+                    nombre_oferta: oferta.nombre_oferta,
+                    tipo_beneficio: oferta.tipo_beneficio,
+                    valor: oferta.valor,
                     cantidad_minima: oferta.cantidad_minima,
                     cantidad_regalo: oferta.cantidad_regalo,
-                    precio_oferta:   calcPrecioOferta(precio, oferta),
+                    precio_oferta: calcPrecioOferta(precio, oferta),
                 } : null,
                 transito: 0,
             };

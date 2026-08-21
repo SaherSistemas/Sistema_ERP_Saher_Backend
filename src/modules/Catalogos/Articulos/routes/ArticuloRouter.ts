@@ -13,6 +13,7 @@ router.get('/', ArticuloController.getAllPaginados);
 router.get('/paginaDeArticulo/:id_artic', ArticuloController.getPaginaArticuloParaContinuarCompra);
 router.get('/paraCompra/:id_empresasucursal', ArticuloController.getAllParaCompra);
 router.get('/negados/:id_empresa_sucursal', ArticuloController.getAllArticulosNegadosParaCompra);
+router.get('/:id_artic/existencia', authMiddleware, ArticuloController.getExistencia);
 router.get('/:id_artic/panel-precios', authMiddleware, ArticuloController.getPanelPrecios);
 router.put('/:id_artic/precio', ArticuloController.upsertPrecio);
 router.get('/:id_articulo', ArticuloController.getByID);

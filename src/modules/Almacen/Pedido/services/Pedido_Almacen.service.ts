@@ -539,8 +539,12 @@ export const Pedido_AlmacenService = {
     return pedidoFull
   },
 
-  getListaGestion: async (params: { fecha_inicio: string; fecha_fin: string; status?: string; busqueda?: string }) => {
+  getListaGestion: async (params: { fecha_inicio: string; fecha_fin: string; status?: string; busqueda?: string; page?: number; limit?: number }) => {
     return await Pedido_AlmacenRepository.getListaGestion(params);
+  },
+
+  getResumenPorStatus: async (fecha_inicio: string, fecha_fin: string) => {
+    return await Pedido_AlmacenRepository.getResumenPorStatus(fecha_inicio, fecha_fin);
   },
 
   // ══════════════════════════════════════════════════════════════════════

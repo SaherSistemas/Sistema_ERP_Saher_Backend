@@ -22,6 +22,21 @@ export class DetalleListaPrecioController {
     }
   };
 
+  // GET /detalle_lista_precio/precio?id_artic=&id_lista_precio=
+  static getPrecioArticulo = async (req: Request, res: Response) => {
+    try {
+      const { id_artic, id_lista_precio } = req.query as Record<string, string>;
+      if (!id_artic || !id_lista_precio) {
+        res.status(400).json({ message: 'id_artic e id_lista_precio son requeridos' });
+        return;
+      }
+      const detalle = await DetalleListaPrecioService.getByArticulo(id_artic, id_lista_precio);
+      res.json({ precio: detalle ? Number(detalle.precios) : null });
+    } catch (error) {
+      res.status(500).json({ message: 'Error al obtener precio' });
+    }
+  };
+
   static create = async (req: Request, res: Response) => {
     try {
       const nuevaLista = await DetalleListaPrecioService.create(req.body);

@@ -1,8 +1,9 @@
 import type { Request, Response } from 'express';
 import type { AuthedRequest } from '../../../../middleware/auth';
-import { ArticuloService } from '../services/articulo.service';
 import { ArticuloRepository } from '../repositories/Articulo.repository';
 import { DetalleListaPreciosRepository } from '../../../Comercial/Precios/repositories/Detalle_Lista_Precio.repository';
+import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
+import { ArticuloService } from '../services/Articulo.service';
 
 export class ArticuloController {
   static getAllPaginados = async (req: Request, res: Response) => {
@@ -34,7 +35,8 @@ export class ArticuloController {
       const articulo = await ArticuloService.getByCodigoBarras(cod_barr_artic);
       res.status(200).json(articulo);
     } catch (error) {
-
+      //console.error(error);
+      res.status(500).json({ message: 'Error al buscar los artículos.' });
     }
   }
   static getAllParaVenta = async (req: Request, res: Response) => {
@@ -53,9 +55,9 @@ export class ArticuloController {
   static getAllParaCompra = async (req: Request, res: Response) => {
     try {
       const { id_empresasucursal } = req.params;
-      const page  = parseInt(req.query.page  as string) || 1;
+      const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
-      const q     = (req.query.q as string)?.trim() || '';
+      const q = (req.query.q as string)?.trim() || '';
 
       const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(
         page,
@@ -130,6 +132,19 @@ export class ArticuloController {
     } catch (error) {
       //console.error(error);
       res.status(500).json({ message: 'Error al actualizar el articulo.' });
+    }
+  };
+
+  // GET /articulo/:id_artic/existencia
+  static getExistencia = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_artic } = req.params;
+      const id_empresa = req.user?.id_empresa as string;
+      const result = await Stock_Ubicacion_LoteRepository.getExistencias(id_empresa, id_artic);
+      res.status(200).json({ existencia_disponible: result.existencia_disponible });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ message: 'Error al obtener la existencia.' });
     }
   };
 

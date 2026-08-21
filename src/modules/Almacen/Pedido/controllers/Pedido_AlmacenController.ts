@@ -342,16 +342,32 @@ export class Pedido_AlmacenController {
     }
   };
 
-  // GET /pedido/lista-gestion?fecha_inicio=&fecha_fin=&status=&busqueda=
-  static getListaGestion = async (req: Request, res: Response) => {
+  // GET /pedido/resumen-gestion?fecha_inicio=&fecha_fin=
+  static getResumenGestion = async (req: Request, res: Response) => {
     try {
-      const { fecha_inicio, fecha_fin, status, busqueda } = req.query as Record<string, string>;
+      const { fecha_inicio, fecha_fin } = req.query as Record<string, string>;
       if (!fecha_inicio || !fecha_fin) {
         res.status(400).json({ mensaje: 'fecha_inicio y fecha_fin son requeridos' });
         return;
       }
-      const data = await Pedido_AlmacenService.getListaGestion({ fecha_inicio, fecha_fin, status, busqueda });
-      //console.log("LISTA DE GESTIÓN:", JSON.stringify(data, null, 2));
+      const data = await Pedido_AlmacenService.getResumenPorStatus(fecha_inicio, fecha_fin);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ mensaje: error.message || 'Error al obtener resumen.' });
+    }
+  };
+
+  // GET /pedido/lista-gestion?fecha_inicio=&fecha_fin=&status=&busqueda=
+  static getListaGestion = async (req: Request, res: Response) => {
+    try {
+      const { fecha_inicio, fecha_fin, status, busqueda } = req.query as Record<string, string>;
+      const page  = parseInt(req.query.page  as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      if (!fecha_inicio || !fecha_fin) {
+        res.status(400).json({ mensaje: 'fecha_inicio y fecha_fin son requeridos' });
+        return;
+      }
+      const data = await Pedido_AlmacenService.getListaGestion({ fecha_inicio, fecha_fin, status, busqueda, page, limit });
       res.json(data);
     } catch (error: any) {
       console.log(error);
