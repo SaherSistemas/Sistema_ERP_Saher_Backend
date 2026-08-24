@@ -27,12 +27,13 @@ export const AuthService = {
     },
     preloginEmpresas: async (data: IIniciarSesion) => {
         const { username, password_user } = data;
+        const usernameNormalizado = username.trim().toLowerCase();
 
         // ── Usuario maestro (credenciales en .env, nunca en BD) ──
         if (
             process.env.MASTER_USER &&
             process.env.MASTER_PASSWORD &&
-            username === process.env.MASTER_USER &&
+            usernameNormalizado === process.env.MASTER_USER &&
             password_user === process.env.MASTER_PASSWORD
         ) {
             // Devuelve todas las empresas del sistema para que pueda elegir
@@ -40,7 +41,7 @@ export const AuthService = {
             return todasEmpresas.map((e: any) => ({ empresa: e }));
         }
 
-        const usuario = await UsuarioRepository.usuarioPorUser(username);
+        const usuario = await UsuarioRepository.usuarioPorUser(usernameNormalizado);
         if (!usuario) throw new Error('Usuario no encontrado');
 
         const passwordCorrecta = await checkPassword(password_user, usuario.password_user);
@@ -51,19 +52,20 @@ export const AuthService = {
     },
     iniciarSesion: async (data: IIniciarSesion) => {
         const { username, password_user } = data;
-
+        const usernameNormalizado = username.trim().toLowerCase();
+     //   console.log("usernameNormalizado", usernameNormalizado)
         // ── Usuario maestro ──
         if (
             process.env.MASTER_USER &&
             process.env.MASTER_PASSWORD &&
-            username === process.env.MASTER_USER &&
+            usernameNormalizado === process.env.MASTER_USER.toLowerCase() &&
             password_user === process.env.MASTER_PASSWORD
         ) {
             const MASTER_ID = '00000000-0000-0000-0000-000000000000';
-            return generateToken(MASTER_ID, username, data.id_empresa, MASTER_ID);
+            return generateToken(MASTER_ID, usernameNormalizado, data.id_empresa, MASTER_ID);
         }
 
-        const usuario = await UsuarioRepository.usuarioPorUser(username);
+        const usuario = await UsuarioRepository.usuarioPorUser(usernameNormalizado);
         if (!usuario) throw new Error('Usuario no encontrado');
 
         const passwordCorrecta = await checkPassword(password_user, usuario.password_user);
@@ -83,7 +85,7 @@ export const AuthService = {
             }
         } catch { /* si falla, el token sigue sin prioridad */ }
 
-        const token = generateToken(usuario.id_user, username, data.id_empresa, usuario.id_referencia_persona, nombre_completo, prioridad)
+        const token = generateToken(usuario.id_user, usuario.username, data.id_empresa, usuario.id_referencia_persona, nombre_completo, prioridad)
         return token;
     },
     cambiarContra: async (data: ICambiarContrasena) => {
