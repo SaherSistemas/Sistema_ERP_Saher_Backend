@@ -383,18 +383,26 @@ export const ArticuloRepository = {
         return await existe.update(data)
     },
     countBusqueda: async (nombre: string) => {
-        const whereArticulo = {
-            [Op.or]: [
-                { des_artic: { [Op.iLike]: `%${nombre}%` } },
-                { cod_barr_artic: { [Op.iLike]: `%${nombre}%` } },
-                { des_gener_artic: { [Op.iLike]: `%${nombre}%` } },
-            ],
-        };
+        const palabras = nombre.trim().split(/\s+/).filter(Boolean);
+        const whereArticulo = palabras.length > 1
+            ? {
+                [Op.and]: palabras.map(p => ({
+                    [Op.or]: [
+                        { des_artic: { [Op.iLike]: `%${p}%` } },
+                        { cod_barr_artic: { [Op.iLike]: `%${p}%` } },
+                        { des_gener_artic: { [Op.iLike]: `%${p}%` } },
+                    ],
+                })),
+            }
+            : {
+                [Op.or]: [
+                    { des_artic: { [Op.iLike]: `%${nombre}%` } },
+                    { cod_barr_artic: { [Op.iLike]: `%${nombre}%` } },
+                    { des_gener_artic: { [Op.iLike]: `%${nombre}%` } },
+                ],
+            };
 
-        // 1) Total de artículos que matchean (SIN depender de stock)
-        return await Articulo.count({
-            where: whereArticulo,
-        });
+        return await Articulo.count({ where: whereArticulo });
     },
     getPanelPrecios: async (id_artic: string, id_empresa?: string) => {
         // ── 1. Artículo ──────────────────────────────────────────────────────
@@ -568,13 +576,24 @@ export const ArticuloRepository = {
     },
 
     getBusquedaPaginadaVenta: async (nombre: string, id_empresa: string, page: number, limit: number) => {
-        const whereArticulo = {
-            [Op.or]: [
-                { des_artic: { [Op.iLike]: `%${nombre}%` } },
-                { cod_barr_artic: { [Op.iLike]: `%${nombre}%` } },
-                { des_gener_artic: { [Op.iLike]: `%${nombre}%` } },
-            ],
-        };
+        const palabras = nombre.trim().split(/\s+/).filter(Boolean);
+        const whereArticulo = palabras.length > 1
+            ? {
+                [Op.and]: palabras.map(p => ({
+                    [Op.or]: [
+                        { des_artic: { [Op.iLike]: `%${p}%` } },
+                        { cod_barr_artic: { [Op.iLike]: `%${p}%` } },
+                        { des_gener_artic: { [Op.iLike]: `%${p}%` } },
+                    ],
+                })),
+            }
+            : {
+                [Op.or]: [
+                    { des_artic: { [Op.iLike]: `%${nombre}%` } },
+                    { cod_barr_artic: { [Op.iLike]: `%${nombre}%` } },
+                    { des_gener_artic: { [Op.iLike]: `%${nombre}%` } },
+                ],
+            };
         const offset = (page - 1) * limit;
         return await Articulo.findAll({
             where: whereArticulo,

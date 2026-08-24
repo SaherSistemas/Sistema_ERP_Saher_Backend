@@ -29,7 +29,6 @@ class Proveedor extends Model {
     })
     declare razsoc_prove: string
 
-    @Unique
     @Column({
         type: DataType.STRING(13),
         allowNull: false

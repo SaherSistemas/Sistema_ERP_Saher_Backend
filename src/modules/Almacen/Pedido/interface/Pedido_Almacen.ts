@@ -69,6 +69,7 @@ export interface CarritoItem {
 export interface ActualizarDetallesPedidoRequest {
   id_pedido: string;
   carrito: CarritoItem[];
+  id_paqueteria?: string | null;
 }
 
 

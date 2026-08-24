@@ -8,6 +8,7 @@ import Detalle_Pedido_Almacen_Lote from '../model/Detalle_Pedido_Almacen_Lote';
 import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 import Detalle_Pedido_Almacen_Chequeo from '../model/Detalle_Pedido_Almacen_Chequeo';
 import Detalle_Pedido_Negado from '../model/Detalle_Pedido_Negado';
+import Pedido_Almacen from '../model/Pedido_Almacen';
 
 
 export const Detalle_Pedido_AlmacenRepository = {
@@ -67,7 +68,7 @@ export const Detalle_Pedido_AlmacenRepository = {
   },
 
   sincronizarCarrito: async (data: ActualizarDetallesPedidoRequest, t?: Transaction) => {
-    const { id_pedido, carrito } = data;
+    const { id_pedido, carrito, id_paqueteria } = data;
 
     // 1. Obtener todos los detalles actuales del pedido
     const detallesActuales = await Detalle_Pedido_Almacen.findAll({
@@ -112,6 +113,13 @@ export const Detalle_Pedido_AlmacenRepository = {
           es_oferta: false
         }, { transaction: t });
       }
+    }
+
+    if (id_paqueteria !== undefined) {
+      await Pedido_Almacen.update(
+        { id_paqueteria: id_paqueteria || null },
+        { where: { id_pedido_alm: id_pedido }, transaction: t }
+      );
     }
 
     return true;

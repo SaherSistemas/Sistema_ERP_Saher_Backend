@@ -95,10 +95,55 @@ export const DevolucionClienteRepository = {
 
     // ── Detalle de factura (para mostrar productos al crear devolución) ──
     getFacturaConDetalles: async (id_factura: string) => {
-        return await Facturas.findByPk(id_factura, {
-            attributes: ['id_factura', 'folio_factura', 'fecha_emision', 'total_factura', 'estatus_factura', 'id_cliente_alm'],
+        const factura = await Facturas.findByPk(id_factura, {
+            attributes: ['id_factura', 'folio_factura', 'fecha_emision', 'total_factura', 'estatus_factura', 'id_cliente_alm', 'id_pedido_alm'],
             include: [{ model: Detalle_Factura }],
         });
+
+        if (!factura) return factura;
+
+        // Obtener lotes originales del pedido para cada artículo de la factura
+        let lotesMap: Record<string, { num_lote: string; fecha_caducidad: string | null }[]> = {};
+        if (factura.id_pedido_alm) {
+            const rows = await dbLocal.query<{
+                id_articulo: string;
+                num_lote: string;
+                fecha_caducidad: string | null;
+            }>(`
+                SELECT
+                    dpa.id_articulo,
+                    COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal) AS num_lote,
+                    COALESCE(dpal.lote_factura_fecha,  las.fecha_venci_lote_sucursal) AS fecha_caducidad
+                FROM detalle_pedido_almacen dpa
+                JOIN detalle_pedido_almacen_lote dpal
+                    ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+                LEFT JOIN lote_articulo_sucursal las
+                    ON las.id_lote_sucursal = dpal.id_lote_sucursal
+                WHERE dpa.id_pedido_almacen = :id_pedido_almacen
+                ORDER BY dpa.id_articulo, dpal.cantidad DESC
+            `, {
+                replacements: { id_pedido_almacen: factura.id_pedido_alm },
+                type: QueryTypes.SELECT,
+            });
+
+            for (const r of rows) {
+                if (!lotesMap[r.id_articulo]) lotesMap[r.id_articulo] = [];
+                // Evitar duplicados
+                const yaExiste = lotesMap[r.id_articulo].some(l => l.num_lote === r.num_lote);
+                if (!yaExiste && r.num_lote) {
+                    lotesMap[r.id_articulo].push({ num_lote: r.num_lote, fecha_caducidad: r.fecha_caducidad });
+                }
+            }
+        }
+
+        // Adjuntar lotes a cada detalle de factura
+        const plain = factura.toJSON() as any;
+        plain.detalles = (plain.detalles ?? []).map((d: any) => ({
+            ...d,
+            lotes: lotesMap[d.id_articulo] ?? [],
+        }));
+
+        return plain;
     },
 
     // ── Todas las devoluciones (vista admin) con filtros opcionales ──

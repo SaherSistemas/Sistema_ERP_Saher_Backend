@@ -2,6 +2,7 @@ import {
   Table, Column, Model, DataType, PrimaryKey, ForeignKey, Unique,
   BelongsTo, HasMany, Default, AllowNull, Index, CreatedAt, UpdatedAt
 } from 'sequelize-typescript';
+import Cat_Paqueteria from './Cat_Paqueteria';
 
 import Cat_Status_Pedido_Almacen from './Cat_Status_Pedido_Almacen';
 import Cat_Tipo_Pedido_Almacen from './Cat_Tipo_Pedido_Almacen';
@@ -96,6 +97,14 @@ class Pedido_Almacen extends Model {
 
   @BelongsTo(() => Empleado)
   declare empleado_vale: Empleado;
+
+  @AllowNull(true)
+  @ForeignKey(() => Cat_Paqueteria)
+  @Column(DataType.UUID)
+  declare id_paqueteria: string | null;
+
+  @BelongsTo(() => Cat_Paqueteria)
+  declare paqueteria: Cat_Paqueteria;
 
   @HasMany(() => Detalle_Pedido_Almacen, { foreignKey: 'id_pedido_almacen' })
   declare detalle_pedido_almacens?: Detalle_Pedido_Almacen[];

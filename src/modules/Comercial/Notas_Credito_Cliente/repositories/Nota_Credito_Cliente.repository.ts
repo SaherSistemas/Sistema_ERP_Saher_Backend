@@ -3,7 +3,6 @@ import { Op } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
 import Nota_Credito_Cliente from '../model/Nota_Credito_Cliente.model';
 import Cuenta_Por_Cobrar from '../../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
-import Pago_CxC from '../../../Finanzas/Cuentas_Por_Cobrar/model/Pago_CxC.model';
 import Devolucion_Cliente from '../../Devoluciones_Cliente/model/Devolucion_Cliente.model';
 import Facturas from '../../../Facturas/model/Facturas.model';
 import Remision from '../../../Finanzas/Remisiones/model/Remision.model';
@@ -141,23 +140,8 @@ export const NotaCreditoClienteRepository = {
             }, { transaction: t });
 
 
-            // 5. Registrar pago contable (estatus DEV — sin CFDI complemento)
-            const pago = await Pago_CxC.create({
-                id_pago_cxc: uuidv4(),
-                id_cxc,
-                id_metodo_pago: 'PUE',
-                id_forma_pago: '17',   // compensación SAT
-                monto_pago: aplicar,
-                fecha_pago: new Date(),
-                numero_recibo: `NC-${id_nota_credito.slice(0, 8)}`,
-                referencia_pago: `Nota de crédito: ${nota.uuid_cfdi_egreso ?? id_nota_credito}`,
-                id_empleado_captura: id_empleado_aplica,
-                id_empleado_aplica,
-                fecha_aplicado: new Date(),
-                notas: `Aplicación de nota de crédito${nota.uuid_cfdi_egreso ? ` · CFDI-E: ${nota.uuid_cfdi_egreso}` : ''}`,
-                estatus_pago: 'DEV',
-            }, { transaction: t });
-
+            // 5. Solo registrar la nota de crédito como aplicada — sin forma_pago ni pago_cxc.
+            //    El descuento ya quedó reflejado en los campos de la CxC (pasos 3 y 4).
             await t.commit();
 
             return {
@@ -166,7 +150,6 @@ export const NotaCreditoClienteRepository = {
                 estatus_nota: nuevo_saldo_nota <= 0 ? 'APLICADA' : 'PARCIAL',
                 nuevo_saldo_cxc,
                 estatus_cxc: nuevo_estatus_cxc,
-                id_pago_cxc: pago.id_pago_cxc,
             };
 
         } catch (err) {

@@ -19,27 +19,27 @@ function escribirTxt(nombreArchivo: string, lineas: string[]): string {
 // INGRESO (FAC)
 // ─────────────────────────────────────────────────────────────────────────────
 export interface ConceptoTxt {
-    cve_sat:       string;
-    sat_medida:    string;
-    desc_medida:   string;
-    cod_barras:    string;
-    cantidad:      number;
-    descripcion:   string;
+    cve_sat: string;
+    sat_medida: string;
+    desc_medida: string;
+    cod_barras: string;
+    cantidad: number;
+    descripcion: string;
     precio_unitario: number;
-    descuento:     number;
+    descuento: number;
     subtotal_linea: number;
-    tasa_iva:      number;
-    impuesto_sat:  string;
-    tipo_factor:   string;
-    lotes?:        { lote: string; fecha_venci: string; cantidad: number }[];
+    tasa_iva: number;
+    impuesto_sat: string;
+    tipo_factor: string;
+    lotes?: { lote: string; fecha_venci: string; cantidad: number }[];
 }
 
 export interface EmisorTxt {
-    nom_empre:              string;
-    rfc_empre:              string;
-    regimen_fiscal_empre:   string;
-    serie_ingreso:          string;   // ej. 'FSH' — las otras se derivan automáticamente
-    lugar_expedicion:       string;
+    nom_empre: string;
+    rfc_empre: string;
+    regimen_fiscal_empre: string;
+    serie_ingreso: string;   // ej. 'FSH' — las otras se derivan automáticamente
+    lugar_expedicion: string;
 }
 
 /** Deriva series de Egreso y Pago desde la serie base de Ingreso (FSH → NSH, CSH) */
@@ -47,41 +47,41 @@ export function derivarSeries(serieIngreso: string) {
     const base = serieIngreso ?? 'FSH';
     return {
         ingreso: base,
-        egreso:  'N' + base.slice(1),   // FSH → NSH
-        pago:    'C' + base.slice(1),   // FSH → CSH
+        egreso: 'N' + base.slice(1),   // FSH → NSH
+        pago: 'C' + base.slice(1),   // FSH → CSH
     };
 }
 
 export interface ReceptorTxt {
-    razon_social:    string;
-    rfc:             string;
+    razon_social: string;
+    rfc: string;
     domicilio_fiscal: string;
-    regimen_fiscal:  string;
-    uso_cfdi:        string;
+    regimen_fiscal: string;
+    uso_cfdi: string;
 }
 
 export function generarTxtIngreso(opts: {
-    emisor:       EmisorTxt;
-    receptor:     ReceptorTxt;
-    folio:        number;
-    forma_pago:   string;
-    metodo_pago:  string;
-    conceptos:    ConceptoTxt[];
-    leyenda:      string;
+    emisor: EmisorTxt;
+    receptor: ReceptorTxt;
+    folio: number;
+    forma_pago: string;
+    metodo_pago: string;
+    conceptos: ConceptoTxt[];
+    leyenda: string;
     nombreArchivo?: string;
 }): { ruta: string; contenido: string } {
 
     const { emisor, receptor, folio, forma_pago, metodo_pago, conceptos, leyenda } = opts;
 
-    const subtotal      = conceptos.reduce((s, c) => s + c.subtotal_linea, 0);
+    const subtotal = conceptos.reduce((s, c) => s + c.subtotal_linea, 0);
     const totalTraslados = conceptos.reduce((s, c) => s + +(c.subtotal_linea * c.tasa_iva).toFixed(2), 0);
-    const totalNeto     = +(subtotal + totalTraslados).toFixed(2);
+    const totalNeto = +(subtotal + totalTraslados).toFixed(2);
 
     const mapaImpuestos = new Map<number, { subtotalTasa: number; importeIva: number; ref: ConceptoTxt }>();
     for (const c of conceptos) {
         const entry = mapaImpuestos.get(c.tasa_iva) ?? { subtotalTasa: 0, importeIva: 0, ref: c };
         entry.subtotalTasa += c.subtotal_linea;
-        entry.importeIva   += +(c.subtotal_linea * c.tasa_iva).toFixed(2);
+        entry.importeIva += +(c.subtotal_linea * c.tasa_iva).toFixed(2);
         mapaImpuestos.set(c.tasa_iva, entry);
     }
 
@@ -167,26 +167,26 @@ export function generarTxtIngreso(opts: {
 // EGRESO (Nota de Crédito)
 // ─────────────────────────────────────────────────────────────────────────────
 export function generarTxtEgreso(opts: {
-    emisor:           EmisorTxt;
-    receptor:         ReceptorTxt;
-    folio:            number;
+    emisor: EmisorTxt;
+    receptor: ReceptorTxt;
+    folio: number;
     uuid_relacionado: string;
-    conceptos:        ConceptoTxt[];
-    leyenda:          string;
-    nombreArchivo?:   string;
+    conceptos: ConceptoTxt[];
+    leyenda: string;
+    nombreArchivo?: string;
 }): { ruta: string; contenido: string } {
 
     const { emisor, receptor, folio, uuid_relacionado, conceptos, leyenda } = opts;
 
-    const subtotal       = conceptos.reduce((s, c) => s + c.subtotal_linea, 0);
+    const subtotal = conceptos.reduce((s, c) => s + c.subtotal_linea, 0);
     const totalTraslados = conceptos.reduce((s, c) => s + +(c.subtotal_linea * c.tasa_iva).toFixed(2), 0);
-    const totalNeto      = +(subtotal + totalTraslados).toFixed(2);
+    const totalNeto = +(subtotal + totalTraslados).toFixed(2);
 
     const mapaImpuestos = new Map<number, { subtotalTasa: number; importeIva: number; ref: ConceptoTxt }>();
     for (const c of conceptos) {
         const entry = mapaImpuestos.get(c.tasa_iva) ?? { subtotalTasa: 0, importeIva: 0, ref: c };
         entry.subtotalTasa += c.subtotal_linea;
-        entry.importeIva   += +(c.subtotal_linea * c.tasa_iva).toFixed(2);
+        entry.importeIva += +(c.subtotal_linea * c.tasa_iva).toFixed(2);
         mapaImpuestos.set(c.tasa_iva, entry);
     }
 
@@ -242,7 +242,7 @@ export function generarTxtEgreso(opts: {
 
     L.push('[TRASLADADOS_CONCEPTOS]');
     tasasOrdenadas.forEach(([tasa, datos], i) => {
-        const sub       = +datos.subtotalTasa.toFixed(2);
+        const sub = +datos.subtotalTasa.toFixed(2);
         const importeIva = +datos.importeIva.toFixed(2);
         L.push(
             `TC${i + 1}: C${i + 1}@${fmt2(sub)}@002@Tasa@${tasa === 0 ? '0.00' : fmt2(tasa)}@${fmt2(importeIva)}`
@@ -270,40 +270,40 @@ export function generarTxtEgreso(opts: {
 // ─────────────────────────────────────────────────────────────────────────────
 export interface DocumentoPagoTxt {
     uuid_relacionado: string;
-    folio_factura:    string;
-    serie_factura:    string;
-    monto_pago:       number;
-    saldo_anterior:   number;
-    saldo_insoluto:   number;
-    num_parcialidad:  number;
-    moneda:           string;
-    tasa_iva:         number;   // 0 si exento
+    folio_factura: string;
+    serie_factura: string;
+    monto_pago: number;
+    saldo_anterior: number;
+    saldo_insoluto: number;
+    num_parcialidad: number;
+    moneda: string;
+    tasa_iva: number;   // 0 si exento
 }
 
 export function generarTxtPago(opts: {
-    emisor:          EmisorTxt;
-    receptor:        ReceptorTxt;
-    folio:           number;
-    fecha_pago:      string;   // YYYY-MM-DD
-    id_forma_pago:   string;
-    num_operacion?:  string;
-    rfc_cta_ord?:    string;
-    rfc_cta_ben?:    string;
-    documentos:      DocumentoPagoTxt[];
-    moneda?:         string;
-    nombreArchivo?:  string;
+    emisor: EmisorTxt;
+    receptor: ReceptorTxt;
+    folio: number;
+    fecha_pago: string;   // YYYY-MM-DD
+    id_forma_pago: string;
+    num_operacion?: string;
+    rfc_cta_ord?: string;
+    rfc_cta_ben?: string;
+    documentos: DocumentoPagoTxt[];
+    moneda?: string;
+    nombreArchivo?: string;
 }): { ruta: string; contenido: string } {
 
     const { emisor, receptor, folio, fecha_pago, id_forma_pago, documentos } = opts;
-    const moneda        = opts.moneda ?? 'MXN';
+    const moneda = opts.moneda ?? 'MXN';
     const num_operacion = opts.num_operacion ?? '';
-    const rfc_cta_ord   = opts.rfc_cta_ord ?? '.';
-    const rfc_cta_ben   = opts.rfc_cta_ben ?? '.';
-    const montoTotal    = documentos.reduce((s, d) => s + d.monto_pago, 0);
+    const rfc_cta_ord = opts.rfc_cta_ord ?? '.';
+    const rfc_cta_ben = opts.rfc_cta_ben ?? '.';
+    const montoTotal = documentos.reduce((s, d) => s + d.monto_pago, 0);
 
     // Agrupa bases IVA para INFO_PAGOS
-    const baseIva16  = documentos.filter(d => d.tasa_iva >= 0.16).reduce((s, d) => s + d.monto_pago, 0);
-    const baseIva0   = documentos.filter(d => d.tasa_iva < 0.16 && d.tasa_iva >= 0).reduce((s, d) => s + d.monto_pago, 0);
+    const baseIva16 = documentos.filter(d => d.tasa_iva >= 0.16).reduce((s, d) => s + d.monto_pago, 0);
+    const baseIva0 = documentos.filter(d => d.tasa_iva < 0.16 && d.tasa_iva >= 0).reduce((s, d) => s + d.monto_pago, 0);
 
     const L: string[] = [];
     L.push('[DATOS_EMISOR]');

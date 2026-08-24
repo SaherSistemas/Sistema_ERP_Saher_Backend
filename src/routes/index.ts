@@ -35,6 +35,7 @@ import cat_Tipo_ContratoRouter from '../modules/Catalogos/routes/Cat_Tipo_Contra
 import cat_Tipo_JornadaRouter from '../modules/Catalogos/routes/Cat_Tipo_JornadaRouter';
 import cat_Periodicidad_PagoRouter from '../modules/Catalogos/routes/Cat_Periodicidad_PagoRouter';
 import cat_BancoRouter from '../modules/Catalogos/routes/Cat_BancoRouter';
+import cat_PaqueteriaRouter from '../modules/Catalogos/routes/Cat_PaqueteriaRouter';
 import cat_RiesgoPuestoRouter from '../modules/Catalogos/routes/Cat_Riesgo_Puesto';
 import cat_forma_de_pagoRouter from '../modules/Catalogos/routes/Cat_Forma_De_PagoRouter';
 import cat_uso_CFDIRouter from '../modules/Catalogos/routes/Cat_Uso_CFDIRouter';
@@ -159,6 +160,7 @@ router.use('/cat_tipo_jornada', cat_Tipo_JornadaRouter);
 router.use('/cat_periodicidad_pago', cat_Periodicidad_PagoRouter);
 router.use('/cat_riesgo_puesto', cat_RiesgoPuestoRouter);
 router.use('/cat_bancos', cat_BancoRouter);
+router.use('/cat_paqueteria', cat_PaqueteriaRouter);
 router.use('/cat_forma_de_pago', cat_forma_de_pagoRouter);
 router.use('/cat_usoCFDI', cat_uso_CFDIRouter);
 router.use('/cat_metodo_de_pago', cat_metodo_pagoRouter);

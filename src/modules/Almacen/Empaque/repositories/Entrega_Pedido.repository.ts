@@ -36,6 +36,11 @@ export const Entrega_PedidoRepository = {
                         'cod_int_pedido_alm', Sequelize.col('pedido.cod_int_pedido_alm'),
                         'cajas', Sequelize.col('Pedido_Almacen_Empaque.cajas'),
                         'bolsas', Sequelize.col('Pedido_Almacen_Empaque.bolsas'),
+                        'id_paqueteria', Sequelize.col('pedido.id_paqueteria'),
+                        'nombre_paqueteria', Sequelize.literal(`(
+                            SELECT cp.nombre_paqueteria FROM cat_paqueteria cp
+                            WHERE cp.id_paqueteria = "pedido"."id_paqueteria"
+                        )`),
                         'bultos', Sequelize.literal(`(
                             SELECT JSON_AGG(JSON_BUILD_OBJECT(
                                 'id_bulto',    b.id_bulto,
@@ -88,6 +93,8 @@ export const Entrega_PedidoRepository = {
                 [Sequelize.col('pedido.id_pedido_alm'), 'id_pedido_alm'],
                 [Sequelize.col('pedido.cod_int_pedido_alm'), 'cod_int_pedido_alm'],
                 [Sequelize.col('pedido.id_cliente_pedido_alm'), 'id_cliente_pedido_alm'],
+                [Sequelize.col('pedido.id_paqueteria'), 'id_paqueteria'],
+                [Sequelize.literal(`(SELECT cp.nombre_paqueteria FROM cat_paqueteria cp WHERE cp.id_paqueteria = "pedido"."id_paqueteria")`), 'nombre_paqueteria'],
                 'cajas', 'bolsas',
                 [
                     Sequelize.literal(`(
@@ -341,6 +348,26 @@ export const Entrega_PedidoRepository = {
                     { estado: 'FINALIZADO', fin: new Date() },
                     { where: { id_pedido_empaque: { [Op.in]: idsEmpaque } }, transaction: t }
                 );
+            }
+
+            // 7b. Actualizar fechas de entrega en pedido_almacen ───────────
+            //     ALMACEN → AGENTE   : fecha_entrega_alm
+            //     AGENTE  → CLIENTE  : fecha_entrega_al_cliente
+            //     ALMACEN → CLIENTE  : ambas
+            const idsPedidosAlm = pedidosData
+                .map(p => (p as any).pedido?.id_pedido_alm)
+                .filter(Boolean);
+            if (idsPedidosAlm.length > 0) {
+                const ahora = new Date();
+                const camposFecha: Record<string, Date> = {};
+                if (tipo_origen === 'ALMACEN') camposFecha.fecha_entrega_alm = ahora;
+                if (tipo_destino === 'CLIENTE') camposFecha.fecha_entrega_al_cliente = ahora;
+                if (Object.keys(camposFecha).length > 0) {
+                    await Pedido_Almacen.update(
+                        camposFecha,
+                        { where: { id_pedido_alm: { [Op.in]: idsPedidosAlm } }, transaction: t }
+                    );
+                }
             }
 
             // 8. Si el AGENTE está entregando al CLIENTE, cerrar la entrega
