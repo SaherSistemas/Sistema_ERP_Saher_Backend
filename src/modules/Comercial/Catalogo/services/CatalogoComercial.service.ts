@@ -244,17 +244,13 @@ export const CatalogoComercialService = {
         const ofertasActivas = await OfertaRepository.getOfertasSucursal({ id_empre: filters.id_sucursal, fecha: new Date() });
         const ofertaMap = buildOfertaMap(idsArticulos, ofertasActivas);
 
-        // 7️⃣ TRANSITO (1 query)
+        // 7️⃣ TRANSITO (solicitado + compra directa recibida pendiente de checado)
         const transitoRows = await Detalle_Compra_Solicitado.findAll({
             where: { idarticulo_detcompsol: { [Op.in]: idsArticulos } },
             include: [{
                 model: Compra_Proveedor,
                 required: true,
-                where: {
-                    estado_comp: {
-                        [Op.in]: ['C', 'A', 'E', 'L', 'K']
-                    }
-                },
+                where: { estado_comp: { [Op.in]: ['C', 'A', 'E', 'L', 'K'] } },
                 attributes: []
             }],
             attributes: [
@@ -268,6 +264,23 @@ export const CatalogoComercialService = {
         const transitoMap = new Map<string, number>();
         transitoRows.forEach((t: any) => {
             transitoMap.set(t.idarticulo_detcompsol, Number(t.transito ?? 0));
+        });
+
+        // Sumar compras directas (estado K) que aún no han sido chequeadas por almacén
+        const transitoDirectaRows: any[] = await Detalle_Compra_Solicitado.sequelize!.query(`
+            SELECT dcr.idarticulo_detcomprec AS id_artic, SUM(dcr.cantidad_detcomprec) AS total
+            FROM detalle_compra_recibido dcr
+            INNER JOIN compra_proveedor cp ON cp.id_comp = dcr.idcompr_detcomprec
+            WHERE dcr.idarticulo_detcomprec IN (:ids)
+              AND cp.estado_comp = 'K'
+            GROUP BY dcr.idarticulo_detcomprec
+        `, {
+            replacements: { ids: idsArticulos },
+            type: 'SELECT' as any,
+        });
+        transitoDirectaRows.forEach((r: any) => {
+            const prev = transitoMap.get(r.id_artic) ?? 0;
+            transitoMap.set(r.id_artic, prev + Number(r.total ?? 0));
         });
 
         // 8️⃣ PEDIDOS CAPTURADOS (en estado CA)
@@ -449,7 +462,7 @@ export const CatalogoComercialService = {
         // console.log("Ofertas activas:", ofertasActivas);
         const ofertaMap = buildOfertaMap(idsArticulos, ofertasActivas);
         //  console.log("Mapa de ofertas:", ofertaMap);
-        // 5) Tránsito
+        // 5) Tránsito (solicitado + compra directa recibida pendiente de checado)
         const transitoRows = await Detalle_Compra_Solicitado.findAll({
             where: { idarticulo_detcompsol: { [Op.in]: idsArticulos } },
             include: [
@@ -472,6 +485,23 @@ export const CatalogoComercialService = {
         for (const t of transitoRows as any[]) {
             transitoMap.set(t.idarticulo_detcompsol, Number(t.transito ?? 0));
         }
+
+        // Sumar compras directas (estado K) pendientes de checado
+        const transitoDirectaRowsBusq: any[] = await Detalle_Compra_Solicitado.sequelize!.query(`
+            SELECT dcr.idarticulo_detcomprec AS id_artic, SUM(dcr.cantidad_detcomprec) AS total
+            FROM detalle_compra_recibido dcr
+            INNER JOIN compra_proveedor cp ON cp.id_comp = dcr.idcompr_detcomprec
+            WHERE dcr.idarticulo_detcomprec IN (:ids)
+              AND cp.estado_comp = 'K'
+            GROUP BY dcr.idarticulo_detcomprec
+        `, {
+            replacements: { ids: idsArticulos },
+            type: 'SELECT' as any,
+        });
+        transitoDirectaRowsBusq.forEach((r: any) => {
+            const prev = transitoMap.get(r.id_artic) ?? 0;
+            transitoMap.set(r.id_artic, prev + Number(r.total ?? 0));
+        });
 
         // 6) Pedidos capturados (estado CA)
         const capturadoRowsBusq = await Detalle_Pedido_Almacen.findAll({
