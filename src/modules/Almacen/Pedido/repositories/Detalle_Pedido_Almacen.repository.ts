@@ -70,6 +70,10 @@ export const Detalle_Pedido_AlmacenRepository = {
   sincronizarCarrito: async (data: ActualizarDetallesPedidoRequest, t?: Transaction) => {
     const { id_pedido, carrito, id_paqueteria } = data;
 
+    // Protección: nunca borrar todo el pedido si el carrito llega vacío
+    // (puede ocurrir si el frontend tuvo error al cargar y manda [] accidentalmente)
+    if (!carrito || carrito.length === 0) return true;
+
     // 1. Obtener todos los detalles actuales del pedido
     const detallesActuales = await Detalle_Pedido_Almacen.findAll({
       where: { id_pedido_almacen: id_pedido },

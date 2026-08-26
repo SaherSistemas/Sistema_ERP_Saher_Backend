@@ -60,6 +60,7 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
             attributes: [
                 'id_factura_proveedor_detalle',
                 'id_factura_compra_proveedor',
+                'id_artic',
                 'precio_articulo_factura',
                 'descuento_articulo_factura',
                 'iva_articulo_factura',

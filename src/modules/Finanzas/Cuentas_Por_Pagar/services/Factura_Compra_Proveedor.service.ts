@@ -181,7 +181,7 @@ export const Factura_Compra_ProveedorService = {
                 // Para traslados el artículo viene directo; para compras viene por detalleCompraSolicitado
                 const idArticulo = esTraslado
                     ? (d.articulo?.id_artic ?? d.id_artic)
-                    : d.detalleCompraSolicitado?.idarticulo_detcompsol;
+                    : (d.detalleCompraSolicitado?.idarticulo_detcompsol ?? d.id_artic);
                 if (!idArticulo) continue;
 
                 const recibido = Number(d?.resumen?.recibido ?? 0);

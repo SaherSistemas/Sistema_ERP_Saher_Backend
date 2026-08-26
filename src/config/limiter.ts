@@ -13,9 +13,12 @@ const generalLimiter = rateLimit({
                 if (payload?.id) return `user_${payload.id}`;
             } catch {}
         }
-        return req.ip ?? 'unknown';
+        // Normalizar IPv6 ::ffff:x.x.x.x → x.x.x.x para evitar bypass
+        const ip = req.ip ?? 'unknown';
+        return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
     },
     message: 'Demasiadas solicitudes, por favor intente de nuevo más tarde.',
+    validate: { xForwardedForHeader: false, keyGeneratorIpFallback: false },
 });
 
 const authLimiter = rateLimit({

@@ -361,7 +361,7 @@ export class Pedido_AlmacenController {
   static getListaGestion = async (req: Request, res: Response) => {
     try {
       const { fecha_inicio, fecha_fin, status, busqueda } = req.query as Record<string, string>;
-      const page  = parseInt(req.query.page  as string) || 1;
+      const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
       if (!fecha_inicio || !fecha_fin) {
         res.status(400).json({ mensaje: 'fecha_inicio y fecha_fin son requeridos' });
