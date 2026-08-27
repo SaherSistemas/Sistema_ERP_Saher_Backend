@@ -23,7 +23,7 @@ const generalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
     windowMs: 3 * 60 * 1000,
-    max: 20,
+    max: 50,
     message: 'Demasiados intentos de inicio de sesion. Por favor intente de nuevo más tarde.'
 });
 

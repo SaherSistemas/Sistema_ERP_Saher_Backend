@@ -54,14 +54,14 @@ export const EmpleadoRepository = {
   },
 
   getAllEmpleadosQuePuedenSerAgente: async () => {
-    const empresaPrincipal = await Empresa_SucursalRepository.getEmpresaPrincipal()
-    //console.log(empresaPrincipal)
-    return await Empleado.findAll({
-      where: {
-        id_sucursal_empleado: empresaPrincipal.id_empre,
-        id_empleado: { [Op.notIn]: literal('(SELECT id_empleado FROM agente_de_venta)') }
-      }
-    });
+    const empresaPrincipal = await Empresa_SucursalRepository.getEmpresaPrincipal();
+    const where: any = {
+      id_empleado: { [Op.notIn]: literal('(SELECT id_empleado FROM agente_de_venta)') }
+    };
+    if (empresaPrincipal?.id_empre) {
+      where.id_sucursal_empleado = empresaPrincipal.id_empre;
+    }
+    return await Empleado.findAll({ where });
   },
   ultimoId: async () => {
     return await Empleado.findOne({

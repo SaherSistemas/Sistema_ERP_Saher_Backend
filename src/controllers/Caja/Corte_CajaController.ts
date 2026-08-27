@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { CorteCajaService } from "../../services/Caja/Corte_Caja.service";
+import { AuthedRequest } from "../../middleware/auth";
 
 export class CorteCajaController {
   static getAll = async (req: Request, res: Response) => {
@@ -86,10 +87,11 @@ export class CorteCajaController {
     }
   };
 
-  static create = async (req: Request, res: Response) => {
+  static create = async (req: AuthedRequest, res: Response) => {
     try {
       const { id_caja } = req.params;
-      const { id_usuario_apertura, monto_inicial } = req.body;
+      const { monto_inicial } = req.body;
+      const id_usuario_apertura = req.user!.id_referencia_persona;
       const nuevoCorte = await CorteCajaService.createCorteCaja({
         id_caja,
         id_usuario_apertura,
