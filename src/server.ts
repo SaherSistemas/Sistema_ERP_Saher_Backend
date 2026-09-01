@@ -41,7 +41,7 @@ app.use(express.json());
 app.use('/api', router);
 
 app.use('/uploads/firmas', express.static(
-    path.join(__dirname, 'modules/Almacen/Empaque/routes/firmas')
+    process.env.RUTA_FIRMAS ?? path.join(__dirname, 'firmasLOCAL')
 ));
 app.use('/api/uploads/recepciones', express.static(
     path.join(__dirname, '../uploads/recepciones')

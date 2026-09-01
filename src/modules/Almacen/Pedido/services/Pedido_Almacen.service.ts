@@ -18,6 +18,9 @@ import { Detalle_Pedido_NegadoRepository } from '../repositories/Detalle_Pedido_
 import Pedido_Almacen from '../model/Pedido_Almacen';
 import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import Cuenta_Por_Cobrar from '../../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
+import Usuario from '../../../Seguridad/model/Usuario';
+
+const ID_ROL_SURTIDOR = 3; // Surtidor/Acomodador
 
 // ─── Helper privado: preview de UN pedido PolyDB por su número ───────────────
 //  Aísla los items de ese pedido específico.
@@ -722,6 +725,28 @@ export const Pedido_AlmacenService = {
   asignarSurtidorPorCodigo: async (id_pedido_alm: string, cod_interno: number, id_empresa: string) => {
     const empleado = await Empleado.findOne({ where: { idinterno_empleado: cod_interno } });
     if (!empleado) throw { status: 404, message: `No se encontró empleado con código interno ${cod_interno}.` };
+
+    // Verificar que el empleado tenga rol Surtidor/Acomodador
+    const usuario = await Usuario.findOne({ where: { id_referencia_persona: empleado.id_empleado } });
+    if (!usuario || Number(usuario.idrol_user) !== ID_ROL_SURTIDOR) {
+      throw { status: 403, message: `El empleado ${empleado.nombre_empleado} ${empleado.ap_pat_empleado} no tiene el rol de Surtidor/Acomodador.` };
+    }
+
+    // Verificar que no tenga ya un pedido en surtido
+    const [pedidoEnCurso] = await dbLocal.query<{ cod_int_pedido_alm: string }>(`
+      SELECT pa.cod_int_pedido_alm
+      FROM pedido_almacen pa
+      INNER JOIN detalle_pedido_almacen dp ON dp.id_pedido_almacen = pa.id_pedido_alm
+      INNER JOIN detalle_pedido_almacen_asignacion dpa ON dpa.id_detalle_pedido_almacen = dp.id_detalle_pedido_almacen
+      WHERE dpa.id_usuario = :id_empleado
+        AND pa.status_pedido_alm = 'SU'
+        AND pa.fin_surtido IS NULL
+      LIMIT 1
+    `, { replacements: { id_empleado: empleado.id_empleado }, type: QueryTypes.SELECT });
+
+    if (pedidoEnCurso) {
+      throw { status: 409, message: `${empleado.nombre_empleado} ${empleado.ap_pat_empleado} ya está surtiendo el pedido ${pedidoEnCurso.cod_int_pedido_alm}. Debe finalizarlo primero.` };
+    }
 
     const detalles = await Detalle_Pedido_AlmacenRepository.getDetallesConArticuloPorPedido(id_pedido_alm);
 

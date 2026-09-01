@@ -28,7 +28,7 @@ function box(doc: PDFKit.PDFDocument, x: number, y: number, w: number, h: number
 }
 
 export async function generarPdfBulto(info: InfoBultoLabel): Promise<string> {
-    const outDir = path.join(os.tmpdir(), 'etiquetas_zebra');
+    const outDir = process.env.RUTA_PDFS_GUARDAR ?? path.join(os.tmpdir(), 'etiquetas_zebra');
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
     const outPath = path.join(outDir, `bulto_${uuidv4()}.pdf`);
 

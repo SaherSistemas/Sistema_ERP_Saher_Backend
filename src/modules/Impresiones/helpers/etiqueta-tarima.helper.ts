@@ -36,7 +36,7 @@ function hoy(): string {
 }
 
 export async function generarPdfEtiquetasTarima(datos: DatosEtiquetaTarima): Promise<string> {
-    const outDir = path.join(os.tmpdir(), 'etiquetas_zebra');
+    const outDir = process.env.RUTA_PDFS_GUARDAR ?? path.join(os.tmpdir(), 'etiquetas_zebra');
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
     const outPath = path.join(outDir, `etiqueta_${uuidv4()}.pdf`);
 

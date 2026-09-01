@@ -9,8 +9,21 @@ import { RemisionService } from "../../Finanzas/Remisiones/services/Remision.ser
 import { guardarRemisionPdf } from "../../Finanzas/Remisiones/helpers/remision-storage.helper";
 import { generarPdfEtiquetasTarima, DatosEtiquetaTarima } from "../helpers/etiqueta-tarima.helper";
 import { generarPdfBulto } from "../helpers/bulto-label.helper";
+import { dbLocal } from "../../../config/db";
+import { QueryTypes } from "sequelize";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Convierte la ruta local del servidor a la ruta que ve el agente de impresión (UNC o unidad mapeada).
+// Si RUTA_PDFS_AGENTE no está configurado, devuelve la ruta original (agente en la misma máquina).
+function toAgentPath(localPath: string): string {
+    const guardar = process.env.RUTA_PDFS_GUARDAR;
+    const agente = process.env.RUTA_PDFS_AGENTE;
+    if (guardar && agente && localPath.startsWith(guardar)) {
+        return agente + localPath.slice(guardar.length);
+    }
+    return localPath;
+}
 
 export const TrabajoImpresionService = {
     /**CHEQUEO */
@@ -18,9 +31,9 @@ export const TrabajoImpresionService = {
         let data: ICreateTrabajoImpresion;
 
         const estacionEfectiva =
-            tipo_documento === 'BULTO'          ? 'ETIQUETAS_BULTO'   :
-            tipo_documento === 'ETIQUETA_TARIMA' ? 'ETIQUETAS_TARIMA'  :
-            estacion;
+            tipo_documento === 'BULTO' ? 'ETIQUETAS_BULTO' :
+                tipo_documento === 'ETIQUETA_TARIMA' ? 'ETIQUETAS_TARIMA' :
+                    estacion;
 
         const id_impresora = await ImpresoraRepository.getImpresora(id_empresa, estacionEfectiva);
         if (tipo_documento === 'PEDIDO_ALMACEN') {
@@ -29,18 +42,32 @@ export const TrabajoImpresionService = {
                 : await Pedido_AlmacenRepository.getByCodInterno(id_pedido_alm);
             if (!pedido) throw new Error('Pedido no encontrado');
 
+            // Obtener nombre del surtidor asignado a este pedido
+            const [surtidor] = await dbLocal.query<{ nombre: string }>(`
+                SELECT CONCAT(e.nombre_empleado, ' ', e.ap_pat_empleado) AS nombre
+                FROM detalle_pedido_almacen dp
+                INNER JOIN detalle_pedido_almacen_asignacion dpa ON dpa.id_detalle_pedido_almacen = dp.id_detalle_pedido_almacen
+                INNER JOIN empleado e ON e.id_empleado = dpa.id_usuario
+                WHERE dp.id_pedido_almacen = :id_pedido_alm
+                LIMIT 1
+            `, { replacements: { id_pedido_alm: pedido.id_pedido_alm }, type: QueryTypes.SELECT });
+
+            const nombreSurtidor = surtidor?.nombre ?? 'Sin asignar';
+
             data = {
                 cod_interno_pedido: pedido.cod_int_pedido_alm,
                 tipo_documento,
                 id_impresora,
                 payload: {
                     tipo: "escpos",
-                    qr: {
-                        datos: pedido.cod_int_pedido_alm,
-                        tamano: 15,
-                        correccion: "L",
-                        alineacion: "centro",
-                    }
+                    comandos: [
+                        { type: "qr", value: pedido.cod_int_pedido_alm, size: 15, error: "L" },
+                        { type: "feed", value: 1 },
+                        { type: "align", value: "center" },
+                        { type: "text", value: `COD PEDIDO: ${pedido.cod_int_pedido_alm}` },
+                        { type: "text", value: `SURTIDOR: ${nombreSurtidor}` },
+                        { type: "cut" }
+                    ]
                 }
             };
         }
@@ -50,12 +77,12 @@ export const TrabajoImpresionService = {
 
             data = {
                 cod_interno_pedido: info.cod_int_pedido_alm,
-                tipo_documento:     'BULTO',
+                tipo_documento: 'BULTO',
                 id_impresora,
-                max_intentos:       1,
+                max_intentos: 1,
                 payload: {
-                    tipo:         'pdf',
-                    ruta_archivo: rutaPdf,
+                    tipo: 'pdf',
+                    ruta_archivo: toAgentPath(rutaPdf),
                 },
             };
         }
@@ -76,10 +103,10 @@ export const TrabajoImpresionService = {
 
             data = {
                 cod_interno_pedido: pedido.cod_int_pedido_alm,
-                tipo_documento:     'FACTURA',
+                tipo_documento: 'FACTURA',
                 id_impresora,
                 payload: {
-                    tipo:         'pdf',
+                    tipo: 'pdf',
                     ruta_archivo: factura.pdf_url,
                 }
             };
@@ -94,23 +121,23 @@ export const TrabajoImpresionService = {
             if (!pedido) throw new Error('Pedido no encontrado');
 
             const remision = await Remision.findOne({
-                where:      { id_pedido_alm: pedido.id_pedido_alm },
-                order:      [['fecha_remision', 'DESC']],
+                where: { id_pedido_alm: pedido.id_pedido_alm },
+                order: [['fecha_remision', 'DESC']],
                 attributes: ['id_remision', 'folio_remision'],
             });
             if (!remision) throw new Error('No existe remisión para este pedido');
 
             // Generar PDF y guardarlo en disco
             const pdfBuffer = await RemisionService.generarPdf(remision.id_remision);
-            const rutaPdf   = guardarRemisionPdf(remision.id_remision, pdfBuffer);
+            const rutaPdf = guardarRemisionPdf(remision.id_remision, pdfBuffer);
 
             data = {
                 cod_interno_pedido: `REM-${remision.folio_remision}`,
-                tipo_documento:     'REMISION',
+                tipo_documento: 'REMISION',
                 id_impresora,
                 payload: {
-                    tipo:         'pdf',
-                    ruta_archivo: rutaPdf,
+                    tipo: 'pdf',
+                    ruta_archivo: toAgentPath(rutaPdf),
                 },
             };
         }
@@ -129,12 +156,12 @@ export const TrabajoImpresionService = {
 
             data = {
                 cod_interno_pedido: `ETQ-${Date.now()}`,
-                tipo_documento:     'ETIQUETA_TARIMA',
+                tipo_documento: 'ETIQUETA_TARIMA',
                 id_impresora,
-                max_intentos:       1,
+                max_intentos: 1,
                 payload: {
-                    tipo:         'pdf',
-                    ruta_archivo: rutaPdf,
+                    tipo: 'pdf',
+                    ruta_archivo: toAgentPath(rutaPdf),
                 },
             };
         }
