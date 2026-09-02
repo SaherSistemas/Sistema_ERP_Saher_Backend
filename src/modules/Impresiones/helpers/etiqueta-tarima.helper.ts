@@ -73,11 +73,7 @@ export async function generarPdfEtiquetasTarima(datos: DatosEtiquetaTarima): Pro
     });
 
     return new Promise((resolve, reject) => {
-        // El driver de Windows del Zebra tiene la pagina configurada como
-        // vertical (H x W). Generamos cada pagina en ese tamano y rotamos
-        // el contenido 90 grados adentro, para que el driver no la rote el
-        // solo (lo cual la dejaba de lado) y salga horizontal.
-        const doc = new PDFDocument({ size: [H, W], margin: 0, autoFirstPage: false });
+        const doc = new PDFDocument({ size: [W, H], margin: 0, autoFirstPage: false });
         const stream = fs.createWriteStream(outPath);
         doc.pipe(stream);
 
@@ -87,8 +83,7 @@ export async function generarPdfEtiquetasTarima(datos: DatosEtiquetaTarima): Pro
         const INFO_W = W - INFO_X - PAD;     // ancho zona info
 
         for (const et of etiquetas) {
-            doc.addPage({ size: [H, W], margin: 0 });
-            doc.rotate(90).translate(0, -H);
+            doc.addPage({ size: [W, H], margin: 0 });
 
             // ── QR centrado verticalmente ───────────────────────────────────
             const qrY = (H - QR_SIZE - 12) / 2;
