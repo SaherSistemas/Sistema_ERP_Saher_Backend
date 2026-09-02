@@ -362,6 +362,23 @@ export const Pedido_AlmacenService = {
       const agente = await AgenteRepository.getByIdEmpleado(data.encabezado.id_agente_pedido_alm);
       if (!agente) throw new Error('Agente no encontrado.');
 
+      // Deduplicación: si ya existe un pedido EC del mismo agente+cliente creado en los últimos 10s,
+      // devolver ese en lugar de crear uno nuevo (evita duplicados por doble envío del frontend).
+      const hace10s = new Date(Date.now() - 10_000);
+      const pedidoReciente = await Pedido_Almacen.findOne({
+        where: {
+          id_agente_pedido_alm: agente.id_agente,
+          id_cliente_pedido_alm: data.encabezado.id_cliente_pedido_alm,
+          status_pedido_alm: 'EC',
+          createdAt: { [Op.gte]: hace10s },
+        },
+        order: [['createdAt', 'DESC']],
+      });
+      if (pedidoReciente) {
+        await t.rollback();
+        return { id_pedido_alm: pedidoReciente.id_pedido_alm, solo_negados: false, _duplicado: true };
+      }
+
       // 2. Generar folio interno
       const folioPedido = await Pedido_AlmacenRepository.getFolioPedido(agente.cod_identi_agente);
       //CAMBIAR ID_AGENTE

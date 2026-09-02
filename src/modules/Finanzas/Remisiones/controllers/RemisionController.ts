@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import type { Request, Response } from 'express';
 import { RemisionService } from '../services/Remision.service';
-import { RUTA_PDFS_REMISIONES } from '../../../Facturas/helpers/pdf.helper';
 
 export class RemisionController {
 
@@ -49,19 +48,10 @@ export class RemisionController {
         }
     };
 
-    // ─── GET /remision/:id_remision/pdf ──────────────────────────────────────
     static getPDF = async (req: Request, res: Response) => {
         try {
             const { id_remision } = req.params;
             const buffer = await RemisionService.generarPdf(id_remision);
-
-            // Guardar en disco
-            if (!fs.existsSync(RUTA_PDFS_REMISIONES)) {
-                fs.mkdirSync(RUTA_PDFS_REMISIONES, { recursive: true });
-            }
-            const rutaPdf = path.join(RUTA_PDFS_REMISIONES, `remision-${id_remision}.pdf`);
-            fs.writeFileSync(rutaPdf, buffer);
-
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `inline; filename="remision-${id_remision}.pdf"`);
             res.setHeader('Content-Length', buffer.length);
