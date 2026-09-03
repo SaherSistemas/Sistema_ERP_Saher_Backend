@@ -121,7 +121,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                         {
                             model: Articulo,
                             as: 'articulo',
-                            attributes: ['cod_barr_artic', 'des_artic'],
+                            attributes: ['id_artic', 'cod_barr_artic', 'des_artic'],
                             required: false,
                         },
                     ],
@@ -148,6 +148,19 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                     ],
                 },
             ],
+        });
+    },
+
+    getIncompletasPorPedido: async (id_pedido_almacen: string) => {
+        const detalles = await Detalle_Pedido_AlmacenRepository.getIdsDetallesPorPedido(id_pedido_almacen);
+        const ids = detalles.map((d: any) => d.id_detalle_pedido_almacen);
+        if (!ids.length) return [];
+        return await Detalle_Pedido_Almacen_Chequeo.findAll({
+            where: {
+                id_detalle_pedido_almacen: { [Op.in]: ids },
+                estado: { [Op.in]: ['ASIGNADO', 'EN_PROCESO'] },
+            },
+            attributes: ['id_detalle_chequeo', 'id_detalle_pedido_almacen', 'cant_surtida_lote', 'cant_chequeada', 'estado'],
         });
     },
 

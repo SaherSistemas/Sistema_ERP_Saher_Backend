@@ -67,6 +67,28 @@ export class Pedido_AlmacenController {
     }
 
   }
+  static getCambiosPrecioChequeo = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const data = await Pedido_AlmacenService.getCambiosPrecioChequeo(id_pedido_alm);
+      res.status(200).json(data);
+    } catch (error: any) {
+      console.log(error);
+      res.status(500).json({ mensaje: error.message || 'Error al obtener cambios de precio.' });
+    }
+  };
+
+  static negarDiferenciasChequeo = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const resultado = await Pedido_AlmacenService.negarDiferenciasChequeo(id_pedido_alm);
+      res.status(200).json(resultado);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ mensaje: 'Error al registrar diferencias de chequeo.' });
+    }
+  };
+
   /*FIN CHEQUEO  */
   static surtidoArticuloAsignado = async (req: AuthedRequest, res: Response) => {
     try {
@@ -370,11 +392,8 @@ export class Pedido_AlmacenController {
       const { fecha_inicio, fecha_fin, status, busqueda } = req.query as Record<string, string>;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
-      if (!fecha_inicio || !fecha_fin) {
-        res.status(400).json({ mensaje: 'fecha_inicio y fecha_fin son requeridos' });
-        return;
-      }
-      const data = await Pedido_AlmacenService.getListaGestion({ fecha_inicio, fecha_fin, status, busqueda, page, limit });
+      const excluir_finalizados = req.query.excluir_finalizados === 'true';
+      const data = await Pedido_AlmacenService.getListaGestion({ fecha_inicio: fecha_inicio || undefined, fecha_fin: fecha_fin || undefined, status, busqueda, page, limit, excluir_finalizados: excluir_finalizados || undefined });
       res.json(data);
     } catch (error: any) {
       console.log(error);

@@ -367,25 +367,31 @@ export const Pedido_AlmacenRepository = {
   // GESTIÓN — lista con rango de fechas, status y búsqueda
   // ══════════════════════════════════════════════════════════════════════════
   getListaGestion: async (params: {
-    fecha_inicio: string;
-    fecha_fin: string;
+    fecha_inicio?: string;
+    fecha_fin?: string;
     status?: string;
     busqueda?: string;
     page?: number;
     limit?: number;
+    excluir_finalizados?: boolean;
   }) => {
-    const { fecha_inicio, fecha_fin, status, busqueda, page = 1, limit = 50 } = params;
+    const { fecha_inicio, fecha_fin, status, busqueda, page = 1, limit = 50, excluir_finalizados } = params;
     const offset = (page - 1) * limit;
 
-    const where: any = {
-      createdAt: {
+    const where: any = {};
+    if (fecha_inicio && fecha_fin) {
+      where.createdAt = {
         [Op.between]: [
           new Date(`${fecha_inicio}T00:00:00.000`),
           new Date(`${fecha_fin}T23:59:59.999`),
         ],
-      },
-    };
-    if (status) where.status_pedido_alm = status;
+      };
+    }
+    if (status) {
+      where.status_pedido_alm = status;
+    } else if (excluir_finalizados) {
+      where.status_pedido_alm = { [Op.notIn]: ['CH', 'EM', 'FA', 'EN'] };
+    }
     if (busqueda) {
       const q = busqueda.replace(/'/g, "''");
       where[Op.or] = [
@@ -421,7 +427,7 @@ export const Pedido_AlmacenRepository = {
       order: [
         [literal(`CASE WHEN "Pedido_Almacen".fecha_max_entrega_alm IS NULL THEN 1 ELSE 0 END`), 'ASC'],
         ['fecha_max_entrega_alm', 'ASC'],
-        ['createdAt', 'ASC'],
+        ['createdAt', 'DESC'],
       ],
       limit,
       offset,

@@ -12,6 +12,8 @@ import { Detalle_Pedido_Almacen_LoteRepository } from '../repositories/Detalle_P
 import { Detalle_Pedido_Almacen_AsignacionRepository } from '../repositories/Detalle_Pedido_Almacen_AsignacionRepository';
 import { Articulo_Ubicacion_DefaultServices } from '../../../Catalogos/Articulos/feature/Articulo_Ubicacion_Default/Articulo_Ubicacion_Default.service';
 import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
+import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
+import Ubicacion_Sucursal from '../../Ubicaciones/model/Ubicacion_Sucursal';
 import { ICreateDetallePedidoAlmacenLote } from '../interface/Detalle_Pedido_Almacen_Lote.interface';
 import { Detalle_Pedido_Almacen_ChequeoRepository } from '../repositories/Detalle_Pedido_Almacen_ChequeoRepository';
 import { Detalle_Pedido_NegadoRepository } from '../repositories/Detalle_Pedido_Negado.repository';
@@ -19,6 +21,7 @@ import Pedido_Almacen from '../model/Pedido_Almacen';
 import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import Cuenta_Por_Cobrar from '../../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
 import Usuario from '../../../Seguridad/model/Usuario';
+import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
 
 const ID_ROL_SURTIDOR = 3; // Surtidor/Acomodador
 
@@ -175,8 +178,62 @@ export const Pedido_AlmacenService = {
   },
 
   getDetalleAsignadoChequeo: async (id_empleado: string) => {
-    const getDetallesAsignados = await Detalle_Pedido_Almacen_ChequeoRepository.getDetallesAsignados(id_empleado)
-    return getDetallesAsignados
+    const filas = await Detalle_Pedido_Almacen_ChequeoRepository.getDetallesAsignados(id_empleado);
+
+    // Collect unique article IDs to fetch stock + ubicacion in one query
+    const articuloIds = [...new Set(
+      filas
+        .map((f: any) => {
+          const id = f?.detalle_pedido?.articulo?.id_artic
+            ?? (f as any).getDataValue?.('detalle_pedido')?.articulo?.id_artic
+            ?? f?.toJSON()?.detalle_pedido?.articulo?.id_artic;
+          return id;
+        })
+        .filter(Boolean)
+    )];
+    let stockMap: Map<string, { existencias: number; ubicacion: string | null }> = new Map();
+
+    if (articuloIds.length > 0) {
+      const stockRows = await Stock_Ubicacion_Lote.findAll({
+        where: { id_articulo: articuloIds },
+        attributes: ['id_articulo', 'id_lote', 'cantidad', 'cantidad_apartada', 'id_ubicacion_sucursal'],
+        include: [{
+          model: Ubicacion_Sucursal,
+          as: 'ubicacion',
+          attributes: ['pasillo_ub', 'anaquel_ub', 'nivel_ub', 'posicion_ub'],
+          required: false,
+        }],
+      });
+
+      // Group by id_articulo: sum existencias, pick first ubicacion with value
+      for (const rawRow of stockRows as any[]) {
+        const row = rawRow.toJSON ? rawRow.toJSON() : rawRow;
+        const artId = row.id_articulo;
+        const existing = stockMap.get(artId);
+        const parts = [row.ubicacion?.pasillo_ub, row.ubicacion?.anaquel_ub, row.ubicacion?.nivel_ub, row.ubicacion?.posicion_ub]
+          .filter(Boolean).join('-');
+        const ubi = parts || null;
+        const disponible = Math.max(0, Number(row.cantidad ?? 0) - Number(row.cantidad_apartada ?? 0));
+        if (existing) {
+          existing.existencias += disponible;
+          if (!existing.ubicacion && ubi) existing.ubicacion = ubi;
+        } else {
+          stockMap.set(artId, { existencias: disponible, ubicacion: ubi });
+        }
+      }
+    }
+
+    // Attach existencias/ubicacion to each fila
+    return filas.map((f: any) => {
+      const plain = f.toJSON();
+      const artId = plain?.detalle_pedido?.articulo?.id_artic;
+      const stock = artId ? stockMap.get(artId) : undefined;
+      return {
+        ...plain,
+        existencias: stock?.existencias ?? 0,
+        ubicacion: stock?.ubicacion ?? null,
+      };
+    });
   },
 
   /*FIN CHEQUEO  */
@@ -579,6 +636,87 @@ export const Pedido_AlmacenService = {
 
 
 
+  getCambiosPrecioChequeo: async (id_pedido_alm: string) => {
+
+
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, {
+      attributes: ['id_pedido_alm', 'id_cliente_pedido_alm'],
+    });
+    if (!pedido) throw new Error('Pedido no encontrado');
+
+    const cliente = await ClienteAlmacen.findByPk(pedido.id_cliente_pedido_alm, {
+      attributes: ['id_lista_precio_cliente_alm'],
+    }) as any;
+    const idLista = cliente?.id_lista_precio_cliente_alm;
+    if (!idLista) return [];
+
+    const detalles = await Detalle_Pedido_Almacen.findAll({
+      where: { id_pedido_almacen: id_pedido_alm },
+      attributes: ['id_detalle_pedido_almacen', 'precio_venta', 'id_articulo', 'cant_pedida'],
+      include: [{
+        model: Articulo,
+        as: 'articulo',
+        attributes: ['id_artic', 'des_artic', 'cod_barr_artic'],
+        required: false,
+      }],
+    }) as any[];
+
+    const resultado: any[] = [];
+    for (const det of detalles) {
+      const plain = det.toJSON ? det.toJSON() : det;
+      const idArticulo = plain.articulo?.id_artic ?? plain.id_articulo;
+      if (!idArticulo) continue;
+
+      const precioActual = await DetalleListaPrecio.findOne({
+        where: { id_lista_precio: idLista, id_artic: idArticulo },
+        attributes: ['precios'],
+        raw: true,
+      }) as any;
+
+      if (!precioActual) continue;
+
+      const pVenta = Number(plain.precio_venta);
+      const pActual = Number(precioActual.precios);
+      if (pVenta < pActual) {
+        resultado.push({
+          id_detalle_pedido_almacen: plain.id_detalle_pedido_almacen,
+          des_artic: plain.articulo?.des_artic ?? '',
+          cod_barr_artic: plain.articulo?.cod_barr_artic ?? '',
+          precio_pedido: pVenta,
+          precio_actual: pActual,
+          diferencia: +(pActual - pVenta).toFixed(2),
+          cant_pedida: plain.cant_pedida,
+        });
+      }
+    }
+    return resultado;
+  },
+
+  negarDiferenciasChequeo: async (id_pedido_alm: string) => {
+    const filasIncompletas = await Detalle_Pedido_Almacen_ChequeoRepository.getIncompletasPorPedido(id_pedido_alm);
+
+    if (!filasIncompletas.length) return { negados: 0 };
+
+    const registros: any[] = [];
+    for (const fila of filasIncompletas) {
+      const cantSurtida = Number(fila.cant_surtida_lote) || 0;
+      const cantChecada = Number(fila.cant_chequeada) || 0;
+      const diferencia = cantSurtida - cantChecada;
+      if (diferencia <= 0) continue;
+      registros.push({
+        id_detalle_pedido_almacen: fila.id_detalle_pedido_almacen,
+        cantidad_negada: diferencia,
+        motivo: 'DIFERENCIA_CHEQUEO',
+      });
+    }
+
+    for (const reg of registros) {
+      await Detalle_Pedido_NegadoRepository.create(reg);
+    }
+
+    return { negados: registros.length };
+  },
+
   finalizarCaptura: async (id_pedido: string) => {
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
@@ -600,7 +738,7 @@ export const Pedido_AlmacenService = {
     return pedidoFull
   },
 
-  getListaGestion: async (params: { fecha_inicio: string; fecha_fin: string; status?: string; busqueda?: string; page?: number; limit?: number }) => {
+  getListaGestion: async (params: { fecha_inicio?: string; fecha_fin?: string; status?: string; busqueda?: string; page?: number; limit?: number; excluir_finalizados?: boolean }) => {
     return await Pedido_AlmacenRepository.getListaGestion(params);
   },
 
