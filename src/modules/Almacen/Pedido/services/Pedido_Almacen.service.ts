@@ -338,8 +338,8 @@ export const Pedido_AlmacenService = {
 
 
 
-  pedidosEnCaptura: async (id_cliente_alm: string) => {
-    return await Pedido_AlmacenRepository.pedidosEnCaptura(id_cliente_alm);
+  pedidosEnCaptura: async (id_cliente_alm: string, id_agente?: string) => {
+    return await Pedido_AlmacenRepository.pedidosEnCaptura(id_cliente_alm, id_agente);
   },
   pedidosEnCotizacion: async (id_cliente_alm: string) => {
     return await Pedido_AlmacenRepository.pedidosEnCotizacion(id_cliente_alm);
@@ -362,15 +362,15 @@ export const Pedido_AlmacenService = {
       const agente = await AgenteRepository.getByIdEmpleado(data.encabezado.id_agente_pedido_alm);
       if (!agente) throw new Error('Agente no encontrado.');
 
-      // Deduplicación: si ya existe un pedido EC del mismo agente+cliente creado en los últimos 10s,
+      // Deduplicación: si ya existe un pedido EC del mismo agente+cliente creado en los últimos 120s,
       // devolver ese en lugar de crear uno nuevo (evita duplicados por doble envío del frontend).
-      const hace10s = new Date(Date.now() - 10_000);
+      const hace120s = new Date(Date.now() - 120_000);
       const pedidoReciente = await Pedido_Almacen.findOne({
         where: {
           id_agente_pedido_alm: agente.id_agente,
           id_cliente_pedido_alm: data.encabezado.id_cliente_pedido_alm,
           status_pedido_alm: 'EC',
-          createdAt: { [Op.gte]: hace10s },
+          createdAt: { [Op.gte]: hace120s },
         },
         order: [['createdAt', 'DESC']],
       });
@@ -400,7 +400,7 @@ export const Pedido_AlmacenService = {
 
       // 5. Separar ítems con y sin existencia
       const normales = data.detalle.filter((i: any) => Number(i.existencia_disponible ?? 1) > 0);
-      const negados  = data.detalle.filter((i: any) => Number(i.existencia_disponible ?? 1) <= 0);
+      const negados = data.detalle.filter((i: any) => Number(i.existencia_disponible ?? 1) <= 0);
 
       const soloNegados = normales.length === 0;
 

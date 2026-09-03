@@ -9,5 +9,6 @@ router.post('/:id_pedido_empaque/finalizar', Pedido_Almacen_EmpaqueController.fi
 
 router.patch('/:id_pedido_alm/bultos', Pedido_Almacen_EmpaqueController.actualizarBultosEmpaque);
 router.post('/:id_pedido_alm/reabrir', Pedido_Almacen_EmpaqueController.reabrirEmpaquePedido);
+router.post('/:id_pedido_empaque/reabrir-bultos', Pedido_Almacen_EmpaqueController.reabrirConBultos);
 
 export default router;

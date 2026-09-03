@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import cors from 'cors';
 import { dbLocal, dbPoly, /*dbVieja/* dbRemota */ } from './config/db'; // Ambas conexiones
 import router from './routes';
+import { ConfiguracionService } from './modules/Configuracion/services/Configuracion.service';
 import fs from 'fs';
 import path from 'path';
 
@@ -20,6 +21,7 @@ async function connectDatabases() {
 
         //  await runMigrations();
         await dbLocal.sync();    // Sincroniza modelos si es necesario
+        await ConfiguracionService.seedDefaults(); // Crea configs por defecto si no existen
         //await seedPermisosMenu();
         //await dbLocal.sync();    // Sincroniza modelos si es necesario
         //await dbRemota.sync();   // Solo si quieres sincronizar también la remota

@@ -203,12 +203,13 @@ export const Pedido_AlmacenRepository = {
       raw: true
     });
   },
-  pedidosEnCaptura: async (id_cliente_alm: string) => {
+  pedidosEnCaptura: async (id_cliente_alm: string, id_agente?: string) => {
+    const where: any = { id_cliente_pedido_alm: id_cliente_alm, status_pedido_alm: 'EC' };
+    if (id_agente) where.id_agente_pedido_alm = id_agente;
     return await Pedido_Almacen.findAll({
-      where: {
-        id_cliente_pedido_alm: id_cliente_alm,
-        status_pedido_alm: 'EC'
-      }
+      where,
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'createdAt'],
+      order: [['createdAt', 'DESC']],
     });
   },
   getFechaMaxEntrega: async (id_agente: string): Promise<Date> => {

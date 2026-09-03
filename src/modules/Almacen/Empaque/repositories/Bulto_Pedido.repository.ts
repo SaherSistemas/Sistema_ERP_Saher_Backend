@@ -23,6 +23,10 @@ export interface InfoBultoImpresion {
 export const Bulto_PedidoRepository = {
 
 
+    eliminarBultosDe: async (id_pedido_empaque: string, t?: Transaction) => {
+        return await Bulto_Pedido.destroy({ where: { id_pedido_empaque }, transaction: t });
+    },
+
     bulkCrearBultos: async (payloads: ICrearBultoPayload[], t?: Transaction) => {
         if (!payloads.length) return [];
 

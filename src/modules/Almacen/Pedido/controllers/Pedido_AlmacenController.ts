@@ -6,6 +6,7 @@ import { AuthedRequest } from '../../../../middleware/auth';
 import Pedido_Almacen from '../model/Pedido_Almacen';
 import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import { v4 as uuidv4 } from 'uuid';
+import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
 
 export class Pedido_AlmacenController {
   /*CHECARRR */
@@ -116,10 +117,16 @@ export class Pedido_AlmacenController {
   };
 
   //GET PEDIDOS EN CAPUTRA
-  static pedidosEnCaptura = async (req: Request, res: Response) => {
+  static pedidosEnCaptura = async (req: AuthedRequest, res: Response) => {
     try {
       const id_cliente_alm = req.query.id_cliente_alm?.toString() || '';
-      const data = await Pedido_AlmacenService.pedidosEnCaptura(id_cliente_alm);
+      // Busca el agente por el empleado logueado (token) para filtrar correctamente
+      let id_agente: string | undefined;
+      if (req.user?.id_referencia_persona) {
+        const agente = await AgenteRepository.getByIdEmpleado(req.user.id_referencia_persona);
+        if (agente) id_agente = agente.id_agente;
+      }
+      const data = await Pedido_AlmacenService.pedidosEnCaptura(id_cliente_alm, id_agente);
 
       res.status(200).json(data);
     } catch (error) {

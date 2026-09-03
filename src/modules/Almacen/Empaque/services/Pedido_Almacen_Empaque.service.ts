@@ -133,6 +133,56 @@ export const Pedido_Almacen_EmpaqueService = {
     });
   },
 
+  reabrirConBultos: async (
+    id_pedido_empaque: string,
+    cajas: number,
+    bolsas: number,
+    nota: string | null | undefined
+  ) => {
+    if (!id_pedido_empaque) throw new Error('El id_pedido_empaque es requerido');
+    if (cajas + bolsas <= 0) throw new Error('Debes enviar al menos un bulto');
+
+    return await dbLocal.transaction(async (t: Transaction) => {
+      const empaque = await Pedido_Almacen_EmpaqueRepository.getById(id_pedido_empaque, t);
+      if (!empaque) throw new Error('No existe el empaque');
+      if (empaque.estado === 'CANCELADO') throw new Error('No se puede reabrir un empaque cancelado');
+
+      // 1) Eliminar bultos anteriores
+      await Bulto_PedidoRepository.eliminarBultosDe(id_pedido_empaque, t);
+
+      // 2) Generar nuevos bultos renumerados
+      const totalBultos = cajas + bolsas;
+      let contador = 1;
+      const cod = empaque.pedido.cod_int_pedido_alm;
+
+      const bultosPayload = [
+        ...Array.from({ length: cajas }, () => ({
+          id_pedido_empaque,
+          cod_bulto: `${cod}-${contador}`,
+          tipo_bulto: 'CAJA' as const,
+          num_bulto: contador++,
+          total_bulto: totalBultos,
+          escaneado: false,
+        })),
+        ...Array.from({ length: bolsas }, () => ({
+          id_pedido_empaque,
+          cod_bulto: `${cod}-${contador}`,
+          tipo_bulto: 'BOLSA' as const,
+          num_bulto: contador++,
+          total_bulto: totalBultos,
+          escaneado: false,
+        })),
+      ];
+
+      const bultos = await Bulto_PedidoRepository.bulkCrearBultos(bultosPayload, t);
+
+      // 3) Actualizar empaque con nuevos totales y dejarlo EMPACADO
+      await empaque.update({ cajas, bolsas, nota: nota ?? empaque.nota, estado: 'EMPACADO', fin: new Date() }, { transaction: t });
+
+      return { empaque: empaque.toJSON(), bultos };
+    });
+  },
+
   reabrirEmpaquePedido: async (id_pedido_empaque: string, id_empleado_empaco: string) => {
     if (!id_pedido_empaque) {
       throw new Error('El id_pedido_empaque es requerido');

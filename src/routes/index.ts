@@ -137,6 +137,7 @@ import notaCreditoClienteRouter from '../modules/Comercial/Notas_Credito_Cliente
 
 import impresionesRouter from '../modules/Impresiones/router'
 import inventarioRouter from '../modules/Inventario/router'
+import configuracionRouter from '../modules/Configuracion/routes/configuracion.routes'
 import RetoRouter from '../modules/Gamificacion/routes/RetoRouter';
 import CategoriaEmpresaRouter from '../modules/Gamificacion/routes/Categoria_EmpresaRouter';
 import ImagenPublicidadRouter from '../modules/Publicidad/routes/Imagen_PublicidadRouter';
@@ -282,6 +283,7 @@ router.use('/devolucion_cliente', devolucionClienteRouter)
 router.use('/notas-credito', notaCreditoClienteRouter)
 
 router.use('/impresiones', impresionesRouter);
+router.use('/configuracion', configuracionRouter);
 router.use('/retos', RetoRouter);
 router.use('/categoria_empresa', CategoriaEmpresaRouter);
 router.use('/imagen_publicidad', ImagenPublicidadRouter);

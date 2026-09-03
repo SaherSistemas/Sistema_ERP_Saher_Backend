@@ -138,6 +138,34 @@ export class Pedido_Almacen_EmpaqueController {
     }
   };
 
+  static reabrirConBultos = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_pedido_empaque } = req.params;
+      const { cajas, bolsas, nota } = req.body;
+
+      if (cajas === undefined || bolsas === undefined) {
+        res.status(400).json({ message: 'Debes enviar cajas y bolsas' });
+        return;
+      }
+
+      const resultado = await Pedido_Almacen_EmpaqueService.reabrirConBultos(
+        id_pedido_empaque,
+        Number(cajas),
+        Number(bolsas),
+        nota ?? null
+      );
+
+      res.status(200).json(resultado);
+    } catch (error: any) {
+      const msg = error?.message ?? 'Error desconocido';
+      const status = msg.includes('No existe') || msg.includes('no encontrado') ? 404
+        : msg.includes('cancelado') ? 409
+        : msg.includes('al menos un bulto') ? 422
+        : 500;
+      res.status(status).json({ message: msg });
+    }
+  };
+
   static reabrirEmpaquePedido = async (req: AuthedRequest, res: Response) => {
     try {
       const { id_pedido_empaque } = req.params;

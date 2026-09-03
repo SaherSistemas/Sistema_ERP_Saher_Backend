@@ -34,8 +34,10 @@ export const Entrega_PedidoRepository = {
                 [
                     Sequelize.fn('JSON_AGG', Sequelize.fn('JSON_BUILD_OBJECT',
                         'cod_int_pedido_alm', Sequelize.col('pedido.cod_int_pedido_alm'),
+                        'id_pedido_empaque', Sequelize.col('Pedido_Almacen_Empaque.id_pedido_empaque'),
                         'cajas', Sequelize.col('Pedido_Almacen_Empaque.cajas'),
                         'bolsas', Sequelize.col('Pedido_Almacen_Empaque.bolsas'),
+                        'nota', Sequelize.col('Pedido_Almacen_Empaque.nota'),
                         'id_paqueteria', Sequelize.col('pedido.id_paqueteria'),
                         'nombre_paqueteria', Sequelize.literal(`(
                             SELECT cp.nombre_paqueteria FROM cat_paqueteria cp
@@ -95,7 +97,7 @@ export const Entrega_PedidoRepository = {
                 [Sequelize.col('pedido.id_cliente_pedido_alm'), 'id_cliente_pedido_alm'],
                 [Sequelize.col('pedido.id_paqueteria'), 'id_paqueteria'],
                 [Sequelize.literal(`(SELECT cp.nombre_paqueteria FROM cat_paqueteria cp WHERE cp.id_paqueteria = "pedido"."id_paqueteria")`), 'nombre_paqueteria'],
-                'cajas', 'bolsas',
+                'id_pedido_empaque', 'cajas', 'bolsas', 'nota',
                 [
                     Sequelize.literal(`(
                         SELECT JSON_AGG(JSON_BUILD_OBJECT(
