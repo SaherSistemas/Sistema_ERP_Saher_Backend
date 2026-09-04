@@ -10,6 +10,7 @@ export interface InfoBultoImpresion {
     cod_bulto: string;
     num_bulto: number;
     total_bulto: number;
+    tipo_bulto: 'CAJA' | 'BOLSA';
     cod_int_pedido_alm: string;
     fecha_facturado: string | null;
     razon_social_cliente: string;
@@ -51,6 +52,7 @@ export const Bulto_PedidoRepository = {
                 bp.cod_bulto,
                 bp.num_bulto,
                 bp.total_bulto,
+                bp.tipo_bulto,
                 pa.cod_int_pedido_alm,
                 TO_CHAR(pa.fecha_facturado_pedido_alm, 'DD/MM/YY  HH24:MI:SS') AS fecha_facturado,
                 ca.razon_social_cliente_alm                                      AS razon_social_cliente,
@@ -77,7 +79,7 @@ export const Bulto_PedidoRepository = {
             JOIN pedido_almacen_empaque  pae ON pae.id_pedido_empaque   = bp.id_pedido_empaque
             JOIN pedido_almacen          pa  ON pa.id_pedido_alm        = pae.id_pedido_almacen
             JOIN cliente_almacen         ca  ON ca.id_cliente_alm       = pa.id_cliente_pedido_alm
-            JOIN empleado                e_emp ON e_emp.id_empleado     = pae.id_empleado_empaco
+            LEFT JOIN empleado           e_emp ON e_emp.id_empleado     = pae.id_empleado_empaco
             LEFT JOIN agente_de_venta    av  ON av.id_agente            = pa.id_agente_pedido_alm
             LEFT JOIN empleado           e_ag ON e_ag.id_empleado       = av.id_empleado
             WHERE bp.cod_bulto = :cod_bulto

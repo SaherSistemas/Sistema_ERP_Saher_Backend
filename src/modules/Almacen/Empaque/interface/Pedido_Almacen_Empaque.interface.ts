@@ -4,6 +4,7 @@ export interface IFinalizarEmpaquePayload {
     cajas: number;
     bolsas: number;
     nota?: string | null;
+    id_empleado_empaco?: string | null;
 }
 
 export interface IActualizarBultosPayload {

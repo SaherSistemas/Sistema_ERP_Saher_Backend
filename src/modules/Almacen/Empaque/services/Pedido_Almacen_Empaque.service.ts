@@ -1,5 +1,6 @@
 import { Transaction } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
+import Empleado from '../../../RRHH/model/Empleado';
 import { Pedido_Almacen_EmpaqueRepository } from '../repositories/Pedido_Almacen_Empaque.repository';
 import { IActualizarBultosPayload } from '../interface/Pedido_Almacen_Empaque.interface';
 import { Pedido_AlmacenRepository } from '../../Pedido/repositories/Pedido_Almacen.repository';
@@ -42,7 +43,8 @@ export const Pedido_Almacen_EmpaqueService = {
     id_pedido_empaque: string,
     cajas: number,
     bolsas: number,
-    nota?: string | null
+    nota?: string | null,
+    num_empleado?: string | null
   ) => {
     if (!id_pedido_empaque) {
       throw new Error('El id_pedido_empaque es requerido');
@@ -50,6 +52,21 @@ export const Pedido_Almacen_EmpaqueService = {
 
     if (cajas === undefined || bolsas === undefined) {
       throw new Error('Debes enviar cajas y bolsas');
+    }
+
+    // Buscar empleado por número interno si se proporcionó
+    let id_empleado_empaco: string | null = null;
+    if (num_empleado?.trim()) {
+      const numInt = parseInt(num_empleado.trim(), 10);
+      if (!isNaN(numInt)) {
+        const emp = await Empleado.findOne({
+          where: { idinterno_empleado: numInt },
+          attributes: ['id_empleado'],
+          raw: true,
+        }) as any;
+        if (!emp) throw new Error(`No se encontró ningún empleado con número ${num_empleado}`);
+        id_empleado_empaco = emp.id_empleado;
+      }
     }
 
     return await dbLocal.transaction(async (t: Transaction) => {
@@ -87,7 +104,8 @@ export const Pedido_Almacen_EmpaqueService = {
         {
           cajas,
           bolsas,
-          nota: nota ?? null
+          nota: nota ?? null,
+          ...(id_empleado_empaco ? { id_empleado_empaco } : {}),
         },
         t
       );
@@ -137,10 +155,25 @@ export const Pedido_Almacen_EmpaqueService = {
     id_pedido_empaque: string,
     cajas: number,
     bolsas: number,
-    nota: string | null | undefined
+    nota: string | null | undefined,
+    num_empleado?: string | null
   ) => {
     if (!id_pedido_empaque) throw new Error('El id_pedido_empaque es requerido');
     if (cajas + bolsas <= 0) throw new Error('Debes enviar al menos un bulto');
+
+    let id_empleado_empaco: string | null = null;
+    if (num_empleado?.trim()) {
+      const numInt = parseInt(num_empleado.trim(), 10);
+      if (!isNaN(numInt)) {
+        const emp = await Empleado.findOne({
+          where: { idinterno_empleado: numInt },
+          attributes: ['id_empleado'],
+          raw: true,
+        }) as any;
+        if (!emp) throw new Error(`No se encontró ningún empleado con número ${num_empleado}`);
+        id_empleado_empaco = emp.id_empleado;
+      }
+    }
 
     return await dbLocal.transaction(async (t: Transaction) => {
       const empaque = await Pedido_Almacen_EmpaqueRepository.getById(id_pedido_empaque, t);
@@ -177,7 +210,10 @@ export const Pedido_Almacen_EmpaqueService = {
       const bultos = await Bulto_PedidoRepository.bulkCrearBultos(bultosPayload, t);
 
       // 3) Actualizar empaque con nuevos totales y dejarlo EMPACADO
-      await empaque.update({ cajas, bolsas, nota: nota ?? empaque.nota, estado: 'EMPACADO', fin: new Date() }, { transaction: t });
+      await empaque.update({
+        cajas, bolsas, nota: nota ?? empaque.nota, estado: 'EMPACADO', fin: new Date(),
+        ...(id_empleado_empaco ? { id_empleado_empaco } : {}),
+      }, { transaction: t });
 
       return { empaque: empaque.toJSON(), bultos };
     });

@@ -13,11 +13,12 @@ export interface InfoBultoLabel {
     cod_bulto:            string;
     num_bulto:            number;
     total_bulto:          number;
+    tipo_bulto:           'CAJA' | 'BOLSA';
     cod_int_pedido_alm:   string;
     fecha_facturado:      string;
     razon_social_cliente: string;
     nom_corto_cliente:    string;
-    empacador:            string;
+    empacador:            string | null;
     agente:               string | null;
     surtidores:           string | null;
     checadores:           string | null;
@@ -108,7 +109,7 @@ export async function generarPdfBulto(info: InfoBultoLabel): Promise<string> {
 
         // Bultos
         doc.font('Helvetica').fontSize(7).fillColor('#555');
-        doc.text('Bultos:', PAD + 3, y + 3);
+        doc.text(info.tipo_bulto === 'CAJA' ? 'Caja:' : 'Bolsa:', PAD + 3, y + 3);
         doc.font('Helvetica-Bold').fontSize(16).fillColor('#000');
         doc.text(`${info.num_bulto} de ${info.total_bulto}`, PAD + 3, y + 13, {
             width: BULTO_W - 6, align: 'center',
@@ -148,8 +149,8 @@ export async function generarPdfBulto(info: InfoBultoLabel): Promise<string> {
         doc.font('Helvetica-Bold').fontSize(pedSize).fillColor('#000');
         doc.text(info.cod_int_pedido_alm, PAD, y, { width: W - PAD * 2, align: 'center' });
 
-        doc.end();
         stream.on('finish', () => resolve(outPath));
         stream.on('error', reject);
+        doc.end();
     });
 }

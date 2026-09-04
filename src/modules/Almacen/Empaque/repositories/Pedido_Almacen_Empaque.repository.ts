@@ -111,7 +111,7 @@ export const Pedido_Almacen_EmpaqueRepository = {
     payload: IFinalizarEmpaquePayload,
     t?: Transaction
   ) => {
-    const { cajas, bolsas, nota = null } = payload;
+    const { cajas, bolsas, nota = null, id_empleado_empaco } = payload;
 
     if (cajas < 0 || bolsas < 0) {
       throw new Error('Las cantidades de cajas y bolsas no pueden ser negativas');
@@ -132,6 +132,7 @@ export const Pedido_Almacen_EmpaqueRepository = {
         nota,
         estado: 'EMPACADO',
         fin: new Date(),
+        ...(id_empleado_empaco ? { id_empleado_empaco } : {}),
       },
       { transaction: t }
     );

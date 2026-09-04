@@ -11,6 +11,7 @@ import Detalle_Factura from './Detalle_Factura.model';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
 import Remision from '../../Finanzas/Remisiones/model/Remision.model';
 import FacturaPagoCFDI from './Factura_Pago_CFDI.model';
+import Empresa_Sucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
 
 @Table({ tableName: 'facturas' })
 class Facturas extends Model {
@@ -98,6 +99,14 @@ class Facturas extends Model {
 
     @Column({ type: DataType.STRING(15), allowNull: true })
     declare rfc_prov_cert: string | null;    // RFC del proveedor de certificación
+
+    // ── Empresa emisora ────────────────────────────────────
+    @ForeignKey(() => Empresa_Sucursal)
+    @Column({ type: DataType.UUID, allowNull: true })
+    declare id_empresa_facturas: string | null;
+
+    @BelongsTo(() => Empresa_Sucursal)
+    declare empresa: Empresa_Sucursal;
 
     // ── FKs de origen ──────────────────────────────────────
     @ForeignKey(() => Cliente_Almacen)

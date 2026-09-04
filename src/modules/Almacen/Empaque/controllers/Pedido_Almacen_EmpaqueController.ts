@@ -51,16 +51,13 @@ export class Pedido_Almacen_EmpaqueController {
   static finalizarEmpaquePedido = async (req: AuthedRequest, res: Response) => {
     try {
       const { id_pedido_empaque } = req.params;
-      const { cajas, bolsas, nota } = req.body;
-     // console.log(req.body)
-      //console.log(cajas, bolsas, nota)
-
-      //console.log(id_pedido_empaque, cajas, bolsas, nota)
+      const { cajas, bolsas, nota, num_empleado } = req.body;
       const resultado = await Pedido_Almacen_EmpaqueService.finalizarEmpaquePedido(
         id_pedido_empaque,
         Number(cajas),
         Number(bolsas),
-        nota
+        nota,
+        num_empleado ?? null
       );
 
       res.status(200).json(resultado);
@@ -141,7 +138,7 @@ export class Pedido_Almacen_EmpaqueController {
   static reabrirConBultos = async (req: AuthedRequest, res: Response) => {
     try {
       const { id_pedido_empaque } = req.params;
-      const { cajas, bolsas, nota } = req.body;
+      const { cajas, bolsas, nota, num_empleado } = req.body;
 
       if (cajas === undefined || bolsas === undefined) {
         res.status(400).json({ message: 'Debes enviar cajas y bolsas' });
@@ -152,7 +149,8 @@ export class Pedido_Almacen_EmpaqueController {
         id_pedido_empaque,
         Number(cajas),
         Number(bolsas),
-        nota ?? null
+        nota ?? null,
+        num_empleado ?? null
       );
 
       res.status(200).json(resultado);
