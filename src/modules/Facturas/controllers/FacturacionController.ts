@@ -163,6 +163,25 @@ export class FacturacionController {
 
     // ── Dashboard ────────────────────────────────────────────────────────────────
 
+    // Recibe el XML timbrado por el facturador externo, genera el PDF y actualiza la factura
+    // Body: { xml: "<cfdi:Comprobante...>" } (texto del XML)
+    // POST /api/facturas/recibir-xml/:id_factura
+    static recibirXml = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const xml: string = req.body?.xml ?? (typeof req.body === 'string' ? req.body : '');
+            if (!xml || !xml.includes('cfdi:Comprobante')) {
+                res.status(400).json({ message: 'Se requiere el campo "xml" con el contenido del CFDI timbrado' });
+                return;
+            }
+            const resultado = await FacturacionService.recibirXml(id_factura, xml);
+            res.json(resultado);
+        } catch (error: any) {
+            console.error('[recibirXml]', error);
+            res.status(500).json({ message: error?.message ?? 'Error desconocido' });
+        }
+    };
+
     static resumenDiario = async (req: Request, res: Response) => {
         try {
             const { fecha_inicio, fecha_fin } = req.query as Record<string, string>;

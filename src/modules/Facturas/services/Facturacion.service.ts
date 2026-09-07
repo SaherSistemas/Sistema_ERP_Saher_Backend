@@ -29,6 +29,7 @@ import {
     particionarConceptos,
     crearCxCyRemision,
 } from '../helpers/factura.helper';
+import { parseCfdiXml, generarPdfDesdeCfdi } from '../helpers/cfdi-xml-to-pdf.helper';
 import Facturas from '../model/Facturas.model';
 import Trabajo_Impresion from '../../Impresiones/model/Trabajo_Impresion';
 import Impresora from '../../Impresiones/model/Impresora';
@@ -166,6 +167,7 @@ export const FacturacionService = {
                 origen_factura: 'PED',
                 id_pedido_alm: cab.id_pedido_alm,
                 id_cliente_alm: cab.id_cliente_alm,
+                id_empresa_facturas: id_empresa ?? null,
                 id_metodo_pago: cab.metodo_pago,
                 id_forma_pago: cab.forma_pago,
                 uso_cfdi: cab.uso_cfdi,
@@ -270,6 +272,7 @@ export const FacturacionService = {
                     origen_factura: 'PED',
                     id_pedido_alm: cab.id_pedido_alm,
                     id_cliente_alm: cab.id_cliente_alm,
+                    id_empresa_facturas: id_empresa ?? null,
                     id_metodo_pago: cab.metodo_pago,
                     id_forma_pago: cab.forma_pago,
                     uso_cfdi: cab.uso_cfdi,
@@ -546,6 +549,7 @@ export const FacturacionService = {
                 origen_factura: 'TRA',
                 id_pedido_alm: cab.id_pedido_alm,
                 id_cliente_alm: cab.id_cliente_alm,
+                id_empresa_facturas: id_empresa ?? null,
                 id_metodo_pago: null,
                 id_forma_pago: null,
                 uso_cfdi: null,
@@ -765,6 +769,7 @@ export const FacturacionService = {
             const factura = await FacturacionRepository.registrarFactura({
                 folio, tipo_cfdi: 'E', origen_factura: 'CXC',
                 id_cliente_alm: origen.id_cliente_alm,
+                id_empresa_facturas: dto.id_empresa ?? null,
                 id_forma_pago: origen.id_forma_pago,
                 uso_cfdi: 'G02',
                 subtotal: +subtotal.toFixed(2), iva: +iva.toFixed(2), total,
@@ -1084,6 +1089,7 @@ export const FacturacionService = {
                 folio, tipo_cfdi: 'I', origen_factura: 'VAL',
                 id_pedido_alm: dto.ids_pedidos[0],
                 id_cliente_alm,
+                id_empresa_facturas: id_empresa ?? null,
                 id_metodo_pago: 'PUE', id_forma_pago: '01', uso_cfdi: 'G01',
                 subtotal: totales.subtotal, iva: totales.iva, total: totales.total,
                 conceptos: conceptos.map(c => ({
@@ -1134,5 +1140,44 @@ export const FacturacionService = {
         }
 
         return { id_factura, folio, estatus: 'PEN', ruta_txt };
+    },
+
+    // ── Recibe el XML timbrado y genera el PDF de la factura ─────────────────
+    recibirXml: async (id_factura: string, xmlContent: string) => {
+        const factura = await Facturas.findByPk(id_factura);
+        if (!factura) throw new Error('Factura no encontrada');
+
+        const cfdi = parseCfdiXml(xmlContent);
+
+        // Guardar XML en disco
+        if (!fs.existsSync(RUTA_PDFS)) fs.mkdirSync(RUTA_PDFS, { recursive: true });
+        const xmlFileName = `${cfdi.serie}${cfdi.folio}_${cfdi.uuid}.xml`;
+        const xml_url = require('path').join(RUTA_PDFS, xmlFileName);
+        fs.writeFileSync(xml_url, xmlContent, 'utf-8');
+
+        // Generar PDF
+        const pdfFileName = `${cfdi.serie}${cfdi.folio}_${cfdi.uuid}.pdf`;
+        const pdf_url = require('path').join(RUTA_PDFS, pdfFileName);
+        const logoPath = process.env.LOGO_EMPRESA_PATH ?? undefined;
+        await generarPdfDesdeCfdi(cfdi, pdf_url, logoPath);
+
+        // Actualizar factura con UUID y rutas
+        await factura.update({
+            uuid_sat: cfdi.uuid,
+            fecha_timbrado: new Date(cfdi.fechaTimbrado),
+            estatus_factura: 'TIM',
+            id_forma_pago: cfdi.formaPago || factura.id_forma_pago,
+            id_metodo_pago: cfdi.metodoPago || factura.id_metodo_pago,
+            uso_cfdi: cfdi.receptor.usoCFDI || factura.uso_cfdi,
+            pdf_url,
+            xml_url,
+        });
+
+        return {
+            uuid: cfdi.uuid,
+            folio: `${cfdi.serie}${cfdi.folio}`,
+            pdf_url,
+            xml_url,
+        };
     },
 };

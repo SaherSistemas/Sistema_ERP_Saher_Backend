@@ -1,7 +1,8 @@
 import Usuario from '../modules/Seguridad/model/Usuario';
 
 // Función para limpiar acentos y dejar solo letras
-const cleanString = (str: string) => {
+const cleanString = (str: string | null | undefined) => {
+    if (!str) return '';
     return str
         .normalize('NFD')                   // separa acentos
         .replace(/[\u0300-\u036f]/g, '')    // quita acentos

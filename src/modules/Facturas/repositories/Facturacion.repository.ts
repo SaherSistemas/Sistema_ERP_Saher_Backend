@@ -304,20 +304,21 @@ export const FacturacionRepository = {
     },
 
     registrarFactura: async (dto: {
-        folio:              number;
-        tipo_cfdi:          'I' | 'E' | 'T';
-        origen_factura?:    string;
-        id_pedido_alm?:     string;
-        id_cliente_alm:     string;
-        id_metodo_pago?:    string;
-        id_forma_pago?:     string;
-        uso_cfdi?:          string;
-        subtotal:           number;
-        iva:                number;
-        total:              number;
-        id_factura_origen?: string;
-        uuid_relacionado?:  string;
-        estatus_factura?:   'PEN' | 'GEN';
+        folio:                  number;
+        tipo_cfdi:              'I' | 'E' | 'T';
+        origen_factura?:        string;
+        id_pedido_alm?:         string;
+        id_cliente_alm:         string;
+        id_empresa_facturas?:   string;
+        id_metodo_pago?:        string;
+        id_forma_pago?:         string;
+        uso_cfdi?:              string;
+        subtotal:               number;
+        iva:                    number;
+        total:                  number;
+        id_factura_origen?:     string;
+        uuid_relacionado?:      string;
+        estatus_factura?:       'PEN' | 'GEN';
         conceptos: Array<{
             id_articulo:     string;
             descripcion:     string;
@@ -328,21 +329,22 @@ export const FacturacionRepository = {
         }>;
     }, t: Transaction) => {
         const factura = await Facturas.create({
-            folio_factura:     String(dto.folio),
-            tipo_cfdi:         dto.tipo_cfdi,
-            origen_factura:    dto.origen_factura ?? 'PED',
-            fecha_emision:     new Date(),
-            subtotal_factura:  dto.subtotal,
-            iva_factura:       dto.iva,
-            total_factura:     dto.total,
-            estatus_factura:   dto.estatus_factura ?? 'PEN',
-            id_metodo_pago:    dto.id_metodo_pago    ?? null,
-            id_forma_pago:     dto.id_forma_pago      ?? null,
-            uso_cfdi:          dto.uso_cfdi           ?? null,
-            id_cliente_alm:    dto.id_cliente_alm,
-            id_pedido_alm:     dto.id_pedido_alm      ?? null,
-            id_factura_origen: dto.id_factura_origen  ?? null,
-            uuid_relacionado:  dto.uuid_relacionado   ?? null,
+            folio_factura:        String(dto.folio),
+            tipo_cfdi:            dto.tipo_cfdi,
+            origen_factura:       dto.origen_factura ?? 'PED',
+            fecha_emision:        new Date(),
+            subtotal_factura:     dto.subtotal,
+            iva_factura:          dto.iva,
+            total_factura:        dto.total,
+            estatus_factura:      dto.estatus_factura ?? 'PEN',
+            id_metodo_pago:       dto.id_metodo_pago      ?? null,
+            id_forma_pago:        dto.id_forma_pago        ?? null,
+            uso_cfdi:             dto.uso_cfdi             ?? null,
+            id_empresa_facturas:  dto.id_empresa_facturas  ?? null,
+            id_cliente_alm:       dto.id_cliente_alm,
+            id_pedido_alm:        dto.id_pedido_alm        ?? null,
+            id_factura_origen:    dto.id_factura_origen    ?? null,
+            uuid_relacionado:     dto.uuid_relacionado     ?? null,
         }, { transaction: t });
 
         await Detalle_Factura.bulkCreate(

@@ -84,6 +84,9 @@ class Cliente_Almacen extends Model {
   })
   declare id_colonia_cliente_alm: string;
 
+  @Column({ type: DataType.TEXT, allowNull: true })
+  declare direccion_entrega_cliente_alm: string | null;
+
   @Column({
     type: DataType.STRING(20)
   })

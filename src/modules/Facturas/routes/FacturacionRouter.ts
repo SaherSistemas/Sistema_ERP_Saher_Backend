@@ -40,4 +40,8 @@ router.post('/timbrar-pago', authMiddleware, FacturacionController.timbrarPago);
 // GET /api/facturas/traslado-pdf/:id_factura
 router.get('/traslado-pdf/:id_factura', authMiddleware, FacturacionController.descargarTrasladoPdf);
 
+// Recibe el XML timbrado por el facturador externo, genera PDF y actualiza la factura
+// POST /api/facturas/recibir-xml/:id_factura  body: { xml: "..." }
+router.post('/recibir-xml/:id_factura', authMiddleware, FacturacionController.recibirXml);
+
 export default router;
