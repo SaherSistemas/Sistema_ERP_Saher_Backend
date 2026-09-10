@@ -6,8 +6,7 @@ import { DetalleListaPreciosRepository } from '../../../Comercial/Precios/reposi
 import { ICreaterOrUdateLotesArticuloSucursal, IResumenArticulo } from '../../../../interface/LotesYCaducidad/Lote_ArticuloSucursal.interface';
 import { isUUID } from '../../../../utils/validaciones';
 import { ArticuloRepository } from '../../../Catalogos/Articulos/repositories/Articulo.repository';
-import { dbLocal, dbPoly } from '../../../../config/db';
-import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
+import { dbLocal } from '../../../../config/db';
 
 
 
@@ -386,7 +385,9 @@ export const LotesArticuloSucursalRepository = {
     costoNeto?: number,
     options?: { transaction?: Transaction }
   ) => {
-    // 1) Traer TODOS los lotes con existencia (con o sin costo capturado)
+    // 1) Traer TODOS los lotes con existencia.
+    //    Si el lote tiene registros en stock_ubicacion_lote se usa SUM(cantidad - cantidad_apartada).
+    //    Si no tiene (lote ingresado directamente sin pasar por acomodo), se usa cantidad_entrada_lote.
     const lotesConExistenciaReal = await dbLocal.query<{
       id_lote_sucursal: string;
       precio_costo_lote_sucursal: string;
@@ -395,13 +396,16 @@ export const LotesArticuloSucursalRepository = {
       SELECT
           l.id_lote_sucursal,
           l.precio_costo_lote_sucursal,
-          SUM(s.cantidad - s.cantidad_apartada) AS disponible
-      FROM stock_ubicacion_lote s
-      JOIN lote_articulo_sucursal l ON l.id_lote_sucursal = s.id_lote
-      WHERE s.id_articulo = :id_artic
-        AND s.id_empresa_sucursal IN (:ids_Empresas)
+          SUM(s.cantidad - COALESCE(s.cantidad_apartada, 0)) AS disponible
+      FROM lote_articulo_sucursal l
+      JOIN stock_ubicacion_lote s
+          ON s.id_lote = l.id_lote_sucursal
+          AND s.id_empresa_sucursal IN (:ids_Empresas)
+      WHERE l.id_artic = :id_artic
+        AND l.id_empre IN (:ids_Empresas)
+        AND l.cantidad_entrada_lote > 0
       GROUP BY l.id_lote_sucursal, l.precio_costo_lote_sucursal
-      HAVING SUM(s.cantidad - s.cantidad_apartada) > 0
+      HAVING SUM(s.cantidad - COALESCE(s.cantidad_apartada, 0)) > 0
     `, {
       replacements: { id_artic, ids_Empresas },
       type: QueryTypes.SELECT,
@@ -414,56 +418,10 @@ export const LotesArticuloSucursalRepository = {
     for (const lote of lotesConExistenciaReal) {
       const cantidad = Number(lote.disponible);
       const costoCapturado = Number(lote.precio_costo_lote_sucursal);
-
-      // Si el lote NO tiene costo capturado, se valoriza con el costo NUEVO de la factura
-      const costoAUsar = costoCapturado > 0 ? costoCapturado : costoNeto;
-
+      const costoAUsar = costoCapturado > 0 ? costoCapturado : (costoNeto ?? 0);
       totalCosto += costoAUsar * cantidad;
       totalCantidad += cantidad;
     }
-
-    // 2) Códigos legacy (empcdempn) de las empresas del grupo
-    const empresasSucursal = await Empresa_Sucursal.findAll({
-      attributes: ['id_empresa_sys_anterior'],
-      where: {
-        id_empre: ids_Empresas,
-        id_empresa_sys_anterior: { [Op.not]: null }
-      },
-      raw: true,
-      transaction: options?.transaction
-    });
-
-    const codigosEmpresaPoly = empresasSucursal
-      .map(e => e.id_empresa_sys_anterior)
-      .filter((v): v is string => v != null)
-      .map(v => Number(v));
-
-    // 3) Existencia desde PolyDB — Poly no trae costo propio, así que también se valoriza
-    //    con el costo NUEVO (ya que ahí nunca hay costo local capturado por lote)
-    let existenciaPolyTotal = 0;
-
-    if (codigosEmpresaPoly.length > 0 && cod_int_artic != null) {
-      const rowsPoly = await dbPoly.query<{ almexistn: string }>(`
-        SELECT almexistn
-        FROM public.almacenes1
-        WHERE artcdartn = :codIntArtic
-          AND empcdempn IN (:codigosEmpresaPoly)
-          AND almexistn > 0
-      `, {
-        replacements: {
-          codIntArtic: cod_int_artic,
-          codigosEmpresaPoly
-        },
-        type: QueryTypes.SELECT
-      });
-
-      for (const row of rowsPoly) {
-        existenciaPolyTotal += Number(row.almexistn);
-      }
-    }
-
-    totalCosto += costoNeto * existenciaPolyTotal;
-    totalCantidad += existenciaPolyTotal;
 
     const costoPromedio = totalCantidad > 0 ? totalCosto / totalCantidad : 0;
 

@@ -44,6 +44,7 @@ router.post('/:id_pedido_alm/finalizar-surtido-papel', Pedido_AlmacenController.
 // 1. RUTAS ESPECÍFICAS PRIMERO
 router.post('/:id_pedido_alm/negar-diferencias-chequeo', Pedido_AlmacenController.negarDiferenciasChequeo);
 router.get('/:id_pedido_alm/cambios-precio-chequeo', Pedido_AlmacenController.getCambiosPrecioChequeo);
+router.patch('/:id_pedido_alm/cambiar-status', Pedido_AlmacenController.cambiarStatus);
 router.patch('/:id/fecha-entrega', Pedido_AlmacenController.actualizarFechaEntrega);
 router.post('/:id/detalle', Pedido_AlmacenController.agregarDetalle);
 router.delete('/:id/detalle/:id_detalle', Pedido_AlmacenController.eliminarDetalle);

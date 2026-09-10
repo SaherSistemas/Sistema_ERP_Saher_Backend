@@ -154,12 +154,12 @@ export const Pago_CxCRepository = {
                         },
                         {
                             model: Facturas,
-                            attributes: ['id_factura', 'folio_factura', 'total_factura'],
+                            attributes: ['id_factura', 'folio_factura', 'total_factura', 'fecha_emision'],
                             required: false,
                         },
                         {
                             model: Remision,
-                            attributes: ['id_remision', 'folio_remision', 'total_remision'],
+                            attributes: ['id_remision', 'folio_remision', 'total_remision', 'fecha_remision'],
                             required: false,
                         },
                     ],

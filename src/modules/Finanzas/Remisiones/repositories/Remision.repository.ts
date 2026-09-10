@@ -9,7 +9,7 @@ import Facturas from '../../../Facturas/model/Facturas.model';
 import Pedido_Almacen from '../../../Almacen/Pedido/model/Pedido_Almacen';
 
 interface ICreateRemisionRepo {
-    id_factura: string;
+    id_factura: string | null;
     id_pedido_alm: string;
     id_cliente_alm: string;   // resuelto por el service desde el pedido
     id_agente: string;        // resuelto por el service desde el pedido
@@ -155,7 +155,7 @@ export const RemisionRepository = {
                 ) AS detalles
             FROM remision           r
             JOIN  cliente_almacen   ca  ON ca.id_cliente_alm    = r.id_cliente_alm
-            JOIN  agente_de_venta   av  ON av.id_agente          = r.id_agente
+            LEFT JOIN agente_de_venta av ON av.id_agente         = r.id_agente
             LEFT JOIN empleado      e   ON e.id_empleado         = av.id_empleado
             LEFT JOIN pedido_almacen pa ON pa.id_pedido_alm      = r.id_pedido_alm
             LEFT JOIN facturas      f   ON f.id_factura           = r.id_factura
@@ -212,11 +212,102 @@ export const RemisionRepository = {
             cp_receptor:          r.cp_receptor ?? '',
             municipio_receptor:   r.municipio_receptor ?? '',
             estado_receptor:      r.estado_receptor ?? '',
-            cod_identi_agente:    r.cod_identi_agente,
+            cod_identi_agente:    r.cod_identi_agente ?? '',
             nombre_agente:        r.nombre_agente ?? null,
             cod_int_pedido:       r.cod_int_pedido_alm ?? null,
             folio_factura:        r.folio_factura ?? null,
             detalles,
+        };
+    },
+
+    getConceptosDesdePedido: async (id_pedido_alm: string): Promise<{
+        id_articulo: string;
+        descripcion_articulo: string;
+        cod_barras: string;
+        cantidad: number;
+        precio_unitario: number;
+        subtotal: number;
+        tasa_iva: number;
+        importe_iva: number;
+        unidad: string;
+    }[]> => {
+        type Row = {
+            id_articulo: string;
+            descripcion_articulo: string;
+            cod_barras: string;
+            cantidad: string;
+            precio_unitario: string;
+            subtotal: string;
+            tasa_iva: string;
+            importe_iva: string;
+            unidad: string;
+        };
+        const rows = await dbLocal.query<Row>(`
+            SELECT
+                a.id_artic                                                 AS id_articulo,
+                a.des_artic                                                AS descripcion_articulo,
+                COALESCE(a.cod_barr_artic, '')                             AS cod_barras,
+                dpa.cant_pedida                                            AS cantidad,
+                dpa.precio_venta                                           AS precio_unitario,
+                ROUND(dpa.cant_pedida * dpa.precio_venta, 2)               AS subtotal,
+                COALESCE(CAST(ti.porcentaje_iva AS NUMERIC), 0)            AS tasa_iva,
+                ROUND(dpa.cant_pedida * dpa.precio_venta * COALESCE(CAST(ti.porcentaje_iva AS NUMERIC), 0), 2) AS importe_iva,
+                COALESCE(um.descrip_medida, 'PZA')                         AS unidad
+            FROM detalle_pedido_almacen dpa
+            JOIN articulo               a   ON a.id_artic    = dpa.id_articulo
+            JOIN tipo_iva               ti  ON ti.id_iva     = a.tipo_de_iva
+            JOIN unidadmedida           um  ON um.id_medida  = a.unidmedi_artic
+            WHERE dpa.id_pedido_almacen = :id_pedido_alm
+            ORDER BY dpa.id_detalle_pedido_almacen
+        `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT });
+
+        return rows.map(r => ({
+            id_articulo:          r.id_articulo,
+            descripcion_articulo: r.descripcion_articulo,
+            cod_barras:           r.cod_barras,
+            cantidad:             Number(r.cantidad),
+            precio_unitario:      Number(r.precio_unitario),
+            subtotal:             Number(r.subtotal),
+            tasa_iva:             Number(r.tasa_iva),
+            importe_iva:          Number(r.importe_iva),
+            unidad:               r.unidad,
+        }));
+    },
+
+    getCabeceraPedido: async (id_pedido_alm: string): Promise<{
+        id_pedido_alm: string;
+        cod_int_pedido_alm: string;
+        id_cliente_alm: string;
+        id_agente: string;
+        dias_credito: number;
+    } | null> => {
+        type Row = {
+            id_pedido_alm:      string;
+            cod_int_pedido_alm: string;
+            id_cliente_alm:     string;
+            id_agente:          string;
+            dias_credito:       string;
+        };
+        const rows = await dbLocal.query<Row>(`
+            SELECT
+                pa.id_pedido_alm,
+                pa.cod_int_pedido_alm,
+                pa.id_cliente_pedido_alm   AS id_cliente_alm,
+                pa.id_agente_pedido_alm    AS id_agente,
+                COALESCE(ca.plazo_pago_cliente_alm, 0) AS dias_credito
+            FROM pedido_almacen  pa
+            JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+            WHERE pa.id_pedido_alm = :id_pedido_alm
+            LIMIT 1
+        `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT });
+        if (!rows.length) return null;
+        const r = rows[0];
+        return {
+            id_pedido_alm:      r.id_pedido_alm,
+            cod_int_pedido_alm: r.cod_int_pedido_alm,
+            id_cliente_alm:     r.id_cliente_alm,
+            id_agente:          r.id_agente,
+            dias_credito:       Number(r.dias_credito),
         };
     },
 

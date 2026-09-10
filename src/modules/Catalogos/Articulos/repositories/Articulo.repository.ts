@@ -9,7 +9,7 @@ import ListaPrecio from '../../../Comercial/Precios/model/Lista_Precio';
 import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
-import { dbPoly } from '../../../../config/db';
+import { dbLocal, dbPoly } from '../../../../config/db';
 import { Tipo_IVARepository } from './Tipo_IVA.repository';
 import Parametros_Compra from '../../../Compras/Ordenes-Compra/model/Parametros_Compra';
 import ArticuloExcluidoCompra from '../../../Compras/Ordenes-Compra/model/ArticuloExcluidoCompra';
@@ -443,23 +443,49 @@ export const ArticuloRepository = {
             : [];
         const idsGrupo = empresasGrupo.map((e: any) => e.id_empre);
 
-        const lotes = await Lote_Articulo_Sucursal.findAll({
-            where: {
-                id_artic,
-                cantidad_entrada_lote: { [Op.gt]: 0 },
-                ...(idsGrupo.length > 0 && { id_empre: { [Op.in]: idsGrupo } }),
-            },
-            include: [{
-                model: Empresa_Sucursal,
-                attributes: ['id_empre', 'nom_empre'],
-            }],
-            attributes: [
-                'id_lote_sucursal', 'id_empre', 'numero_lote_sucursal',
-                'cantidad_entrada_lote', 'precio_costo_lote_sucursal',
-                'estado_lote_sucursal', 'fecha_venci_lote_sucursal',
-            ],
-            order: [['fecha_venci_lote_sucursal', 'ASC']],
-        });
+        // Usa stock_ubicacion_lote como fuente de cantidad real disponible
+        const lotesRaw = idsGrupo.length > 0
+            ? await dbLocal.query<{
+                id_lote_sucursal: string;
+                id_empre: string;
+                nom_empre: string;
+                numero_lote_sucursal: string;
+                precio_costo_lote_sucursal: string;
+                estado_lote_sucursal: string;
+                fecha_venci_lote_sucursal: Date | null;
+                cantidad_disponible: string;
+              }>(`
+                SELECT
+                    l.id_lote_sucursal,
+                    l.id_empre,
+                    es.nom_empre,
+                    l.numero_lote_sucursal,
+                    l.precio_costo_lote_sucursal,
+                    l.estado_lote_sucursal,
+                    l.fecha_venci_lote_sucursal,
+                    COALESCE(
+                        SUM(s.cantidad - COALESCE(s.cantidad_apartada, 0)),
+                        0
+                    )::numeric AS cantidad_disponible
+                FROM lote_articulo_sucursal l
+                JOIN empresa_sucursal es ON es.id_empre = l.id_empre
+                LEFT JOIN stock_ubicacion_lote s
+                    ON s.id_lote = l.id_lote_sucursal
+                    AND s.id_empresa_sucursal IN (:idsGrupo)
+                WHERE l.id_artic = :id_artic
+                  AND l.id_empre IN (:idsGrupo)
+                  AND l.cantidad_entrada_lote > 0
+                GROUP BY
+                    l.id_lote_sucursal, l.id_empre, es.nom_empre,
+                    l.numero_lote_sucursal, l.precio_costo_lote_sucursal,
+                    l.estado_lote_sucursal, l.fecha_venci_lote_sucursal
+                HAVING COALESCE(SUM(s.cantidad - COALESCE(s.cantidad_apartada, 0)), 0) > 0
+                ORDER BY l.fecha_venci_lote_sucursal ASC NULLS LAST
+              `, {
+                type: QueryTypes.SELECT,
+                replacements: { id_artic, idsGrupo },
+              })
+            : [];
 
         // ── 4. Agrupar por empresa ────────────────────────────────────────────
         const empresaMap = new Map<string, {
@@ -488,10 +514,10 @@ export const ArticuloRepository = {
         let sumCostoXCant = 0;
         let sumCantConCosto = 0;
 
-        for (const lote of lotes) {
+        for (const lote of lotesRaw) {
             const idEmp   = lote.id_empre;
-            const nom     = (lote as any).empresa?.nom_empre ?? '—';
-            const cant    = lote.cantidad_entrada_lote ?? 0;
+            const nom     = lote.nom_empre ?? '—';
+            const cant    = Number(lote.cantidad_disponible) ?? 0;
             const costo   = Number(lote.precio_costo_lote_sucursal ?? 0);
 
             if (!empresaMap.has(idEmp)) {
@@ -501,13 +527,13 @@ export const ArticuloRepository = {
             emp.unidades   += cant;
             emp.costo_total += cant * costo;
             emp.lotes.push({
-                id_lote:       lote.id_lote_sucursal,
-                numero_lote:   lote.numero_lote_sucursal,
-                cantidad:      cant,
+                id_lote:        lote.id_lote_sucursal,
+                numero_lote:    lote.numero_lote_sucursal,
+                cantidad:       cant,
                 costo_unitario: costo,
-                costo_total:   cant * costo,
-                estado:        lote.estado_lote_sucursal,
-                vencimiento:   lote.fecha_venci_lote_sucursal,
+                costo_total:    cant * costo,
+                estado:         lote.estado_lote_sucursal,
+                vencimiento:    lote.fecha_venci_lote_sucursal,
             });
 
             totalUnidades += cant;

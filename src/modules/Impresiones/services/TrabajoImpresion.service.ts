@@ -114,18 +114,22 @@ export const TrabajoImpresionService = {
 
         if (tipo_documento === 'REMISION') {
             // id_pedido_alm es el UUID o código del pedido (igual que en FACTURA).
-            // Buscamos la remisión más reciente asociada a ese pedido.
             const pedido = UUID_REGEX.test(id_pedido_alm)
                 ? await Pedido_AlmacenRepository.getByID(id_pedido_alm)
                 : await Pedido_AlmacenRepository.getByCodInterno(id_pedido_alm);
             if (!pedido) throw new Error('Pedido no encontrado');
 
-            const remision = await Remision.findOne({
+            let remision = await Remision.findOne({
                 where: { id_pedido_alm: pedido.id_pedido_alm },
                 order: [['fecha_remision', 'DESC']],
                 attributes: ['id_remision', 'folio_remision'],
             });
-            if (!remision) throw new Error('No existe remisión para este pedido');
+
+            // Si no existe, crearla automáticamente desde los datos del pedido
+            if (!remision) {
+                const { remision: rem } = await RemisionService.crearDesdePedido(pedido.id_pedido_alm);
+                remision = rem;
+            }
 
             // Generar PDF y guardarlo en disco
             const pdfBuffer = await RemisionService.generarPdf(remision.id_remision);
@@ -137,7 +141,7 @@ export const TrabajoImpresionService = {
                 id_impresora,
                 payload: {
                     tipo: 'pdf',
-                    ruta_archivo: toAgentPath(rutaPdf),
+                    ruta_archivo: rutaPdf,   // ruta local — remisiones se imprimen desde el mismo servidor
                 },
             };
         }

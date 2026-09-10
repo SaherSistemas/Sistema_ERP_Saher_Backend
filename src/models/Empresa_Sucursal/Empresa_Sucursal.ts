@@ -33,6 +33,9 @@ class Empresa_Sucursal extends Model {
   })
   declare nom_empre: string;
 
+  @Column({ type: DataType.STRING(100), allowNull: true })
+  declare nom_empre_facturacion: string | null;
+
   @Column({
     type: DataType.STRING(20),
   })

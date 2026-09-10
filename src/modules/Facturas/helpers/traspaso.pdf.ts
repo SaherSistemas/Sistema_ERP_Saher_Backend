@@ -31,8 +31,14 @@ export interface DatosTraspasoDocPDF {
     estado_receptor:    string;
     cp_receptor:        string;
     telefono_receptor:  string | null;
-    nom_empre:          string;
-    rfc_empre:          string;
+    nom_empre:           string;
+    rfc_empre:           string;
+    calle_empre:         string | null;
+    colonia_empre:       string | null;
+    municipio_empre:     string | null;
+    estado_empre:        string | null;
+    cp_empre:            string | null;
+    nom_empre_receptor:  string | null;
     items:              TraspasoItem[];
     tipo_reporte:       'Normales' | 'Receta';
     pagina:             number;
@@ -76,15 +82,22 @@ function _renderPaginaTraspaso(doc: InstanceType<typeof PDFDocument>, datos: Dat
        .text(datos.razon_social.toUpperCase(), MX, y + 9, { width: HALF });
     let dy = y + 9 + doc.heightOfString(datos.razon_social.toUpperCase(), { width: HALF });
 
+    // Nombre de empresa receptora (sucursal del sistema)
+    if (datos.nom_empre_receptor) {
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(AZUL)
+           .text(datos.nom_empre_receptor.toUpperCase(), MX, dy, { width: HALF, lineBreak: false });
+        dy += 9;
+    }
+
     [
-        `AV. ${datos.calle_receptor.toUpperCase()}`,
-        `Colonia: ${datos.colonia_receptor.toUpperCase()}`,
-        `Ciudad: ${datos.municipio_receptor}, ${datos.estado_receptor}`,
+        datos.calle_receptor                                          ? `${datos.calle_receptor.toUpperCase()}` : null,
+        datos.colonia_receptor                                        ? `Colonia: ${datos.colonia_receptor.toUpperCase()}` : null,
+        datos.municipio_receptor && datos.estado_receptor             ? `Ciudad: ${datos.municipio_receptor}, ${datos.estado_receptor}` : null,
         `RFC: ${datos.rfc_receptor}`,
-        datos.telefono_receptor ? `Teléfono: ${datos.telefono_receptor}` : '',
-        datos.cp_receptor       ? `C.P. ${datos.cp_receptor}` : '',
+        datos.telefono_receptor                                       ? `Tel: ${datos.telefono_receptor}` : null,
+        datos.cp_receptor                                             ? `C.P. ${datos.cp_receptor}` : null,
     ].filter(Boolean).forEach(l => {
-        doc.font('Helvetica').fontSize(7).fillColor(NEGRO).text(l, MX, dy, { width: HALF, lineBreak: false });
+        doc.font('Helvetica').fontSize(7).fillColor(NEGRO).text(l as string, MX, dy, { width: HALF, lineBreak: false });
         dy += 9;
     });
 
@@ -93,9 +106,15 @@ function _renderPaginaTraspaso(doc: InstanceType<typeof PDFDocument>, datos: Dat
        .text(datos.nom_empre.toUpperCase(), R_X, y + 9, { width: HALF });
     let ry = y + 9 + doc.heightOfString(datos.nom_empre.toUpperCase(), { width: HALF });
 
-    ['INDUSTRIAL EL PALMITO', 'PASTOR ROUIX #2314 B', `RFC: ${datos.rfc_empre}`]
-    .forEach(l => {
-        doc.font('Helvetica').fontSize(7).fillColor(NEGRO).text(l, R_X, ry, { width: HALF, lineBreak: false });
+    [
+        datos.calle_empre                                             ? `${datos.calle_empre.toUpperCase()}` : null,
+        datos.colonia_empre                                           ? `Colonia: ${datos.colonia_empre.toUpperCase()}` : null,
+        datos.municipio_empre && datos.estado_empre
+            ? `Ciudad: ${datos.municipio_empre.toUpperCase()}, ${datos.estado_empre.toUpperCase()}`      : null,
+        datos.cp_empre                                                ? `C.P. ${datos.cp_empre}` : null,
+        `RFC: ${datos.rfc_empre}`,
+    ].filter(Boolean).forEach(l => {
+        doc.font('Helvetica').fontSize(7).fillColor(NEGRO).text(l as string, R_X, ry, { width: HALF, lineBreak: false });
         ry += 9;
     });
 

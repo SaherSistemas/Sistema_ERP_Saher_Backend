@@ -42,13 +42,13 @@ class Remision extends Model {
     })
     declare folio_remision: number;
 
-    // Factura de Público General de la que proviene esta remisión
+    // Factura de Público General de la que proviene esta remisión (null para remisiones sin CFDI)
     @ForeignKey(() => Facturas)
     @Column({
         type: DataType.UUID,
-        allowNull: false
+        allowNull: true
     })
-    declare id_factura: string;
+    declare id_factura: string | null;
 
     // Pedido del que viene — nos da el cliente real y el agente automáticamente
     @ForeignKey(() => Pedido_Almacen)

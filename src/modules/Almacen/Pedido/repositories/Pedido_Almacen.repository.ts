@@ -66,7 +66,6 @@ export const Pedido_AlmacenRepository = {
     const pedidos = await Pedido_Almacen.findAll({
       where: {
         status_pedido_alm: { [Op.in]: ['SU', 'CH'] },
-        fecha_facturado_pedido_alm: null,
         fin_surtido: { [Op.ne]: null },
       },
       include: [

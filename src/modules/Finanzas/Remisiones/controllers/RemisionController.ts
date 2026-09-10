@@ -37,6 +37,24 @@ export class RemisionController {
         }
     };
 
+    static crearDesdePedido = async (req: Request, res: Response) => {
+        try {
+            const { id_pedido_alm } = req.params;
+            const dias_credito = req.body?.dias_credito !== undefined ? Number(req.body.dias_credito) : undefined;
+            const { remision, pdf } = await RemisionService.crearDesdePedido(id_pedido_alm, dias_credito);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="remision-${remision.folio_remision}.pdf"`);
+            res.setHeader('Content-Length', pdf.length);
+            res.setHeader('X-Remision-Id', remision.id_remision);
+            res.setHeader('X-Remision-Folio', String(remision.folio_remision));
+            res.send(pdf);
+        } catch (error: any) {
+            console.error(error);
+            const status = /no encontrado|no tiene/i.test(error.message) ? 400 : 500;
+            res.status(status).json({ message: error.message ?? 'Error al crear la remisión.' });
+        }
+    };
+
     static create = async (req: Request, res: Response) => {
         try {
             const data = req.body;

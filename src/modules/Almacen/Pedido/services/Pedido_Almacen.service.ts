@@ -1,4 +1,6 @@
 import { fn, col, Op, QueryTypes, Transaction } from 'sequelize';
+import fs from 'fs';
+import path from 'path';
 
 import Empleado from '../../../RRHH/model/Empleado';
 import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
@@ -22,6 +24,227 @@ import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import Cuenta_Por_Cobrar from '../../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
 import Usuario from '../../../Seguridad/model/Usuario';
 import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
+import { generarTraspasoCompletoPDFBuffer, TraspasoItem } from '../../../Facturas/helpers/traspaso.pdf';
+import { RUTA_PDFS } from '../../../Facturas/helpers/pdf.helper';
+import Impresora from '../../../Impresiones/model/Impresora';
+import Trabajo_Impresion from '../../../Impresiones/model/Trabajo_Impresion';
+import Detalle_Pedido_Almacen_ChequeoModel from '../model/Detalle_Pedido_Almacen_Chequeo';
+import Detalle_Pedido_Almacen_LoteModel from '../model/Detalle_Pedido_Almacen_Lote';
+import Detalle_Pedido_Almacen_AsignacionModel from '../model/Detalle_Pedido_Almacen_Asignacion';
+
+
+// ── Helper privado: genera e imprime el traspaso de medicamentos al terminar chequeo ──
+async function _generarTraspasoCheckeado(id_pedido_alm: string): Promise<void> {
+  const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { raw: true }) as any;
+  if (!pedido || pedido.tipo_pedido_alm !== 'TRA') return;
+
+  // Datos del pedido + cliente
+  const [cab] = await dbLocal.query<any>(`
+        SELECT
+            pa.id_pedido_alm,
+            pa.cod_int_pedido_alm,
+            pa.tipo_pedido_alm,
+            ca.razon_social_cliente_alm    AS razon_social,
+            ca.nom_corto_cliente_alm       AS nom_empre_receptor,
+            ca.rfc_cliente_alm             AS rfc_receptor,
+            ca.calle_cliente_alm           AS calle_receptor,
+            COALESCE(col.nom_colonia, '')   AS colonia_receptor,
+            COALESCE(mun.nombre_municipio, '') AS municipio_receptor,
+            COALESCE(est.nombre_estado, '')    AS estado_receptor,
+            COALESCE(col.cp_colonia, '')       AS cp_receptor,
+            ca.num_telefono_cliente_alm        AS telefono_receptor,
+            ca.id_interno_cliente_alm
+        FROM pedido_almacen pa
+        JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+        LEFT JOIN colonia col ON col.id_colonia = ca.id_colonia_cliente_alm
+        LEFT JOIN municipio mun ON mun.id_municipio = col.id_municipio
+        LEFT JOIN estado est ON est.id_estado = mun.id_estado
+        WHERE pa.id_pedido_alm = :id_pedido_alm
+        LIMIT 1
+    `, { type: QueryTypes.SELECT, replacements: { id_pedido_alm } });
+
+  // Empresa remitente (matriz)
+  const [empresa] = await dbLocal.query<any>(`
+        SELECT es.nom_empre, es.rfc_empre, es.calle_empre,
+               col.nom_colonia, col.cp_colonia,
+               mun.nombre_municipio, est.nombre_estado
+        FROM empresa_sucursal es
+        LEFT JOIN colonia col ON col.id_colonia = es.id_colonia_empre
+        LEFT JOIN municipio mun ON mun.id_municipio = col.id_municipio
+        LEFT JOIN estado est ON est.id_estado = mun.id_estado
+        WHERE es.tipo_empre = 'M'
+        ORDER BY es."createdAt" ASC
+        LIMIT 1
+    `, { type: QueryTypes.SELECT });
+
+  if (!cab) { console.error('[TRASPASO] No se encontró cabecera para pedido', id_pedido_alm); return; }
+
+  // Items: artículo + lotes con folio factura proveedor y nombre proveedor
+  const filas = await dbLocal.query<any>(`
+        SELECT
+            dp.id_detalle_pedido_almacen,
+            a.cod_int_artic,
+            a.cod_barr_artic        AS cod_barras,
+            a.des_artic             AS descripcion,
+            a.necesita_receta,
+            dpl.id_lote_sucursal,
+            dpl.cantidad            AS cantidad_lote,
+            las.numero_lote_sucursal AS numero_lote,
+            las.migracion,
+            TO_CHAR(las.fecha_venci_lote_sucursal, 'MM/YYYY') AS fecha_venci,
+            fp.folio_factura_compra_proveedor AS folio_factura,
+            p.nom_prove             AS nom_proveedor
+        FROM detalle_pedido_almacen dp
+        JOIN articulo a ON a.id_artic = dp.id_articulo
+        LEFT JOIN detalle_pedido_almacen_lote dpl
+            ON dpl.id_detalle_pedido_almacen = dp.id_detalle_pedido_almacen
+        LEFT JOIN lote_articulo_sucursal las
+            ON las.id_lote_sucursal = dpl.id_lote_sucursal
+        LEFT JOIN detalle_factura_compra_proveedor dfp
+            ON dfp.id_artic = a.id_artic
+            AND dfp.id_lote_sucursal = las.id_lote_sucursal
+            AND las.migracion = false
+        LEFT JOIN factura_compra_proveedor fp
+            ON fp.id_factura_compra_proveedor = dfp.id_factura_compra_proveedor
+        LEFT JOIN proveedor p ON p.id_prove = fp.id_prove
+        WHERE dp.id_pedido_almacen = :id_pedido_alm
+        ORDER BY dp.id_detalle_pedido_almacen, dpl.id_detalle_pedido_almacen_lote
+    `, { type: QueryTypes.SELECT, replacements: { id_pedido_alm } });
+
+  // Agrupar por artículo — recolectar lotes de migración para enriquecer desde PolyDB
+  const artMap = new Map<string, TraspasoItem>();
+  // { loteKey: { cod_int_artic, fecha_venci } } para buscar en PolyDB por artículo + mes de caducidad
+  const lotesMigracion: { detKey: string; loteIdx: number; cod_int_artic: number; fecha_venci: string }[] = [];
+
+  for (const row of filas) {
+    const key = row.id_detalle_pedido_almacen;
+    if (!artMap.has(key)) {
+      artMap.set(key, {
+        descripcion: row.descripcion,
+        cantidad: 0,
+        cod_int_artic: Number(row.cod_int_artic),
+        cod_barras: row.cod_barras ?? '',
+        necesita_receta: Boolean(row.necesita_receta),
+        lotes: [],
+      });
+    }
+    if (row.id_lote_sucursal) {
+      const item = artMap.get(key)!;
+      const cant = Number(row.cantidad_lote ?? 0);
+      item.cantidad += cant;
+      const loteIdx = item.lotes.length;
+      item.lotes.push({
+        lote: row.numero_lote ?? '',
+        fecha_venci: row.fecha_venci ?? '',
+        cantidad: cant,
+        folio_factura_proveedor: row.folio_factura ?? null,
+        nom_proveedor: row.nom_proveedor ?? null,
+      });
+      // Si el lote no tiene factura local, intentar PolyDB como fallback
+      if (!row.folio_factura && row.fecha_venci) {
+        lotesMigracion.push({
+          detKey: key,
+          loteIdx,
+          cod_int_artic: Number(row.cod_int_artic),
+          fecha_venci: row.fecha_venci,   // formato 'MM/YYYY'
+        });
+      }
+    }
+  }
+
+  // Para lotes de migración: buscar factura y proveedor en PolyDB (RME00102)
+  // Se busca por artículo + empresa 20 + rango del mes de caducidad ('MM/YYYY' → fecha_inicio/fecha_fin)
+  if (lotesMigracion.length) {
+    for (const m of lotesMigracion) {
+      try {
+        // Convertir 'MM/YYYY' → rango '[YYYY-MM-01, YYYY-MM+1-01)'
+        const [mm, yyyy] = m.fecha_venci.split('/');
+        const mes  = parseInt(mm,  10);
+        const anio = parseInt(yyyy, 10);
+        const fecha_inicio = `${anio}-${String(mes).padStart(2, '0')}-01`;
+        const mesNext = mes === 12 ? 1  : mes + 1;
+        const anioNext = mes === 12 ? anio + 1 : anio;
+        const fecha_fin = `${anioNext}-${String(mesNext).padStart(2, '0')}-01`;
+
+        // Usar valores inline para evitar problemas de dialecto con replacements
+        const sql = `
+            SELECT rm.rmenufacc AS folio_factura, pr.prvrazonc AS razon_proveedor
+            FROM rme00102 rm
+            LEFT JOIN proveedores pr ON pr.prvcdprvn = rm.prvcdprvn
+            WHERE rm.artcdartn = ${m.cod_int_artic}
+              AND rm.empcdempn = 20
+              AND rm.rmefecadd >= '${fecha_inicio}'
+              AND rm.rmefecadd <  '${fecha_fin}'
+            LIMIT 1`;
+        console.log('[TRASPASO] PolyDB query:', sql.replace(/\s+/g, ' ').trim());
+        const polyRows = await dbPoly.query<any>(sql, { type: QueryTypes.SELECT });
+        const polyRow = polyRows[0];
+        console.log('[TRASPASO] PolyDB result:', polyRow ?? 'SIN RESULTADO');
+
+        if (polyRow) {
+          const item = artMap.get(m.detKey)!;
+          item.lotes[m.loteIdx].folio_factura_proveedor = polyRow.folio_factura   ? String(polyRow.folio_factura).trim()   : null;
+          item.lotes[m.loteIdx].nom_proveedor           = polyRow.razon_proveedor ? String(polyRow.razon_proveedor).trim() : null;
+        }
+      } catch (polyErr) {
+        console.error('[TRASPASO] PolyDB RME00102 ERROR lote', m.fecha_venci, polyErr);
+      }
+    }
+  }
+
+  const items = [...artMap.values()].filter(i => i.lotes.length > 0);
+  if (!items.length) { console.warn('[TRASPASO] Pedido sin lotes para PDF', id_pedido_alm); return; }
+
+  const hoy = new Date();
+  const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${String(hoy.getFullYear()).slice(-2)}`;
+
+  const pdfBuffer = await generarTraspasoCompletoPDFBuffer({
+    folio: Number(cab.id_interno_cliente_alm ?? 0),
+    folio_interno: Number(cab.id_interno_cliente_alm ?? 0),
+    fecha,
+    cod_int_pedido: cab.cod_int_pedido_alm,
+    ruta: null,
+    razon_social: cab.razon_social,
+    rfc_receptor: cab.rfc_receptor,
+    calle_receptor: cab.calle_receptor ?? '',
+    colonia_receptor: cab.colonia_receptor ?? '',
+    municipio_receptor: cab.municipio_receptor ?? '',
+    estado_receptor: cab.estado_receptor ?? '',
+    cp_receptor: cab.cp_receptor ?? '',
+    telefono_receptor:   cab.telefono_receptor    ?? null,
+    nom_empre_receptor:  cab.nom_empre_receptor   ?? null,
+    nom_empre: empresa?.nom_empre ?? 'FARMACIAS SAHER',
+    rfc_empre: empresa?.rfc_empre ?? '',
+    calle_empre: empresa?.calle_empre ?? null,
+    colonia_empre: empresa?.nom_colonia ?? null,
+    municipio_empre: empresa?.nombre_municipio ?? null,
+    estado_empre: empresa?.nombre_estado ?? null,
+    cp_empre: empresa?.cp_colonia ?? null,
+  }, items);
+
+  if (!fs.existsSync(RUTA_PDFS)) fs.mkdirSync(RUTA_PDFS, { recursive: true });
+  const rutaPDF = path.join(RUTA_PDFS, `TRASPASO_CHK_${cab.cod_int_pedido_alm}_${Date.now()}.pdf`);
+  fs.writeFileSync(rutaPDF, pdfBuffer);
+
+  try {
+    const impresora = await Impresora.findOne({
+      where: { tipo_impresora: 'LASER', activa: true },
+      order: [['createdAt', 'ASC']],
+    });
+    await Trabajo_Impresion.create({
+      cod_interno_pedido: cab.cod_int_pedido_alm,
+      id_impresora: impresora?.id_impresora ?? null,
+      tipo_documento: 'TRASPASO',
+      referencia_codigo: `TRASPASO-CHK-${cab.cod_int_pedido_alm}`,
+      payload: { tipo: 'pdf', ruta_archivo: rutaPDF },
+      estado: 'PENDIENTE',
+      solicitado_por: null,
+    });
+    console.log('[TRASPASO] PDF de chequeo generado e impresión encolada:', rutaPDF);
+  } catch (errImp) {
+    console.error('[TRASPASO] Error al encolar impresión:', errImp);
+  }
+}
 
 const ID_ROL_SURTIDOR = 3; // Surtidor/Acomodador
 
@@ -53,13 +276,13 @@ async function _previewPedidoPoly(pdicdpdin: string) {
 
   const clicdclic = cabecera[0].clicdclic?.trim() ?? null;
 
-  let cliente_nuevo: { id_cliente_alm: string; razon_social: string; nom_corto: string } | null = null;
+  let cliente_nuevo: { id_cliente_alm: string; razon_social: string; nom_corto: string; id_agente_cliente_alm: string | null } | null = null;
   if (clicdclic) {
     const codigoInt = parseInt(clicdclic, 10);
     if (!isNaN(codigoInt)) {
       const cli = await ClienteAlmacen.findOne({
         where: { id_interno_cliente_alm: codigoInt },
-        attributes: ['id_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm'],
+        attributes: ['id_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm', 'id_agente_cliente_alm'],
         raw: true,
       }) as any;
       if (cli) {
@@ -67,6 +290,7 @@ async function _previewPedidoPoly(pdicdpdin: string) {
           id_cliente_alm: cli.id_cliente_alm,
           razon_social: cli.razon_social_cliente_alm,
           nom_corto: cli.nom_corto_cliente_alm,
+          id_agente_cliente_alm: cli.id_agente_cliente_alm ?? null,
         };
       }
     }
@@ -120,6 +344,10 @@ export const Pedido_AlmacenService = {
 
     if (pedidoTerminado) {
       await Pedido_AlmacenRepository.pedidoChecado(id_pedido_alm);
+      // Generar e imprimir traspaso si el pedido es de tipo TRA (no bloquea la respuesta)
+      _generarTraspasoCheckeado(id_pedido_alm).catch(e =>
+        console.error('[TRASPASO] Error generando PDF de chequeo:', e)
+      );
     }
 
     return {
@@ -983,6 +1211,7 @@ export const Pedido_AlmacenService = {
           pdicdpdin: Number(p.pdicdpdin),
           clicdclic: preview.clicdclic,
           cliente_nuevo: preview.cliente_nuevo,
+          id_agente_cliente_alm: preview.cliente_nuevo?.id_agente_cliente_alm ?? null,
           total_articulos: preview.total,
           encontrados: preview.encontrados,
           no_encontrados: preview.no_encontrados,
@@ -1024,17 +1253,18 @@ export const Pedido_AlmacenService = {
     const id_agente_alm = (clienteRecord as any).id_agente_cliente_alm as string;
 
     const t = await dbLocal.transaction();
+    const tPoly = await dbPoly.transaction();
     //FALTA SACAR LA FECHA DE ENTREGA 
-
     const [rowsAffected] = await dbPoly.query(`
-    UPDATE pedido
-    SET pdistatuc = 'B'
-    WHERE pdicdpdin = :num_pedido
-      AND empcdempn = 20
-      AND pdistatuc = 'P'
-  `, {
+      UPDATE pedido
+      SET pdistatuc = 'B'
+      WHERE pdicdpdin = :num_pedido
+        AND empcdempn = 20
+        AND pdistatuc = 'P'
+    `, {
       replacements: { num_pedido },
-      type: QueryTypes.UPDATE
+      type: QueryTypes.UPDATE,
+      transaction: tPoly,
     });
 
     //OBTENER FECHA MAXIMA DE ENTRAGA ALMACEN 
@@ -1064,7 +1294,7 @@ export const Pedido_AlmacenService = {
       );
 
       await t.commit();
-
+      await tPoly.commit();
       return {
         id_pedido_alm: pedido.id_pedido_alm,
         cod_int_pedido_alm: pedido.cod_int_pedido_alm,
@@ -1074,8 +1304,58 @@ export const Pedido_AlmacenService = {
 
     } catch (err) {
       await t.rollback();
+      await tPoly.rollback();
       throw err;
     }
+  },
+
+  // ── Cambiar status de un pedido (admin) ────────────────────────────────────
+  // Borra el trabajo de etapas posteriores al nuevo status:
+  //   CA/SU → elimina lotes + asignaciones + chequeos + resetea fechas surtido
+  //   CH    → elimina solo chequeos (lotes se conservan, se re-asigna chequeo)
+  //   otros → solo cambia el campo
+  cambiarStatus: async (id_pedido_alm: string, nuevo_status: string) => {
+    const STATUSES_VALIDOS = ['EC', 'CO', 'CA', 'SU', 'CH', 'EM', 'FA', 'EN', 'NE'];
+    if (!STATUSES_VALIDOS.includes(nuevo_status)) {
+      throw { status: 400, message: `Status inválido: ${nuevo_status}. Válidos: ${STATUSES_VALIDOS.join(', ')}` };
+    }
+
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm);
+    if (!pedido) throw { status: 404, message: 'Pedido no encontrado' };
+    const status_anterior = pedido.status_pedido_alm;
+
+    const idsDetalles = await Detalle_Pedido_Almacen.findAll({
+      where: { id_pedido_almacen: id_pedido_alm },
+      attributes: ['id_detalle_pedido_almacen'],
+      raw: true,
+    });
+    const ids = idsDetalles.map((d: any) => d.id_detalle_pedido_almacen);
+
+    if (['CA', 'SU'].includes(nuevo_status)) {
+      // Revertir a capturado o re-surtir desde cero: borrar todo el trabajo de surtido y chequeo
+      if (ids.length) {
+        await Detalle_Pedido_Almacen_ChequeoModel.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } } });
+        await Detalle_Pedido_Almacen_LoteModel.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } } });
+        await Detalle_Pedido_Almacen_AsignacionModel.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } } });
+      }
+      await (pedido as any).update({ status_pedido_alm: nuevo_status, inicio_surtido: null, fin_surtido: null });
+      return { ok: true, status_anterior, nuevo_status, limpieza: 'lotes+asignaciones+chequeos' };
+    }
+
+    if (nuevo_status === 'CH') {
+      // Revertir chequeo: borrar solo registros de chequeo; lotes surtidos se conservan
+      if (ids.length) {
+        await Detalle_Pedido_Almacen_ChequeoModel.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } } });
+      }
+      // fin_surtido must be non-null for pedidosPorChecar query to return this pedido
+      const updatePayload: any = { status_pedido_alm: nuevo_status };
+      if (!(pedido as any).fin_surtido) updatePayload.fin_surtido = new Date();
+      await (pedido as any).update(updatePayload);
+      return { ok: true, status_anterior, nuevo_status, limpieza: 'chequeos' };
+    }
+
+    await pedido.update({ status_pedido_alm: nuevo_status });
+    return { ok: true, status_anterior, nuevo_status, limpieza: 'ninguna' };
   },
 
 };

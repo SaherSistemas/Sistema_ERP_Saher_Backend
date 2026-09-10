@@ -1,4 +1,6 @@
 import PDFDocument from 'pdfkit';
+import fs   from 'fs';
+import path from 'path';
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -116,47 +118,64 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     // ══════════════════════════════════════════════════════════════════════════
     // 1. HEADER — Logo | Info centro | Info derecha
     // ══════════════════════════════════════════════════════════════════════════
+    // 5 filas de info × 19 pts = 95 pts → LOGO_H = 100 da margen suficiente
 
-    const LOGO_W = 80;  const LOGO_H = 72;
-    const MID_X  = MX + LOGO_W + 12;
-    const MID_W  = 200;
-    const RIG_X  = MID_X + MID_W + 12;
-    const RIG_W  = MX + CW - RIG_X;
+    const LOGO_W  = 85;
+    const LOGO_H  = 100;
+    const ROW_GAP = 19;           // separación entre filas de info
+    const MID_X   = MX + LOGO_W + 10;
+    const MID_W   = 190;
+    const RIG_X   = MID_X + MID_W + 10;
+    const RIG_W   = MX + CW - RIG_X;
 
-    // — Logo (círculo estilizado + texto Saher) —
-    doc.circle(MX + 30, y + 28, 28).lineWidth(2).stroke('#6b7280');
-    doc.font('Helvetica-Bold').fontSize(26).fillColor('#374151')
-       .text('S', MX + 17, y + 16, { lineBreak: false });
-    doc.font('Helvetica-Bold').fontSize(14).fillColor('#374151')
-       .text('Saher', MX + 4, y + 48, { width: LOGO_W, align: 'center', lineBreak: false });
-    doc.font('Helvetica').fontSize(6.5).fillColor(GR)
-       .text('Distribuidora Farmacéutica', MX, y + 62, { width: LOGO_W + 6, align: 'center', lineBreak: false });
+    // — Logo —
+    const logoRaw  = process.env.RUTA_LOGO_PDF;
+    const logoPath = logoRaw ? path.resolve(process.cwd(), logoRaw) : null;
+    if (logoPath && fs.existsSync(logoPath)) {
+        doc.image(logoPath, MX, y, { fit: [LOGO_W, LOGO_H] });
+    } else {
+        // Fallback: círculo con texto
+        doc.circle(MX + 32, y + 34, 30).lineWidth(2).stroke('#6b7280');
+        doc.font('Helvetica-Bold').fontSize(28).fillColor('#374151')
+           .text('S', MX + 19, y + 20, { lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(13).fillColor('#374151')
+           .text('Saher', MX + 4, y + 54, { width: LOGO_W, align: 'center', lineBreak: false });
+        doc.font('Helvetica').fontSize(6.5).fillColor(GR)
+           .text('Distribuidora Farmacéutica', MX, y + 68, { width: LOGO_W + 4, align: 'center', lineBreak: false });
+    }
 
-    // — Columna central —
-    const infoRow = (label: string, val: string, iy: number, ix = MID_X) => {
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(GR)
-           .text(label, ix, iy, { lineBreak: false });
+    // — Columna central: label arriba, valor debajo, 19pts por fila —
+    const infoRow = (label: string, val: string, row: number, ix = MID_X, w = MID_W) => {
+        const iy = y + row * ROW_GAP;
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(GR)
+           .text(label, ix, iy, { width: w, lineBreak: false });
         doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
-           .text(val, ix, iy + 9, { width: MID_W - 4, lineBreak: false });
+           .text(val, ix, iy + 9, { width: w, lineBreak: false });
     };
 
-    infoRow('Folio Fiscal',           '—',         y);
-    infoRow('Forma de Pago',          'NA',         y + 20);
-    infoRow('Metodo de Pago',         '99 Otros',   y + 40);
-    infoRow('Tipo de Comprobante',    'Remision',   y + 60);
+    infoRow('Folio Fiscal',        '—',         0);
+    infoRow('Forma de Pago',       'NA',         1);
+    infoRow('Metodo de Pago',      '99 Otros',   2);
+    infoRow('Tipo de Comprobante', 'Remision',   3);
 
     // — Columna derecha —
-    const infoRowR = (label: string, val: string, iy: number) => {
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(GR)
-           .text(label, RIG_X, iy, { lineBreak: false });
-        doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
-           .text(val, RIG_X, iy + 9, { width: RIG_W, lineBreak: false });
-    };
+    infoRow('Folio',                     String(datos.folio_remision), 0, RIG_X, RIG_W);
+    infoRow('Lugar de Expedicion',       'Culiacan, Sinaloa.',         1, RIG_X, RIG_W);
+    infoRow('Numero de Cuenta',          'No Identificado',            2, RIG_X, RIG_W);
+    infoRow('Fecha de Emision/Timbrado', datos.fecha_emision,          3, RIG_X, RIG_W);
 
-    infoRowR('Folio',                      String(datos.folio_remision),          y);
-    infoRowR('Lugar de Expedicion',         'Culiacan, Sinaloa.',                  y + 20);
-    infoRowR('Numero de Cuenta',           'No Identificado',                     y + 40);
-    infoRowR('Fecha de Emision/Timbrado',  datos.fecha_emision,                   y + 60);
+    // — Fila 4: caja "Pedido" centrada, en la fila 4 del header —
+    if (datos.cod_int_pedido) {
+        const PED_W = 170;
+        const PED_H = 18;
+        const PED_Y = y + 4 * ROW_GAP;                          // fila 4
+        const PED_X = MX + CW / 2 - PED_W / 2;
+        doc.rect(PED_X, PED_Y, PED_W, PED_H).lineWidth(1.2).stroke('#374151');
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(NEGRO)
+           .text('Pedido:', PED_X + 6, PED_Y + 3, { width: 46, lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('#1d4ed8')
+           .text(datos.cod_int_pedido, PED_X + 54, PED_Y + 2, { width: PED_W - 60, lineBreak: false });
+    }
 
     y += LOGO_H + 8;
     hline(y, MX, MX + CW, 1, '#9ca3af');
@@ -190,11 +209,11 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     emisorLines.forEach(line => {
         doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
            .text(line, MX, y, { width: COL2, lineBreak: false });
-        y += 9;
+        y += 10;
     });
 
     // Receptor (datos del cliente)
-    let ry = y - emisorLines.length * 9;
+    let ry = y - emisorLines.length * 10;
     const receptorLines = [
         datos.razon_social_cliente.toUpperCase(),
         datos.rfc_cliente ?? '',
@@ -209,7 +228,7 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     receptorLines.forEach(line => {
         doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
            .text(line, R_X, ry, { width: COL2, lineBreak: false });
-        ry += 9;
+        ry += 10;
     });
 
     y = Math.max(y, ry) + 10;
@@ -220,15 +239,15 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     // 3. TABLA DE ARTÍCULOS
     // ══════════════════════════════════════════════════════════════════════════
     // Columnas (suma = CW = 556):
-    // Cantidad(55) | Unidad(44) | C.Barras(108) | Descripcion(215) | PrecioU(67) | Importe(67)
+    // Cantidad(48) | Unidad(36) | C.Barras(82) | Descripcion(258) | PrecioU(66) | Importe(66)
 
     const COLS = [
-        { label: 'Cantidad',    w:  55, align: 'right'  as const },
-        { label: 'unidad',      w:  44, align: 'center' as const },
-        { label: 'C Barras',    w: 108, align: 'left'   as const },
-        { label: 'Descripcion', w: 215, align: 'left'   as const },
-        { label: 'Precio U.',   w:  67, align: 'right'  as const },
-        { label: 'Importe',     w:  67, align: 'right'  as const },
+        { label: 'Cantidad',    w:  48, align: 'right'  as const },
+        { label: 'unidad',      w:  36, align: 'center' as const },
+        { label: 'C Barras',    w:  82, align: 'left'   as const },
+        { label: 'Descripcion', w: 258, align: 'left'   as const },
+        { label: 'Precio U.',   w:  66, align: 'right'  as const },
+        { label: 'Importe',     w:  66, align: 'right'  as const },
     ];
 
     const TH = 14;  // altura header

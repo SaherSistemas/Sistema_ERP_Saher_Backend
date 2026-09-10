@@ -2,7 +2,16 @@ import { Comision_Regla_AgenteRepository } from '../repositories/Comision_Regla_
 import { IUpsertReglaBase, IUpsertExcepcion, ReglaJson } from '../interface/Comision_Regla_Agente.interface';
 
 // ── Regla por defecto si un agente no tiene ninguna configurada ────────────────
-const REGLA_DEFAULT: ReglaJson = { tipo: 'anticipado', pct: 5 };
+const REGLA_DEFAULT: ReglaJson = {
+    tipo: 'escalonado',
+    pct_contado: 5,
+    tramos: [
+        { dias_max: 44, pct: 4 },
+        { dias_max: 59, pct: 3 },
+        { dias_max: 74, pct: 2 },
+        { dias_max: 80, pct: 1 },
+    ],
+};
 
 export const Comision_Regla_AgenteService = {
 
@@ -63,6 +72,8 @@ function _validarRegla(regla: ReglaJson) {
     }
 
     if (regla.tipo === 'escalonado') {
+        if (typeof regla.pct_contado !== 'number' || regla.pct_contado < 0 || regla.pct_contado > 100)
+            throw new Error('pct_contado debe ser un número entre 0 y 100');
         if (!Array.isArray(regla.tramos) || regla.tramos.length === 0) {
             throw new Error('La regla escalonada debe tener al menos un tramo');
         }

@@ -16,6 +16,7 @@ import { generarTxtPago, derivarSeries, EmisorTxt, ReceptorTxt, DocumentoPagoTxt
 import { FacturacionRepository } from '../../../Facturas/repositories/Facturacion.repository';
 import EmpresaSucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { generarReciboPDFBuffer } from '../helpers/recibo_cobranza.pdf';
+import { timbrarIngresoPublicoGeneral } from '../../../Facturas/services/Facturacion.service';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -481,17 +482,34 @@ export const CxCService = {
                 timbrado = await _generarTxtUno(cfdiCreado);
             }
 
+            // 6. Público General: si la CxC quedó PAG (pago total), generar TXT de ingreso ahora
+            let timbradoPublicoGeneral: { ok: boolean; ruta_txt?: string; error?: string } | null = null;
+            if (cxc.id_remision && cxcActualizada.estatus_cxc === 'PAG' && factura) {
+                timbradoPublicoGeneral = await timbrarIngresoPublicoGeneral(factura.id_factura);
+                if (timbradoPublicoGeneral.ok) {
+                    console.log(`[aplicarPago] TXT Público General generado: ${timbradoPublicoGeneral.ruta_txt}`);
+                } else {
+                    console.warn(`[aplicarPago] No se pudo generar TXT Público General: ${timbradoPublicoGeneral.error}`);
+                }
+            }
+
             const mensajeTimbrado = !factura
                 ? 'Pago aplicado. No hay factura asociada, no se genera complemento de pago.'
-                : factura.id_metodo_pago === 'PUE'
-                    ? 'Pago aplicado. La factura es PUE — no se genera complemento de pago.'
-                    : !factura.uuid_sat
-                        ? 'Pago aplicado. La factura no tiene UUID SAT — el .txt se generará cuando se capture el UUID.'
-                        : timbrado?.ok
-                            ? `Pago aplicado y .txt de complemento de pago generado: ${timbrado.ruta_txt}`
-                            : `Pago aplicado. Generación de .txt falló: ${timbrado?.error}`;
+                : cxc.id_remision && cxcActualizada.estatus_cxc === 'PAG'
+                    ? timbradoPublicoGeneral?.ok
+                        ? `Pago total aplicado. TXT de factura Público General generado: ${timbradoPublicoGeneral.ruta_txt}`
+                        : `Pago total aplicado. Error generando TXT Público General: ${timbradoPublicoGeneral?.error}`
+                : cxc.id_remision
+                    ? 'Pago parcial aplicado. El TXT se generará cuando se liquide el total.'
+                    : factura.id_metodo_pago === 'PUE'
+                        ? 'Pago aplicado. La factura es PUE — no se genera complemento de pago.'
+                        : !factura.uuid_sat
+                            ? 'Pago aplicado. La factura no tiene UUID SAT — el .txt se generará cuando se capture el UUID.'
+                            : timbrado?.ok
+                                ? `Pago aplicado y .txt de complemento de pago generado: ${timbrado.ruta_txt}`
+                                : `Pago aplicado. Generación de .txt falló: ${timbrado?.error}`;
 
-            return { ok: true, mensaje: mensajeTimbrado, timbrado };
+            return { ok: true, mensaje: mensajeTimbrado, timbrado, timbradoPublicoGeneral };
 
         } catch (error) {
             await t.rollback();

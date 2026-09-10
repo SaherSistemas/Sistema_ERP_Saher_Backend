@@ -27,13 +27,14 @@ export interface DatosTrasladoPDF {
     nom_empre:           string;
     rfc_empre:           string;
     // Receptor
+    nom_empre_receptor:  string | null;   // nombre de la sucursal receptora
     razon_social:        string;
     rfc_receptor:        string;
     calle_receptor:      string;
     colonia_receptor:    string;
     municipio_receptor:  string;
     estado_receptor:     string;
-    // Totales
+    // Totales (mantenidos por compatibilidad pero ya no se muestran)
     subtotal:            number;
     iva:                 number;
     total:               number;
@@ -135,7 +136,8 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
             'INDUSTRIAL EL PALMITO, C.P. 80160',
             'CULIACÁN, SINALOA',
         ];
-        const receptorLines = [
+        const receptorLines: string[] = [
+            ...(datos.nom_empre_receptor ? [datos.nom_empre_receptor.toUpperCase()] : []),
             datos.razon_social.toUpperCase(),
             datos.rfc_receptor,
             datos.calle_receptor.toUpperCase(),
@@ -168,19 +170,17 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
 
         // ══════════════════════════════════════════════════════════════════════
         // 3. TABLA
-        // Cant(42) Unidad(36) C.Barras(88) Descripción(158) Lote(70) Caducidad(52) PrecioU(55) Importe(55)
-        // Total = 556 ✓
+        // Cant(42) Unidad(36) C.Barras(88) Descripción(268) Lote(70) Caducidad(52)
+        // Total = 556 ✓  (sin Precio U. ni Importe)
         // ══════════════════════════════════════════════════════════════════════
 
         const COLS = [
             { label: 'Cantidad',    w:  42, align: 'right'  as const },
             { label: 'Unidad',      w:  36, align: 'center' as const },
             { label: 'C. Barras',   w:  88, align: 'left'   as const },
-            { label: 'Descripción', w: 158, align: 'left'   as const },
+            { label: 'Descripción', w: 268, align: 'left'   as const },
             { label: 'Lote',        w:  70, align: 'left'   as const },
             { label: 'Caducidad',   w:  52, align: 'center' as const },
-            { label: 'Precio U.',   w:  55, align: 'right'  as const },
-            { label: 'Importe',     w:  55, align: 'right'  as const },
         ];
 
         const TH = 13;
@@ -222,8 +222,6 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
                 item.descripcion,
                 lotesStr,
                 caducStr,
-                fmt2(item.precio_unitario),
-                fmt2(item.subtotal_linea),
             ];
 
             cx = MX;
@@ -251,7 +249,7 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
         y += 5;
 
         // ══════════════════════════════════════════════════════════════════════
-        // 4. TOTALES
+        // 4. TOTAL PIEZAS (sin importes)
         // ══════════════════════════════════════════════════════════════════════
 
         doc.font('Helvetica-Bold').fontSize(8).fillColor(NEGRO)
@@ -259,28 +257,7 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
         doc.font('Helvetica').fontSize(8).fillColor(NEGRO)
            .text(totalPiezas.toFixed(4), MX + 120, y + 2, { lineBreak: false });
 
-        const TLBL_W = 70;
-        const TVAL_W = 75;
-        const TX     = MX + CW - TLBL_W - TVAL_W;
-
-        const tasas    = [...new Set(datos.items.filter(d => d.tasa_iva > 0).map(d => d.tasa_iva))];
-        const ivaLabel = tasas.length === 1 ? `IVA ${(tasas[0] * 100).toFixed(0)}%` : 'IVA';
-
-        [
-            { label: 'Subtotal:',     value: fmt2(datos.subtotal) },
-            { label: ivaLabel + ':',  value: fmt2(datos.iva)      },
-            { label: 'Total:',        value: fmt2(datos.total)    },
-        ].forEach((row, i) => {
-            const ty      = y + i * 13;
-            const isTotal = i === 2;
-            if (isTotal) doc.rect(TX, ty, TLBL_W + TVAL_W, 13).fill('#ede9fe');
-            doc.font(isTotal ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(NEGRO)
-               .text(row.label, TX, ty + 3, { width: TLBL_W, align: 'right', lineBreak: false });
-            doc.font(isTotal ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(NEGRO)
-               .text(row.value, TX + TLBL_W + 4, ty + 3, { width: TVAL_W - 8, align: 'right', lineBreak: false });
-        });
-
-        y += 3 * 13 + 12;
+        y += 18;
         hline(y, MX, MX + CW, 0.5, LBORD);
         y += 6;
 

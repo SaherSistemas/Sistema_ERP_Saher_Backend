@@ -71,6 +71,7 @@ export const FacturacionRepository = {
         const rows = await dbLocal.query<DatosFacturacionCabecera>(`
             SELECT
                 es.nom_empre,
+                es.nom_empre_facturacion,
                 es.rfc_empre,
                 COALESCE(es.regimen_fiscal_empre,    '601') AS regimen_fiscal_empre,
                 COALESCE(es.serie_facturacion_empre, 'FSH') AS serie_facturacion_empre,
@@ -86,6 +87,7 @@ export const FacturacionRepository = {
                 ca.id_empresa_sys_anterior,
                 ca.id_empresa_sys_nuevo,
                 COALESCE(ca.tipo_comprobante, 'FAC')                AS tipo_comprobante,
+                ca.nom_corto_cliente_alm                            AS nom_empre_receptor,
                 ca.calle_cliente_alm                                AS calle_cliente,
                 co_ca.nom_colonia                                   AS colonia_cliente,
                 ci_ca.nom_ciuda                                     AS municipio_cliente,
@@ -227,6 +229,7 @@ export const FacturacionRepository = {
         const rows = await dbLocal.query<{
             id_factura:             string;
             tipo_cfdi:              string;
+            estatus_factura:        string;
             uuid_sat:               string | null;
             subtotal_factura:       number;
             iva_factura:            number;
@@ -243,6 +246,7 @@ export const FacturacionRepository = {
             SELECT
                 f.id_factura,
                 f.tipo_cfdi,
+                f.estatus_factura,
                 f.uuid_sat,
                 f.folio_factura,
                 f.subtotal_factura,

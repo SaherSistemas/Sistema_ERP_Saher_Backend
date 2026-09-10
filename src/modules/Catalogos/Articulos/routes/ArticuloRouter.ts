@@ -16,6 +16,7 @@ router.get('/negados/:id_empresa_sucursal', ArticuloController.getAllArticulosNe
 router.get('/:id_artic/existencia', authMiddleware, ArticuloController.getExistencia);
 router.get('/:id_artic/panel-precios', authMiddleware, ArticuloController.getPanelPrecios);
 router.put('/:id_artic/precio', ArticuloController.upsertPrecio);
+router.post('/:id_artic/recalcular-precios', authMiddleware, ArticuloController.recalcularPrecios);
 router.get('/:id_articulo', ArticuloController.getByID);
 router.put('/:id_articulo', ArticuloController.actualizarByID);
 

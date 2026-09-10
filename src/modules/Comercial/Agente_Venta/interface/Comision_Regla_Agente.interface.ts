@@ -19,7 +19,8 @@ export interface TramoEscalonado {
 
 export interface ReglaEscalonado {
     tipo: 'escalonado';
-    tramos: TramoEscalonado[];  // ordenados de menor a mayor dias_max
+    pct_contado: number;      // % para contado (plazo ≤10d) que paga dentro de su plazo (días desde emisión)
+    tramos: TramoEscalonado[]; // dias_max = días desde fecha emisión; aplica a contado vencido Y a todo crédito
 }
 
 export type ReglaJson = ReglaAnticipado | ReglaFijo | ReglaEscalonado;

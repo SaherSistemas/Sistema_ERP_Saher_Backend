@@ -1,6 +1,7 @@
 export interface DatosFacturacionCabecera {
     // Emisor
     nom_empre:               string;
+    nom_empre_facturacion:   string | null;
     rfc_empre:               string;
     regimen_fiscal_empre:    string;
     serie_facturacion_empre: string;
@@ -38,6 +39,8 @@ export interface DatosFacturacionCabecera {
     id_empresa_sys_nuevo:    string | null;
     // 'FAC' = empresa propia con CFDI timbrado (Ingreso); 'TRA' = traslado interno sin timbre
     tipo_comprobante:        string;
+    // Nombre de la empresa receptora (para encabezado del PDF de traslado)
+    nom_empre_receptor:      string | null;
 }
 
 export interface ConceptoFacturacion {
@@ -74,6 +77,7 @@ export interface DetalleParaEgreso {
 export interface DatosFacturaParaTimbrar {
     id_factura:              string;
     tipo_cfdi:               string;
+    estatus_factura:         string;
     uuid_sat:                string | null;
     subtotal_factura:        number;
     iva_factura:             number;

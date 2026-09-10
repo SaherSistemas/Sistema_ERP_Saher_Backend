@@ -7,6 +7,18 @@ import { fmt2, fmt4 } from './sat.helper';
 
 export const RFC_PUBLICO_GENERAL = 'XAXX010101000';
 
+// Detecta si un pedido debe facturarse como Público General:
+//   1. RFC es XAXX010101000
+//   2. RFC vacío o con menos de 12 caracteres (inválido)
+//   3. nom_corto contiene "Abarrot" (clientes tipo abarrotes = mostrador)
+export function detectarPublicoGeneral(rfc: string | null | undefined, nomCorto: string | null | undefined): boolean {
+    const rfcUp = (rfc ?? '').trim().toUpperCase();
+    if (rfcUp === RFC_PUBLICO_GENERAL) return true;
+    if (rfcUp.length < 12) return true;
+    if ((nomCorto ?? '').toLowerCase().includes('abarrot')) return true;
+    return false;
+}
+
 export function buildDescripcionConcepto(c: ConceptoFacturacion): string {
     let desc = c.descripcion.trim();
     if (c.lotes?.length) {

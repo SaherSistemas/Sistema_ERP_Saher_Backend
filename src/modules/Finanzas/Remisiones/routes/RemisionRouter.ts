@@ -15,6 +15,9 @@ router.get('/:id_remision/pdf', RemisionController.getPDF);
 // Obtener detalle completo de una remisión
 router.get('/:id_remision', RemisionController.getByIdConDetalles);
 
+// Crear remisión directamente desde pedido (sin CFDI) y retornar PDF
+router.post('/desde-pedido/:id_pedido_alm', RemisionController.crearDesdePedido);
+
 // Crear una remisión (genera detalles + CxC automáticamente)
 router.post('/', RemisionController.create);
 

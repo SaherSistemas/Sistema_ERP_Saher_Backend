@@ -24,6 +24,7 @@ import {
 } from '../helpers/cfdi_txt.helper';
 import {
     RFC_PUBLICO_GENERAL,
+    detectarPublicoGeneral,
     buildDescripcionConcepto,
     calcularTotales,
     particionarConceptos,
@@ -31,6 +32,9 @@ import {
 } from '../helpers/factura.helper';
 import { parseCfdiXml, generarPdfDesdeCfdi } from '../helpers/cfdi-xml-to-pdf.helper';
 import Facturas from '../model/Facturas.model';
+import Detalle_Factura from '../model/Detalle_Factura.model';
+import Cuenta_Por_Cobrar from '../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
+import Remision from '../../Finanzas/Remisiones/model/Remision.model';
 import Trabajo_Impresion from '../../Impresiones/model/Trabajo_Impresion';
 import Impresora from '../../Impresiones/model/Impresora';
 import FacturaPagoCFDI from '../model/Factura_Pago_CFDI.model';
@@ -81,14 +85,19 @@ async function getLotesPorPedido(id_pedido_alm: string): Promise<
     return mapa;
 }
 
+// Nombre del emisor para .txt: usa nom_empre_facturacion si está configurado, si no nom_empre.
+function nomEmisorTxt(nombreDb: string, nombreFacturacion: string | null): string {
+    return nombreFacturacion?.trim() || nombreDb;
+}
+
 async function obtenerEmisor(id_empresa: string): Promise<EmisorTxt & { serie_facturacion_empre: string } | null> {
     const e = await EmpresaSucursal.findByPk(id_empresa, {
-        attributes: ['nom_empre', 'rfc_empre', 'regimen_fiscal_empre', 'serie_facturacion_empre', 'id_colonia_empre'],
+        attributes: ['nom_empre', 'nom_empre_facturacion', 'rfc_empre', 'regimen_fiscal_empre', 'serie_facturacion_empre', 'id_colonia_empre'],
         raw: true,
     }) as any;
     if (!e) return null;
     return {
-        nom_empre:              e.nom_empre,
+        nom_empre:              nomEmisorTxt(e.nom_empre, e.nom_empre_facturacion),
         rfc_empre:              e.rfc_empre,
         regimen_fiscal_empre:   e.regimen_fiscal_empre ?? '601',
         serie_ingreso:          e.serie_facturacion_empre ?? 'FSH',
@@ -112,19 +121,25 @@ export const FacturacionService = {
         if (!conceptos.length) throw new Error('El pedido no tiene conceptos para facturar');
 
         const dias_credito   = Number(cab.plazo_pago_cliente ?? 0);
-        const esPublicoGeneral = cab.rfc_cliente?.toUpperCase() === RFC_PUBLICO_GENERAL;
+        const esPublicoGeneral = detectarPublicoGeneral(cab.rfc_cliente, cab.nom_empre_receptor);
         const folio          = cab.siguiente_folio;
         const leyenda        = cab.leyenda_factura_empre
             ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
 
         const emisor: EmisorTxt = {
-            nom_empre:            cab.nom_empre,
+            nom_empre:            nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
             rfc_empre:            cab.rfc_empre,
             regimen_fiscal_empre: cab.regimen_fiscal_empre,
             serie_ingreso:        cab.serie_facturacion_empre,
             lugar_expedicion:     cab.lugar_expedicion,
         };
-        const receptor: ReceptorTxt = {
+        const receptor: ReceptorTxt = esPublicoGeneral ? {
+            razon_social:    'VENTA AL PUBLICO EN GENERAL',
+            rfc:             RFC_PUBLICO_GENERAL,
+            domicilio_fiscal: cab.lugar_expedicion,
+            regimen_fiscal:  '616',
+            uso_cfdi:        'S01',
+        } : {
             razon_social:    cab.razon_social_cliente,
             rfc:             cab.rfc_cliente,
             domicilio_fiscal: cab.domicilio_fiscal,
@@ -241,7 +256,7 @@ export const FacturacionService = {
         }
 
         const dias_credito     = Number(cab.plazo_pago_cliente ?? 0);
-        const esPublicoGeneral = cab.rfc_cliente?.toUpperCase() === RFC_PUBLICO_GENERAL;
+        const esPublicoGeneral = detectarPublicoGeneral(cab.rfc_cliente, cab.nom_empre_receptor);
         const limite           = Number(cab.limite_por_factura ?? 0);
         const leyenda          = cab.leyenda_factura_empre
             ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
@@ -323,22 +338,33 @@ export const FacturacionService = {
         }
 
         // ── Generar .txt por cada partición ──────────────────────────────────
+        // Público General: el TXT se genera cuando se aplica el pago total, no aquí.
         const emisor: EmisorTxt = {
-            nom_empre:            cab.nom_empre,
+            nom_empre:            nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
             rfc_empre:            cab.rfc_empre,
             regimen_fiscal_empre: cab.regimen_fiscal_empre,
             serie_ingreso:        cab.serie_facturacion_empre,
             lugar_expedicion:     cab.lugar_expedicion,
         };
-        const receptor: ReceptorTxt = {
-            razon_social:    esPublicoGeneral ? 'PUBLICO EN GENERAL' : cab.razon_social_cliente,
+        const receptor: ReceptorTxt = esPublicoGeneral ? {
+            razon_social:    'VENTA AL PUBLICO EN GENERAL',
+            rfc:             RFC_PUBLICO_GENERAL,
+            domicilio_fiscal: cab.lugar_expedicion,
+            regimen_fiscal:  '616',
+            uso_cfdi:        'S01',
+        } : {
+            razon_social:    cab.razon_social_cliente,
             rfc:             cab.rfc_cliente,
             domicilio_fiscal: cab.domicilio_fiscal,
-            regimen_fiscal:  esPublicoGeneral ? '616' : cab.regimen_fiscal_cliente,
+            regimen_fiscal:  cab.regimen_fiscal_cliente,
             uso_cfdi:        cab.uso_cfdi,
         };
 
         const facturas = registros.map(({ id_factura, folio, id_remision, conceptosParte }) => {
+            // Público General: no generar TXT ahora — se genera al aplicar pago total
+            if (esPublicoGeneral) {
+                return { id_factura, folio, id_remision, ruta_txt: null, pendiente_pago: true };
+            }
             try {
                 const conceptosTxt: ConceptoTxt[] = conceptosParte.map(c => ({
                     cve_sat:         c.cve_sat,
@@ -448,6 +474,79 @@ export const FacturacionService = {
             flujo: esPublicoGeneral ? 'PUBLICO_GENERAL' : 'CLIENTE_DIRECTO',
             total_facturas: facturas.length,
             facturas,
+        };
+    },
+
+    // ── Devolución de factura PEN (no timbrada): solo ajusta CxC ─────────────
+    _devolverFacturaPEN: async (
+        id_factura_origen: string,
+        detalles: Array<{ id_articulo: string; cantidad: number }>,
+    ) => {
+        const factura = await Facturas.findByPk(id_factura_origen, {
+            include: [{ model: Detalle_Factura, as: 'detalles' }],
+        });
+        if (!factura) throw new Error('Factura no encontrada');
+
+        // Calcular monto a descontar
+        let montoDevolucion = 0;
+        for (const d of detalles) {
+            const det = (factura as any).detalles?.find((x: any) => x.id_articulo === d.id_articulo);
+            if (!det) throw new Error(`Artículo ${d.id_articulo} no existe en la factura`);
+            if (d.cantidad > Number(det.cantidad_facturada)) {
+                throw new Error(`Cantidad a devolver (${d.cantidad}) excede la facturada (${det.cantidad_facturada})`);
+            }
+            const subtotal = +(d.cantidad * Number(det.precio_artic)).toFixed(2);
+            const iva      = +(subtotal * Number(det.tasa_iva)).toFixed(2);
+            montoDevolucion += +(subtotal + iva).toFixed(2);
+        }
+        montoDevolucion = +montoDevolucion.toFixed(2);
+
+        const esDevolucionTotal = +montoDevolucion.toFixed(2) >= +Number(factura.total_factura).toFixed(2);
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        try {
+            // Buscar CxC — directa por factura o por remisión
+            let cxc = await Cuenta_Por_Cobrar.findOne({
+                where: { id_factura: id_factura_origen },
+                transaction: t,
+            });
+            if (!cxc) {
+                // Público General: buscar por remisión
+                const remision = await Remision.findOne({ where: { id_factura: id_factura_origen }, transaction: t });
+                if (remision) {
+                    cxc = await Cuenta_Por_Cobrar.findOne({ where: { id_remision: remision.id_remision }, transaction: t });
+                }
+            }
+
+            if (esDevolucionTotal) {
+                // Cancelar factura y CxC
+                await factura.update({ estatus_factura: 'CAN' }, { transaction: t });
+                if (cxc) await cxc.update({ estatus_cxc: 'CAN', saldo_pendiente: 0 }, { transaction: t });
+            } else {
+                // Devolución parcial: reducir totales de factura y CxC
+                const nuevo_total = +Math.max(Number(factura.total_factura) - montoDevolucion, 0).toFixed(2);
+                await factura.update({ total_factura: nuevo_total }, { transaction: t });
+                if (cxc) {
+                    const nuevo_monto   = +Math.max(Number(cxc.monto_total)   - montoDevolucion, 0).toFixed(2);
+                    const nuevo_saldo   = +Math.max(Number(cxc.saldo_pendiente) - montoDevolucion, 0).toFixed(2);
+                    const nuevo_estatus = nuevo_saldo <= 0 ? 'PAG' : cxc.estatus_cxc;
+                    await cxc.update({ monto_total: nuevo_monto, saldo_pendiente: nuevo_saldo, estatus_cxc: nuevo_estatus }, { transaction: t });
+                }
+            }
+
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+
+        return {
+            flujo: 'DEVOLUCION_PEN',
+            monto_devolucion: montoDevolucion,
+            es_total: esDevolucionTotal,
+            mensaje: esDevolucionTotal
+                ? 'Factura cancelada y CxC cerrada (no había timbrado SAT).'
+                : `Descuento de $${montoDevolucion} aplicado a la CxC (factura sin timbrar).`,
         };
     },
 
@@ -599,6 +698,7 @@ export const FacturacionService = {
             id_empresa_sys_anterior: cab.id_empresa_sys_anterior!,
             nom_empre: cab.nom_empre,
             rfc_empre: cab.rfc_empre,
+            nom_empre_receptor: cab.nom_empre_receptor ?? null,
             razon_social: cab.razon_social_cliente,
             rfc_receptor: cab.rfc_cliente,
             calle_receptor: cab.calle_cliente,
@@ -641,8 +741,33 @@ export const FacturacionService = {
             cod_int_artic: c.cod_int_artic,
             cod_barras: c.cod_barras,
             necesita_receta: c.necesita_receta,
-            lotes: c.lotes,
+            lotes: c.lotes.map(l => ({ ...l })),  // copia mutable para enriquecer con PolyDB
         }));
+
+        // Enriquecer lotes sin factura local desde PolyDB (rme00102)
+        for (const item of itemsTraspaso) {
+            for (const lote of item.lotes) {
+                if (!lote.folio_factura_proveedor && lote.fecha_venci) {
+                    try {
+                        const [mm, yyyy] = lote.fecha_venci.split('/');
+                        const mes  = parseInt(mm,  10);
+                        const anio = parseInt(yyyy, 10);
+                        const fi = `${anio}-${String(mes).padStart(2, '0')}-01`;
+                        const mn = mes === 12 ? 1 : mes + 1;
+                        const an = mes === 12 ? anio + 1 : anio;
+                        const ff = `${an}-${String(mn).padStart(2, '0')}-01`;
+                        const sql = `SELECT rm.rmenufacc AS folio_factura, pr.prvrazonc AS razon_proveedor FROM rme00102 rm LEFT JOIN proveedores pr ON pr.prvcdprvn = rm.prvcdprvn WHERE rm.artcdartn = ${item.cod_int_artic} AND rm.empcdempn = 20 AND rm.rmefecadd >= '${fi}' AND rm.rmefecadd < '${ff}' LIMIT 1`;
+                        const polyRows = await dbPoly.query<any>(sql, { type: QueryTypes.SELECT });
+                        if (polyRows[0]) {
+                            lote.folio_factura_proveedor = polyRows[0].folio_factura   ? String(polyRows[0].folio_factura).trim()   : null;
+                            lote.nom_proveedor           = polyRows[0].razon_proveedor ? String(polyRows[0].razon_proveedor).trim() : null;
+                        }
+                    } catch (e) {
+                        console.error('[TRASPASO-FAC] PolyDB error art', item.cod_int_artic, e);
+                    }
+                }
+            }
+        }
 
         const fechaDoc    = new Date();
         const fechaDocStr = `${String(fechaDoc.getDate()).padStart(2, '0')}/${String(fechaDoc.getMonth() + 1).padStart(2, '0')}/${String(fechaDoc.getFullYear()).slice(-2)}`;
@@ -655,6 +780,8 @@ export const FacturacionService = {
             municipio_receptor: cab.municipio_cliente, estado_receptor: cab.estado_cliente,
             cp_receptor: cab.domicilio_fiscal, telefono_receptor: null,
             nom_empre: cab.nom_empre, rfc_empre: cab.rfc_empre,
+            calle_empre: null, colonia_empre: null, municipio_empre: null, estado_empre: null, cp_empre: null,
+            nom_empre_receptor: cab.nom_empre_receptor ?? null,
         }, itemsTraspaso);
 
         const traspaso_pdf_url = require('path').join(RUTA_PDFS, `TRA_${folio}_${cab.cod_int_pedido_alm}_traspaso.pdf`);
@@ -736,6 +863,11 @@ export const FacturacionService = {
         if (!origen) throw new Error('Factura origen no encontrada');
         if (origen.tipo_cfdi !== 'I') throw new Error('Solo se puede crear nota de crédito de facturas tipo Ingreso');
         if (!dto.detalles?.length) throw new Error('Debes especificar al menos un artículo a acreditar');
+
+        // Factura PEN (no timbrada) → solo descontar de la CxC, sin generar CFDI
+        if (origen.estatus_factura === 'PEN') {
+            return FacturacionService._devolverFacturaPEN(dto.id_factura_origen, dto.detalles);
+        }
 
         const detallesEgreso = dto.detalles.map(d => {
             const original = origen.detalles.find(o => o.id_articulo === d.id_articulo);
@@ -848,25 +980,31 @@ export const FacturacionService = {
             ]);
             if (!conceptos.length) throw new Error('La factura no tiene conceptos registrados');
 
-            const esPublicoGeneral = cab.rfc_cliente?.toUpperCase() === RFC_PUBLICO_GENERAL;
+            const esPublicoGeneral = detectarPublicoGeneral(cab.rfc_cliente, cab.nom_empre_receptor);
             const folio   = Number(factura.folio_factura);
             const leyenda = cab.leyenda_factura_empre
                 ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
 
             const { ruta } = generarTxtIngreso({
                 emisor: {
-                    nom_empre:            cab.nom_empre,
+                    nom_empre:            nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
                     rfc_empre:            cab.rfc_empre,
                     regimen_fiscal_empre: cab.regimen_fiscal_empre,
                     serie_ingreso:        cab.serie_facturacion_empre,
                     lugar_expedicion:     cab.lugar_expedicion,
                 },
-                receptor: {
-                    razon_social:    esPublicoGeneral ? 'PUBLICO EN GENERAL' : cab.razon_social_cliente,
-                    rfc:             cab.rfc_cliente,
+                receptor: esPublicoGeneral ? {
+                    razon_social:     'VENTA AL PUBLICO EN GENERAL',
+                    rfc:              RFC_PUBLICO_GENERAL,
+                    domicilio_fiscal: cab.lugar_expedicion,
+                    regimen_fiscal:   '616',
+                    uso_cfdi:         'S01',
+                } : {
+                    razon_social:     cab.razon_social_cliente,
+                    rfc:              cab.rfc_cliente,
                     domicilio_fiscal: cab.domicilio_fiscal,
-                    regimen_fiscal:  esPublicoGeneral ? '616' : cab.regimen_fiscal_cliente,
-                    uso_cfdi:        cab.uso_cfdi,
+                    regimen_fiscal:   cab.regimen_fiscal_cliente,
+                    uso_cfdi:         cab.uso_cfdi,
                 },
                 folio,
                 forma_pago:  cab.forma_pago,
@@ -1181,3 +1319,66 @@ export const FacturacionService = {
         };
     },
 };
+
+// ── Genera el TXT de ingreso para una factura de Público General cuando ya se pagó total ──
+export async function timbrarIngresoPublicoGeneral(id_factura: string): Promise<{ ok: boolean; ruta_txt?: string; error?: string }> {
+    try {
+        const factura = await Facturas.findByPk(id_factura);
+        if (!factura) return { ok: false, error: 'Factura no encontrada' };
+        if (!factura.id_pedido_alm) return { ok: false, error: 'Factura sin pedido asociado' };
+        if (factura.estatus_factura !== 'PEN') return { ok: false, error: `Factura ya en estatus ${factura.estatus_factura}` };
+
+        const [cab, conceptos] = await Promise.all([
+            FacturacionRepository.getCabecera(factura.id_pedido_alm, factura.id_empresa_facturas ?? undefined),
+            FacturacionRepository.getConceptos(factura.id_pedido_alm),
+        ]);
+
+        const folio   = Number(factura.folio_factura);
+        const leyenda = cab.leyenda_factura_empre
+            ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
+
+        const emisor: EmisorTxt = {
+            nom_empre:            nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
+            rfc_empre:            cab.rfc_empre,
+            regimen_fiscal_empre: cab.regimen_fiscal_empre,
+            serie_ingreso:        cab.serie_facturacion_empre,
+            lugar_expedicion:     cab.lugar_expedicion,
+        };
+        const receptor: ReceptorTxt = {
+            razon_social:     'VENTA AL PUBLICO EN GENERAL',
+            rfc:              RFC_PUBLICO_GENERAL,
+            domicilio_fiscal: cab.lugar_expedicion,
+            regimen_fiscal:   '616',
+            uso_cfdi:         'S01',
+        };
+        const conceptosTxt: ConceptoTxt[] = conceptos.map(c => ({
+            cve_sat:         c.cve_sat,
+            sat_medida:      c.sat_medida,
+            desc_medida:     c.desc_medida,
+            cod_barras:      c.cod_barras,
+            cantidad:        c.cantidad,
+            descripcion:     c.descripcion,
+            precio_unitario: c.precio_unitario,
+            descuento:       c.descuento,
+            subtotal_linea:  c.subtotal_linea,
+            tasa_iva:        c.tasa_iva,
+            impuesto_sat:    c.impuesto_sat,
+            tipo_factor:     c.tipo_factor,
+            lotes:           c.lotes?.map(l => ({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: l.cantidad })),
+        }));
+
+        const { ruta } = generarTxtIngreso({
+            emisor, receptor, folio,
+            forma_pago:    cab.forma_pago,
+            metodo_pago:   cab.metodo_pago,
+            conceptos:     conceptosTxt,
+            leyenda,
+            nombreArchivo: `FactDig${cab.serie_facturacion_empre}${folio}-Ingresos.txt`,
+        });
+
+        return { ok: true, ruta_txt: ruta };
+    } catch (err: any) {
+        console.error('[timbrarIngresoPublicoGeneral] Error:', err.message);
+        return { ok: false, error: err.message };
+    }
+}

@@ -30,6 +30,57 @@ export const RemisionService = {
         return generarRemisionPDFBuffer(datos);
     },
 
+    // Crea remisión directamente desde un pedido, sin necesitar factura CFDI
+    crearDesdePedido: async (id_pedido_alm: string, dias_credito_override?: number): Promise<{ remision: any; pdf: Buffer }> => {
+        const cab = await RemisionRepository.getCabeceraPedido(id_pedido_alm);
+        if (!cab) throw new Error('Pedido no encontrado');
+
+        const conceptos = await RemisionRepository.getConceptosDesdePedido(id_pedido_alm);
+        if (!conceptos.length) throw new Error('El pedido no tiene artículos');
+
+        const dias_credito = dias_credito_override ?? cab.dias_credito;
+        const subtotal_remision = conceptos.reduce((s, c) => s + c.subtotal, 0);
+        const iva_remision      = conceptos.reduce((s, c) => s + c.importe_iva, 0);
+        const total_remision    = +(subtotal_remision + iva_remision).toFixed(2);
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        let remision: any;
+        try {
+            const folio = await RemisionRepository.getUltimoFolio();
+            remision = await RemisionRepository.create(
+                {
+                    id_factura:        null,
+                    id_pedido_alm:     cab.id_pedido_alm,
+                    id_cliente_alm:    cab.id_cliente_alm,
+                    id_agente:         cab.id_agente,
+                    dias_credito,
+                    subtotal_remision,
+                    iva_remision,
+                    total_remision,
+                    notas:             null,
+                },
+                folio,
+                t,
+            );
+            await Detalle_RemisionRepository.createMultiple(remision.id_remision, conceptos, t);
+            await CxCRepository.create({
+                id_factura:        null,
+                id_remision:       remision.id_remision,
+                id_cliente_alm:    cab.id_cliente_alm,
+                monto_total:       total_remision,
+                fecha_vencimiento: (() => { const d = new Date(); d.setDate(d.getDate() + dias_credito); return d; })(),
+                dias_credito,
+            }, t);
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+
+        const pdf = await generarRemisionPDFBuffer(await RemisionRepository.getDatosParaPDF(remision.id_remision) as any);
+        return { remision, pdf };
+    },
+
     // El frontend solo manda id_factura + dias_credito + detalles
     // El service resuelve cliente y agente desde el Pedido automáticamente
     create: async (data: ICreateRemision) => {

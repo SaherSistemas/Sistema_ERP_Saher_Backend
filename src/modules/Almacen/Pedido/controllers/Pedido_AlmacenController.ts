@@ -496,6 +496,19 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // PATCH /:id_pedido_alm/cambiar-status — cambia el status del pedido (admin)
+  static cambiarStatus = async (req: Request, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const { nuevo_status } = req.body as { nuevo_status: string };
+      if (!nuevo_status) { res.status(400).json({ message: 'nuevo_status es requerido' }); return; }
+      const resultado = await Pedido_AlmacenService.cambiarStatus(id_pedido_alm, nuevo_status);
+      res.json(resultado);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  };
+
   // DELETE /pedido/:id/detalle/:id_detalle  — elimina un renglón (solo admin)
   static eliminarDetalle = async (req: Request, res: Response) => {
     try {
