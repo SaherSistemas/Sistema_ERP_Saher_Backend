@@ -8,6 +8,8 @@ import { QueryTypes } from 'sequelize';
 import { dbLocal } from '../../../config/db';
 import { parseCfdiXml, generarPdfDesdeCfdi, PdfExtras } from '../helpers/cfdi-xml-to-pdf.helper';
 import { RUTA_PDFS } from '../helpers/pdf.helper';
+import { ImpresoraRepository } from '../../Impresiones/repositories/ImpresoraRepository';
+import { TrabajoImpresionRepository } from '../../Impresiones/repositories/TrabajoImpresionRepository';
 
 const POLL_MS = 3000;
 const PROCESADOS = new Set<string>();
@@ -94,7 +96,6 @@ async function procesarXml(xmlPath: string) {
     const yaExiste = await Facturas.findOne({ where: { uuid_sat: cfdi.uuid } });
     if (yaExiste) {
         console.log(`[XmlWatcher] UUID ${cfdi.uuid} ya registrado, se omite.`);
-        await moverAProcesados(xmlPath);
         return;
     }
 
@@ -149,18 +150,28 @@ async function procesarXml(xmlPath: string) {
     });
 
     console.log(`[XmlWatcher] ✓ Factura ${factura.id_factura} timbrada. UUID=${cfdi.uuid}`);
-    await moverAProcesados(xmlPath);
-}
+    // El XML se deja en su carpeta original — PROCESADOS evita reprocesarlo en esta sesión
 
-async function moverAProcesados(xmlPath: string) {
-    try {
-        const procesadosDir = path.join(path.dirname(xmlPath), 'procesados');
-        try { await fs.access(procesadosDir); } catch { await fs.mkdir(procesadosDir, { recursive: true }); }
-        await fs.rename(xmlPath, path.join(procesadosDir, path.basename(xmlPath)));
-    } catch (err: any) {
-        console.warn('[XmlWatcher] No se pudo mover XML a procesados:', err.message);
+    // Crear trabajo de impresión para la factura timbrada
+    if (factura.id_empresa_facturas) {
+        try {
+            const id_impresora = await ImpresoraRepository.getImpresora(factura.id_empresa_facturas, 'PRINCIPAL');
+            await TrabajoImpresionRepository.create({
+                cod_interno_pedido: factura.folio_factura ?? cfdi.folio,
+                tipo_documento: 'FACTURA',
+                id_impresora,
+                payload: {
+                    tipo: 'pdf',
+                    ruta_archivo: pdfPath,
+                },
+            });
+            console.log(`[XmlWatcher] Trabajo de impresión creado para ${factura.folio_factura}`);
+        } catch (impErr: any) {
+            console.warn(`[XmlWatcher] No se pudo crear trabajo de impresión: ${impErr.message}`);
+        }
     }
 }
+
 
 export function iniciarXmlWatcher() {
     const carpeta = process.env.RUTA_XML_ENTRADA;
@@ -182,7 +193,7 @@ export function iniciarXmlWatcher() {
         if (corriendo) return;
         corriendo = true;
         try {
-            const hace48h = Date.now() - 48 * 60 * 60 * 1000;
+            const hace48h = Date.now() - 12 * 60 * 60 * 1000;
             let todos: string[];
             try {
                 todos = await fs.readdir(carpeta);
@@ -190,20 +201,28 @@ export function iniciarXmlWatcher() {
                 return;
             }
 
-            const xmlsRecientes = (
-                await Promise.all(
-                    todos
-                        .filter(f => f.toLowerCase().endsWith('.xml'))
-                        .map(async f => {
-                            try {
-                                const stat = await fs.stat(path.join(carpeta, f));
-                                return stat.mtimeMs >= hace48h ? f : null;
-                            } catch {
-                                return null;
-                            }
-                        })
-                )
-            ).filter((f): f is string => f !== null);
+            // Filtrar primero los que ya fueron procesados (sin I/O de red)
+            const candidatos = todos.filter(f =>
+                f.toLowerCase().endsWith('.xml') && !PROCESADOS.has(f)
+            );
+
+            // De los candidatos, solo los modificados en las últimas 48h
+            // Batches de 50 para no saturar el share SMB
+            const xmlsRecientes: string[] = [];
+            for (let i = 0; i < candidatos.length; i += 50) {
+                const batch = candidatos.slice(i, i + 50);
+                const results = await Promise.all(
+                    batch.map(async f => {
+                        try {
+                            const stat = await fs.stat(path.join(carpeta, f));
+                            return stat.mtimeMs >= hace48h ? f : null;
+                        } catch {
+                            return null;
+                        }
+                    })
+                );
+                for (const r of results) if (r) xmlsRecientes.push(r);
+            }
 
             for (const archivo of xmlsRecientes) {
                 await procesarXml(path.join(carpeta, archivo));

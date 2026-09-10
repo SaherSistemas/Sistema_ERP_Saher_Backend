@@ -33,11 +33,18 @@ export const FacturacionRepository = {
         if (filtros.estatus)        where.estatus_factura = filtros.estatus;
         if (filtros.tipo_cfdi)      where.tipo_cfdi       = filtros.tipo_cfdi;
         if (filtros.id_cliente_alm) where.id_cliente_alm  = filtros.id_cliente_alm;
+
         if (filtros.fecha_inicio || filtros.fecha_fin) {
             where.fecha_emision = {};
             if (filtros.fecha_inicio) where.fecha_emision[Op.gte] = new Date(filtros.fecha_inicio);
             if (filtros.fecha_fin)    where.fecha_emision[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
+        } else if (!filtros.busqueda) {
+            // Sin filtros de fecha ni búsqueda → limitar al último mes para no escanear toda la tabla
+            const hace30dias = new Date();
+            hace30dias.setDate(hace30dias.getDate() - 30);
+            where.fecha_emision = { [Op.gte]: hace30dias };
         }
+
         if (filtros.busqueda) {
             where[Op.or] = [
                 { folio_factura: { [Op.iLike]: `%${filtros.busqueda}%` } },

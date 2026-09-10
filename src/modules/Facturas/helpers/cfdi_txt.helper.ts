@@ -127,9 +127,9 @@ export function generarTxtIngreso(opts: {
         let desc = c.descripcion.trim();
         if (c.lotes?.length) {
             const lotesStr = c.lotes.map(l => `L:${l.lote} CAD:${l.fecha_venci} PZAS:${l.cantidad}`).join(' / ');
-            desc += ` | ${lotesStr}`;
+            desc += ` ${lotesStr}`;
         }
-        if (c.tasa_iva > 0) desc += ` | IVA ${Math.round(c.tasa_iva * 100)}%`;
+        if (c.tasa_iva > 0) desc += ` IVA ${Math.round(c.tasa_iva * 100)}%`;
         L.push(
             `C${i + 1}: ${c.cve_sat}@${c.sat_medida}@${c.desc_medida}@${c.cod_barras}` +
             `@${fmt4(c.cantidad)}@${desc}@${fmt2(c.precio_unitario)}@${fmt2(c.descuento)}@${fmt2(c.subtotal_linea)}`

@@ -48,6 +48,7 @@ export interface ConceptoCfdi {
     fechaCad: string;
     pzas: string;
     descripcionLimpia: string;
+    lotesRaw: string;
 }
 
 // ─── Parser ───────────────────────────────────────────────────────────────────
@@ -72,13 +73,15 @@ export function parseCfdiXml(xmlContent: string): CfdiParseResult {
         const trasladoArr = Array.isArray(traslados) ? traslados : [traslados].filter(Boolean);
         const iva = trasladoArr.find((t: any) => t['@_Impuesto'] === '002');
 
-        // Descripcion format: "NOMBRE DEL PRODUCTO - Lote:XXX Fec/Cad: MM/YYYY Pzas: N.NNNN XX.XX%"
         const desc: string = c['@_Descripcion'] ?? '';
-        const loteMatch = desc.match(/Lote[:\s]*([\w-]+)/i);
-        const cadMatch = desc.match(/Fec\/Cad[:\s]*([\d\/]+)/i);
-        const pzsMatch = desc.match(/Pzas[:\s]*([\d.,]+)/i);
-        const separatorIdx = desc.indexOf(' - Lote');
-        const descripcionLimpia = separatorIdx > -1 ? desc.substring(0, separatorIdx).trim() : desc;
+        // Separator: " L:xxx" or " - Lote:xxx" or " | L:xxx"
+        const sepIdx = desc.search(/ (?:\| )?(?:L:|Lote[:\s]|-\s*Lote)/i);
+        const descripcionLimpia = sepIdx > -1 ? desc.substring(0, sepIdx).trim() : desc;
+        const lotesRaw = sepIdx > -1 ? desc.substring(sepIdx).trim().replace(/^\|\s*/, '') : '';
+
+        const loteMatch = desc.match(/(?:L:|Lote[:\s]+)([\w-]+)/i);
+        const cadMatch  = desc.match(/(?:CAD:|Fec\/Cad[:\s]+)([\d\/]+)/i);
+        const pzsMatch  = desc.match(/(?:PZAS:|Pzas[:\s]+)([\d.,]+)/i);
 
         return {
             claveProdServ:    c['@_ClaveProdServ']     ?? '',
@@ -88,6 +91,7 @@ export function parseCfdiXml(xmlContent: string): CfdiParseResult {
             unidad: c['@_Unidad'] ?? '',
             descripcion: desc,
             descripcionLimpia,
+            lotesRaw,
             valorUnitario: Number(c['@_ValorUnitario']) || 0,
             importe: Number(c['@_Importe']) || 0,
             ivaBase: Number(iva?.['@_Base']) || Number(c['@_Importe']) || 0,
@@ -318,59 +322,37 @@ export async function generarPdfDesdeCfdi(
         doc.text('DATOS DEL RECEPTOR', ML, curY);
         curY += 10;
 
-        const rxCol = CONTENT_W / 3;
+        const LBL_W = 72;   // ancho etiqueta
+        const COL2_X = ML + CONTENT_W * 0.62;  // columna derecha (RFC, CP Fiscal, Régimen)
+        const COL2_W = CONTENT_W * 0.38;
+        const VAL1_W = COL2_X - ML - LBL_W - 8;  // ancho valor columna izquierda
 
-        // Fila 1: Razón Social | RFC | Uso CFDI
-        doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
-        doc.text('Razón Social:', ML, curY);
-        doc.font('Helvetica').fontSize(7).fillColor('#000');
-        doc.text(cfdi.receptor.nombre, ML + 65, curY, { width: rxCol - 70 });
-
-        doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
-        doc.text('RFC:', ML + rxCol, curY);
-        doc.font('Helvetica').fontSize(7).fillColor('#000');
-        doc.text(cfdi.receptor.rfc, ML + rxCol + 25, curY);
-
-        doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
-        doc.text('Uso CFDI:', ML + rxCol * 2, curY);
-        doc.font('Helvetica').fontSize(7).fillColor('#000');
-        doc.text(cfdi.receptor.usoCFDI, ML + rxCol * 2 + 45, curY);
-        curY += 10;
-
-        // Fila 2: Nom. Comercial (si existe) | Dom. Fiscal CP
-        if (extras?.receptorNomComercial) {
+        function rxRow(label: string, value: string, label2?: string, value2?: string) {
             doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
-            doc.text('Nom. Comercial:', ML, curY);
+            doc.text(label, ML, curY, { width: LBL_W, lineBreak: false });
             doc.font('Helvetica').fontSize(7).fillColor('#000');
-            doc.text(extras.receptorNomComercial, ML + 72, curY, { width: rxCol * 2 - 72 });
-
-            doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
-            doc.text('CP Fiscal:', ML + rxCol * 2, curY);
-            doc.font('Helvetica').fontSize(7).fillColor('#000');
-            doc.text(cfdi.receptor.domicilioFiscal, ML + rxCol * 2 + 45, curY);
-            curY += 10;
+            const h1 = doc.heightOfString(value, { width: VAL1_W });
+            doc.text(value, ML + LBL_W, curY, { width: VAL1_W });
+            let h2 = 0;
+            if (label2 && value2 !== undefined) {
+                doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
+                doc.text(label2, COL2_X, curY, { width: 55, lineBreak: false });
+                doc.font('Helvetica').fontSize(7).fillColor('#000');
+                h2 = doc.heightOfString(value2, { width: COL2_W - 58 });
+                doc.text(value2, COL2_X + 57, curY, { width: COL2_W - 58 });
+            }
+            curY += Math.max(h1, h2, 10) + 2;
         }
 
-        // Fila 3: Domicilio completo | Régimen Fiscal
+        rxRow('Razón Social:', cfdi.receptor.nombre, 'RFC:', cfdi.receptor.rfc);
+        if (extras?.receptorNomComercial) {
+            rxRow('Nom. Comercial:', extras.receptorNomComercial, 'CP Fiscal:', cfdi.receptor.domicilioFiscal);
+        }
         const domReceptor = extras?.receptorDomicilio || cfdi.receptor.domicilioFiscal;
-        doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
-        doc.text('Domicilio:', ML, curY);
-        doc.font('Helvetica').fontSize(7).fillColor('#000');
-        doc.text(domReceptor, ML + 50, curY, { width: rxCol * 2 - 50 });
-
-        doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
-        doc.text('Régimen Fiscal:', ML + rxCol * 2, curY);
-        doc.font('Helvetica').fontSize(7).fillColor('#000');
-        doc.text(cfdi.receptor.regimenFiscal, ML + rxCol * 2 + 65, curY);
-        curY += 10;
-
-        // Fila 4: Entregar en (si existe)
+        rxRow('Domicilio:', domReceptor, 'Régimen Fiscal:', cfdi.receptor.regimenFiscal);
+        rxRow('Uso CFDI:', cfdi.receptor.usoCFDI);
         if (extras?.direccionEntrega) {
-            doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
-            doc.text('Entregar en:', ML, curY);
-            doc.font('Helvetica').fontSize(7).fillColor('#000');
-            doc.text(extras.direccionEntrega, ML + 55, curY, { width: CONTENT_W - 55 });
-            curY += 10;
+            rxRow('Entregar en:', extras.direccionEntrega);
         }
 
         curY += 2;
@@ -418,7 +400,7 @@ export async function generarPdfDesdeCfdi(
         const ROW_H2 = 11;  // lote sub-row
 
         cfdi.conceptos.forEach((c, idx) => {
-            const needH = ROW_H1 + ROW_H2 + 2;
+            const needH = ROW_H1 + ROW_H2 + 20; // +20 margen para lotes largos
             if (curY + needH > PAGE_H - 80) {
                 addPage();
                 drawMiniHeader();
@@ -443,17 +425,14 @@ export async function generarPdfDesdeCfdi(
             curY += ROW_H1;
 
             // Row 2 — lote info
-            doc.rect(ML, curY, CONTENT_W, ROW_H2).fillColor('#f0f4ff').fill();
+            const ivaLabel = c.tasaIva > 0 ? `IVA: ${Math.round(c.tasaIva * 100)}%` : 'IVA exento';
+            const loteStr = c.lotesRaw ? `${c.lotesRaw}   ${ivaLabel}` : ivaLabel;
+            const loteH = Math.max(ROW_H2, doc.heightOfString(loteStr, { width: COL.desc.w + COL.vu.w + COL.importe.w - 4 }) + 4);
+            doc.rect(ML, curY, CONTENT_W, loteH).fillColor('#f0f4ff').fill();
             doc.font('Helvetica').fontSize(6.5).fillColor('#444');
-            const loteStr = [
-                c.lote ? `Lote: ${c.lote}` : '',
-                c.fechaCad ? `Fec/Cad: ${c.fechaCad}` : '',
-                c.pzas ? `Pzas: ${c.pzas}` : '',
-                c.tasaIva > 0 ? `IVA: ${Math.round(c.tasaIva * 100)}%` : 'IVA exento',
-            ].filter(Boolean).join('   ');
             doc.text(loteStr, COL.desc.x + 2, curY + 2, { width: COL.desc.w + COL.vu.w + COL.importe.w - 4 });
             doc.fillColor('#000');
-            curY += ROW_H2;
+            curY += loteH;
 
             // Row bottom border
             doc.moveTo(ML, curY).lineTo(ML + CONTENT_W, curY).lineWidth(0.3).strokeColor('#ccc').stroke();
