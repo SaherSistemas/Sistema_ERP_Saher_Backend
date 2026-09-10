@@ -33,8 +33,37 @@ async function getDomicilio(calle: string | null, id_colonia: string | null): Pr
 async function procesarXml(xmlPath: string) {
     const filename = path.basename(xmlPath);
     if (PROCESADOS.has(filename)) return;
-    PROCESADOS.add(filename);
 
+    // ── Pre-filtro por nombre de archivo ────────────────────────────────────
+    // Formato: SERIE_FOLIO_RFC_EMPRESA_RFC_CLIENTE.xml  (ej: FSH_37046_FSS...xml)
+    // Verificamos en BD si existe una factura PEN con ese folio ANTES de leer el XML.
+    // Esto evita leer y parsear los miles de XMLs históricos que nunca tendrán match.
+    const sinExt      = filename.replace(/\.xml$/i, '');
+    const partes      = sinExt.split('_');
+    const serieNombre = partes[0] ?? '';
+    const folioNombre = partes[1] ?? '';
+
+    const candidatosPrevios = [
+        `${serieNombre}${folioNombre}`,   // "FSH37046"
+        folioNombre,                       // "37046"
+    ].filter(Boolean);
+
+    let factura: Facturas | null = null;
+    for (const c of candidatosPrevios) {
+        factura = await Facturas.findOne({
+            where: { folio_factura: c, uuid_sat: null },   // PEN o cualquier estatus sin UUID
+        });
+        if (factura) break;
+    }
+
+    // Sin factura sin UUID → ignorar silenciosamente (archivo histórico o ya procesado)
+    if (!factura) {
+        PROCESADOS.add(filename);   // no volver a chequear en esta sesión
+        return;
+    }
+
+    // Hay una factura PEN que puede corresponder → ahora sí leer y parsear el XML
+    PROCESADOS.add(filename);
     console.log(`[XmlWatcher] Procesando: ${filename}`);
 
     let xmlContent: string;
@@ -54,36 +83,22 @@ async function procesarXml(xmlPath: string) {
         return;
     }
 
-    // El nombre del archivo viene como: FSH_37046_RFC_EMPRESA_RFC_CLIENTE.xml
-    // Extraemos Serie y Folio del nombre para buscar la factura con mayor precisión
-    const sinExt = filename.replace(/\.xml$/i, '');
-    const partes = sinExt.split('_');
-    // partes[0]=Serie  partes[1]=Folio  partes[2]=RFC_Empresa  partes[3]=RFC_Cliente
-    const serieNombre = partes[0] ?? cfdi.serie;
-    const folioNombre = partes[1] ?? cfdi.folio;
-
-    const candidatos = [
-        `${serieNombre}${folioNombre}`,   // "FSH37046"
-        folioNombre,                       // "37046"
-        `${cfdi.serie}${cfdi.folio}`,     // del XML
-        cfdi.folio,
-    ];
-
-    let factura: Facturas | null = null;
-    for (const candidato of candidatos) {
-        factura = await Facturas.findOne({ where: { folio_factura: candidato, estatus_factura: 'PEN' } });
-        if (factura) break;
+    // Refinar búsqueda con datos reales del XML por si el pre-filtro trajo el registro equivocado
+    if (factura.folio_factura !== `${cfdi.serie}${cfdi.folio}` && factura.folio_factura !== cfdi.folio) {
+        const candidatosXml = [`${cfdi.serie}${cfdi.folio}`, cfdi.folio];
+        let facturaXml: Facturas | null = null;
+        for (const c of candidatosXml) {
+            facturaXml = await Facturas.findOne({ where: { folio_factura: c, uuid_sat: null } });
+            if (facturaXml) break;
+        }
+        if (facturaXml) factura = facturaXml;
     }
 
-    // Si ya está timbrada con este UUID, ignorar
-    if (!factura) {
-        const yaExiste = await Facturas.findOne({ where: { uuid_sat: cfdi.uuid } });
-        if (yaExiste) {
-            console.log(`[XmlWatcher] UUID ${cfdi.uuid} ya registrado, se omite.`);
-            moverAProcesados(xmlPath);
-            return;
-        }
-        console.warn(`[XmlWatcher] No se encontró factura PEN para folio "${candidatos.join('" ni "')}"`);;
+    // Si ya está timbrada con este UUID en otra factura, mover y salir
+    const yaExiste = await Facturas.findOne({ where: { uuid_sat: cfdi.uuid } });
+    if (yaExiste) {
+        console.log(`[XmlWatcher] UUID ${cfdi.uuid} ya registrado, se omite.`);
+        moverAProcesados(xmlPath);
         return;
     }
 
