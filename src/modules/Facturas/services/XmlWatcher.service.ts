@@ -1,4 +1,5 @@
-import fs from 'fs';
+import fs from 'fs/promises';
+import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import Facturas from '../model/Facturas.model';
 import EmpresaSucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
@@ -34,41 +35,36 @@ async function procesarXml(xmlPath: string) {
     const filename = path.basename(xmlPath);
     if (PROCESADOS.has(filename)) return;
 
-    // ── Pre-filtro por nombre de archivo ────────────────────────────────────
-    // Formato: SERIE_FOLIO_RFC_EMPRESA_RFC_CLIENTE.xml  (ej: FSH_37046_FSS...xml)
-    // Verificamos en BD si existe una factura PEN con ese folio ANTES de leer el XML.
-    // Esto evita leer y parsear los miles de XMLs históricos que nunca tendrán match.
+    // Pre-filtro por nombre de archivo antes de leer el XML
     const sinExt      = filename.replace(/\.xml$/i, '');
     const partes      = sinExt.split('_');
     const serieNombre = partes[0] ?? '';
     const folioNombre = partes[1] ?? '';
 
     const candidatosPrevios = [
-        `${serieNombre}${folioNombre}`,   // "FSH37046"
-        folioNombre,                       // "37046"
+        `${serieNombre}${folioNombre}`,
+        folioNombre,
     ].filter(Boolean);
 
     let factura: Facturas | null = null;
     for (const c of candidatosPrevios) {
         factura = await Facturas.findOne({
-            where: { folio_factura: c, uuid_sat: null },   // PEN o cualquier estatus sin UUID
+            where: { folio_factura: c, uuid_sat: null },
         });
         if (factura) break;
     }
 
-    // Sin factura sin UUID → ignorar silenciosamente (archivo histórico o ya procesado)
     if (!factura) {
-        PROCESADOS.add(filename);   // no volver a chequear en esta sesión
+        PROCESADOS.add(filename);
         return;
     }
 
-    // Hay una factura PEN que puede corresponder → ahora sí leer y parsear el XML
     PROCESADOS.add(filename);
     console.log(`[XmlWatcher] Procesando: ${filename}`);
 
     let xmlContent: string;
     try {
-        xmlContent = fs.readFileSync(xmlPath, 'utf-8');
+        xmlContent = await fs.readFile(xmlPath, 'utf-8');
     } catch (err: any) {
         console.error(`[XmlWatcher] No se pudo leer ${filename}:`, err.message);
         PROCESADOS.delete(filename);
@@ -83,7 +79,7 @@ async function procesarXml(xmlPath: string) {
         return;
     }
 
-    // Refinar búsqueda con datos reales del XML por si el pre-filtro trajo el registro equivocado
+    // Refinar búsqueda con datos reales del XML
     if (factura.folio_factura !== `${cfdi.serie}${cfdi.folio}` && factura.folio_factura !== cfdi.folio) {
         const candidatosXml = [`${cfdi.serie}${cfdi.folio}`, cfdi.folio];
         let facturaXml: Facturas | null = null;
@@ -94,18 +90,18 @@ async function procesarXml(xmlPath: string) {
         if (facturaXml) factura = facturaXml;
     }
 
-    // Si ya está timbrada con este UUID en otra factura, mover y salir
+    // Si el UUID ya está registrado, mover y salir
     const yaExiste = await Facturas.findOne({ where: { uuid_sat: cfdi.uuid } });
     if (yaExiste) {
         console.log(`[XmlWatcher] UUID ${cfdi.uuid} ya registrado, se omite.`);
-        moverAProcesados(xmlPath);
+        await moverAProcesados(xmlPath);
         return;
     }
 
     // Guardar XML en carpeta de facturas
-    if (!fs.existsSync(RUTA_PDFS)) fs.mkdirSync(RUTA_PDFS, { recursive: true });
+    try { await fs.access(RUTA_PDFS); } catch { await fs.mkdir(RUTA_PDFS, { recursive: true }); }
     const xmlDest = path.join(RUTA_PDFS, `${cfdi.serie}${cfdi.folio}_${cfdi.uuid}.xml`);
-    fs.copyFileSync(xmlPath, xmlDest);
+    await fs.copyFile(xmlPath, xmlDest);
 
     // Cargar domicilios para el PDF
     const extras: PdfExtras = {};
@@ -142,26 +138,25 @@ async function procesarXml(xmlPath: string) {
 
     // Actualizar factura en BD
     await factura.update({
-        uuid_sat: cfdi.uuid,
-        fecha_timbrado: new Date(cfdi.fechaTimbrado),
+        uuid_sat:        cfdi.uuid,
+        fecha_timbrado:  new Date(cfdi.fechaTimbrado),
         estatus_factura: 'TIM',
-        id_forma_pago: cfdi.formaPago || factura.id_forma_pago,
-        id_metodo_pago: cfdi.metodoPago || factura.id_metodo_pago,
-        uso_cfdi: cfdi.receptor.usoCFDI || factura.uso_cfdi,
-        pdf_url: pdfPath,
-        xml_url: xmlDest,
+        id_forma_pago:   cfdi.formaPago   || factura.id_forma_pago,
+        id_metodo_pago:  cfdi.metodoPago  || factura.id_metodo_pago,
+        uso_cfdi:        cfdi.receptor.usoCFDI || factura.uso_cfdi,
+        pdf_url:         pdfPath,
+        xml_url:         xmlDest,
     });
 
     console.log(`[XmlWatcher] ✓ Factura ${factura.id_factura} timbrada. UUID=${cfdi.uuid}`);
-    moverAProcesados(xmlPath);
+    await moverAProcesados(xmlPath);
 }
 
-function moverAProcesados(xmlPath: string) {
+async function moverAProcesados(xmlPath: string) {
     try {
         const procesadosDir = path.join(path.dirname(xmlPath), 'procesados');
-        if (!fs.existsSync(procesadosDir)) fs.mkdirSync(procesadosDir, { recursive: true });
-        const dest = path.join(procesadosDir, path.basename(xmlPath));
-        fs.renameSync(xmlPath, dest);
+        try { await fs.access(procesadosDir); } catch { await fs.mkdir(procesadosDir, { recursive: true }); }
+        await fs.rename(xmlPath, path.join(procesadosDir, path.basename(xmlPath)));
     } catch (err: any) {
         console.warn('[XmlWatcher] No se pudo mover XML a procesados:', err.message);
     }
@@ -174,22 +169,47 @@ export function iniciarXmlWatcher() {
         return;
     }
 
-    if (!fs.existsSync(carpeta)) {
-        fs.mkdirSync(carpeta, { recursive: true });
+    if (!existsSync(carpeta)) {
+        mkdirSync(carpeta, { recursive: true });
         console.log(`[XmlWatcher] Carpeta creada: ${carpeta}`);
     }
 
     console.log(`[XmlWatcher] Vigilando: ${carpeta} (cada ${POLL_MS / 1000}s)`);
 
+    let corriendo = false;
+
     setInterval(async () => {
-        let archivos: string[];
+        if (corriendo) return;
+        corriendo = true;
         try {
-            archivos = fs.readdirSync(carpeta).filter(f => f.toLowerCase().endsWith('.xml'));
-        } catch {
-            return;
-        }
-        for (const archivo of archivos) {
-            await procesarXml(path.join(carpeta, archivo));
+            const hace48h = Date.now() - 48 * 60 * 60 * 1000;
+            let todos: string[];
+            try {
+                todos = await fs.readdir(carpeta);
+            } catch {
+                return;
+            }
+
+            const xmlsRecientes = (
+                await Promise.all(
+                    todos
+                        .filter(f => f.toLowerCase().endsWith('.xml'))
+                        .map(async f => {
+                            try {
+                                const stat = await fs.stat(path.join(carpeta, f));
+                                return stat.mtimeMs >= hace48h ? f : null;
+                            } catch {
+                                return null;
+                            }
+                        })
+                )
+            ).filter((f): f is string => f !== null);
+
+            for (const archivo of xmlsRecientes) {
+                await procesarXml(path.join(carpeta, archivo));
+            }
+        } finally {
+            corriendo = false;
         }
     }, POLL_MS);
 }
