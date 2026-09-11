@@ -403,19 +403,27 @@ export const Pedido_AlmacenRepository = {
       where,
       attributes: [
         'id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'tipo_pedido_alm',
-        'createdAt', 'inicio_surtido', 'fecha_max_entrega_alm', 'fecha_entrega_al_cliente',
+        'origen_pedido', 'createdAt', 'inicio_surtido', 'fecha_max_entrega_alm', 'fecha_entrega_al_cliente',
       ],
       include: [
         {
           model: Cliente_Almacen,
           as: 'cliente',
+          required: false,
           attributes: ['id_cliente_alm', 'id_interno_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm', 'rfc_cliente_alm', 'id_lista_precio_cliente_alm'],
         },
         {
           model: Agente_de_Venta,
           as: 'agente',
+          required: false,
           attributes: ['cod_identi_agente'],
           include: [{ model: Empleado, as: 'empleado', attributes: ['nombre_empleado', 'ap_pat_empleado'] }],
+        },
+        {
+          model: Empleado,
+          as: 'empleado_vale',
+          required: false,
+          attributes: ['id_empleado', 'nombre_empleado', 'ap_pat_empleado'],
         },
         {
           model: Detalle_Pedido_Almacen,
@@ -610,6 +618,7 @@ export const Pedido_AlmacenRepository = {
         pa.id_pedido_alm,
         pa.cod_int_pedido_alm,
         pa.status_pedido_alm,
+        pa.origen_pedido,
         pa."createdAt" AS fecha_pedido,
         pa.inicio_surtido,
         pa.fin_surtido,
@@ -617,11 +626,13 @@ export const Pedido_AlmacenRepository = {
         ca.razon_social_cliente_alm,
         ca.nom_corto_cliente_alm,
         CONCAT(ea.nombre_empleado, ' ', ea.ap_pat_empleado) AS nombre_agente,
-        CONCAT(es.nombre_empleado, ' ', es.ap_pat_empleado) AS nombre_surtidor
+        CONCAT(es.nombre_empleado, ' ', es.ap_pat_empleado) AS nombre_surtidor,
+        CONCAT(ev.nombre_empleado, ' ', ev.ap_pat_empleado) AS nombre_empleado_vale
       FROM pedido_almacen pa
-      JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+      LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
       LEFT JOIN agente_de_venta av ON av.id_agente = pa.id_agente_pedido_alm
       LEFT JOIN empleado ea ON ea.id_empleado = av.id_empleado
+      LEFT JOIN empleado ev ON ev.id_empleado = pa.id_empleado_vale
       LEFT JOIN (
         SELECT DISTINCT ON (dpa2.id_pedido_almacen) dpa2.id_pedido_almacen, adpa.id_usuario
         FROM detalle_pedido_almacen dpa2

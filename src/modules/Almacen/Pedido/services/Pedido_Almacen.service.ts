@@ -1104,6 +1104,33 @@ export const Pedido_AlmacenService = {
     }
   },
 
+  // Lotes disponibles para un artículo del pedido (para agregar lote extra en surtido papel)
+  getLotesDisponiblesDetalle: async (id_pedido_alm: string, id_detalle_pedido_almacen: string, id_empresa: string) => {
+    const detalle = await Detalle_Pedido_Almacen.findByPk(id_detalle_pedido_almacen, { attributes: ['id_articulo'] });
+    if (!detalle) throw { status: 404, message: 'Detalle no encontrado.' };
+
+    const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
+      detalle.id_articulo,
+      id_empresa,
+      9999
+    );
+
+    return plan.detalles
+      .filter((d: any) => d.lote && Number(d.cantidad_disponible) > 0)
+      .map((d: any) => ({
+        id_stock_ubicacion_lote: d.id_stock_ubicacion_lote,
+        id_lote_sucursal: d.lote.id_lote_sucursal,
+        id_ubicacion_sucursal: d.ubicacion?.id_ubicacion_sucursal ?? null,
+        numero_lote_sucursal: d.lote.numero_lote_sucursal,
+        fecha_venci_lote_sucursal: d.lote.fecha_venci_lote_sucursal ?? null,
+        migracion: d.lote.migracion ?? false,
+        existencia_lote: d.cantidad_disponible,
+        ubicacion: d.ubicacion
+          ? `${d.ubicacion.pasillo_ub}-${d.ubicacion.anaquel_ub}-${d.ubicacion.nivel_ub}-${d.ubicacion.posicion_ub}`
+          : null,
+      }));
+  },
+
   // Asignar un pedido específico a un surtidor por código interno
   asignarSurtidorPorCodigo: async (id_pedido_alm: string, cod_interno: number, id_empresa: string) => {
     const empleado = await Empleado.findOne({ where: { idinterno_empleado: cod_interno } });

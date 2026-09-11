@@ -141,14 +141,6 @@ export async function generarPdfBulto(info: InfoBultoLabel): Promise<string> {
         doc.text(`Ciudad: Mazatlán, Sinaloa`, PAD, y, { width: W - PAD * 2 });
         y += 9;
 
-        // ── NO. PEDIDO GRANDE AL FONDO ────────────────────────────────────────
-        doc.moveTo(PAD, y).lineTo(W - PAD, y).lineWidth(0.5).strokeColor('#000').stroke();
-        y += 3;
-
-        const pedSize = info.cod_int_pedido_alm.length > 18 ? 14 : 18;
-        doc.font('Helvetica-Bold').fontSize(pedSize).fillColor('#000');
-        doc.text(info.cod_int_pedido_alm, PAD, y, { width: W - PAD * 2, align: 'center' });
-
         stream.on('finish', () => resolve(outPath));
         stream.on('error', reject);
         doc.end();
