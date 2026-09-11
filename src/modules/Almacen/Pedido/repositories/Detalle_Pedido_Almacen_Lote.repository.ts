@@ -48,7 +48,9 @@ export const Detalle_Pedido_Almacen_LoteRepository = {
                 lock: true,
             });
             if (!stock) continue;
-            await stock.update({ cantidad_apartada: row.cantidad }, { transaction });
+            await stock.update({
+                cantidad_apartada: Number(stock.cantidad_apartada) + row.cantidad,
+            }, { transaction });
         }
 
         return created;
