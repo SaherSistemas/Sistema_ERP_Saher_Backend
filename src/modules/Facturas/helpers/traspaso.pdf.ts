@@ -170,9 +170,35 @@ function _renderPaginaTraspaso(doc: InstanceType<typeof PDFDocument>, datos: Dat
     y += TH;
     hline(y);
 
+    const FOOTER_H = 35;
+    const MAX_Y    = PH - FOOTER_H;
+
+    const renderTableHeader = () => {
+        doc.rect(MX, y, CW, TH).fill('#e5e7eb');
+        let hx = MX;
+        COLS.forEach(col => {
+            doc.font('Helvetica-Bold').fontSize(6.5).fillColor(NEGRO)
+               .text(col.label, hx + 2, y + 3, { width: col.w - 4, align: col.align, lineBreak: false });
+            hx += col.w;
+        });
+        y += TH;
+        hline(y);
+    };
+
+    const checkPageBreak = () => {
+        if (y + TR > MAX_Y) {
+            hline(y, MX, MX + CW, 0.8, '#9ca3af');
+            doc.addPage({ size: 'LETTER', margin: 0 });
+            y = MY;
+            rowIdx = 0;
+            renderTableHeader();
+        }
+    };
+
     // Filas
     let rowIdx = 0;
     datos.items.forEach(item => {
+        checkPageBreak();
         if (rowIdx % 2 === 0) doc.rect(MX, y, CW, TR).fill('#f9fafb');
         cx = MX;
         ['', '', '', '', '', String(item.cod_int_artic), item.cod_barras, item.descripcion, TIPO_LABEL]
@@ -186,6 +212,7 @@ function _renderPaginaTraspaso(doc: InstanceType<typeof PDFDocument>, datos: Dat
         rowIdx++;
 
         item.lotes.forEach(lote => {
+            checkPageBreak();
             if (rowIdx % 2 === 0) doc.rect(MX, y, CW, TR).fill('#f9fafb');
             cx = MX;
             [lote.cantidad.toFixed(4), lote.lote, lote.fecha_venci,

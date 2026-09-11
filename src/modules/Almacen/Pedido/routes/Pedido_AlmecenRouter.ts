@@ -42,6 +42,7 @@ router.post('/:id_pedido_alm/asignar-surtidor-cod', Pedido_AlmacenController.asi
 router.post('/:id_pedido_alm/finalizar-surtido-papel', Pedido_AlmacenController.finalizarSurtidoPapel);
 
 // 1. RUTAS ESPECÍFICAS PRIMERO
+router.post('/:id_pedido_alm/reimprimir-traspaso', Pedido_AlmacenController.reimprimirTraspaso);
 router.post('/:id_pedido_alm/negar-diferencias-chequeo', Pedido_AlmacenController.negarDiferenciasChequeo);
 router.get('/:id_pedido_alm/cambios-precio-chequeo', Pedido_AlmacenController.getCambiosPrecioChequeo);
 router.patch('/:id_pedido_alm/cambiar-status', Pedido_AlmacenController.cambiarStatus);

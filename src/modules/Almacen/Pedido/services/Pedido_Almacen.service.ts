@@ -33,8 +33,8 @@ import Detalle_Pedido_Almacen_LoteModel from '../model/Detalle_Pedido_Almacen_Lo
 import Detalle_Pedido_Almacen_AsignacionModel from '../model/Detalle_Pedido_Almacen_Asignacion';
 
 
-// ── Helper privado: genera e imprime el traspaso de medicamentos al terminar chequeo ──
-async function _generarTraspasoCheckeado(id_pedido_alm: string): Promise<void> {
+// ── Helper: genera e imprime el traspaso de medicamentos ──
+export async function _generarTraspasoCheckeado(id_pedido_alm: string): Promise<void> {
   const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { raw: true }) as any;
   if (!pedido || pedido.tipo_pedido_alm !== 'TRA') return;
 

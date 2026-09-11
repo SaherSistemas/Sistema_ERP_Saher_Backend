@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { Pedido_AlmacenService } from '../services/Pedido_Almacen.service';
+import { Pedido_AlmacenService, _generarTraspasoCheckeado } from '../services/Pedido_Almacen.service';
 import { ActualizarDetallesPedidoRequest } from '../interface/Pedido_Almacen';
 import { io } from '../../../../server_ws';
 import { AuthedRequest } from '../../../../middleware/auth';
@@ -518,6 +518,16 @@ export class Pedido_AlmacenController {
       });
       if (!deleted) { res.status(404).json({ mensaje: 'Detalle no encontrado' }); return; }
       res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ mensaje: error.message });
+    }
+  };
+
+  static reimprimirTraspaso = async (req: Request, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      await _generarTraspasoCheckeado(id_pedido_alm);
+      res.status(200).json({ mensaje: 'Traspaso generado y encolado para impresión' });
     } catch (error: any) {
       res.status(500).json({ mensaje: error.message });
     }
