@@ -521,6 +521,19 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // POST /:id_pedido_alm/entregar-vale — descuenta stock y cierra el vale
+  static entregarVale = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const id_empresa = req.user?.id_empresa;
+      const id_empleado = req.user?.id_usuario;
+      const resultado = await Pedido_AlmacenService.entregarVale(id_pedido_alm, id_empresa, id_empleado);
+      res.json(resultado);
+    } catch (error: any) {
+      res.status(error.status || 500).json({ message: error.message || 'Error al entregar vale.' });
+    }
+  };
+
   // DELETE /pedido/:id/detalle/:id_detalle  — elimina un renglón (solo admin)
   static eliminarDetalle = async (req: Request, res: Response) => {
     try {

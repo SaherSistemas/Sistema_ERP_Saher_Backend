@@ -31,6 +31,7 @@ import Trabajo_Impresion from '../../../Impresiones/model/Trabajo_Impresion';
 import Detalle_Pedido_Almacen_ChequeoModel from '../model/Detalle_Pedido_Almacen_Chequeo';
 import Detalle_Pedido_Almacen_LoteModel from '../model/Detalle_Pedido_Almacen_Lote';
 import Detalle_Pedido_Almacen_AsignacionModel from '../model/Detalle_Pedido_Almacen_Asignacion';
+import { Kardex_Movimiento_ArticuloRepository } from '../../Kardex/repositories/Kardex_Movimiento_Articulo.repository';
 
 
 // ── Helper: genera e imprime el traspaso de medicamentos ──
@@ -1383,6 +1384,35 @@ export const Pedido_AlmacenService = {
 
     await pedido.update({ status_pedido_alm: nuevo_status });
     return { ok: true, status_anterior, nuevo_status, limpieza: 'ninguna' };
+  },
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ENTREGAR VALE — descuenta stock + kardex + cambia status a EN
+  // ══════════════════════════════════════════════════════════════════════
+  entregarVale: async (id_pedido_alm: string, id_empresa: string, id_empleado: string) => {
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm);
+    if (!pedido) throw { status: 404, message: 'Pedido no encontrado.' };
+    if (pedido.origen_pedido !== 'VALE') throw { status: 400, message: 'Solo se pueden entregar pedidos de tipo VALE.' };
+    if (pedido.status_pedido_alm !== 'EM') throw { status: 400, message: `El pedido debe estar en Empaque para entregarse. Status actual: ${pedido.status_pedido_alm}` };
+
+    const t = await dbLocal.transaction();
+    try {
+      await Stock_Ubicacion_LoteRepository.descontarStockPorPedido(id_pedido_alm, t);
+      await Kardex_Movimiento_ArticuloRepository.registrarSalidaPorFactura({
+        id_pedido_alm,
+        id_empresa,
+        id_empleado,
+        id_factura: id_pedido_alm, // no hay factura; usamos el id del pedido como referencia
+        cod_pedido: pedido.cod_int_pedido_alm,
+        t,
+      });
+      await pedido.update({ status_pedido_alm: 'EN' }, { transaction: t });
+      await t.commit();
+      return { ok: true };
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
   },
 
 };
