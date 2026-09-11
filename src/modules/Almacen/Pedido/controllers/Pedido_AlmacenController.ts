@@ -526,7 +526,7 @@ export class Pedido_AlmacenController {
     try {
       const { id_pedido_alm } = req.params;
       const id_empresa = req.user?.id_empresa;
-      const id_empleado = req.user?.id_usuario;
+      const id_empleado = req.user?.id_referencia_persona;
       const resultado = await Pedido_AlmacenService.entregarVale(id_pedido_alm, id_empresa, id_empleado);
       res.json(resultado);
     } catch (error: any) {
