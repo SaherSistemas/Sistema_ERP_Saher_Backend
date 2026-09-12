@@ -223,26 +223,21 @@ export const Pedido_AlmacenRepository = {
       where: { id_agente, dia_semana: diaSemana, activa: true }
     });
     //console.log("REGLA HOY:", reglaHoy)
-    if (!reglaHoy) throw new Error('No existe regla de horario para este agente en el día actual');
+    if (reglaHoy) {
+      const horaReciboMax = reglaHoy.hora_recibo_max;
+      const horaEntregaMax = reglaHoy.hora_entrega_max;
 
-    const horaReciboMax = reglaHoy.hora_recibo_max; // <-- ESTA ES LA IMPORTANTE PARA COMPARAR
-    //console.log("HORA RECIBO MAX:", horaReciboMax)
-    const horaEntregaMax = reglaHoy.hora_entrega_max; // <-- ESTA ES LA HORA DE ENTREGA DEL DÍA
-    //console.log("HORA ENTREGA MAX:", horaEntregaMax)
-
-    // 2. Comparar hora actual con hora_recibo_max
-    const pedidoEsAntesDeLimite = horaActual <= horaReciboMax;
-    //console.log("PEDIDO ES ANTES DE LIMITE:", pedidoEsAntesDeLimite)
-    if (pedidoEsAntesDeLimite) {
-      // ENTREGA HOY A hora_entrega_max
-      const fecha = new Date(fechaPedido);
-      const [hh, mm, ss] = horaEntregaMax.split(':').map(Number);
-      fecha.setHours(hh, mm, ss, 0);
-      //console.log("FECHA ENTREGA HOY:", fecha)
-      return fecha;
+      // 2. Comparar hora actual con hora_recibo_max
+      const pedidoEsAntesDeLimite = horaActual <= horaReciboMax;
+      if (pedidoEsAntesDeLimite) {
+        const fecha = new Date(fechaPedido);
+        const [hh, mm, ss] = horaEntregaMax.split(':').map(Number);
+        fecha.setHours(hh, mm, ss, 0);
+        return fecha;
+      }
     }
 
-    // 3. Buscar regla del día siguiente (o siguiente día válido)
+    // 3. No hay regla hoy o ya pasó el límite — buscar siguiente día válido
     let diaSiguiente = (diaSemana + 1) % 7;
 
     let reglaSiguiente = await Prioridad_Agente_Reglas.findOne({
