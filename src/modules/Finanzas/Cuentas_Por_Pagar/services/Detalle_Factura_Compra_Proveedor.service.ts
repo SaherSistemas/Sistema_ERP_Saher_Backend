@@ -14,10 +14,33 @@ import { DetalleListaPreciosRepository } from "../../../Comercial/Precios/reposi
 import { ICreateOrUpdateIDetalleListaPrecio } from "../../../Comercial/Precios/interface/Detalle_Lista_Pecios.interface";
 import Detalle_Compra_Solicitado from "../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado";
 import ListaPrecio from "../../../Comercial/Precios/model/Lista_Precio";
+import Factura_Compra_Proveedor from "../model/Factura_Compra_Proveedor";
+import Detalle_Factura_Compra_Proveedor from "../model/Detalle_Factura_Compra_Proveedor";
 
 export const Detalle_Factura_Compra_ProveedorService = {
     modificarLotesYDetallesRecibidosFacturaProveedor: async (data: IModificarLotesDetalleFacturaDTO, usuario_empleado_chequeo: string) => {
         // console.log("modificarLotesYDetallesRecibidosFacturaProveedor", { data, usuario_empleado_chequeo });
+
+        // Validar que la factura esté en estado R o C (no chequeada aún)
+        const detalleCheck = await Detalle_Factura_Compra_ProveedorRepository.getByPK(data.id_factura_proveedor_detalle).catch(() => null);
+        if (detalleCheck) {
+            const facturaCheck = await Factura_Compra_Proveedor.findByPk(detalleCheck.id_factura_compra_proveedor).catch(() => null);
+            if (facturaCheck && !['C', 'R'].includes((facturaCheck as any).estado_factura_proveedor)) {
+                throw new Error('Solo se pueden modificar lotes de facturas en estado Recibida (R) o Capturada (C).');
+            }
+        }
+
+        // Actualizar precio/descuento/IVA si vienen en el payload
+        if (data.precio !== undefined || data.descuento_pct !== undefined || data.iva_pct !== undefined) {
+            const updateFields: Record<string, number> = {};
+            if (data.precio !== undefined)        updateFields.precio_articulo_factura   = data.precio;
+            if (data.descuento_pct !== undefined) updateFields.descuento_articulo_factura = data.descuento_pct;
+            if (data.iva_pct !== undefined)       updateFields.iva_articulo_factura       = data.iva_pct;
+            await Detalle_Factura_Compra_Proveedor.update(updateFields, {
+                where: { id_factura_proveedor_detalle: data.id_factura_proveedor_detalle },
+            });
+        }
+
         const t = await dbLocal.transaction({
             isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
         });

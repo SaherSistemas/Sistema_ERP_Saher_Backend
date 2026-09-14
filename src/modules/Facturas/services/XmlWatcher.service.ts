@@ -1,10 +1,12 @@
 import fs from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
+import { XMLParser } from 'fast-xml-parser';
 import Facturas from '../model/Facturas.model';
+import FacturaPagoCFDI from '../model/Factura_Pago_CFDI.model';
 import EmpresaSucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
-import { QueryTypes } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { dbLocal } from '../../../config/db';
 import { parseCfdiXml, generarPdfDesdeCfdi, PdfExtras } from '../helpers/cfdi-xml-to-pdf.helper';
 import { RUTA_PDFS } from '../helpers/pdf.helper';
@@ -33,9 +35,98 @@ async function getDomicilio(calle: string | null, id_colonia: string | null): Pr
     return partes.join(', ');
 }
 
+// ─── Complemento de Pago (TipoDeComprobante="P") ──────────────────────────────
+async function procesarXmlPago(xmlPath: string, xmlContent: string) {
+    const filename = path.basename(xmlPath);
+    const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+    const doc = parser.parse(xmlContent);
+
+    const comp = doc['cfdi:Comprobante'] ?? doc['Comprobante'];
+    if (!comp) return;
+
+    const tfd   = comp['cfdi:Complemento']?.['tfd:TimbreFiscalDigital'];
+    const uuid  = tfd?.['@_UUID'] as string | undefined;
+    const fecha = tfd?.['@_FechaTimbrado'] as string | undefined;
+
+    if (!uuid) {
+        console.warn(`[XmlWatcher][Pago] Sin UUID en ${filename}`);
+        return;
+    }
+
+    // Extraer UUIDs de documentos relacionados del complemento pago20
+    const pagosNode = comp['cfdi:Complemento']?.['pago20:Pagos']
+                   ?? comp['cfdi:Complemento']?.['pago10:Pagos'];
+    const pagoArr   = pagosNode?.['pago20:Pago'] ?? pagosNode?.['pago10:Pago'];
+    const pagos     = Array.isArray(pagoArr) ? pagoArr : pagoArr ? [pagoArr] : [];
+
+    const uuidsRelacionados: string[] = [];
+    for (const pago of pagos) {
+        const docArr = pago['pago20:DoctoRelacionado'] ?? pago['pago10:DoctoRelacionado'];
+        const docs   = Array.isArray(docArr) ? docArr : docArr ? [docArr] : [];
+        for (const d of docs) {
+            const id = d['@_IdDocumento'] as string | undefined;
+            if (id) uuidsRelacionados.push(id.toUpperCase());
+        }
+    }
+
+    if (!uuidsRelacionados.length) {
+        console.warn(`[XmlWatcher][Pago] Sin documentos relacionados en ${filename}`);
+        return;
+    }
+
+    // Buscar FacturaPagoCFDI pendiente que coincida con alguno de esos UUIDs
+    const cfdis = await FacturaPagoCFDI.findAll({
+        where: {
+            uuid_relacionado: { [Op.in]: uuidsRelacionados },
+            estatus_timbrado: { [Op.in]: ['PEN', 'ERR'] },
+        },
+    });
+
+    if (!cfdis.length) {
+        console.log(`[XmlWatcher][Pago] No hay CFDIs PEN/ERR para UUIDs: ${uuidsRelacionados.join(', ')}`);
+        return;
+    }
+
+    // Guardar XML en carpeta de PDFs
+    try { await fs.access(RUTA_PDFS); } catch { await fs.mkdir(RUTA_PDFS, { recursive: true }); }
+    const xmlDest = path.join(RUTA_PDFS, `Pago_${uuid}.xml`);
+    await fs.copyFile(xmlPath, xmlDest);
+
+    // Actualizar todos los CFDIs del grupo a TIM
+    for (const cfdi of cfdis) {
+        await cfdi.update({
+            uuid_cfdi_pago:   uuid,
+            fecha_timbrado:   fecha ? new Date(fecha) : new Date(),
+            estatus_timbrado: 'TIM',
+            xml_url:          xmlDest,
+        } as any);
+        console.log(`[XmlWatcher][Pago] ✓ FacturaPagoCFDI ${cfdi.id_pago_cfdi} → TIM. UUID=${uuid}`);
+    }
+}
+
+// ─── Factura de Ingreso/Egreso ────────────────────────────────────────────────
 async function procesarXml(xmlPath: string) {
     const filename = path.basename(xmlPath);
     if (PROCESADOS.has(filename)) return;
+
+    // Leer XML primero para detectar tipo
+    let xmlContent: string;
+    try {
+        xmlContent = await fs.readFile(xmlPath, 'utf-8');
+    } catch (err: any) {
+        console.error(`[XmlWatcher] No se pudo leer ${filename}:`, err.message);
+        return;
+    }
+
+    // Detectar TipoDeComprobante
+    const tipoMatch = xmlContent.match(/TipoDeComprobante\s*=\s*["']([^"']+)["']/i);
+    const tipo = tipoMatch?.[1] ?? '';
+
+    if (tipo === 'P') {
+        PROCESADOS.add(filename);
+        await procesarXmlPago(xmlPath, xmlContent);
+        return;
+    }
 
     // Pre-filtro por nombre de archivo antes de leer el XML
     const sinExt      = filename.replace(/\.xml$/i, '');
@@ -63,15 +154,6 @@ async function procesarXml(xmlPath: string) {
 
     PROCESADOS.add(filename);
     console.log(`[XmlWatcher] Procesando: ${filename}`);
-
-    let xmlContent: string;
-    try {
-        xmlContent = await fs.readFile(xmlPath, 'utf-8');
-    } catch (err: any) {
-        console.error(`[XmlWatcher] No se pudo leer ${filename}:`, err.message);
-        PROCESADOS.delete(filename);
-        return;
-    }
 
     let cfdi: ReturnType<typeof parseCfdiXml>;
     try {

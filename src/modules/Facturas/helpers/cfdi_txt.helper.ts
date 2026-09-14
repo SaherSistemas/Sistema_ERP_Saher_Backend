@@ -277,8 +277,13 @@ export interface DocumentoPagoTxt {
     saldo_insoluto: number;
     num_parcialidad: number;
     moneda: string;
-    tasa_iva: number;   // 0 si exento
+    tasa_iva: number;       // 0.16, 0.08, 0 o -1 (exento)
+    base_iva?: number;      // monto sin IVA proporcional al pago
+    impuesto_iva?: number;  // IVA proporcional al pago
 }
+
+// Formas de pago que requieren datos bancarios (transferencia, cheque, etc.)
+const FORMAS_CON_BANCO = new Set(['02', '03', '04', '05', '06', '28', '29']);
 
 export function generarTxtPago(opts: {
     emisor: EmisorTxt;
@@ -287,8 +292,9 @@ export function generarTxtPago(opts: {
     fecha_pago: string;   // YYYY-MM-DD
     id_forma_pago: string;
     num_operacion?: string;
-    rfc_cta_ord?: string;
-    rfc_cta_ben?: string;
+    rfc_cta_ord?: string;   // RFC banco receptor (banco del cliente)
+    rfc_cta_ben?: string;   // RFC banco emisor  (banco de la empresa)
+    num_cuenta_banco?: string;  // cuenta de la empresa
     documentos: DocumentoPagoTxt[];
     moneda?: string;
     nombreArchivo?: string;
@@ -296,14 +302,27 @@ export function generarTxtPago(opts: {
 
     const { emisor, receptor, folio, fecha_pago, id_forma_pago, documentos } = opts;
     const moneda = opts.moneda ?? 'MXN';
+    const esBancario = FORMAS_CON_BANCO.has(id_forma_pago);
+
+    // Para efectivo: todos los campos bancarios vacíos. Para transferencia/cheque: usar datos del banco.
+    const num_cuenta  = esBancario ? (opts.num_cuenta_banco ?? '') : '.';
+    const rfc_cta_ord = esBancario ? (opts.rfc_cta_ord ?? '')      : '';
+    const rfc_cta_ben = esBancario ? (opts.rfc_cta_ben ?? '')      : '';
     const num_operacion = opts.num_operacion ?? '';
-    const rfc_cta_ord = opts.rfc_cta_ord ?? '.';
-    const rfc_cta_ben = opts.rfc_cta_ben ?? '.';
     const montoTotal = documentos.reduce((s, d) => s + d.monto_pago, 0);
 
-    // Agrupa bases IVA para INFO_PAGOS
-    const baseIva16 = documentos.filter(d => d.tasa_iva >= 0.16).reduce((s, d) => s + d.monto_pago, 0);
-    const baseIva0 = documentos.filter(d => d.tasa_iva < 0.16 && d.tasa_iva >= 0).reduce((s, d) => s + d.monto_pago, 0);
+    // Agrupa bases e impuestos IVA para INFO_PAGOS (usa base_iva/impuesto_iva si vienen calculados)
+    const docs16    = documentos.filter(d => d.tasa_iva >= 0.16);
+    const docs8     = documentos.filter(d => d.tasa_iva >= 0.08 && d.tasa_iva < 0.16);
+    const docs0     = documentos.filter(d => d.tasa_iva === 0);
+    const docsExento = documentos.filter(d => d.tasa_iva < 0);
+
+    const baseIva16 = docs16.reduce((s, d) => s + (d.base_iva ?? d.monto_pago / 1.16), 0);
+    const impIva16  = docs16.reduce((s, d) => s + (d.impuesto_iva ?? d.monto_pago - d.monto_pago / 1.16), 0);
+    const baseIva8  = docs8.reduce((s, d) => s + (d.base_iva ?? d.monto_pago / 1.08), 0);
+    const impIva8   = docs8.reduce((s, d) => s + (d.impuesto_iva ?? d.monto_pago - d.monto_pago / 1.08), 0);
+    const baseIva0  = docs0.reduce((s, d) => s + (d.base_iva ?? d.monto_pago), 0);
+    const baseExento = docsExento.reduce((s, d) => s + (d.base_iva ?? d.monto_pago), 0);
 
     const L: string[] = [];
     L.push('[DATOS_EMISOR]');
@@ -364,34 +383,54 @@ export function generarTxtPago(opts: {
     L.push('TotalRetensionesISR: 0.00');
     L.push('TotalRetensionesIEPS: 0.00');
     L.push(`TotalTrasladosBaseIVA16: ${fmt2(baseIva16)}`);
-    L.push(`TotalTrasladosImpuestoIVA16: 0.00`);
-    L.push('TotalTrasladosBaseIVA8: 0.00');
-    L.push('TotalTrasladosImpuestoIVA8: 0.00');
+    L.push(`TotalTrasladosImpuestoIVA16: ${fmt2(impIva16)}`);
+    L.push(`TotalTrasladosBaseIVA8: ${fmt2(baseIva8)}`);
+    L.push(`TotalTrasladosImpuestoIVA8: ${fmt2(impIva8)}`);
     L.push(`TotalTrasladosBaseIVA0: ${fmt2(baseIva0)}`);
     L.push('TotalTrasladosImpuestoIVA0: 0.00');
-    L.push('TotalTrasladosBaseIVAExento: 0.00');
+    L.push(`TotalTrasladosBaseIVAExento: ${fmt2(baseExento)}`);
     L.push('[/INFO_PAGOS]', '');
 
     L.push('[PAGOS]');
     L.push(
-        `P1: ${num_operacion}@${rfc_cta_ord}@.@${rfc_cta_ben}@${fmt2(montoTotal)}@${moneda}@1@${id_forma_pago}@${fecha_pago}@@@@@.@`
+        `P1: ${num_cuenta}@${rfc_cta_ord}@.@${rfc_cta_ben}@${fmt2(montoTotal)}@${moneda}@1@${id_forma_pago}@${fecha_pago}@@@@@.@`
     );
     L.push('[/PAGOS]', '');
 
     L.push('[PAGOS_IMPUESTOS_RETENIDOS]');
     L.push('[/PAGOS_IMPUESTOS_RETENIDOS]', '');
 
-    L.push('[PAGOS_IMPUESTOS_TRASLADOS]');
-    documentos.forEach((_d, i) => {
-        L.push(`PIT${i + 1}: P1@002@${fmt2(documentos[i].monto_pago)}@0.00@Tasa@0.000000`);
-    });
-    L.push('[/PAGOS_IMPUESTOS_TRASLADOS]', '');
+    // PAGOS_IMPUESTOS_TRASLADOS: acumulado por tasa de todos los documentos del pago P1
+    {
+        const acum16 = { base: 0, imp: 0 };
+        const acum0  = { base: 0 };
+        documentos.forEach(d => {
+            const tasa = d.tasa_iva ?? 0;
+            if (tasa >= 0.16) {
+                acum16.base += d.base_iva      ?? 0;
+                acum16.imp  += d.impuesto_iva  ?? 0;
+            } else if (tasa >= 0.08) {
+                // 8% — si aplica en el futuro
+            } else {
+                acum0.base  += d.base_iva ?? d.monto_pago;
+            }
+        });
+        L.push('[PAGOS_IMPUESTOS_TRASLADOS]');
+        let pitIdx = 1;
+        if (acum16.base > 0 || acum16.imp > 0) {
+            L.push(`PIT${pitIdx++}: P1@002@${fmt2(acum16.base)}@${fmt2(acum16.imp)}@Tasa@0.160000`);
+        }
+        if (acum0.base > 0) {
+            L.push(`PIT${pitIdx++}: P1@002@${fmt2(acum0.base)}@0.00@Tasa@0.000000`);
+        }
+        L.push('[/PAGOS_IMPUESTOS_TRASLADOS]', '');
+    }
 
     L.push('[DOCTOS_PAGOS]');
     documentos.forEach((d, i) => {
         L.push(
-            `DP${i + 1}: P1@${d.folio_factura}@${d.serie_factura}@${fmt2(d.saldo_anterior)}` +
-            `@${fmt2(d.monto_pago)}@${fmt2(d.saldo_insoluto)}@${d.num_parcialidad}@${d.moneda}@1@${d.uuid_relacionado.toUpperCase()}@02`
+            `DP${i + 1}: P1@${d.folio_factura}@${d.serie_factura}@${fmt2(d.saldo_insoluto)}` +
+            `@${fmt2(d.monto_pago)}@${fmt2(d.saldo_anterior)}@${d.num_parcialidad}@${d.moneda}@1@${d.uuid_relacionado.toUpperCase()}@02`
         );
     });
     L.push('[/DOCTOS_PAGOS]', '');
@@ -399,11 +438,23 @@ export function generarTxtPago(opts: {
     L.push('[DOCTOS_PAGOS_RETENCIONES]');
     L.push('[/DOCTOS_PAGOS_RETENCIONES]', '');
 
-    L.push('[DOCTOS_PAGOS_TRASLADOS]');
-    documentos.forEach((d, i) => {
-        L.push(`DPT${i + 1}: DP${i + 1}@002@${fmt2(d.monto_pago)}@0.00@Tasa@0.000000`);
-    });
-    L.push('[/DOCTOS_PAGOS_TRASLADOS]', '');
+    // DOCTOS_PAGOS_TRASLADOS: una línea por documento por tasa, con base e impuesto reales
+    {
+        L.push('[DOCTOS_PAGOS_TRASLADOS]');
+        let dptIdx = 1;
+        documentos.forEach((d, i) => {
+            const tasa = d.tasa_iva ?? 0;
+            if (tasa >= 0.16) {
+                const base = d.base_iva     ?? 0;
+                const imp  = d.impuesto_iva ?? 0;
+                L.push(`DPT${dptIdx++}: DP${i + 1}@002@${fmt2(base)}@${fmt2(imp)}@Tasa@0.160000`);
+            } else {
+                const base = d.base_iva ?? d.monto_pago;
+                L.push(`DPT${dptIdx++}: DP${i + 1}@002@${fmt2(base)}@0.00@Tasa@0.000000`);
+            }
+        });
+        L.push('[/DOCTOS_PAGOS_TRASLADOS]', '');
+    }
 
     const contenido = L.join('\r\n');
     const nombreArchivo = opts.nombreArchivo ?? `PagoDig${series.pago}${folio}-Pagos.txt`;

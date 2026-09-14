@@ -50,6 +50,7 @@ router.get('/cfdi-por-timbrar', CxCController.getCFDIPorTimbrar);
 router.get('/pagos/sin-cfdi', CxCController.getPagosAplicadosSinCFDI);
 router.post('/timbrar-pagos', CxCController.timbrarPagosPendientes);
 router.post('/pago/:id_pago_cxc/timbrar-manual', CxCController.timbrarManual);
+router.post('/pago-cfdi/:id_pago_cfdi/regenerar-txt', CxCController.regenerarTxtPagoCFDI);
 
 // ─── RECIBO DE COBRANZA PDF ───────────────────────────────────────────────────
 // GET /api/cxc/recibo/:numero_recibo/pdf

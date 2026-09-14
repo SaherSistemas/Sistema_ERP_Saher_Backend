@@ -76,14 +76,15 @@ export function particionarConceptos(
 }
 
 export async function crearCxCyRemision(params: {
-    factura_id:      string;
-    cab:             Pick<DatosFacturacionCabecera, 'id_pedido_alm' | 'id_cliente_alm' | 'id_agente_alm'>;
-    totales:         { subtotal: number; iva: number; total: number };
-    conceptos:       ConceptoFacturacion[];
-    dias_credito:    number;
+    factura_id:       string;
+    cab:              Pick<DatosFacturacionCabecera, 'id_pedido_alm' | 'id_cliente_alm' | 'id_agente_alm'>;
+    totales:          { subtotal: number; iva: number; total: number };
+    conceptos:        ConceptoFacturacion[];
+    dias_credito:     number;
     esPublicoGeneral: boolean;
+    forzar_credito?:  boolean;
 }, t: Transaction): Promise<string | null> {
-    const { factura_id, cab, totales, conceptos, dias_credito, esPublicoGeneral } = params;
+    const { factura_id, cab, totales, conceptos, dias_credito, esPublicoGeneral, forzar_credito } = params;
 
     const fecha_vencimiento = new Date();
     fecha_vencimiento.setDate(fecha_vencimiento.getDate() + dias_credito);
@@ -128,6 +129,7 @@ export async function crearCxCyRemision(params: {
         monto_total:       totales.total,
         fecha_vencimiento,
         dias_credito,
+        forzar_credito,
     }, t);
 
     return id_remision;

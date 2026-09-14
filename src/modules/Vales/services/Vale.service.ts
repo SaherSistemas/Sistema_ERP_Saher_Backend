@@ -67,7 +67,22 @@ export const ValeService = {
         if (!empleado) throw new Error('Empleado no encontrado');
 
         const totalVale = dto.articulos.reduce((s, a) => s + a.cantidad * a.precio_unitario, 0);
-        const disponible = Number(empleado.limite_credito_vale) - Number(empleado.saldo_vale_actual);
+
+        // Calcular deuda real desde pedidos activos (no usar saldo_vale_actual que puede estar desactualizado)
+        const [deudaRow] = await dbLocal.query<{ total_activos: string }>(`
+            SELECT COALESCE(SUM(
+                (SELECT COALESCE(SUM(dpa.precio_venta * dpa.cant_pedida), 0)
+                 FROM detalle_pedido_almacen dpa
+                 WHERE dpa.id_pedido_almacen = pa.id_pedido_alm)
+            ), 0) AS total_activos
+            FROM pedido_almacen pa
+            WHERE pa.id_empleado_vale = :id_empleado
+              AND pa.origen_pedido = 'VALE'
+              AND pa.status_pedido_alm NOT IN ('EN', 'PF', 'EC', 'CO', 'NE')
+        `, { type: QueryTypes.SELECT, replacements: { id_empleado: dto.id_empleado } });
+
+        const deudaActual = parseFloat(deudaRow?.total_activos ?? '0');
+        const disponible  = Number(empleado.limite_credito_vale) - deudaActual;
         if (totalVale > disponible) {
             throw new Error(
                 `El vale ($${totalVale.toFixed(2)}) supera el crédito disponible del empleado ($${disponible.toFixed(2)})`
@@ -202,9 +217,9 @@ export const ValeService = {
                     )
                 ), 0) AS total_vales_activos
             FROM empleado e
-            JOIN pedido_almacen pa ON pa.id_empleado_vale = e.id_empleado
+            LEFT JOIN pedido_almacen pa ON pa.id_empleado_vale = e.id_empleado
                 AND pa.origen_pedido = 'VALE'
-                AND pa.status_pedido_alm != 'FA'
+                AND pa.status_pedido_alm NOT IN ('EN', 'PF', 'EC', 'CO', 'NE', 'FA')
                 ${fecha_inicio ? `AND pa."createdAt"::date >= :fecha_inicio` : ''}
                 ${fecha_fin    ? `AND pa."createdAt"::date <= :fecha_fin`    : ''}
             WHERE e.id_sucursal_empleado = :id_empresa

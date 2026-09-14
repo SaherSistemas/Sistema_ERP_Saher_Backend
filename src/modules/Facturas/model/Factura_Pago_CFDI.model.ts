@@ -113,6 +113,12 @@ export class FacturaPagoCFDI extends Model<FacturaPagoCFDI> {
     })
     xml_url: string;
 
+    @Column({
+        type: DataType.DATE,
+        allowNull: true
+    })
+    fecha_timbrado: Date;
+
     // PEN=pendiente, TIM=timbrado, ERR=error
     @Default('PEN')
     @Column({

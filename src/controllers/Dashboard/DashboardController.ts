@@ -4,6 +4,8 @@ import { dashboardComprasService } from "../../services/Dashboard/dashboardCompr
 import { dashboardOperacionesService } from "../../services/Dashboard/dashboardOperaciones.service";
 import { CompraGeneralesService } from "../../modules/Compras/Ordenes-Compra/services/Compras.service";
 import { compraProveedorService } from "../../modules/Compras/Ordenes-Compra/services/compraProveedor.service";
+import { Op, QueryTypes } from "sequelize";
+import { dbLocal } from "../../config/db";
 
 export class Dash_CompraController {
     static getAllKpisCompras = async (req: Request, res: Response) => {
@@ -60,6 +62,34 @@ export class Dash_CompraController {
             res.status(500).json({ message: "Error al obtener todas las compras." });
         }
     }
+
+    static buscarPorFolioFactura = async (req: Request, res: Response) => {
+        try {
+            const { folio } = req.query as { folio?: string };
+            if (!folio?.trim()) { res.status(400).json({ message: 'Folio requerido.' }); return; }
+
+            const rows = await dbLocal.query<{
+                id_factura_proveedor:    string;
+                folio_factura_proveedor: string;
+                id_compra_proveedor:     string | null;
+                id_compra_general:       string | null;
+            }>(`
+                SELECT
+                    f.id_factura_proveedor,
+                    f.folio_factura_proveedor,
+                    f.id_compra_prove_factura AS id_compra_proveedor,
+                    cp.id_compra_general
+                FROM factura_compra_proveedor f
+                LEFT JOIN compra_proveedor cp ON cp.id_comp = f.id_compra_prove_factura
+                WHERE f.folio_factura_proveedor ILIKE :folio
+            `, { type: QueryTypes.SELECT, replacements: { folio: `%${folio.trim()}%` } });
+
+            res.json(rows);
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Error al buscar por folio.' });
+        }
+    };
 
     static getKpisOperaciones = async (_req: Request, res: Response) => {
         try {

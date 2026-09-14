@@ -280,10 +280,18 @@ export async function generarPdfDesdeCfdi(
             ly += 10;
         }
 
+        // Pedido folio under company name (left side)
+        if (pedido) {
+            doc.font('Helvetica-Bold').fontSize(8).fillColor('#1d4ed8');
+            doc.text(`Pedido: ${pedido}`, ML, ly, { width: leftW });
+            ly += 11;
+        }
+
         // Metadata table (right)
-        const metaRows = [
+        const metaRows: [string, string][] = [
             ['Tipo de comprobante', 'Ingreso'],
             ['Serie - Folio', `${cfdi.serie} - ${cfdi.folio}`],
+            ...(pedido ? [['Pedido', pedido] as [string, string]] : []),
             ['Fecha emisión', cfdi.fecha.replace('T', ' ')],
             ['Fecha timbrado', cfdi.fechaTimbrado.replace('T', ' ')],
             ['Forma de pago', cfdi.formaPago],
@@ -297,7 +305,8 @@ export async function generarPdfDesdeCfdi(
         metaRows.forEach(([label, value]) => {
             doc.font('Helvetica-Bold').fontSize(7).fillColor('#555');
             doc.text(label + ':', rightX, ry, { width: 90 });
-            doc.font('Helvetica').fontSize(7).fillColor('#000');
+            const esPedido = label === 'Pedido';
+            doc.font(esPedido ? 'Helvetica-Bold' : 'Helvetica').fontSize(7).fillColor(esPedido ? '#1d4ed8' : '#000');
             doc.text(value, rightX + 92, ry, { width: rightW - 92 });
             ry += cellH;
         });

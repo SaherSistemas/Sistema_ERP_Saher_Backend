@@ -46,8 +46,33 @@ import Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Fac
 import Detalle_Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Detalle_Factura_Compra_Proveedor';
 import Lote_Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Lote_Factura_Compra_Proveedor';
 import { v4 as uuidv4 } from 'uuid';
+import { UsuarioRepository } from '../../Seguridad/repositories/Usuario.repository';
+import { checkPassword } from '../../../utils/hashPassword';
 
 export { IGenerarFacturaDTO, IDetalleEgresoDTO, ITimbrarEgresoDTO, ITimbrarPagoDTO };
+
+async function verificarAdmin(usuario_admin: string, password_admin: string): Promise<void> {
+    const usernameNorm = usuario_admin.trim().toLowerCase();
+
+    // Permitir usuario maestro de .env
+    if (
+        process.env.MASTER_USER &&
+        process.env.MASTER_PASSWORD &&
+        usernameNorm === process.env.MASTER_USER.toLowerCase() &&
+        password_admin === process.env.MASTER_PASSWORD
+    ) return;
+
+    const usuario = await UsuarioRepository.usuarioPorUser(usernameNorm);
+    if (!usuario) throw new Error('Credenciales de administrador incorrectas.');
+
+    const ok = await checkPassword(password_admin, usuario.password_user);
+    if (!ok) throw new Error('Credenciales de administrador incorrectas.');
+
+    // Verificar que sea administrador (idrol_user = 1)
+    if ((usuario as any).idrol_user !== 1) {
+        throw new Error('El usuario no tiene permisos de administrador.');
+    }
+}
 
 function fechaVenciToDate(fechaVenci: string): string {
     const [mes, anio] = (fechaVenci ?? '').split('/');
@@ -242,7 +267,14 @@ export const FacturacionService = {
     // ── Timbrar Ingreso — genera .txt y registra en BD ────────────────────────
     timbrarIngreso: async (dto: IGenerarFacturaDTO) => {
 
-        const { id_pedido_alm, id_empresa, id_cliente_real, id_empleado } = dto;
+        const { id_pedido_alm, id_empresa, id_cliente_real, id_empleado, forzar_credito, usuario_admin, password_admin } = dto;
+
+        if (forzar_credito) {
+            if (!usuario_admin || !password_admin) {
+                throw new Error('Se requieren credenciales de administrador para omitir el límite de crédito.');
+            }
+            await verificarAdmin(usuario_admin, password_admin);
+        }
 
         const [cab, conceptos] = await Promise.all([
             FacturacionRepository.getCabecera(id_pedido_alm, id_empresa),
@@ -311,6 +343,7 @@ export const FacturacionService = {
                     conceptos: conceptosParte,
                     dias_credito,
                     esPublicoGeneral,
+                    forzar_credito,
                 }, t);
 
                 registros.push({ id_factura: factura.id_factura, folio, totales, id_remision, conceptosParte });

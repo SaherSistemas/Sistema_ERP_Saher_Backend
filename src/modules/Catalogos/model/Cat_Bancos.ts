@@ -8,6 +8,12 @@ class Cat_Bancos extends Model {
 
     @Column(DataType.STRING(150))
     declare descrip_banco: string;
+
+    @Column({ type: DataType.STRING(13), allowNull: true })
+    declare rfc_banco: string | null;
+
+    @Column({ type: DataType.STRING(10), allowNull: true })
+    declare clave_sat_banco: string | null;
 }
 
 export default Cat_Bancos;

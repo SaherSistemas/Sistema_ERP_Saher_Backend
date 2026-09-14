@@ -79,6 +79,11 @@ export const Factura_Compra_ProveedorRepository = {
         const factura = await Factura_Compra_Proveedor.findByPk(id_factura_proveedor);
         if (!factura) throw new Error('Factura no encontrada');
 
+        // Solo se puede editar si está en estado R (Recibida, pendiente de chequeo)
+        if (!['C', 'R'].includes(factura.estado_factura_proveedor)) {
+            throw new Error('Solo se puede editar la factura cuando está en estado Recibida (R) o Capturada (C).');
+        }
+
         // Validar folio único por proveedor (si el folio cambió)
         const folioNuevo = data.folio_factura_proveedor;
         if (folioNuevo && folioNuevo !== factura.folio_factura_proveedor) {

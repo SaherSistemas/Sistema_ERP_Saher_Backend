@@ -13,6 +13,7 @@ import {
 import Colonia from "../Ubicacion/Colonia";
 import Grupo_Empresa from "./Grupo_Empresa";
 import ListaPrecio from "../../modules/Comercial/Precios/model/Lista_Precio";
+import Cat_Bancos from "../../modules/Catalogos/model/Cat_Bancos";
 import Presupuesto_Empresa from "../Presupuestos/Presupuesto_Empresa";
 import Movimiento_Presupuesto from "../Presupuestos/Movimiento_Presupuesto";
 import Asignacion_Empleado_Sucursal from "../Presupuestos/Asignacion_Empleado_Sucursal";
@@ -102,7 +103,17 @@ class Empresa_Sucursal extends Model {
   declare leyenda_factura_empre: string | null    // texto libre en la factura
 
   @Column({ type: DataType.STRING(5) })
-  declare id_empresa_sys_anterior: string; // para migración, ID de la empresa en el sistema anterior
+  declare id_empresa_sys_anterior: string;
+
+  @Column({ type: DataType.STRING(30), allowNull: true })
+  declare num_cuenta_banco: string | null;        // número de cuenta bancaria de la empresa
+
+  @ForeignKey(() => Cat_Bancos)
+  @Column({ type: DataType.STRING(3), allowNull: true })
+  declare id_banco_empresa: string | null;
+
+  @BelongsTo(() => Cat_Bancos)
+  banco: Cat_Bancos; // para migración, ID de la empresa en el sistema anterior
 
 /*
   

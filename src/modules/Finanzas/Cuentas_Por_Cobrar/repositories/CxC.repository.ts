@@ -13,6 +13,7 @@ interface ICreateCxC {
     dias_credito: number;
     id_factura?: string;     // flujo normal
     id_remision?: string;    // flujo Público General
+    forzar_credito?: boolean; // true = saltar validación de límite
 }
 
 export const CxCRepository = {
@@ -151,7 +152,7 @@ export const CxCRepository = {
         const limite = Number(cliente.limite_credito_cliente_alm ?? 0);
 
         // limite = 0 → sin restricción (clientes internos o sin límite configurado)
-        if (limite > 0) {
+        if (limite > 0 && !data.forzar_credito) {
             const resultado = await Cuenta_Por_Cobrar.findOne({
                 attributes: [[fn('COALESCE', fn('SUM', col('saldo_pendiente')), 0), 'total_adeudo']],
                 where: {

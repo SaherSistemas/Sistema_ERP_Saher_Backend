@@ -44,4 +44,9 @@ router.get('/traslado-pdf/:id_factura', authMiddleware, FacturacionController.de
 // POST /api/facturas/recibir-xml/:id_factura  body: { xml: "..." }
 router.post('/recibir-xml/:id_factura', authMiddleware, FacturacionController.recibirXml);
 
+// Regenera el TXT de un complemento de pago (tipo P) sin consumir nuevo folio
+// Limpia uuid_cfdi_pago y regresa estatus a PEN para que el watcher lo retimbre
+// POST /api/facturas/regenerar-txt-pago/:id_factura
+router.post('/regenerar-txt-pago/:id_factura', authMiddleware, FacturacionController.regenerarTxtPago);
+
 export default router;

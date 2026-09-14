@@ -422,4 +422,20 @@ export class CxCController {
             res.status(500).json({ message: error.message });
         }
     };
+
+    // ─── REGENERAR TXT COMPLEMENTO DE PAGO ───────────────────────────────────
+    // POST /api/cxc/pago-cfdi/:id_pago_cfdi/regenerar-txt
+    // Regenera el archivo TXT para retimbrado sin consumir nuevo folio.
+    // Limpia uuid_cfdi_pago y regresa estatus a PEN.
+    static regenerarTxtPagoCFDI = async (req: Request, res: Response) => {
+        try {
+            const { id_pago_cfdi } = req.params;
+            const { id_empresa } = req.body as { id_empresa?: string };
+            const resultado = await CxCService.regenerarTxtPagoCFDI(id_pago_cfdi, id_empresa);
+            res.json({ ok: true, ruta: resultado.ruta });
+        } catch (error: any) {
+            console.error('Error regenerarTxtPagoCFDI:', error);
+            res.status(500).json({ message: error.message ?? 'Error al regenerar TXT.' });
+        }
+    };
 }

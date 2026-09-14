@@ -3,6 +3,9 @@ export interface IGenerarFacturaDTO {
     id_empresa:       string;
     id_cliente_real?: string;  // Cliente real cuando se factura como Público General
     id_empleado:      string;  // Empleado que ejecuta la facturación (para Kardex)
+    forzar_credito?:  boolean; // true = omitir validación de límite de crédito (requiere admin)
+    usuario_admin?:   string;
+    password_admin?:  string;
 }
 
 export interface IDetalleEgresoDTO {

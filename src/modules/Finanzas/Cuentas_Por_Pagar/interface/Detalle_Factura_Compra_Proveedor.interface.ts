@@ -95,6 +95,10 @@ export interface IModificarLotesDetalleFacturaDTO {
     id_factura_proveedor_detalle: string;
     id_empresa: string;
     lotes: ILoteDetalleFacturaDTO[];
+    /** Opcional: si vienen, se actualizan precio/descuento/IVA del detalle */
+    precio?: number;
+    descuento_pct?: number;
+    iva_pct?: number;
 }
 
 export interface ILoteDetalleFacturaDTO {
