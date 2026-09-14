@@ -82,9 +82,10 @@ export const RemisionRepository = {
     },
 
     getUltimoFolio: async (t?: Transaction): Promise<number> => {
-        // Usa SELECT ... FOR UPDATE dentro de la transacción para evitar folios duplicados
+        // Advisory lock para serializar la asignación de folios
+        await dbLocal.query('SELECT pg_advisory_xact_lock(12345678)', { transaction: t });
         const rows = await dbLocal.query<{ max_folio: string | null }>(
-            'SELECT MAX(folio_remision) AS max_folio FROM remision FOR UPDATE',
+            'SELECT MAX(folio_remision) AS max_folio FROM remision',
             { type: QueryTypes.SELECT, transaction: t }
         );
         const max = Number(rows[0]?.max_folio ?? 0);
