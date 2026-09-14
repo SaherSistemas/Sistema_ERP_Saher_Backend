@@ -46,7 +46,7 @@ export const RemisionService = {
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
         let remision: any;
         try {
-            const folio = await RemisionRepository.getUltimoFolio();
+            const folio = await RemisionRepository.getUltimoFolio(t);
             remision = await RemisionRepository.create(
                 {
                     id_factura:        null,
@@ -109,7 +109,7 @@ export const RemisionService = {
             const total_remision = subtotal_remision + iva_remision;
 
             // 4) Folio consecutivo
-            const folio = await RemisionRepository.getUltimoFolio();
+            const folio = await RemisionRepository.getUltimoFolio(t);
 
             // 5) Crear remisión
             const remision = await RemisionRepository.create(

@@ -81,9 +81,14 @@ export const RemisionRepository = {
         }, { transaction: t });
     },
 
-    getUltimoFolio: async (): Promise<number> => {
-        const ultima = await Remision.findOne({ order: [['folio_remision', 'DESC']] });
-        return ultima ? ultima.folio_remision + 1 : 1;
+    getUltimoFolio: async (t?: Transaction): Promise<number> => {
+        // Usa SELECT ... FOR UPDATE dentro de la transacción para evitar folios duplicados
+        const rows = await dbLocal.query<{ max_folio: string | null }>(
+            'SELECT MAX(folio_remision) AS max_folio FROM remision FOR UPDATE',
+            { type: QueryTypes.SELECT, transaction: t }
+        );
+        const max = Number(rows[0]?.max_folio ?? 0);
+        return max + 1;
     },
 
     // ─── Datos para el PDF de remisión ────────────────────────────────────────

@@ -92,7 +92,7 @@ export async function crearCxCyRemision(params: {
     let id_remision: string | null = null;
 
     if (esPublicoGeneral) {
-        const folioRemision = await RemisionRepository.getUltimoFolio();
+        const folioRemision = await RemisionRepository.getUltimoFolio(t);
         const remision      = await RemisionRepository.create({
             id_factura:        factura_id,
             id_pedido_alm:     cab.id_pedido_alm,
