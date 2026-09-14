@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Transaction } from 'sequelize';
+import { Transaction, QueryTypes } from 'sequelize';
+import { dbLocal } from '../../../../config/db';
 import Detalle_Factura_Compra_Proveedor from '../model/Detalle_Factura_Compra_Proveedor';
 import {
     ICrearDetallesFacturaRepoDTO
@@ -135,7 +136,7 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
         iva_articulo_factura: number;
         lotes: { numero_lote: string; fecha_caducidad: string; cantidad: number; observacion_lote?: string | null }[];
     }) => {
-        // Eliminar si ya existía para reemplazar
+        // Eliminar si ya existía
         await Detalle_Factura_Compra_Proveedor.destroy({
             where: {
                 id_factura_compra_proveedor,
@@ -144,6 +145,9 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
                     : { id_artic: linea.id_artic, id_detcompsol: null })
             }
         });
+
+        // cantidad = 0 significa eliminar solamente, sin recrear
+        if (linea.cantidad_articulo_facturada === 0) return null as any;
 
         const detalle = await Detalle_Factura_Compra_Proveedor.create({
             id_factura_proveedor_detalle: uuidv4(),
@@ -169,6 +173,17 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
         );
 
         return detalle;
+    },
+
+    eliminarDetalle: async (id_factura_proveedor_detalle: string) => {
+        // Borrar primero los registros hijos en detalle_compra_recibido
+        await dbLocal.query(
+            'DELETE FROM detalle_compra_recibido WHERE id_detalle_factura_compra_proveedor = :id',
+            { replacements: { id: id_factura_proveedor_detalle }, type: QueryTypes.DELETE }
+        );
+        return await Detalle_Factura_Compra_Proveedor.destroy({
+            where: { id_factura_proveedor_detalle }
+        });
     },
 
     getLineasFactura: async (id_factura_compra_proveedor: string) => {

@@ -207,6 +207,10 @@ export const Detalle_Factura_Compra_ProveedorService = {
         return result;
     },
 
+    eliminarDetalle: async (id_factura_proveedor_detalle: string) => {
+        return await Detalle_Factura_Compra_ProveedorRepository.eliminarDetalle(id_factura_proveedor_detalle);
+    },
+
     getLineasFactura: async (id_factura: string) => {
         return await Detalle_Factura_Compra_ProveedorRepository.getLineasFactura(id_factura);
     },

@@ -12,8 +12,6 @@ router.get('/detallesFactura/:id_factura_proveedor', Factura_Compra_ProveedorCon
 router.get('/porCompra/:id_comp', Factura_Compra_ProveedorController.getFacturasPorCompraProveedor)
 // - Obtener detalle completo de una factura (artículos, cantidades, empleados)
 router.get('/facturaCompleta/:id_factura_proveedor', Factura_Compra_ProveedorController.getFacturaCompleta)
-router.get('/:id_comp', Factura_Compra_ProveedorController.getByIDComp)
-
 // Paso 1: Definir la ruta para guardar la factura e iniciar la captura de lotes
 router.post('/guardarFacturaEIniciarCaptura', Factura_Compra_ProveedorController.guardarFacturaEIniciarCapturaLotes)
 // Paso 2: Definir la ruta para guardar la captura completa de la factura
@@ -25,6 +23,7 @@ router.post('/guardarCapturaCompleta', authMiddleware, Factura_Compra_ProveedorC
 router.get('/enCaptura/:id_comp', Factura_Compra_ProveedorController.getFacturaEnCaptura);
 
 
+router.delete('/detalles/:id_factura_proveedor_detalle', Detalle_Factura_Compra_ProveedorController.eliminarDetalle);
 router.post('/:id_factura/guardarLinea', Detalle_Factura_Compra_ProveedorController.guardarLineaFactura);
 router.get('/:id_factura/lineas', Detalle_Factura_Compra_ProveedorController.getLineasFactura);
 
@@ -34,4 +33,5 @@ router.patch('/detalles/lotes', authMiddleware, Detalle_Factura_Compra_Proveedor
 
 router.patch('/finalizarChequeoFactura/:id_factura_proveedor', authMiddleware, Factura_Compra_ProveedorController.finalizarChequeoFacturaProveedor);
 router.patch('/:id_factura_proveedor', Factura_Compra_ProveedorController.actualizarEncabezado);
+router.get('/:id_comp', Factura_Compra_ProveedorController.getByIDComp);
 export default router;

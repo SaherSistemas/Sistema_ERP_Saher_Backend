@@ -42,4 +42,16 @@ export class Detalle_Factura_Compra_ProveedorController {
             res.status(500).json({ message: error.message });
         }
     };
+
+    static eliminarDetalle = async (req: Request, res: Response) => {
+        try {
+            const { id_factura_proveedor_detalle } = req.params;
+            console.log('[eliminarDetalle] id:', id_factura_proveedor_detalle);
+            await Detalle_Factura_Compra_ProveedorService.eliminarDetalle(id_factura_proveedor_detalle);
+            res.status(200).json({ ok: true });
+        } catch (error: any) {
+            console.error('[eliminarDetalle] ERROR:', error);
+            res.status(500).json({ message: error.message });
+        }
+    };
 }

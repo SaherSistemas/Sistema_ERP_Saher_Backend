@@ -19,6 +19,7 @@ import { NotasCreditoProveedorRepository } from "../../../../repository/Devoluci
 import { Faltante_Factura_ProveedorRepository } from "../../../../repository/Devoluciones_NC/Faltante_Factura_Proveedor.repository";
 import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_General.repository";
 import Cuenta_Por_Pagar from '../model/Cuenta_Por_Pagar.model';
+import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
 export const Factura_Compra_ProveedorService = {
 
     actualizarEncabezado: async (id_factura_proveedor: string, data: IActualizarEncabezadoFacturaDTO) => {
@@ -48,6 +49,16 @@ export const Factura_Compra_ProveedorService = {
         });
 
         try {
+            // 0) Bloquear la fila con FOR UPDATE para evitar doble-finalización concurrente
+            const facturaLock = await Factura_Compra_Proveedor.findByPk(id_factura_proveedor, {
+                transaction: t,
+                lock: t.LOCK.UPDATE,
+            });
+            if (!facturaLock) throw new Error('Factura no encontrada');
+            if (['H', 'D'].includes((facturaLock as any).estado_factura_proveedor)) {
+                throw new Error(`La factura ya fue finalizada (estado: ${(facturaLock as any).estado_factura_proveedor})`);
+            }
+
             // 1) Traer factura + detalles (DENTRO de TX + lock)
             const { factura, detalles } =
                 await Factura_Compra_ProveedorRepository.getFacturaConDetallesParaGuardar(
@@ -55,7 +66,6 @@ export const Factura_Compra_ProveedorService = {
                     t
                 );
 
-            //console.log(factura)
             // 2) Clasificar
             const detallesClasificados = (detalles || []).map((d: any) => ({
                 ...d,
