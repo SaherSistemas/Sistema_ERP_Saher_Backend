@@ -136,29 +136,56 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
         iva_articulo_factura: number;
         lotes: { numero_lote: string; fecha_caducidad: string; cantidad: number; observacion_lote?: string | null }[];
     }) => {
-        // Eliminar si ya existía
-        await Detalle_Factura_Compra_Proveedor.destroy({
-            where: {
-                id_factura_compra_proveedor,
-                ...(linea.id_detcompsol
-                    ? { id_detcompsol: linea.id_detcompsol }
-                    : { id_artic: linea.id_artic, id_detcompsol: null })
-            }
-        });
-
-        // cantidad = 0 significa eliminar solamente, sin recrear
-        if (linea.cantidad_articulo_facturada === 0) return null as any;
-
-        const detalle = await Detalle_Factura_Compra_Proveedor.create({
-            id_factura_proveedor_detalle: uuidv4(),
+        const where = {
             id_factura_compra_proveedor,
-            id_detcompsol: linea.id_detcompsol ?? null,
-            id_artic: linea.id_artic ?? null,
-            cantidad_articulo_facturada: linea.cantidad_articulo_facturada,
-            precio_articulo_factura: linea.precio_articulo_factura,
-            descuento_articulo_factura: linea.descuento_articulo_factura,
-            iva_articulo_factura: linea.iva_articulo_factura,
-        });
+            ...(linea.id_detcompsol
+                ? { id_detcompsol: linea.id_detcompsol }
+                : { id_artic: linea.id_artic, id_detcompsol: null })
+        };
+        const existente = await Detalle_Factura_Compra_Proveedor.findOne({ where });
+
+        // cantidad = 0 significa eliminar solamente, sin recrear.
+        // Igual que eliminarDetalle: hay que borrar primero los hijos en
+        // detalle_compra_recibido, si no, el destroy truena por la FK.
+        if (linea.cantidad_articulo_facturada === 0) {
+            if (existente) {
+                await dbLocal.query(
+                    'DELETE FROM detalle_compra_recibido WHERE id_detalle_factura_compra_proveedor = :id',
+                    { replacements: { id: existente.id_factura_proveedor_detalle }, type: QueryTypes.DELETE }
+                );
+                await Lote_Factura_Compra_Proveedor.destroy({ where: { id_det_factura_proveedor: existente.id_factura_proveedor_detalle } });
+                await existente.destroy();
+            }
+            return null as any;
+        }
+
+        // Si la línea ya existía, se ACTUALIZA en el mismo registro en vez de
+        // borrar+recrear — borrar tronaba con "viola la llave foránea" en
+        // cuanto la línea ya tenía mercancía recibida cotejada contra ella
+        // (detalle_compra_recibido.id_detalle_factura_compra_proveedor). Además,
+        // recrear con un id nuevo huérfano esa referencia aunque no truene.
+        let detalle: Detalle_Factura_Compra_Proveedor;
+        if (existente) {
+            await existente.update({
+                cantidad_articulo_facturada: linea.cantidad_articulo_facturada,
+                precio_articulo_factura: linea.precio_articulo_factura,
+                descuento_articulo_factura: linea.descuento_articulo_factura,
+                iva_articulo_factura: linea.iva_articulo_factura,
+            });
+            detalle = existente;
+            await Lote_Factura_Compra_Proveedor.destroy({ where: { id_det_factura_proveedor: detalle.id_factura_proveedor_detalle } });
+        } else {
+            detalle = await Detalle_Factura_Compra_Proveedor.create({
+                id_factura_proveedor_detalle: uuidv4(),
+                id_factura_compra_proveedor,
+                id_detcompsol: linea.id_detcompsol ?? null,
+                id_artic: linea.id_artic ?? null,
+                cantidad_articulo_facturada: linea.cantidad_articulo_facturada,
+                precio_articulo_factura: linea.precio_articulo_factura,
+                descuento_articulo_factura: linea.descuento_articulo_factura,
+                iva_articulo_factura: linea.iva_articulo_factura,
+            });
+        }
 
         await Lote_Factura_Compra_Proveedor.bulkCreate(
             linea.lotes.map(l => ({
