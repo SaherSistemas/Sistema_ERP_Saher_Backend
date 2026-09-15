@@ -1092,6 +1092,15 @@ export const Pedido_AlmacenService = {
       for (const detalle of detalles) {
         const lotesValidos = detalle.lotes.filter(l => Number(l.cantidad) > 0);
         if (lotesValidos.length > 0) {
+          // Por si este detalle ya tenía lotes registrados de un intento previo
+          // (ej. el pedido quedó en un estado inconsistente y "Finalizar surtido"
+          // se corrió más de una vez) — reemplaza en vez de acumular. Sin esto,
+          // cada re-finalización deja lotes duplicados que después se descuentan
+          // doble del inventario al facturar.
+          await Detalle_Pedido_Almacen_LoteModel.destroy({
+            where: { id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen },
+            transaction: t,
+          });
           await Detalle_Pedido_Almacen_LoteRepository.create({
             id_detalle_pedido: detalle.id_detalle_pedido_almacen,
             estado: 'SURTIDO',

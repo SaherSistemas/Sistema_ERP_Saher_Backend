@@ -113,6 +113,13 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     const hline = (y: number, x1 = MX, x2 = MX + CW, w = 0.5, c = LBORD) =>
         doc.moveTo(x1, y).lineTo(x2, y).lineWidth(w).stroke(c);
 
+    // Límite inferior real de la página (margen de 36pt) — nunca se checaba antes,
+    // así que las filas de la tabla podían dibujarse fuera del área visible y,
+    // en los bloques de texto largo (pagaré), pdfkit agregaba página sola pero el
+    // código seguía sumando `y` a mano sin enterarse, dejando páginas casi en
+    // blanco (cada elemento siguiente caía cada vez más "perdido").
+    const PAGE_BOTTOM = 792 - 36;
+
     let y = MY;
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -253,21 +260,40 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     const TH = 14;  // altura header
     const TR = 13;  // altura row
 
-    // — Header —
-    hline(y, MX, MX + CW, 0.5, LBORD);
-    let cx = MX;
-    COLS.forEach(col => {
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(NEGRO)
-           .text(col.label, cx + 4, y + 3, { width: col.w - 8, align: col.align, lineBreak: false });
-        cx += col.w;
-    });
-    y += TH;
-    hline(y, MX, MX + CW, 0.5, LBORD);
+    // — Header (función reutilizable: se vuelve a dibujar en cada página nueva
+    // que abra la tabla, para que un salto de página no deje una hoja "huérfana"
+    // sin encabezado de columnas) —
+    const drawTableHeader = () => {
+        hline(y, MX, MX + CW, 0.5, LBORD);
+        let hx = MX;
+        COLS.forEach(col => {
+            doc.font('Helvetica-Bold').fontSize(7.5).fillColor(NEGRO)
+               .text(col.label, hx + 4, y + 3, { width: col.w - 8, align: col.align, lineBreak: false });
+            hx += col.w;
+        });
+        y += TH;
+        hline(y, MX, MX + CW, 0.5, LBORD);
+    };
+
+    // Antes de dibujar un bloque de `neededHeight` pts, si no cabe en lo que
+    // resta de la página, agrega una página nueva y reposiciona `y`. Si
+    // `dentroDeTabla` es true, vuelve a dibujar el encabezado de columnas.
+    const ensureSpace = (neededHeight: number, dentroDeTabla = false) => {
+        if (y + neededHeight > PAGE_BOTTOM) {
+            doc.addPage();
+            y = MY;
+            if (dentroDeTabla) drawTableHeader();
+        }
+    };
+
+    drawTableHeader();
 
     // — Filas —
     let totalPiezas = 0;
+    let cx = MX;
     datos.detalles.forEach((d, idx) => {
         totalPiezas += d.cantidad;
+        ensureSpace(TR, true);
         if (idx % 2 === 1) {
             doc.rect(MX, y, CW, TR).fill('#f9fafb');
         }
@@ -294,6 +320,7 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     // Filas vacías (mínimo 3 filas vacías)
     const blanks = Math.max(3, 8 - datos.detalles.length);
     for (let i = 0; i < blanks; i++) {
+        ensureSpace(TR, true);
         if ((datos.detalles.length + i) % 2 === 1) {
             doc.rect(MX, y, CW, TR).fill('#f9fafb');
         }
@@ -306,6 +333,7 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     // ══════════════════════════════════════════════════════════════════════════
     // 4. TOTALES
     // ══════════════════════════════════════════════════════════════════════════
+    ensureSpace(13 * 3 + 15);
 
     // Total Piezas (izquierda)
     doc.font('Helvetica-Bold').fontSize(8).fillColor(NEGRO)
@@ -351,6 +379,7 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     // ══════════════════════════════════════════════════════════════════════════
 
     const sonTxt = `Son:( ${numeroALetras(datos.total_remision)} )`;
+    ensureSpace(doc.heightOfString(sonTxt, { width: CW }) + 22);
     doc.font('Helvetica').fontSize(8).fillColor(NEGRO)
        .text(sonTxt, MX, y, { width: CW });
     y += 22;
@@ -369,14 +398,24 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
         `___% MENSUAL PAGADERO EN CULIACAN, SINALOA JUNTAMENTE CON EL PRINCIPAL. ` +
         `ARTICULO 170 DE LA LEY GENERAL DE TITULOS Y OPERACIONES DE CREDITO.`;
 
+    const pagareH = doc.heightOfString(pagare, { width: CW });
+    // Antes de dibujar, asegura que el párrafo completo quepa en lo que resta
+    // de la página — así pdfkit ya no tiene que partirlo solo a media frase.
+    ensureSpace(pagareH + 14);
     doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
        .text(pagare, MX, y, { width: CW, align: 'justify' });
 
-    y += doc.heightOfString(pagare, { width: CW }) + 14;
+    // Se sincroniza con doc.y (la posición real que dejó pdfkit) en vez de
+    // sumar `y += pagareH` a ciegas — por si, aun así, alguna vez no cupiera
+    // y pdfkit tuviera que agregar página por su cuenta, `y` no se desincroniza
+    // del resto del documento (que fue justo el bug original: cada bloque
+    // siguiente terminaba en su propia página casi vacía).
+    y = doc.y + 14;
 
     // ══════════════════════════════════════════════════════════════════════════
     // 7. DEUDOR
     // ══════════════════════════════════════════════════════════════════════════
+    ensureSpace(11 + 12);
 
     doc.font('Helvetica-Bold').fontSize(8.5).fillColor(NEGRO)
        .text('DEUDOR:', MX, y);
