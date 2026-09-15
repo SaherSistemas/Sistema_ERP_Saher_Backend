@@ -24,6 +24,24 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         });
     },
 
+    // ── Guard: retorna true si ya existe asignación activa para este pedido+empleado ──
+    existeAsignacionActiva: async (id_empleado: string, id_pedido_almacen: string, t?: Transaction) => {
+        const ids_detalles = await Detalle_Pedido_AlmacenRepository.getIdsDetallesPorPedido(id_pedido_almacen);
+        if (!ids_detalles.length) return false;
+        const ids = ids_detalles.map((d: any) => d.id_detalle_pedido_almacen);
+
+        const existe = await Detalle_Pedido_Almacen_Chequeo.findOne({
+            where: {
+                id_empleado,
+                id_detalle_pedido_almacen: { [Op.in]: ids },
+                estado: { [Op.in]: ['ASIGNADO', 'EN_PROCESO', 'TERMINADO'] },
+            },
+            transaction: t,
+            lock: t?.LOCK.UPDATE,
+        });
+        return existe !== null;
+    },
+
     // ── Asignar pedido a chequeo: 1 fila por lote surtido ────────────────────
     asignarDetallesPedidoAChequeo: async (
         id_empleado: string,
@@ -96,11 +114,11 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
 
     // ── Detalles asignados al empleado (uno por lote) ─────────────────────────
     // Devuelve info del lote ESPECÍFICO de cada fila (no todos los lotes del detalle)
-    getDetallesAsignados: async (id_empleado: string) => {
+    getDetallesAsignados: async (id_empleado: string, id_pedido_alm?: string) => {
         return await Detalle_Pedido_Almacen_Chequeo.findAll({
             where: {
                 id_empleado,
-                estado: { [Op.in]: ['ASIGNADO', 'EN_PROCESO'] },
+                estado: { [Op.in]: ['ASIGNADO', 'EN_PROCESO', 'TERMINADO'] },
             },
             attributes: [
                 'id_detalle_chequeo',
@@ -117,6 +135,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                     as: 'detalle_pedido',
                     attributes: ['id_detalle_pedido_almacen', 'cant_pedida', 'id_pedido_almacen'],
                     required: true,
+                    ...(id_pedido_alm ? { where: { id_pedido_almacen: id_pedido_alm } } : {}),
                     include: [
                         {
                             model: Articulo,

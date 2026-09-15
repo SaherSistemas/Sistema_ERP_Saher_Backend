@@ -4,6 +4,7 @@ import Facturas from '../model/Facturas.model';
 import Detalle_Factura from '../model/Detalle_Factura.model';
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
+import { resolverGrupoPagoP } from '../helpers/factura.helper';
 import {
     DatosFacturacionCabecera,
     ConceptoFacturacion,
@@ -376,7 +377,7 @@ export const FacturacionRepository = {
     },
 
     getById: async (id_factura: string) => {
-        return await Facturas.findByPk(id_factura, {
+        const factura = await Facturas.findByPk(id_factura, {
             include: [
                 {
                     model: Detalle_Factura,
@@ -393,6 +394,40 @@ export const FacturacionRepository = {
                 },
             ],
         });
+        if (!factura) return null;
+
+        const f: any = factura.toJSON();
+        // La asociación del modelo se llama `detalles` (nombre de la propiedad
+        // en Facturas.model.ts) pero el frontend espera `detalle_facturas`
+        // (ver IFacturaDetalle en Facturacion.api.ts) — sin este rename, el
+        // panel de "Conceptos" siempre salía vacío incluso en facturas tipo I
+        // que sí tienen detalle_factura.
+        f.detalle_facturas = f.detalles ?? [];
+        delete f.detalles;
+
+        // Tipo P (complemento de pago) no tiene detalle_factura (no son "conceptos"
+        // de venta) — en su lugar se arma la lista de facturas que cubrió este pago.
+        if (f.tipo_cfdi === 'P') {
+            const grupo = await resolverGrupoPagoP({
+                id_factura:         f.id_factura,
+                id_factura_origen:  f.id_factura_origen,
+                id_cliente_alm:     f.id_cliente_alm,
+                total_factura:      Number(f.total_factura),
+            });
+
+            f.pagos_relacionados = grupo.length
+                ? await dbLocal.query(`
+                    SELECT fp.monto_pagado, fp.num_parcialidad, fp.saldo_anterior, fp.saldo_insoluto,
+                           fi.folio_factura AS folio_factura_origen
+                    FROM factura_pago_cfdi fp
+                    JOIN facturas fi ON fi.id_factura = fp.id_factura
+                    WHERE fp.id_pago_cfdi IN (:ids)
+                    ORDER BY fi.folio_factura
+                `, { replacements: { ids: grupo.map(g => g.id_pago_cfdi) }, type: QueryTypes.SELECT })
+                : [];
+        }
+
+        return f;
     },
 
     actualizarTimbrado: async (id_factura: string, data: {

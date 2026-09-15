@@ -47,6 +47,7 @@ async function procesarXmlPago(xmlPath: string, xmlContent: string) {
     const tfd   = comp['cfdi:Complemento']?.['tfd:TimbreFiscalDigital'];
     const uuid  = tfd?.['@_UUID'] as string | undefined;
     const fecha = tfd?.['@_FechaTimbrado'] as string | undefined;
+    const folioComp = comp['@_Folio'] as string | undefined; // folio PROPIO de este complemento de pago
 
     if (!uuid) {
         console.warn(`[XmlWatcher][Pago] Sin UUID en ${filename}`);
@@ -74,11 +75,16 @@ async function procesarXmlPago(xmlPath: string, xmlContent: string) {
         return;
     }
 
-    // Buscar FacturaPagoCFDI pendiente que coincida con alguno de esos UUIDs
+    // Buscar FacturaPagoCFDI pendiente que coincida con alguno de esos UUIDs.
+    // Comparación case-insensitive: el XML trae los UUID en mayúsculas pero en
+    // esta base quedaron guardados en minúsculas — con Op.in (sensible a
+    // mayúsculas) esto nunca hacía match y ningún pago se marcaba TIM jamás.
     const cfdis = await FacturaPagoCFDI.findAll({
         where: {
-            uuid_relacionado: { [Op.in]: uuidsRelacionados },
-            estatus_timbrado: { [Op.in]: ['PEN', 'ERR'] },
+            [Op.and]: [
+                { estatus_timbrado: { [Op.in]: ['PEN', 'ERR'] } },
+                dbLocal.where(dbLocal.fn('upper', dbLocal.col('uuid_relacionado')), { [Op.in]: uuidsRelacionados }),
+            ],
         },
     });
 
@@ -101,6 +107,27 @@ async function procesarXmlPago(xmlPath: string, xmlContent: string) {
             xml_url:          xmlDest,
         } as any);
         console.log(`[XmlWatcher][Pago] ✓ FacturaPagoCFDI ${cfdi.id_pago_cfdi} → TIM. UUID=${uuid}`);
+    }
+
+    // Registrar el UUID también en la fila "P" (wrapper) de `facturas` — antes
+    // nunca se tocaba y se quedaba con uuid_sat en null para siempre. Se ubica
+    // por su folio propio (el <cfdi:Comprobante Folio="..."> de este mismo XML),
+    // igual que procesarXml() ya hace para las facturas tipo I/E.
+    if (folioComp) {
+        const facturaP = await Facturas.findOne({
+            where: { tipo_cfdi: 'P', folio_factura: String(folioComp), uuid_sat: null },
+        });
+        if (facturaP) {
+            await facturaP.update({
+                uuid_sat:        uuid,
+                fecha_timbrado:  fecha ? new Date(fecha) : new Date(),
+                estatus_factura: 'TIM',
+                xml_url:         xmlDest,
+            } as any);
+            console.log(`[XmlWatcher][Pago] ✓ Factura P ${facturaP.id_factura} (folio ${folioComp}) → uuid_sat=${uuid}`);
+        } else {
+            console.warn(`[XmlWatcher][Pago] No se encontró la fila P con folio ${folioComp} (o ya tenía uuid_sat) para registrar el UUID.`);
+        }
     }
 }
 

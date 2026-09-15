@@ -390,6 +390,13 @@ export const Pedido_AlmacenService = {
       // console.log('getByCodInterno:', Date.now() - t1, 'ms');
       if (!pedido) throw new Error('Pedido no encontrado');
 
+      // Guard: si ya existe una asignación activa para este pedido+empleado, no duplicar
+      const yaAsignado = await Detalle_Pedido_Almacen_ChequeoRepository.existeAsignacionActiva(id_empleado, pedido.id_pedido_alm, t);
+      if (yaAsignado) {
+        await t.commit();
+        return;
+      }
+
       // const t2 = Date.now();
       await Detalle_Pedido_Almacen_ChequeoRepository.asignarDetallesPedidoAChequeo(id_empleado, pedido.id_pedido_alm, t);
       //  console.log('asignarDetalles total:', Date.now() - t2, 'ms');
@@ -406,8 +413,8 @@ export const Pedido_AlmacenService = {
     }
   },
 
-  getDetalleAsignadoChequeo: async (id_empleado: string) => {
-    const filas = await Detalle_Pedido_Almacen_ChequeoRepository.getDetallesAsignados(id_empleado);
+  getDetalleAsignadoChequeo: async (id_empleado: string, id_pedido_alm?: string) => {
+    const filas = await Detalle_Pedido_Almacen_ChequeoRepository.getDetallesAsignados(id_empleado, id_pedido_alm);
 
     // Collect unique article IDs to fetch stock + ubicacion in one query
     const articuloIds = [...new Set(
@@ -1070,6 +1077,18 @@ export const Pedido_AlmacenService = {
   ) => {
     const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
     try {
+      // Guard con FOR UPDATE: si el pedido ya fue finalizado, no duplicar
+      const pedidoLock = await Pedido_Almacen.findByPk(id_pedido_alm, {
+        attributes: ['id_pedido_alm', 'status_pedido_alm'],
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      if (!pedidoLock) throw { status: 404, message: 'Pedido no encontrado.' };
+      if ((pedidoLock as any).status_pedido_alm === 'CH') {
+        await t.commit();
+        return { mensaje: 'Pedido ya finalizado.' };
+      }
+
       for (const detalle of detalles) {
         const lotesValidos = detalle.lotes.filter(l => Number(l.cantidad) > 0);
         if (lotesValidos.length > 0) {
@@ -1188,6 +1207,28 @@ export const Pedido_AlmacenService = {
 
     const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
     try {
+      // Lock del pedido: evita que dos llamadas concurrentes (doble Enter, doble clic)
+      // pasen ambas la validación y dupliquen las asignaciones/lotes.
+      const pedidoLock = await Pedido_Almacen.findByPk(id_pedido_alm, {
+        attributes: ['id_pedido_alm'],
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      if (!pedidoLock) throw { status: 404, message: 'Pedido no encontrado.' };
+
+      const [{ existe }] = await dbLocal.query<{ existe: boolean }>(`
+        SELECT EXISTS (
+          SELECT 1
+          FROM detalle_pedido_almacen_asignacion dpa
+          JOIN detalle_pedido_almacen dp ON dp.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+          WHERE dp.id_pedido_almacen = :id_pedido_alm
+        ) AS existe
+      `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT, transaction: t });
+
+      if (existe) {
+        throw { status: 409, message: 'Este pedido ya fue asignado a un surtidor. Refresca la lista.' };
+      }
+
       await Pedido_AlmacenRepository.iniciarSurtido(id_pedido_alm, t);
       await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(empleado.id_empleado, detallesOrdenados, t);
       await t.commit();

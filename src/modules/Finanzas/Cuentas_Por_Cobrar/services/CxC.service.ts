@@ -1,4 +1,4 @@
-import { Transaction, Op } from 'sequelize';
+import { Transaction, Op, QueryTypes } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
 import { ICapturarPago, IAplicarPago, ICapturarPagoCliente } from '../interface/CxC.interface';
 import { CxCRepository } from '../repositories/CxC.repository';
@@ -13,6 +13,7 @@ import Pago_CxC from '../model/Pago_CxC.model';
 import FacturaPagoCFDI from '../../../Facturas/model/Factura_Pago_CFDI.model';
 import Cat_Forma_De_Pago from '../../../Catalogos/model/Cat_Forma_De_Pago';
 import { generarTxtPago, derivarSeries, EmisorTxt, ReceptorTxt, DocumentoPagoTxt } from '../../../Facturas/helpers/cfdi_txt.helper';
+import { calcularImpuestosProporcionalesPago as _impuestosProporcionalesPago, resolverGrupoPagoP } from '../../../Facturas/helpers/factura.helper';
 import { FacturacionRepository } from '../../../Facturas/repositories/Facturacion.repository';
 import EmpresaSucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { generarReciboPDFBuffer } from '../helpers/recibo_cobranza.pdf';
@@ -33,7 +34,7 @@ async function _getEmisor(id_empresa?: string): Promise<EmisorTxt & { num_cuenta
     let rfc_banco: string | null = null;
     if (empresa.id_banco_empresa) {
          const banco = await Cat_Bancos.findByPk(empresa.id_banco_empresa, { raw: true }) as any;
-        rfc_banco = banco?.rfc_banco ?? null;
+        rfc_banco = banco?.rfc_banco?.trim() || null;
     }
 
     return {
@@ -42,10 +43,15 @@ async function _getEmisor(id_empresa?: string): Promise<EmisorTxt & { num_cuenta
         regimen_fiscal_empre: empresa.regimen_fiscal_empre ?? '601',
         serie_ingreso:        empresa.serie_facturacion_empre ?? 'FSH',
         lugar_expedicion:     empresa.lugar_expedicion ?? '80160',
-        num_cuenta_banco:     empresa.num_cuenta_banco ?? null,
+        num_cuenta_banco:     empresa.num_cuenta_banco?.trim() || null,
         rfc_banco,
     };
 }
+
+// Nota: el prorrateo de IVA por tasa vive ahora en
+// Facturas/helpers/factura.helper.ts (calcularImpuestosProporcionalesPago),
+// compartido con Facturacion.service.ts — ver import arriba (aliased como
+// _impuestosProporcionalesPago para no tocar las llamadas existentes).
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Helper privado — genera .txt de Complemento de Pago para un FacturaPagoCFDI
@@ -87,17 +93,21 @@ async function _generarTxtUno(cfdi: FacturaPagoCFDI, id_empresa?: string): Promi
         const series = derivarSeries(emisor.serie_ingreso);
         const folio  = await FacturacionRepository.getSiguienteFolio();
 
-        // Registrar en facturas para reservar el folio y que el siguiente pago obtenga uno diferente
+        // Registrar en facturas para reservar el folio y que el siguiente pago obtenga uno diferente.
+        // id_factura_origen es lo que permite a regenerar-txt-pago encontrar de vuelta el
+        // FacturaPagoCFDI — sin esto queda huérfana y el botón "TXT" siempre da 404.
         await Facturas.create({
-            tipo_cfdi:        'P',
-            origen_factura:   'CXC',
-            folio_factura:    String(folio),
-            fecha_emision:    new Date(fecha_pago),
-            subtotal_factura: monto_pagado,
-            iva_factura:      0,
-            total_factura:    monto_pagado,
-            estatus_factura:  'TIM',
-            id_cliente_alm:   (factura?.dataValues ?? factura as any)?.id_cliente_alm ?? null,
+            tipo_cfdi:         'P',
+            origen_factura:    'CXC',
+            folio_factura:     String(folio),
+            fecha_emision:     new Date(fecha_pago),
+            subtotal_factura:  monto_pagado,
+            iva_factura:       0,
+            total_factura:     monto_pagado,
+            estatus_factura:   'TIM',
+            id_cliente_alm:    (factura?.dataValues ?? factura as any)?.id_cliente_alm ?? null,
+            id_factura_origen: id_factura,
+            uuid_relacionado:  (factura?.dataValues ?? factura as any)?.uuid_sat ?? null,
         });
 
         const receptor: ReceptorTxt = {
@@ -111,14 +121,11 @@ async function _generarTxtUno(cfdi: FacturaPagoCFDI, id_empresa?: string): Promi
         const facturaData    = factura?.dataValues ?? factura as any;
         const saldo_insoluto = Math.max(saldo_anterior - monto_pagado, 0);
 
-        // Calcular tasa IVA y base/impuesto proporcionales al pago
-        const total_fact    = Number(facturaData?.total_factura  ?? 0);
+        // Base/impuesto proporcionales al pago, por cada tasa real de la factura
+        const total_fact    = Number(facturaData?.total_factura    ?? 0);
         const subtotal_fact = Number(facturaData?.subtotal_factura ?? 0);
-        const iva_fact      = Number(facturaData?.iva_factura ?? 0);
-        const proporcion    = total_fact > 0 ? monto_pagado / total_fact : 1;
-        const tasa_iva      = iva_fact > 0 ? 0.16 : 0;
-        const base_iva      = +(subtotal_fact * proporcion).toFixed(2);
-        const impuesto_iva  = +(iva_fact      * proporcion).toFixed(2);
+        const iva_fact      = Number(facturaData?.iva_factura      ?? 0);
+        const impuestos     = await _impuestosProporcionalesPago(id_factura, monto_pagado, total_fact, subtotal_fact, iva_fact);
 
         const { ruta } = generarTxtPago({
             emisor, receptor, folio,
@@ -136,9 +143,7 @@ async function _generarTxtUno(cfdi: FacturaPagoCFDI, id_empresa?: string): Promi
                 saldo_insoluto,
                 num_parcialidad,
                 moneda,
-                tasa_iva,
-                base_iva,
-                impuesto_iva,
+                impuestos,
             }],
             nombreArchivo: `PagoDig${series.pago}${folio}-Pagos.txt`,
         });
@@ -206,14 +211,11 @@ async function _generarTxtRecibo(cfdis: FacturaPagoCFDI[], id_empresa?: string):
             const d        = cfdi.dataValues ?? (cfdi as any);
             const fact     = d.id_factura ? await Facturas.findByPk(d.id_factura) : null;
             const factD    = fact?.dataValues ?? (fact as any);
-            const monto_pago     = Number(d.monto_pagado);
-            const total_fact     = Number(factD?.total_factura  ?? 0);
-            const subtotal_fact  = Number(factD?.subtotal_factura ?? 0);
-            const iva_fact       = Number(factD?.iva_factura ?? 0);
-            const proporcion     = total_fact > 0 ? monto_pago / total_fact : 1;
-            const tasa_iva       = iva_fact > 0 ? 0.16 : 0;
-            const base_iva       = +(subtotal_fact * proporcion).toFixed(2);
-            const impuesto_iva   = +(iva_fact      * proporcion).toFixed(2);
+            const monto_pago    = Number(d.monto_pagado);
+            const total_fact    = Number(factD?.total_factura    ?? 0);
+            const subtotal_fact = Number(factD?.subtotal_factura ?? 0);
+            const iva_fact      = Number(factD?.iva_factura      ?? 0);
+            const impuestos     = await _impuestosProporcionalesPago(d.id_factura, monto_pago, total_fact, subtotal_fact, iva_fact);
             documentos.push({
                 uuid_relacionado: factD?.uuid_sat ?? d.uuid_relacionado ?? '',
                 folio_factura:    factD?.folio_factura ?? '',
@@ -223,26 +225,33 @@ async function _generarTxtRecibo(cfdis: FacturaPagoCFDI[], id_empresa?: string):
                 saldo_insoluto:   Math.max(Number(d.saldo_anterior) - monto_pago, 0),
                 num_parcialidad:  d.num_parcialidad,
                 moneda,
-                tasa_iva,
-                base_iva,
-                impuesto_iva,
+                impuestos,
             });
         }
 
         const folio  = await FacturacionRepository.getSiguienteFolio();
         const series = derivarSeries(emisor.serie_ingreso);
 
-        // Reservar folio en facturas (un solo registro por recibo)
+        // Reservar folio en facturas (un solo registro por recibo).
+        // OJO: un recibo puede cubrir VARIAS facturas — id_factura_origen solo
+        // admite una. Se guarda la primera como referencia (para que "TXT" en
+        // el listado no truene con 404), pero regenerar-txt-pago para un
+        // recibo multi-factura solo podrá reconstruir ese primer documento;
+        // los demás quedan huérfanos de esa función mientras factura_pago_cfdi
+        // no tenga su propio FK a esta fila (ver comentario en Factura_Pago_CFDI.model.ts).
+        const primerCfdi = cfdis[0]?.dataValues ?? (cfdis[0] as any);
         await Facturas.create({
-            tipo_cfdi:        'P',
-            origen_factura:   'CXC',
-            folio_factura:    String(folio),
-            fecha_emision:    new Date(fecha_pago),
-            subtotal_factura: documentos.reduce((s, d) => s + d.monto_pago, 0),
-            iva_factura:      0,
-            total_factura:    documentos.reduce((s, d) => s + d.monto_pago, 0),
-            estatus_factura:  'TIM',
-            id_cliente_alm:   clienteId ?? null,
+            tipo_cfdi:         'P',
+            origen_factura:    'CXC',
+            folio_factura:     String(folio),
+            fecha_emision:     new Date(fecha_pago),
+            subtotal_factura:  documentos.reduce((s, d) => s + d.monto_pago, 0),
+            iva_factura:       0,
+            total_factura:     documentos.reduce((s, d) => s + d.monto_pago, 0),
+            estatus_factura:   'TIM',
+            id_cliente_alm:    clienteId ?? null,
+            id_factura_origen: primerCfdi?.id_factura ?? null,
+            uuid_relacionado:  documentos[0]?.uuid_relacionado ?? null,
         });
 
         const { ruta } = generarTxtPago({
@@ -944,19 +953,40 @@ export const CxCService = {
 
     // ─────────────────────────────────────────────────────────────────────────
     //  REGENERAR TXT — Vuelve a escribir el archivo TXT de un pago ya existente
-    //  sin consumir un nuevo folio ni crear nuevos registros
+    //  sin consumir un nuevo folio ni crear nuevos registros.
+    //  Recibe el id de la fila "P" en `facturas` (el folio reservado del
+    //  complemento de pago) y reconstruye TODOS los documentos que cubrió:
+    //    1) Caso normal (1 factura pagada): usa id_factura_origen directo.
+    //    2) Caso recibo multi-factura (_generarTxtRecibo): id_factura_origen
+    //       no alcanza para representar varias facturas, así que se buscan
+    //       todos los factura_pago_cfdi del mismo cliente creados junto con
+    //       esta fila P cuya suma cuadre con su total.
     // ─────────────────────────────────────────────────────────────────────────
-    regenerarTxtPagoCFDI: async (id_pago_cfdi: string, id_empresa?: string) => {
-        const cfdi = await FacturaPagoCFDI.findByPk(id_pago_cfdi);
-        if (!cfdi) throw new Error('Complemento de pago no encontrado');
+    regenerarTxtPagoCFDI: async (id_factura_p: string, id_empresa?: string) => {
+        const facturaP = await Facturas.findByPk(id_factura_p);
+        if (!facturaP) throw new Error('Factura no encontrada');
+        const fp = facturaP.dataValues ?? (facturaP as any);
+        if (fp.tipo_cfdi !== 'P') throw new Error('La factura indicada no es un complemento de pago');
 
-        const d = cfdi.dataValues ?? (cfdi as any);
-        const factura = await Facturas.findByPk(d.id_factura);
-        if (!factura) throw new Error('Factura relacionada no encontrada');
+        // Resolver qué factura_pago_cfdi corresponden a esta fila P (1 documento,
+        // o el grupo completo de un recibo multi-factura) — lógica compartida con
+        // Facturacion.repository.ts (detalle de factura en el listado).
+        const grupo = await resolverGrupoPagoP({
+            id_factura:        fp.id_factura,
+            id_factura_origen: fp.id_factura_origen,
+            id_cliente_alm:    fp.id_cliente_alm,
+            total_factura:     Number(fp.total_factura),
+        });
+        if (!grupo.length) throw new Error('Complemento de pago no encontrado');
 
-        const facturaData = factura.dataValues ?? (factura as any);
-        const cliente     = await Cliente_Almacen.findByPk(facturaData.id_cliente_alm);
-        const emisor      = await _getEmisor(id_empresa);
+        const cfdis = await FacturaPagoCFDI.findAll({ where: { id_pago_cfdi: grupo.map(g => g.id_pago_cfdi) } });
+        if (!cfdis.length) throw new Error('Complemento de pago no encontrado');
+
+        const primerCfdi = cfdis[0].dataValues ?? (cfdis[0] as any);
+        const primeraFacturaOrigen = await Facturas.findByPk(primerCfdi.id_factura);
+        const foPrimera = primeraFacturaOrigen?.dataValues ?? (primeraFacturaOrigen as any);
+        const cliente = foPrimera ? await Cliente_Almacen.findByPk(foPrimera.id_cliente_alm) : null;
+        const emisor  = await _getEmisor(id_empresa);
         if (!emisor) throw new Error('No se encontró la empresa emisora');
 
         let zip = '00000';
@@ -966,21 +996,6 @@ export const CxCService = {
             if ((coloniaData as any)?.cp_colonia) zip = (coloniaData as any).cp_colonia;
         }
 
-        const series        = derivarSeries(emisor.serie_ingreso);
-        const folio         = Number(facturaData.folio_factura);
-        const monto_pagado  = Number(d.monto_pagado);
-        const saldo_anterior = Number(d.saldo_anterior);
-        const saldo_insoluto = Math.max(saldo_anterior - monto_pagado, 0);
-        const fechaStr      = new Date(d.fecha_pago).toISOString().split('T')[0];
-
-        const total_fact    = Number(facturaData.total_factura ?? 0);
-        const subtotal_fact = Number(facturaData.subtotal_factura ?? 0);
-        const iva_fact      = Number(facturaData.iva_factura ?? 0);
-        const proporcion    = total_fact > 0 ? monto_pagado / total_fact : 1;
-        const tasa_iva      = iva_fact > 0 ? 0.16 : 0;
-        const base_iva      = +(subtotal_fact * proporcion).toFixed(2);
-        const impuesto_iva  = +(iva_fact      * proporcion).toFixed(2);
-
         const receptor: ReceptorTxt = {
             razon_social:     ((cliente?.dataValues ?? cliente as any)?.razon_social_cliente_alm ?? '').toUpperCase(),
             rfc:              (cliente?.dataValues ?? cliente as any)?.rfc_cliente_alm ?? 'XAXX010101000',
@@ -989,33 +1004,55 @@ export const CxCService = {
             uso_cfdi:         'CP01',
         };
 
+        const series   = derivarSeries(emisor.serie_ingreso);
+        const folio    = Number(fp.folio_factura); // ← folio PROPIO de esta fila P, no el de la(s) factura(s) pagada(s)
+        const fechaStr = new Date(primerCfdi.fecha_pago).toISOString().split('T')[0];
+
+        const documentos: DocumentoPagoTxt[] = [];
+        for (const cfdiRow of cfdis) {
+            const d = cfdiRow.dataValues ?? (cfdiRow as any);
+            const facturaOrigen = await Facturas.findByPk(d.id_factura);
+            const fo = facturaOrigen?.dataValues ?? (facturaOrigen as any);
+            const monto_pago = Number(d.monto_pagado);
+            const impuestos  = await _impuestosProporcionalesPago(
+                d.id_factura, monto_pago,
+                Number(fo?.total_factura ?? 0), Number(fo?.subtotal_factura ?? 0), Number(fo?.iva_factura ?? 0),
+            );
+            documentos.push({
+                uuid_relacionado: fo?.uuid_sat ?? d.uuid_relacionado ?? '',
+                folio_factura:    fo?.folio_factura ?? '',
+                serie_factura:    emisor.serie_ingreso,
+                monto_pago,
+                saldo_anterior:   Number(d.saldo_anterior),
+                saldo_insoluto:   Math.max(Number(d.saldo_anterior) - monto_pago, 0),
+                num_parcialidad:  d.num_parcialidad,
+                moneda:           d.moneda ?? 'MXN',
+                impuestos,
+            });
+        }
+
         const { ruta, contenido } = generarTxtPago({
             emisor, receptor, folio,
             fecha_pago:       fechaStr,
-            id_forma_pago:    d.forma_de_pago,
-            moneda:           d.moneda ?? 'MXN',
+            id_forma_pago:    primerCfdi.forma_de_pago,
+            moneda:           primerCfdi.moneda ?? 'MXN',
             num_cuenta_banco: (emisor as any).num_cuenta_banco ?? undefined,
             rfc_cta_ben:      (emisor as any).rfc_banco ?? undefined,
-            documentos: [{
-                uuid_relacionado: facturaData.uuid_sat ?? d.uuid_relacionado ?? '',
-                folio_factura:    facturaData.folio_factura ?? String(folio),
-                serie_factura:    emisor.serie_ingreso,
-                monto_pago:       monto_pagado,
-                saldo_anterior,
-                saldo_insoluto,
-                num_parcialidad:  d.num_parcialidad,
-                moneda:           d.moneda ?? 'MXN',
-                tasa_iva,
-                base_iva,
-                impuesto_iva,
-            }],
+            documentos,
             nombreArchivo: `PagoDig${series.pago}${folio}-Pagos.txt`,
         });
 
-        // Limpiar UUID y regresar a PEN para que el watcher procese el nuevo XML timbrado
+        // Limpiar UUID y regresar a PEN (todos los documentos del recibo) para que el watcher procese el nuevo XML
         await FacturaPagoCFDI.update(
             { uuid_cfdi_pago: null, estatus_timbrado: 'PEN', xml_url: null, pdf_url: null, fecha_timbrado: null },
-            { where: { id_pago_cfdi } }
+            { where: { id_pago_cfdi: cfdis.map(c => (c.dataValues ?? c).id_pago_cfdi) } }
+        );
+
+        // Limpiar también la fila "P" (wrapper) — si no, se queda con el uuid_sat
+        // viejo (o sin ninguno) y el watcher nunca la vuelve a tomar en el próximo timbrado.
+        await Facturas.update(
+            { uuid_sat: null, fecha_timbrado: null, xml_url: null, pdf_url: null },
+            { where: { id_factura: id_factura_p } }
         );
 
         return { ruta, contenido };

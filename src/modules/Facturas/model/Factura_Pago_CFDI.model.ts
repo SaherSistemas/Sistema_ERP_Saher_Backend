@@ -24,100 +24,108 @@ export class FacturaPagoCFDI extends Model<FacturaPagoCFDI> {
     @Column({
         type: DataType.UUID,
     })
-    id_pago_cfdi: string;
+    declare id_pago_cfdi: string;
 
-    // FK → Factura tipo I (la factura original)
+    // FK → Factura tipo I (la factura original que se está pagando)
     @ForeignKey(() => Facturas)
     @Column({
         type: DataType.UUID,
         allowNull: false
     })
-    id_factura: string;
+    declare id_factura: string;
+
+    // NOTA: no existe un FK propio de vuelta a la fila "P" en `facturas` (el folio
+    // reservado del complemento de pago). El enlace hoy es indirecto: `facturas.id_factura_origen`
+    // en esa fila P debe apuntar a este mismo `id_factura`, y así `regenerarTxtPago` los empareja.
+    // Eso funciona 1:1 (un recibo = una factura pagada), pero se rompe cuando un recibo cubre
+    // varias facturas (_generarTxtRecibo en CxC.service.ts): ahí hay varias filas de esta tabla
+    // bajo una sola fila "P", y `id_factura_origen` solo puede apuntar a una. Agregar aquí un
+    // `id_factura_pago` (FK directo a esa fila "P") resolvería el caso multi-factura de raíz.
 
     // Vínculo al registro de Pago_CxC (puede ser null si se timbra sin CxC)
     @Column({
         type: DataType.UUID,
         allowNull: true
     })
-    id_pago_cxc: string;
+    declare id_pago_cxc: string;
 
     // Información del pago
     @Column({
         type: DataType.DATE,
         allowNull: false
     })
-    fecha_pago: Date;
+    declare fecha_pago: Date;
 
     @ForeignKey(() => Cat_Forma_De_Pago)
     @Column({
         type: DataType.CHAR(2),
         allowNull: false
     })
-    forma_de_pago: string;
+    declare forma_de_pago: string;
 
     @Default('MXN')
     @Column({
         type: DataType.CHAR(3),
         allowNull: false
     })
-    moneda: string;
+    declare moneda: string;
 
     @Column({
         type: DataType.DECIMAL(12, 2),
         allowNull: false
     })
-    monto_pagado: number;
+    declare monto_pagado: number;
 
     // Datos del documento relacionado (Factura I)
     @Column({
         type: DataType.SMALLINT,
         allowNull: false
     })
-    num_parcialidad: number;
+    declare num_parcialidad: number;
 
     @Column({
         type: DataType.DECIMAL(12, 2),
         allowNull: false
     })
-    saldo_anterior: number;
+    declare saldo_anterior: number;
 
     @Column({
         type: DataType.DECIMAL(12, 2),
         allowNull: false
     })
-    saldo_insoluto: number;
+    declare saldo_insoluto: number;
 
     // UUID del CFDI original (uuid_sat de la factura tipo I relacionada)
     @Column({
         type: DataType.TEXT,
         allowNull: false
     })
-    uuid_relacionado: string;
+    declare uuid_relacionado: string;
 
     // UUID del complemento de pago generado por Facturapi
     @Column({
         type: DataType.TEXT,
         allowNull: true
     })
-    uuid_cfdi_pago: string;
+    declare uuid_cfdi_pago: string;
 
     @Column({
         type: DataType.STRING,
         allowNull: true
     })
-    pdf_url: string;
+    declare pdf_url: string;
 
     @Column({
         type: DataType.STRING,
         allowNull: true
     })
-    xml_url: string;
+    declare xml_url: string;
 
     @Column({
         type: DataType.DATE,
         allowNull: true
     })
-    fecha_timbrado: Date;
+    declare fecha_timbrado: Date;
 
     // PEN=pendiente, TIM=timbrado, ERR=error
     @Default('PEN')
@@ -125,7 +133,7 @@ export class FacturaPagoCFDI extends Model<FacturaPagoCFDI> {
         type: DataType.CHAR(3),
         allowNull: false
     })
-    estatus_timbrado: string;
+    declare estatus_timbrado: string;
 
     // Relaciones
     @BelongsTo(() => Facturas)

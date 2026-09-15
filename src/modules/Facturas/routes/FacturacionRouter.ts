@@ -8,6 +8,10 @@ const router = Router();
 // POST /api/facturas/reintentar/:id_factura
 router.post('/reintentar/:id_factura', authMiddleware, FacturacionController.reintentarTimbrado);
 
+// Admin: reinsertar traslado en PolyDB cuando falló el insert original
+// POST /api/facturas/reinsertar-poly/:id_factura
+router.post('/reinsertar-poly/:id_factura', authMiddleware, FacturacionController.reinsertarEnPolyDB);
+
 // Dashboard
 router.get('/dashboard/resumen-diario', authMiddleware, FacturacionController.resumenDiario);
 router.get('/dashboard/top-clientes', authMiddleware, FacturacionController.topClientes);
@@ -16,6 +20,7 @@ router.get('/dashboard/top-articulos', authMiddleware, FacturacionController.top
 // Lista de facturas con filtros opcionales
 // GET /api/facturas?estatus=TIM&tipo_cfdi=I&fecha_inicio=&fecha_fin=&busqueda=&page=1&limit=50
 router.get('/', authMiddleware, FacturacionController.getList);
+router.get('/:id_factura/lotes', authMiddleware, FacturacionController.getLotesByFactura);
 router.get('/:id_factura', authMiddleware, FacturacionController.getById);
 
 // Legado: genera .txt para timbrado manual

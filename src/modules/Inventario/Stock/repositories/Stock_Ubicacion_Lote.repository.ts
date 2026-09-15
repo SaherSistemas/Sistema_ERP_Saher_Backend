@@ -389,6 +389,11 @@ export const Stock_Ubicacion_LoteRepository = {
                 }
             ],
             order: [
+                // Lotes migrados (del sistema anterior) primero — el comentario de
+                // arriba ya lo declaraba, pero nunca se aplicó en el ORDER BY: solo
+                // se ordenaba por fecha_venci, así que un lote nuevo con caducidad
+                // más próxima podía salir antes que uno migrado más viejo.
+                [{ model: LoteArticuloSucursal, as: 'lote' }, 'migracion', 'DESC'],
                 [{ model: LoteArticuloSucursal, as: 'lote' }, 'fecha_venci_lote_sucursal', 'ASC'],
 
 

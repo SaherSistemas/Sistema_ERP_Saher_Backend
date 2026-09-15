@@ -29,6 +29,7 @@ import {
     calcularTotales,
     particionarConceptos,
     crearCxCyRemision,
+    calcularImpuestosProporcionalesPago,
 } from '../helpers/factura.helper';
 import { parseCfdiXml, generarPdfDesdeCfdi } from '../helpers/cfdi-xml-to-pdf.helper';
 import Facturas from '../model/Facturas.model';
@@ -45,6 +46,7 @@ import EmpresaSucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
 import Detalle_Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Detalle_Factura_Compra_Proveedor';
 import Lote_Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Lote_Factura_Compra_Proveedor';
+import Cat_Bancos from '../../Catalogos/model/Cat_Bancos';
 import { v4 as uuidv4 } from 'uuid';
 import { UsuarioRepository } from '../../Seguridad/repositories/Usuario.repository';
 import { checkPassword } from '../../../utils/hashPassword';
@@ -84,10 +86,10 @@ async function getLotesPorPedido(id_pedido_alm: string): Promise<
     Map<string, { lote: string; fecha_caducidad: string; cantidad: number }[]>
 > {
     const rows = await dbLocal.query<{
-        id_articulo:    string;
-        numero_lote:    string;
+        id_articulo: string;
+        numero_lote: string;
         fecha_caducidad: string;
-        cantidad:       number;
+        cantidad: number;
     }>(`
         SELECT
             dpa.id_articulo,
@@ -115,19 +117,32 @@ function nomEmisorTxt(nombreDb: string, nombreFacturacion: string | null): strin
     return nombreFacturacion?.trim() || nombreDb;
 }
 
-async function obtenerEmisor(id_empresa: string): Promise<EmisorTxt & { serie_facturacion_empre: string } | null> {
+async function obtenerEmisor(id_empresa: string): Promise<EmisorTxt & {
+    serie_facturacion_empre: string;
+    num_cuenta_banco?: string | null;
+    rfc_banco?: string | null;
+} | null> {
     const e = await EmpresaSucursal.findByPk(id_empresa, {
-        attributes: ['nom_empre', 'nom_empre_facturacion', 'rfc_empre', 'regimen_fiscal_empre', 'serie_facturacion_empre', 'id_colonia_empre'],
+        attributes: ['nom_empre', 'nom_empre_facturacion', 'rfc_empre', 'regimen_fiscal_empre', 'serie_facturacion_empre', 'id_colonia_empre', 'num_cuenta_banco', 'id_banco_empresa'],
         raw: true,
     }) as any;
     if (!e) return null;
+
+    let rfc_banco: string | null = null;
+    if (e.id_banco_empresa) {
+        const banco = await Cat_Bancos.findByPk(e.id_banco_empresa, { raw: true }) as any;
+        rfc_banco = banco?.rfc_banco?.trim() || null;
+    }
+
     return {
-        nom_empre:              nomEmisorTxt(e.nom_empre, e.nom_empre_facturacion),
-        rfc_empre:              e.rfc_empre,
-        regimen_fiscal_empre:   e.regimen_fiscal_empre ?? '601',
-        serie_ingreso:          e.serie_facturacion_empre ?? 'FSH',
-        lugar_expedicion:       e.lugar_expedicion ?? '80160',
+        nom_empre: nomEmisorTxt(e.nom_empre, e.nom_empre_facturacion),
+        rfc_empre: e.rfc_empre,
+        regimen_fiscal_empre: e.regimen_fiscal_empre ?? '601',
+        serie_ingreso: e.serie_facturacion_empre ?? 'FSH',
+        lugar_expedicion: e.lugar_expedicion ?? '80160',
         serie_facturacion_empre: e.serie_facturacion_empre ?? 'FSH',
+        num_cuenta_banco: e.num_cuenta_banco?.trim() || null,
+        rfc_banco,
     };
 }
 
@@ -145,53 +160,53 @@ export const FacturacionService = {
 
         if (!conceptos.length) throw new Error('El pedido no tiene conceptos para facturar');
 
-        const dias_credito   = Number(cab.plazo_pago_cliente ?? 0);
+        const dias_credito = Number(cab.plazo_pago_cliente ?? 0);
         const esPublicoGeneral = detectarPublicoGeneral(cab.rfc_cliente, cab.nom_empre_receptor);
-        const folio          = cab.siguiente_folio;
-        const leyenda        = cab.leyenda_factura_empre
+        const folio = cab.siguiente_folio;
+        const leyenda = cab.leyenda_factura_empre
             ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
 
         const emisor: EmisorTxt = {
-            nom_empre:            nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
-            rfc_empre:            cab.rfc_empre,
+            nom_empre: nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
+            rfc_empre: cab.rfc_empre,
             regimen_fiscal_empre: cab.regimen_fiscal_empre,
-            serie_ingreso:        cab.serie_facturacion_empre,
-            lugar_expedicion:     cab.lugar_expedicion,
+            serie_ingreso: cab.serie_facturacion_empre,
+            lugar_expedicion: cab.lugar_expedicion,
         };
         const receptor: ReceptorTxt = esPublicoGeneral ? {
-            razon_social:    'VENTA AL PUBLICO EN GENERAL',
-            rfc:             RFC_PUBLICO_GENERAL,
+            razon_social: 'VENTA AL PUBLICO EN GENERAL',
+            rfc: RFC_PUBLICO_GENERAL,
             domicilio_fiscal: cab.lugar_expedicion,
-            regimen_fiscal:  '616',
-            uso_cfdi:        'S01',
+            regimen_fiscal: '616',
+            uso_cfdi: 'S01',
         } : {
-            razon_social:    cab.razon_social_cliente,
-            rfc:             cab.rfc_cliente,
+            razon_social: cab.razon_social_cliente,
+            rfc: cab.rfc_cliente,
             domicilio_fiscal: cab.domicilio_fiscal,
-            regimen_fiscal:  cab.regimen_fiscal_cliente,
-            uso_cfdi:        cab.uso_cfdi,
+            regimen_fiscal: cab.regimen_fiscal_cliente,
+            uso_cfdi: cab.uso_cfdi,
         };
         const conceptosTxt: ConceptoTxt[] = conceptos.map(c => ({
-            cve_sat:         c.cve_sat,
-            sat_medida:      c.sat_medida,
-            desc_medida:     c.desc_medida,
-            cod_barras:      c.cod_barras,
-            cantidad:        c.cantidad,
-            descripcion:     c.descripcion,
+            cve_sat: c.cve_sat,
+            sat_medida: c.sat_medida,
+            desc_medida: c.desc_medida,
+            cod_barras: c.cod_barras,
+            cantidad: c.cantidad,
+            descripcion: c.descripcion,
             precio_unitario: c.precio_unitario,
-            descuento:       c.descuento,
-            subtotal_linea:  c.subtotal_linea,
-            tasa_iva:        c.tasa_iva,
-            impuesto_sat:    c.impuesto_sat,
-            tipo_factor:     c.tipo_factor,
-            lotes:           c.lotes?.map(l => ({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: l.cantidad })),
+            descuento: c.descuento,
+            subtotal_linea: c.subtotal_linea,
+            tasa_iva: c.tasa_iva,
+            impuesto_sat: c.impuesto_sat,
+            tipo_factor: c.tipo_factor,
+            lotes: c.lotes?.map(l => ({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: l.cantidad })),
         }));
 
         const { ruta: rutaArchivo } = generarTxtIngreso({
             emisor, receptor, folio,
-            forma_pago:  cab.forma_pago,
+            forma_pago: cab.forma_pago,
             metodo_pago: cab.metodo_pago,
-            conceptos:   conceptosTxt,
+            conceptos: conceptosTxt,
             leyenda,
             nombreArchivo: `${cab.serie_facturacion_empre}${folio}_${cab.cod_int_pedido_alm}.txt`,
         });
@@ -287,14 +302,14 @@ export const FacturacionService = {
             return FacturacionService._timbrarTraslado({ cab, conceptos, id_empresa, id_empleado });
         }
 
-        const dias_credito     = Number(cab.plazo_pago_cliente ?? 0);
+        const dias_credito = Number(cab.plazo_pago_cliente ?? 0);
         const esPublicoGeneral = detectarPublicoGeneral(cab.rfc_cliente, cab.nom_empre_receptor);
-        const limite           = Number(cab.limite_por_factura ?? 0);
-        const leyenda          = cab.leyenda_factura_empre
+        const limite = Number(cab.limite_por_factura ?? 0);
+        const leyenda = cab.leyenda_factura_empre
             ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
 
         const particiones = particionarConceptos(conceptos, limite);
-        const basefolio   = await FacturacionRepository.getSiguienteFolio();
+        const basefolio = await FacturacionRepository.getSiguienteFolio();
 
         type RegistroIntermedio = {
             id_factura: string;
@@ -308,10 +323,22 @@ export const FacturacionService = {
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
 
         try {
+            // Lock + guard: evita timbrar dos veces el mismo pedido (doble clic, reintento
+            // tras error de red/UI, o repetir el flujo después de forzar el status a mano).
+            const pedidoLock = await Pedido_Almacen.findByPk(cab.id_pedido_alm, {
+                attributes: ['id_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm'],
+                transaction: t,
+                lock: t.LOCK.UPDATE,
+            });
+            if (!pedidoLock) throw new Error('Pedido no encontrado.');
+            if (pedidoLock.status_pedido_alm === 'FA' || pedidoLock.fecha_facturado_pedido_alm) {
+                throw new Error('Este pedido ya fue facturado. Revisa el módulo de Facturas antes de timbrar de nuevo.');
+            }
+
             for (let i = 0; i < particiones.length; i++) {
                 const conceptosParte = particiones[i];
                 const totales = calcularTotales(conceptosParte);
-                const folio   = basefolio + i;
+                const folio = basefolio + i;
 
                 const factura = await FacturacionRepository.registrarFactura({
                     folio,
@@ -373,24 +400,24 @@ export const FacturacionService = {
         // ── Generar .txt por cada partición ──────────────────────────────────
         // Público General: el TXT se genera cuando se aplica el pago total, no aquí.
         const emisor: EmisorTxt = {
-            nom_empre:            nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
-            rfc_empre:            cab.rfc_empre,
+            nom_empre: nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
+            rfc_empre: cab.rfc_empre,
             regimen_fiscal_empre: cab.regimen_fiscal_empre,
-            serie_ingreso:        cab.serie_facturacion_empre,
-            lugar_expedicion:     cab.lugar_expedicion,
+            serie_ingreso: cab.serie_facturacion_empre,
+            lugar_expedicion: cab.lugar_expedicion,
         };
         const receptor: ReceptorTxt = esPublicoGeneral ? {
-            razon_social:    'VENTA AL PUBLICO EN GENERAL',
-            rfc:             RFC_PUBLICO_GENERAL,
+            razon_social: 'VENTA AL PUBLICO EN GENERAL',
+            rfc: RFC_PUBLICO_GENERAL,
             domicilio_fiscal: cab.lugar_expedicion,
-            regimen_fiscal:  '616',
-            uso_cfdi:        'S01',
+            regimen_fiscal: '616',
+            uso_cfdi: 'S01',
         } : {
-            razon_social:    cab.razon_social_cliente,
-            rfc:             cab.rfc_cliente,
+            razon_social: cab.razon_social_cliente,
+            rfc: cab.rfc_cliente,
             domicilio_fiscal: cab.domicilio_fiscal,
-            regimen_fiscal:  cab.regimen_fiscal_cliente,
-            uso_cfdi:        cab.uso_cfdi,
+            regimen_fiscal: cab.regimen_fiscal_cliente,
+            uso_cfdi: cab.uso_cfdi,
         };
 
         const facturas = registros.map(({ id_factura, folio, id_remision, conceptosParte }) => {
@@ -400,25 +427,25 @@ export const FacturacionService = {
             }
             try {
                 const conceptosTxt: ConceptoTxt[] = conceptosParte.map(c => ({
-                    cve_sat:         c.cve_sat,
-                    sat_medida:      c.sat_medida,
-                    desc_medida:     c.desc_medida,
-                    cod_barras:      c.cod_barras,
-                    cantidad:        c.cantidad,
-                    descripcion:     c.descripcion,
+                    cve_sat: c.cve_sat,
+                    sat_medida: c.sat_medida,
+                    desc_medida: c.desc_medida,
+                    cod_barras: c.cod_barras,
+                    cantidad: c.cantidad,
+                    descripcion: c.descripcion,
                     precio_unitario: c.precio_unitario,
-                    descuento:       c.descuento,
-                    subtotal_linea:  c.subtotal_linea,
-                    tasa_iva:        c.tasa_iva,
-                    impuesto_sat:    c.impuesto_sat,
-                    tipo_factor:     c.tipo_factor,
-                    lotes:           c.lotes?.map(l => ({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: l.cantidad })),
+                    descuento: c.descuento,
+                    subtotal_linea: c.subtotal_linea,
+                    tasa_iva: c.tasa_iva,
+                    impuesto_sat: c.impuesto_sat,
+                    tipo_factor: c.tipo_factor,
+                    lotes: c.lotes?.map(l => ({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: l.cantidad })),
                 }));
                 const { ruta } = generarTxtIngreso({
                     emisor, receptor, folio,
-                    forma_pago:  cab.forma_pago,
+                    forma_pago: cab.forma_pago,
                     metodo_pago: cab.metodo_pago,
-                    conceptos:   conceptosTxt,
+                    conceptos: conceptosTxt,
                     leyenda,
                     nombreArchivo: `FactDig${cab.serie_facturacion_empre}${folio}-Ingresos.txt`,
                 });
@@ -448,7 +475,7 @@ export const FacturacionService = {
             if (cab.id_empresa_sys_nuevo) {
                 try {
                     const lotesPorArticulo = await getLotesPorPedido(cab.id_pedido_alm);
-                    const primerRegistro   = registros[0];
+                    const primerRegistro = registros[0];
                     const id_factura_proveedor = uuidv4();
                     const hoy = new Date();
                     await Factura_Compra_Proveedor.create({
@@ -529,7 +556,7 @@ export const FacturacionService = {
                 throw new Error(`Cantidad a devolver (${d.cantidad}) excede la facturada (${det.cantidad_facturada})`);
             }
             const subtotal = +(d.cantidad * Number(det.precio_artic)).toFixed(2);
-            const iva      = +(subtotal * Number(det.tasa_iva)).toFixed(2);
+            const iva = +(subtotal * Number(det.tasa_iva)).toFixed(2);
             montoDevolucion += +(subtotal + iva).toFixed(2);
         }
         montoDevolucion = +montoDevolucion.toFixed(2);
@@ -560,8 +587,8 @@ export const FacturacionService = {
                 const nuevo_total = +Math.max(Number(factura.total_factura) - montoDevolucion, 0).toFixed(2);
                 await factura.update({ total_factura: nuevo_total }, { transaction: t });
                 if (cxc) {
-                    const nuevo_monto   = +Math.max(Number(cxc.monto_total)   - montoDevolucion, 0).toFixed(2);
-                    const nuevo_saldo   = +Math.max(Number(cxc.saldo_pendiente) - montoDevolucion, 0).toFixed(2);
+                    const nuevo_monto = +Math.max(Number(cxc.monto_total) - montoDevolucion, 0).toFixed(2);
+                    const nuevo_saldo = +Math.max(Number(cxc.saldo_pendiente) - montoDevolucion, 0).toFixed(2);
                     const nuevo_estatus = nuevo_saldo <= 0 ? 'PAG' : cxc.estatus_cxc;
                     await cxc.update({ monto_total: nuevo_monto, saldo_pendiente: nuevo_saldo, estatus_cxc: nuevo_estatus }, { transaction: t });
                 }
@@ -603,7 +630,17 @@ export const FacturacionService = {
         };
 
         const rmenufacc = `${prefijo}-${id_empresa_sys_anterior}-${folio}`;
-        const fechaHoy  = new Date().toISOString().split('T')[0];
+        const fechaHoy = new Date().toISOString().split('T')[0];
+
+        // Guard: si el folio ya fue insertado en el POS antiguo, no duplicar
+        const [existing] = await dbPoly.query(
+            `SELECT 1 FROM rme0010 WHERE rmenufacc = :rmenufacc AND empcdempn = :empcdempn LIMIT 1`,
+            { replacements: { rmenufacc, empcdempn: id_empresa_sys_anterior }, type: QueryTypes.SELECT }
+        );
+        if (existing) {
+            console.log(`[POS_ANTIGUO] Ya existe ${rmenufacc} — omitiendo inserción duplicada`);
+            return;
+        }
 
         const tPoly = await dbPoly.transaction();
         try {
@@ -658,6 +695,86 @@ export const FacturacionService = {
         }
     },
 
+    // ── Reinsertar factura en PolyDB (recuperación de error) ─────────────────
+    reinsertarEnPolyDB: async (id_factura: string) => {
+        const factura = await Facturas.findByPk(id_factura, {
+            include: [{ model: Detalle_Factura, as: 'detalles' }],
+        }) as any;
+        if (!factura) throw { status: 404, message: 'Factura no encontrada.' };
+        if (!['T', 'GEN'].includes(factura.tipo_cfdi) && factura.estatus_factura !== 'GEN')
+            throw { status: 400, message: 'Solo se pueden reinsertar facturas tipo T en estado GEN.' };
+
+        // Obtener empresa para id_empresa_sys_anterior y plazo_pago
+        const pedido = await dbLocal.query<any>(`
+            SELECT pa.id_pedido_alm, pa.cod_int_pedido_alm,
+                   ca.id_empresa_sys_anterior
+            FROM pedido_almacen pa
+            JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+            WHERE pa.id_pedido_alm = :id_pedido_alm
+        `, { replacements: { id_pedido_alm: factura.id_pedido_alm }, type: QueryTypes.SELECT });
+
+        const ped = pedido[0];
+        if (!ped?.id_empresa_sys_anterior)
+            throw { status: 400, message: 'El cliente del pedido no tiene id_empresa_sys_anterior configurado.' };
+
+        // Obtener lotes del pedido para construir conceptos
+        const lotesPedido = await dbLocal.query<any>(`
+            SELECT dpa.id_articulo, dpal.cantidad,
+                   las.numero_lote_sucursal AS lote,
+                   TO_CHAR(las.fecha_venci_lote_sucursal, 'MM/YYYY') AS fecha_venci
+            FROM detalle_pedido_almacen_lote dpal
+            JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpal.id_detalle_pedido_almacen
+            JOIN lote_articulo_sucursal las ON las.id_lote_sucursal = dpal.id_lote_sucursal
+            WHERE dpa.id_pedido_almacen = :id_pedido_alm
+        `, { replacements: { id_pedido_alm: factura.id_pedido_alm }, type: QueryTypes.SELECT });
+
+        // Agrupar lotes por articulo
+        const lotesPorArticulo: Record<string, { lote: string; fecha_venci: string; cantidad: number; folio_factura_proveedor: null; nom_proveedor: null }[]> = {};
+        for (const l of lotesPedido) {
+            if (!lotesPorArticulo[l.id_articulo]) lotesPorArticulo[l.id_articulo] = [];
+            lotesPorArticulo[l.id_articulo].push({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: Number(l.cantidad), folio_factura_proveedor: null, nom_proveedor: null });
+        }
+
+        const articuloInfo = await dbLocal.query<any>(`
+            SELECT a.id_artic, a.cod_int_artic, a.cod_barr_artic, a.des_artic
+            FROM articulo a
+            WHERE a.id_artic IN (:ids)
+        `, { replacements: { ids: factura.detalles.map((d: any) => d.id_articulo) }, type: QueryTypes.SELECT });
+        const artMap: Record<string, any> = {};
+        for (const a of articuloInfo) artMap[a.id_artic] = a;
+
+        const conceptos: import('../interfaces/Facturacion.types').ConceptoFacturacion[] = factura.detalles.map((d: any) => ({
+            id_articulo: d.id_articulo,
+            cve_sat: '',
+            sat_medida: '',
+            desc_medida: '',
+            cod_int_artic: artMap[d.id_articulo]?.cod_int_artic ?? 0,
+            cod_barras: artMap[d.id_articulo]?.cod_barr_artic ?? '',
+            cantidad: Number(d.cantidad_facturada),
+            descripcion: d.descripcion_articulo,
+            precio_unitario: Number(d.precio_artic),
+            descuento: 0,
+            subtotal_linea: Number(d.subtotal),
+            tasa_iva: Number(d.tasa_iva),
+            impuesto_sat: '',
+            tipo_factor: '',
+            necesita_receta: false,
+            lotes: lotesPorArticulo[d.id_articulo] ?? [],
+        }));
+
+        const folioNum = parseInt(factura.folio_factura, 10);
+        await FacturacionService._insertarEnPOSAntiguo({
+            prefijo: 'TRA',
+            id_empresa_sys_anterior: ped.id_empresa_sys_anterior,
+            folio: folioNum,
+            plazo_pago: 0,
+            total: Number(factura.total_factura),
+            conceptos,
+        });
+
+        return { mensaje: `Factura TRA-${ped.id_empresa_sys_anterior}-${folioNum} insertada en PolyDB correctamente.` };
+    },
+
     // ── CFDI Traslado (T) — para clientes empresa propia ─────────────────────
     _timbrarTraslado: async ({
         cab, conceptos, id_empresa, id_empleado,
@@ -668,7 +785,7 @@ export const FacturacionService = {
         id_empleado: string;
     }) => {
         const totales = calcularTotales(conceptos);
-        const folio   = await FacturacionRepository.getSiguienteFolio();
+        const folio = await FacturacionRepository.getSiguienteFolio();
         const leyenda = cab.leyenda_factura_empre
             ?? `Traslado Pedido: ${cab.cod_int_pedido_alm}`;
 
@@ -720,7 +837,7 @@ export const FacturacionService = {
             throw err;
         }
 
-        const now     = new Date();
+        const now = new Date();
         const fechaStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
         const pdfBuffer = await generarTrasladoPDFBuffer({
@@ -783,7 +900,7 @@ export const FacturacionService = {
                 if (!lote.folio_factura_proveedor && lote.fecha_venci) {
                     try {
                         const [mm, yyyy] = lote.fecha_venci.split('/');
-                        const mes  = parseInt(mm,  10);
+                        const mes = parseInt(mm, 10);
                         const anio = parseInt(yyyy, 10);
                         const fi = `${anio}-${String(mes).padStart(2, '0')}-01`;
                         const mn = mes === 12 ? 1 : mes + 1;
@@ -792,8 +909,8 @@ export const FacturacionService = {
                         const sql = `SELECT rm.rmenufacc AS folio_factura, pr.prvrazonc AS razon_proveedor FROM rme00102 rm LEFT JOIN proveedores pr ON pr.prvcdprvn = rm.prvcdprvn WHERE rm.artcdartn = ${item.cod_int_artic} AND rm.empcdempn = 20 AND rm.rmefecadd >= '${fi}' AND rm.rmefecadd < '${ff}' LIMIT 1`;
                         const polyRows = await dbPoly.query<any>(sql, { type: QueryTypes.SELECT });
                         if (polyRows[0]) {
-                            lote.folio_factura_proveedor = polyRows[0].folio_factura   ? String(polyRows[0].folio_factura).trim()   : null;
-                            lote.nom_proveedor           = polyRows[0].razon_proveedor ? String(polyRows[0].razon_proveedor).trim() : null;
+                            lote.folio_factura_proveedor = polyRows[0].folio_factura ? String(polyRows[0].folio_factura).trim() : null;
+                            lote.nom_proveedor = polyRows[0].razon_proveedor ? String(polyRows[0].razon_proveedor).trim() : null;
                         }
                     } catch (e) {
                         console.error('[TRASPASO-FAC] PolyDB error art', item.cod_int_artic, e);
@@ -802,7 +919,7 @@ export const FacturacionService = {
             }
         }
 
-        const fechaDoc    = new Date();
+        const fechaDoc = new Date();
         const fechaDocStr = `${String(fechaDoc.getDate()).padStart(2, '0')}/${String(fechaDoc.getMonth() + 1).padStart(2, '0')}/${String(fechaDoc.getFullYear()).slice(-2)}`;
 
         const pdfTraspasoBuffer = await generarTraspasoCompletoPDFBuffer({
@@ -840,7 +957,7 @@ export const FacturacionService = {
 
         if (cab.id_empresa_sys_nuevo) {
             try {
-                const lotesPorArticulo     = await getLotesPorPedido(cab.id_pedido_alm);
+                const lotesPorArticulo = await getLotesPorPedido(cab.id_pedido_alm);
                 const id_factura_proveedor = uuidv4();
                 const hoy = new Date();
                 await Factura_Compra_Proveedor.create({
@@ -910,22 +1027,22 @@ export const FacturacionService = {
             }
             const subtotal_linea = +(d.cantidad * original.precio_artic).toFixed(2);
             return {
-                id_articulo:     original.id_articulo,
-                descripcion:     original.descripcion_articulo,
-                cantidad:        d.cantidad,
+                id_articulo: original.id_articulo,
+                descripcion: original.descripcion_articulo,
+                cantidad: d.cantidad,
                 precio_unitario: original.precio_artic,
                 subtotal_linea,
-                tasa_iva:        original.tasa_iva,
-                cve_sat:         original.cve_sat,
-                sat_medida:      original.sat_medida,
-                desc_medida:     original.desc_medida,
+                tasa_iva: original.tasa_iva,
+                cve_sat: original.cve_sat,
+                sat_medida: original.sat_medida,
+                desc_medida: original.desc_medida,
             };
         });
 
         const subtotal = detallesEgreso.reduce((s, d) => s + d.subtotal_linea, 0);
-        const iva      = detallesEgreso.reduce((s, d) => s + +(d.subtotal_linea * d.tasa_iva).toFixed(2), 0);
-        const total    = +(subtotal + iva).toFixed(2);
-        const folio    = await FacturacionRepository.getSiguienteFolio();
+        const iva = detallesEgreso.reduce((s, d) => s + +(d.subtotal_linea * d.tasa_iva).toFixed(2), 0);
+        const total = +(subtotal + iva).toFixed(2);
+        const folio = await FacturacionRepository.getSiguienteFolio();
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
         let id_factura: string;
@@ -958,11 +1075,11 @@ export const FacturacionService = {
                 const { ruta } = generarTxtEgreso({
                     emisor: empresa,
                     receptor: {
-                        razon_social:    origen.razon_social_cliente,
-                        rfc:             origen.rfc_cliente,
+                        razon_social: origen.razon_social_cliente,
+                        rfc: origen.rfc_cliente,
                         domicilio_fiscal: origen.domicilio_fiscal,
-                        regimen_fiscal:  origen.regimen_fiscal_cliente,
-                        uso_cfdi:        'G02',
+                        regimen_fiscal: origen.regimen_fiscal_cliente,
+                        uso_cfdi: 'G02',
                     },
                     folio,
                     uuid_relacionado: origen.uuid_sat ?? '',
@@ -1014,33 +1131,33 @@ export const FacturacionService = {
             if (!conceptos.length) throw new Error('La factura no tiene conceptos registrados');
 
             const esPublicoGeneral = detectarPublicoGeneral(cab.rfc_cliente, cab.nom_empre_receptor);
-            const folio   = Number(factura.folio_factura);
+            const folio = Number(factura.folio_factura);
             const leyenda = cab.leyenda_factura_empre
                 ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
 
             const { ruta } = generarTxtIngreso({
                 emisor: {
-                    nom_empre:            nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
-                    rfc_empre:            cab.rfc_empre,
+                    nom_empre: nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
+                    rfc_empre: cab.rfc_empre,
                     regimen_fiscal_empre: cab.regimen_fiscal_empre,
-                    serie_ingreso:        cab.serie_facturacion_empre,
-                    lugar_expedicion:     cab.lugar_expedicion,
+                    serie_ingreso: cab.serie_facturacion_empre,
+                    lugar_expedicion: cab.lugar_expedicion,
                 },
                 receptor: esPublicoGeneral ? {
-                    razon_social:     'VENTA AL PUBLICO EN GENERAL',
-                    rfc:              RFC_PUBLICO_GENERAL,
+                    razon_social: 'VENTA AL PUBLICO EN GENERAL',
+                    rfc: RFC_PUBLICO_GENERAL,
                     domicilio_fiscal: cab.lugar_expedicion,
-                    regimen_fiscal:   '616',
-                    uso_cfdi:         'S01',
+                    regimen_fiscal: '616',
+                    uso_cfdi: 'S01',
                 } : {
-                    razon_social:     cab.razon_social_cliente,
-                    rfc:              cab.rfc_cliente,
+                    razon_social: cab.razon_social_cliente,
+                    rfc: cab.rfc_cliente,
                     domicilio_fiscal: cab.domicilio_fiscal,
-                    regimen_fiscal:   cab.regimen_fiscal_cliente,
-                    uso_cfdi:         cab.uso_cfdi,
+                    regimen_fiscal: cab.regimen_fiscal_cliente,
+                    uso_cfdi: cab.uso_cfdi,
                 },
                 folio,
-                forma_pago:  cab.forma_pago,
+                forma_pago: cab.forma_pago,
                 metodo_pago: cab.metodo_pago,
                 conceptos: conceptos.map(c => ({
                     cve_sat: c.cve_sat, sat_medida: c.sat_medida, desc_medida: c.desc_medida,
@@ -1064,15 +1181,15 @@ export const FacturacionService = {
             if (!datos) throw new Error('No se encontraron los datos de la factura E');
 
             const series = derivarSeries(empresa.serie_ingreso);
-            const folio  = Number(factura.folio_factura);
+            const folio = Number(factura.folio_factura);
             const { ruta } = generarTxtEgreso({
                 emisor: empresa,
                 receptor: {
-                    razon_social:    datos.razon_social_cliente,
-                    rfc:             datos.rfc_cliente,
+                    razon_social: datos.razon_social_cliente,
+                    rfc: datos.rfc_cliente,
                     domicilio_fiscal: datos.domicilio_fiscal,
-                    regimen_fiscal:  datos.regimen_fiscal_cliente,
-                    uso_cfdi:        'G02',
+                    regimen_fiscal: datos.regimen_fiscal_cliente,
+                    uso_cfdi: 'G02',
                 },
                 folio,
                 uuid_relacionado: factura.uuid_relacionado ?? datos.uuid_sat ?? '',
@@ -1105,30 +1222,37 @@ export const FacturacionService = {
 
             const folio = Number(factura.folio_factura);
             const saldo_insoluto = +(Number(pagoCFDI.saldo_anterior) - Number(pagoCFDI.monto_pagado)).toFixed(2);
+            const monto_pagado = Number(pagoCFDI.monto_pagado);
+            const impuestos = await calcularImpuestosProporcionalesPago(
+                factura.id_factura_origen, monto_pagado,
+                origen.total_factura, origen.subtotal_factura, origen.iva_factura,
+            );
 
             const { ruta } = generarTxtPago({
                 emisor: empresa,
                 receptor: {
-                    razon_social:    origen.razon_social_cliente,
-                    rfc:             origen.rfc_cliente,
+                    razon_social: origen.razon_social_cliente,
+                    rfc: origen.rfc_cliente,
                     domicilio_fiscal: origen.domicilio_fiscal,
-                    regimen_fiscal:  origen.regimen_fiscal_cliente,
-                    uso_cfdi:        'CP01',
+                    regimen_fiscal: origen.regimen_fiscal_cliente,
+                    uso_cfdi: 'CP01',
                 },
                 folio,
-                fecha_pago:    new Date(pagoCFDI.fecha_pago).toISOString().split('T')[0],
+                fecha_pago: new Date(pagoCFDI.fecha_pago).toISOString().split('T')[0],
                 id_forma_pago: pagoCFDI.forma_de_pago,
-                moneda:        pagoCFDI.moneda,
+                moneda: pagoCFDI.moneda,
+                num_cuenta_banco: empresa.num_cuenta_banco ?? undefined,
+                rfc_cta_ben: empresa.rfc_banco ?? undefined,
                 documentos: [{
                     uuid_relacionado: origen.uuid_sat ?? '',
-                    folio_factura:    origen.folio_factura ?? String(folio),
-                    serie_factura:    empresa.serie_ingreso,
-                    monto_pago:       Number(pagoCFDI.monto_pagado),
-                    saldo_anterior:   Number(pagoCFDI.saldo_anterior),
+                    folio_factura: origen.folio_factura ?? String(folio),
+                    serie_factura: empresa.serie_ingreso,
+                    monto_pago: monto_pagado,
+                    saldo_anterior: Number(pagoCFDI.saldo_anterior),
                     saldo_insoluto,
-                    num_parcialidad:  pagoCFDI.num_parcialidad,
-                    moneda:           pagoCFDI.moneda,
-                    tasa_iva:         0,
+                    num_parcialidad: pagoCFDI.num_parcialidad,
+                    moneda: pagoCFDI.moneda,
+                    impuestos,
                 }],
             });
 
@@ -1145,9 +1269,9 @@ export const FacturacionService = {
         if (!origen) throw new Error('Factura no encontrada');
         if (origen.tipo_cfdi !== 'I') throw new Error('Solo se puede generar complemento de pago de facturas tipo Ingreso');
 
-        const moneda         = dto.moneda ?? 'MXN';
+        const moneda = dto.moneda ?? 'MXN';
         const saldo_insoluto = +(dto.saldo_anterior - dto.monto_pago).toFixed(2);
-        const folio          = await FacturacionRepository.getSiguienteFolio();
+        const folio = await FacturacionRepository.getSiguienteFolio();
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
         let id_factura_pago: string;
@@ -1195,29 +1319,35 @@ export const FacturacionService = {
         try {
             const empresa = dto.id_empresa ? await obtenerEmisor(dto.id_empresa) : null;
             if (empresa) {
+                const impuestos = await calcularImpuestosProporcionalesPago(
+                    dto.id_factura, dto.monto_pago,
+                    origen.total_factura, origen.subtotal_factura, origen.iva_factura,
+                );
                 const { ruta } = generarTxtPago({
                     emisor: empresa,
                     receptor: {
-                        razon_social:    origen.razon_social_cliente,
-                        rfc:             origen.rfc_cliente,
+                        razon_social: origen.razon_social_cliente,
+                        rfc: origen.rfc_cliente,
                         domicilio_fiscal: origen.domicilio_fiscal,
-                        regimen_fiscal:  origen.regimen_fiscal_cliente,
-                        uso_cfdi:        'CP01',
+                        regimen_fiscal: origen.regimen_fiscal_cliente,
+                        uso_cfdi: 'CP01',
                     },
                     folio,
-                    fecha_pago:    dto.fecha_pago,
+                    fecha_pago: dto.fecha_pago,
                     id_forma_pago: dto.id_forma_pago,
                     moneda,
+                    num_cuenta_banco: empresa.num_cuenta_banco ?? undefined,
+                    rfc_cta_ben: empresa.rfc_banco ?? undefined,
                     documentos: [{
                         uuid_relacionado: origen.uuid_sat ?? '',
-                        folio_factura:    origen.folio_factura ?? String(folio),
-                        serie_factura:    empresa.serie_ingreso,
-                        monto_pago:       dto.monto_pago,
-                        saldo_anterior:   dto.saldo_anterior,
+                        folio_factura: origen.folio_factura ?? String(folio),
+                        serie_factura: empresa.serie_ingreso,
+                        monto_pago: dto.monto_pago,
+                        saldo_anterior: dto.saldo_anterior,
                         saldo_insoluto,
-                        num_parcialidad:  dto.num_parcialidad,
+                        num_parcialidad: dto.num_parcialidad,
                         moneda,
-                        tasa_iva:         0,
+                        impuestos,
                     }],
                 });
                 ruta_txt = ruta;
@@ -1250,7 +1380,7 @@ export const FacturacionService = {
         if (!empresa) throw new Error('Empresa no encontrada');
 
         const totales = calcularTotales(conceptos);
-        const folio   = await FacturacionRepository.getSiguienteFolio();
+        const folio = await FacturacionRepository.getSiguienteFolio();
         const leyenda = `Vales de medicamentos empleados — ${periodo}`;
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
@@ -1284,14 +1414,14 @@ export const FacturacionService = {
                 const { ruta } = generarTxtIngreso({
                     emisor: emisorData,
                     receptor: {
-                        razon_social:    'PUBLICO EN GENERAL',
-                        rfc:             'XAXX010101000',
+                        razon_social: 'PUBLICO EN GENERAL',
+                        rfc: 'XAXX010101000',
                         domicilio_fiscal: (empresa as any).cp_empre ?? '80000',
-                        regimen_fiscal:  '616',
-                        uso_cfdi:        'G01',
+                        regimen_fiscal: '616',
+                        uso_cfdi: 'G01',
                     },
                     folio,
-                    forma_pago:  '01',
+                    forma_pago: '01',
                     metodo_pago: 'PUE',
                     conceptos: conceptos.map(c => ({
                         cve_sat: c.cve_sat, sat_medida: c.sat_medida, desc_medida: c.desc_medida,
@@ -1366,45 +1496,45 @@ export async function timbrarIngresoPublicoGeneral(id_factura: string): Promise<
             FacturacionRepository.getConceptos(factura.id_pedido_alm),
         ]);
 
-        const folio   = Number(factura.folio_factura);
+        const folio = Number(factura.folio_factura);
         const leyenda = cab.leyenda_factura_empre
             ?? `Numero de Pedido: ${cab.cod_int_pedido_alm} Agente: ${cab.nombre_agente ?? ''}`;
 
         const emisor: EmisorTxt = {
-            nom_empre:            nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
-            rfc_empre:            cab.rfc_empre,
+            nom_empre: nomEmisorTxt(cab.nom_empre, cab.nom_empre_facturacion),
+            rfc_empre: cab.rfc_empre,
             regimen_fiscal_empre: cab.regimen_fiscal_empre,
-            serie_ingreso:        cab.serie_facturacion_empre,
-            lugar_expedicion:     cab.lugar_expedicion,
+            serie_ingreso: cab.serie_facturacion_empre,
+            lugar_expedicion: cab.lugar_expedicion,
         };
         const receptor: ReceptorTxt = {
-            razon_social:     'VENTA AL PUBLICO EN GENERAL',
-            rfc:              RFC_PUBLICO_GENERAL,
+            razon_social: 'VENTA AL PUBLICO EN GENERAL',
+            rfc: RFC_PUBLICO_GENERAL,
             domicilio_fiscal: cab.lugar_expedicion,
-            regimen_fiscal:   '616',
-            uso_cfdi:         'S01',
+            regimen_fiscal: '616',
+            uso_cfdi: 'S01',
         };
         const conceptosTxt: ConceptoTxt[] = conceptos.map(c => ({
-            cve_sat:         c.cve_sat,
-            sat_medida:      c.sat_medida,
-            desc_medida:     c.desc_medida,
-            cod_barras:      c.cod_barras,
-            cantidad:        c.cantidad,
-            descripcion:     c.descripcion,
+            cve_sat: c.cve_sat,
+            sat_medida: c.sat_medida,
+            desc_medida: c.desc_medida,
+            cod_barras: c.cod_barras,
+            cantidad: c.cantidad,
+            descripcion: c.descripcion,
             precio_unitario: c.precio_unitario,
-            descuento:       c.descuento,
-            subtotal_linea:  c.subtotal_linea,
-            tasa_iva:        c.tasa_iva,
-            impuesto_sat:    c.impuesto_sat,
-            tipo_factor:     c.tipo_factor,
-            lotes:           c.lotes?.map(l => ({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: l.cantidad })),
+            descuento: c.descuento,
+            subtotal_linea: c.subtotal_linea,
+            tasa_iva: c.tasa_iva,
+            impuesto_sat: c.impuesto_sat,
+            tipo_factor: c.tipo_factor,
+            lotes: c.lotes?.map(l => ({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: l.cantidad })),
         }));
 
         const { ruta } = generarTxtIngreso({
             emisor, receptor, folio,
-            forma_pago:    cab.forma_pago,
-            metodo_pago:   cab.metodo_pago,
-            conceptos:     conceptosTxt,
+            forma_pago: cab.forma_pago,
+            metodo_pago: cab.metodo_pago,
+            conceptos: conceptosTxt,
             leyenda,
             nombreArchivo: `FactDig${cab.serie_facturacion_empre}${folio}-Ingresos.txt`,
         });

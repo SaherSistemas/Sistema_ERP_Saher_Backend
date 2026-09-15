@@ -4,6 +4,8 @@ import { CxCRepository } from '../repositories/CxC.repository';
 import { Pago_CxCRepository } from '../repositories/Pago_CxC.repository';
 import { AuthedRequest } from '../../../../middleware/auth';
 import { generarPDFSaldos, generarXLSXSaldos } from '../../helpers/reporte_saldos.helper';
+import Facturas from '../../../Facturas/model/Facturas.model';
+import FacturaPagoCFDI from '../../../Facturas/model/Factura_Pago_CFDI.model';
 
 export class CxCController {
 
@@ -427,11 +429,23 @@ export class CxCController {
     // POST /api/cxc/pago-cfdi/:id_pago_cfdi/regenerar-txt
     // Regenera el archivo TXT para retimbrado sin consumir nuevo folio.
     // Limpia uuid_cfdi_pago y regresa estatus a PEN.
+    // CxCService.regenerarTxtPagoCFDI trabaja sobre la fila "P" en `facturas`
+    // (para poder reconstruir recibos multi-factura completos) — aquí primero
+    // se resuelve esa fila a partir del id_pago_cfdi recibido.
     static regenerarTxtPagoCFDI = async (req: Request, res: Response) => {
         try {
             const { id_pago_cfdi } = req.params;
             const { id_empresa } = req.body as { id_empresa?: string };
-            const resultado = await CxCService.regenerarTxtPagoCFDI(id_pago_cfdi, id_empresa);
+
+            const cfdi = await FacturaPagoCFDI.findByPk(id_pago_cfdi);
+            if (!cfdi) { res.status(404).json({ message: 'Complemento de pago no encontrado.' }); return; }
+
+            const facturaP = await Facturas.findOne({
+                where: { tipo_cfdi: 'P', id_factura_origen: (cfdi.dataValues ?? cfdi as any).id_factura },
+            });
+            if (!facturaP) { res.status(404).json({ message: 'No se encontró la factura de complemento de pago (P) asociada.' }); return; }
+
+            const resultado = await CxCService.regenerarTxtPagoCFDI(facturaP.id_factura, id_empresa);
             res.json({ ok: true, ruta: resultado.ruta });
         } catch (error: any) {
             console.error('Error regenerarTxtPagoCFDI:', error);

@@ -46,7 +46,8 @@ export class Pedido_AlmacenController {
 
   static getDetallesAsignadoChequeo = async (req: AuthedRequest, res: Response) => {
     try {
-      const resultado = await Pedido_AlmacenService.getDetalleAsignadoChequeo(req.user.id_referencia_persona);
+      const { id_pedido_alm } = req.params;
+      const resultado = await Pedido_AlmacenService.getDetalleAsignadoChequeo(req.user.id_referencia_persona, id_pedido_alm);
       //console.log(resultado)
       res.status(200).json(resultado);
     } catch (error) {

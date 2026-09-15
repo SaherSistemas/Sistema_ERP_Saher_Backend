@@ -4,7 +4,8 @@ import type { AuthedRequest } from '../../../middleware/auth';
 import { FacturacionService } from '../services/Facturacion.service';
 import { FacturacionRepository } from '../repositories/Facturacion.repository';
 import Facturas from '../model/Facturas.model';
-import FacturaPagoCFDI from '../model/Factura_Pago_CFDI.model';
+import { dbLocal } from '../../../config/db';
+import { QueryTypes } from 'sequelize';
 import { CxCService } from '../../Finanzas/Cuentas_Por_Cobrar/services/CxC.service';
 
 export class FacturacionController {
@@ -17,6 +18,45 @@ export class FacturacionController {
             res.json(resultado);
         } catch (error: any) {
             console.error(error);
+            res.status(500).json({ message: error?.message ?? 'Error desconocido' });
+        }
+    };
+
+    static reinsertarEnPolyDB = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const resultado = await FacturacionService.reinsertarEnPolyDB(id_factura);
+            res.json(resultado);
+        } catch (error: any) {
+            console.error('[reinsertarEnPolyDB]', error);
+            const status = error?.status ?? 500;
+            res.status(status).json({ message: error?.message ?? 'Error al reinsertar en PolyDB.' });
+        }
+    };
+
+    static getLotesByFactura = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const factura = await Facturas.findByPk(id_factura, { attributes: ['id_pedido_alm'] });
+            if (!factura) { res.status(404).json({ message: 'Factura no encontrada' }); return; }
+            const lotes = await dbLocal.query<any>(`
+                SELECT
+                    dpa.id_articulo,
+                    a.des_artic,
+                    a.cod_barr_artic,
+                    las.numero_lote_sucursal AS lote,
+                    TO_CHAR(las.fecha_venci_lote_sucursal, 'MM/YYYY') AS fecha_venci,
+                    dpal.cantidad
+                FROM detalle_pedido_almacen_lote dpal
+                JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpal.id_detalle_pedido_almacen
+                JOIN lote_articulo_sucursal las ON las.id_lote_sucursal = dpal.id_lote_sucursal
+                JOIN articulo a ON a.id_artic = dpa.id_articulo
+                WHERE dpa.id_pedido_almacen = :id_pedido_alm
+                ORDER BY a.des_artic, las.numero_lote_sucursal
+            `, { type: QueryTypes.SELECT, replacements: { id_pedido_alm: (factura as any).id_pedido_alm } });
+            res.json(lotes);
+        } catch (error: any) {
+            console.error('[getLotesByFactura]', error);
             res.status(500).json({ message: error?.message ?? 'Error desconocido' });
         }
     };
@@ -220,28 +260,19 @@ export class FacturacionController {
     // POST /api/facturas/regenerar-txt-pago/:id_factura
     // Regenera el TXT de complemento de pago sin consumir nuevo folio.
     // Limpia uuid_cfdi_pago y regresa estatus a PEN para retimbrado.
+    // El matching (1 factura vs. recibo multi-factura) vive en el servicio —
+    // ver CxCService.regenerarTxtPagoCFDI.
     static regenerarTxtPago = async (req: AuthedRequest, res: Response) => {
         try {
             const { id_factura } = req.params;
             const id_empresa = req.user?.id_empresa;
 
-            // La factura tipo P tiene id_factura_origen apuntando a la tipo I
-            // factura_pago_cfdi.id_factura apunta a la tipo I
-            const facturaP = await Facturas.findByPk(id_factura, { attributes: ['id_factura', 'tipo_cfdi', 'id_factura_origen'] });
-            if (!facturaP) { res.status(404).json({ message: 'Factura no encontrada.' }); return; }
-
-            const id_factura_i = (facturaP as any).id_factura_origen ?? id_factura;
-            const cfdi = await FacturaPagoCFDI.findOne({ where: { id_factura: id_factura_i } });
-            if (!cfdi) {
-                res.status(404).json({ message: 'No se encontró complemento de pago para esta factura.' });
-                return;
-            }
-
-            const resultado = await CxCService.regenerarTxtPagoCFDI(cfdi.id_pago_cfdi, id_empresa);
+            const resultado = await CxCService.regenerarTxtPagoCFDI(id_factura, id_empresa);
             res.json({ ok: true, ruta: resultado.ruta });
         } catch (error: any) {
             console.error('Error regenerarTxtPago:', error);
-            res.status(500).json({ message: error.message ?? 'Error al regenerar TXT.' });
+            const noEncontrado = /no encontrad/i.test(error?.message ?? '');
+            res.status(noEncontrado ? 404 : 500).json({ message: error.message ?? 'Error al regenerar TXT.' });
         }
     };
 }
