@@ -192,7 +192,7 @@ export const ArticuloRepository = {
 
         const { count, rows } = await Articulo.findAndCountAll({
             where: whereArticulo,
-            order: [['prioridad_artic', 'ASC']],
+            order: [['cod_int_artic', 'ASC']],
             offset,
             attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'prioridad_artic'],
             limit

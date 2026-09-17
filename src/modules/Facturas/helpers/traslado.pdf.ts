@@ -186,17 +186,32 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
         const TH = 13;
         const TR = 12;
 
-        // Header tabla
-        doc.rect(MX, y, CW, TH).fill('#e5e7eb');
-        let cx = MX;
-        COLS.forEach(col => {
-            doc.font('Helvetica-Bold').fontSize(7).fillColor(NEGRO)
-               .text(col.label, cx + 3, y + 3,
-                     { width: col.w - 6, align: col.align, lineBreak: false });
-            cx += col.w;
-        });
-        y += TH;
-        hline(y);
+        // Deja espacio suficiente al final de la página para Total Piezas,
+        // Nota, Firmas y Footer — si una fila cruzaría esta línea, se abre
+        // una página nueva ANTES de dibujarla (si no, PDFKit pagina solo,
+        // celda por celda, dejando cada dato en su propia hoja).
+        const BOTTOM_SAFE = PH - 160;
+
+        const dibujarHeaderTabla = () => {
+            doc.rect(MX, y, CW, TH).fill('#e5e7eb');
+            let hx = MX;
+            COLS.forEach(col => {
+                doc.font('Helvetica-Bold').fontSize(7).fillColor(NEGRO)
+                   .text(col.label, hx + 3, y + 3,
+                         { width: col.w - 6, align: col.align, lineBreak: false });
+                hx += col.w;
+            });
+            y += TH;
+            hline(y);
+        };
+
+        const nuevaPaginaTabla = () => {
+            doc.addPage({ size: 'LETTER', margin: 0 });
+            y = MY;
+            dibujarHeaderTabla();
+        };
+
+        dibujarHeaderTabla();
 
         // Filas
         let rowIdx = 0;
@@ -213,6 +228,8 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
             const numLineas   = Math.max(item.lotes.length, 1);
             const rowH        = Math.max(TR, numLineas * 10 + 2);
 
+            if (y + rowH > BOTTOM_SAFE) nuevaPaginaTabla();
+
             if (rowIdx % 2 === 0) doc.rect(MX, y, CW, rowH).fill('#f9fafb');
 
             const vals = [
@@ -224,7 +241,7 @@ export function generarTrasladoPDFBuffer(datos: DatosTrasladoPDF): Promise<Buffe
                 caducStr,
             ];
 
-            cx = MX;
+            let cx = MX;
             COLS.forEach((col, ci) => {
                 const isBold = ci === 3;
                 doc.font(isBold ? 'Helvetica-Bold' : 'Helvetica')
