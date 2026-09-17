@@ -2,7 +2,7 @@ import { rateLimit } from 'express-rate-limit';
 
 const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 500,
+    max: 2000,
     keyGenerator: (req) => {
         const auth = req.headers.authorization;
         if (auth?.startsWith('Bearer ')) {
@@ -11,7 +11,7 @@ const generalLimiter = rateLimit({
                     Buffer.from(auth.split('.')[1], 'base64').toString()
                 );
                 if (payload?.id) return `user_${payload.id}`;
-            } catch {}
+            } catch { }
         }
         // Normalizar IPv6 ::ffff:x.x.x.x → x.x.x.x para evitar bypass
         const ip = req.ip ?? 'unknown';
