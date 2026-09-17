@@ -32,6 +32,7 @@ import Detalle_Pedido_Almacen_ChequeoModel from '../model/Detalle_Pedido_Almacen
 import Detalle_Pedido_Almacen_LoteModel from '../model/Detalle_Pedido_Almacen_Lote';
 import Detalle_Pedido_Almacen_AsignacionModel from '../model/Detalle_Pedido_Almacen_Asignacion';
 import { Kardex_Movimiento_ArticuloRepository } from '../../Kardex/repositories/Kardex_Movimiento_Articulo.repository';
+import { FacturacionService } from '../../../Facturas/services/Facturacion.service';
 
 
 // ── Helper: genera e imprime el traspaso de medicamentos ──
@@ -984,7 +985,7 @@ export const Pedido_AlmacenService = {
     return pedidoFull
   },
 
-  getListaGestion: async (params: { fecha_inicio?: string; fecha_fin?: string; status?: string; busqueda?: string; page?: number; limit?: number; excluir_finalizados?: boolean }) => {
+  getListaGestion: async (params: { fecha_inicio?: string; fecha_fin?: string; status?: string; busqueda?: string; page?: number; limit?: number; excluir_finalizados?: boolean; id_agente?: string }) => {
     return await Pedido_AlmacenRepository.getListaGestion(params);
   },
 
@@ -1011,7 +1012,9 @@ export const Pedido_AlmacenService = {
   iniciarSurtido: async (id_pedido_alm: string) => {
     const pedido = await Pedido_Almacen.findByPk(id_pedido_alm);
     if (!pedido) throw { status: 404, message: 'Pedido no encontrado.' };
-    if (pedido.status_pedido_alm !== 'SU') {
+    // Solo avanza CA → SU. Si ya está más adelante (CH, EM, FA, EN) no se debe
+    // regresar a "Surtiendo" solo por abrir/consultar el pedido.
+    if (pedido.status_pedido_alm === 'CA') {
       await Pedido_Almacen.update(
         { status_pedido_alm: 'SU', inicio_surtido: new Date() },
         { where: { id_pedido_alm } }
@@ -1027,8 +1030,10 @@ export const Pedido_AlmacenService = {
     const data = await Pedido_AlmacenRepository.getHojaSurtido(id_pedido_alm, id_empresa);
     if (!data) throw { status: 404, message: 'Pedido no encontrado.' };
 
-    // Marcar en surtido al abrir la hoja por primera vez
-    if (data.cabecera.status_pedido_alm !== 'SU') {
+    // Marcar en surtido al abrir la hoja por primera vez — solo si de verdad
+    // apenas va a empezar (CA). Si ya está más adelante (CH, EM, FA, EN),
+    // abrir/imprimir la hoja o el borrador NO debe regresarlo a "Surtiendo".
+    if (data.cabecera.status_pedido_alm === 'CA') {
       await Pedido_Almacen.update(
         { status_pedido_alm: 'SU', inicio_surtido: new Date() },
         { where: { id_pedido_alm } }
@@ -1473,6 +1478,145 @@ export const Pedido_AlmacenService = {
       await t.rollback();
       throw err;
     }
+  },
+
+  // ══════════════════════════════════════════════════════════════════════
+  // FACTURAR SIN SURTIDO — para pedidos capturados (ej. importados de
+  // PolyDB) que se quieren facturar directo, sin pasar por Asignar
+  // Surtidor / Finalizar Surtido / Chequeo. Reserva el stock vía FEFO
+  // (igual que haría un surtidor) y timbra la factura de una vez.
+  // ══════════════════════════════════════════════════════════════════════
+  facturarSinSurtido: async (id_pedido_alm: string, id_empresa: string, id_empleado: string) => {
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, {
+      attributes: ['id_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm', 'origen_pedido'],
+    });
+    if (!pedido) throw { status: 404, message: 'Pedido no encontrado.' };
+    if ((pedido as any).origen_pedido === 'VALE') {
+      throw { status: 400, message: 'Los pedidos VALE se entregan desde "Entregar Vale", no se facturan aquí.' };
+    }
+    if ((pedido as any).status_pedido_alm === 'FA' || (pedido as any).fecha_facturado_pedido_alm) {
+      throw { status: 400, message: 'Este pedido ya fue facturado.' };
+    }
+
+    const detalles = await Detalle_Pedido_AlmacenRepository.getDetallesConArticuloPorPedido(id_pedido_alm);
+    if (!detalles.length) throw { status: 400, message: 'El pedido no tiene artículos.' };
+
+    // No volver a reservar lo que ya tenga lote asignado (idempotencia ante reintentos)
+    const idsDetalle = detalles.map(d => d.id_detalle_pedido_almacen);
+    const lotesExistentes = await Detalle_Pedido_Almacen_LoteModel.findAll({
+      where: { id_detalle_pedido_almacen: { [Op.in]: idsDetalle } },
+      attributes: ['id_detalle_pedido_almacen_lote', 'id_detalle_pedido_almacen', 'cantidad'],
+      raw: true,
+    });
+    const idsConLote = new Set(lotesExistentes.map((r: any) => r.id_detalle_pedido_almacen));
+    const pendientes = detalles.filter(d => !idsConLote.has(d.id_detalle_pedido_almacen));
+
+    // Si un intento previo reservó lotes pero falló antes de crear su chequeo
+    // (p. ej. porque timbrarIngreso truena después), hay que rellenar esas
+    // filas de chequeo faltantes en vez de saltarlas por completo.
+    const idsLoteExistentes = lotesExistentes.map((r: any) => r.id_detalle_pedido_almacen_lote);
+    const chequeosExistentes = idsLoteExistentes.length
+      ? await Detalle_Pedido_Almacen_ChequeoModel.findAll({
+          where: { id_detalle_pedido_almacen_lote: { [Op.in]: idsLoteExistentes } },
+          attributes: ['id_detalle_pedido_almacen_lote'],
+          raw: true,
+        })
+      : [];
+    const idsLoteConChequeo = new Set(chequeosExistentes.map((r: any) => r.id_detalle_pedido_almacen_lote));
+    const lotesSinChequeo = lotesExistentes.filter((r: any) => !idsLoteConChequeo.has(r.id_detalle_pedido_almacen_lote));
+
+    // Calcular plan FEFO por cada detalle pendiente
+    const planes = await Promise.all(
+      pendientes.map(async d => {
+        const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
+          d.id_articulo, id_empresa, d.cant_pedida,
+        );
+        return { detalle: d, plan };
+      })
+    );
+
+    const sinStock = planes.filter(p => p.plan.faltante > 0);
+    if (sinStock.length > 0) {
+      const arts = await Articulo.findAll({
+        where: { id_artic: { [Op.in]: sinStock.map(p => p.detalle.id_articulo) } },
+        attributes: ['id_artic', 'des_artic'],
+        raw: true,
+      });
+      const nombreArt = new Map(arts.map((a: any) => [a.id_artic, a.des_artic]));
+      const detalleTexto = sinStock
+        .map(p => `${nombreArt.get(p.detalle.id_articulo) ?? p.detalle.id_articulo} (faltan ${p.plan.faltante})`)
+        .join(', ');
+      throw {
+        status: 409,
+        message: `No hay existencia suficiente para: ${detalleTexto}. Ajusta el inventario antes de facturar.`,
+      };
+    }
+
+    if (planes.length > 0 || lotesSinChequeo.length > 0) {
+      const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+      try {
+        const ahora = new Date();
+
+        if (lotesSinChequeo.length > 0) {
+          await Detalle_Pedido_Almacen_ChequeoModel.bulkCreate(
+            lotesSinChequeo.map((lc: any) => ({
+              id_detalle_pedido_almacen: lc.id_detalle_pedido_almacen,
+              id_detalle_pedido_almacen_lote: lc.id_detalle_pedido_almacen_lote,
+              cant_surtida_lote: lc.cantidad,
+              cant_chequeada: lc.cantidad,
+              id_empleado,
+              estado: 'TERMINADO',
+              fecha_asignado: ahora,
+              inicio: ahora,
+              fin: ahora,
+              nota: 'Facturado directo sin surtido/chequeo manual',
+            })),
+            { transaction: t },
+          );
+        }
+
+        for (const { detalle, plan } of planes) {
+          const lotesValidos = (plan.detalles as any[]).filter(l => Number(l.cantidad_a_tomar) > 0);
+          if (!lotesValidos.length) continue;
+
+          const lotesCreados = await Detalle_Pedido_Almacen_LoteRepository.create({
+            id_detalle_pedido: detalle.id_detalle_pedido_almacen,
+            estado: 'SURTIDO',
+            lotes: lotesValidos.map(l => ({
+              id_stock_ubicacion_lote: l.id_stock_ubicacion_lote,
+              id_lote_sucursal: l.lote?.id_lote_sucursal,
+              id_ubicacion_sucursal: l.ubicacion?.id_ubicacion_sucursal ?? null,
+              cantidad: l.cantidad_a_tomar,
+            })),
+          }, t);
+
+          // Facturación lee cantidades de detalle_pedido_almacen_chequeo, no de
+          // detalle_pedido_almacen_lote — al saltarnos el Chequeo manual hay que
+          // crear aquí esas filas ya confirmadas (TERMINADO), una por lote.
+          await Detalle_Pedido_Almacen_ChequeoModel.bulkCreate(
+            (lotesCreados as any[]).map(lc => ({
+              id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen,
+              id_detalle_pedido_almacen_lote: lc.id_detalle_pedido_almacen_lote,
+              cant_surtida_lote: lc.cantidad,
+              cant_chequeada: lc.cantidad,
+              id_empleado,
+              estado: 'TERMINADO',
+              fecha_asignado: ahora,
+              inicio: ahora,
+              fin: ahora,
+              nota: 'Facturado directo sin surtido/chequeo manual',
+            })),
+            { transaction: t },
+          );
+        }
+        await t.commit();
+      } catch (err) {
+        await t.rollback();
+        throw err;
+      }
+    }
+
+    return FacturacionService.timbrarIngreso({ id_pedido_alm, id_empresa, id_empleado } as any);
   },
 
 };
