@@ -6,6 +6,7 @@ import Empleado from '../../../RRHH/model/Empleado';
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
 import { Grupo_EmpresaRepository } from '../../../../repository/Empresa_Sucursal/Grupo_Empresa.repository';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
+import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { dbLocal, dbPoly } from '../../../../config/db';
 
 type QuincenaPorTipo = {
@@ -13,10 +14,58 @@ type QuincenaPorTipo = {
   quincena: string;
   svm_total: number;
   svt_total: number;
+  svt_nuevo_total: number; // porción de svt_total que viene de ventas del sistema nuevo (facturas)
   total: number;
 };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ── Movimientos del sistema nuevo (facturas + detalle_factura) por artículo ────
+// Solo la sucursal "Almacén" (empcdempn=20 en el sistema anterior) ya opera en
+// el sistema nuevo. tipo_cfdi='I' (venta real) equivale a SVT; tipo_cfdi='T'
+// (traslado a mis empresas) equivale a STR.
+async function getMovimientosNuevoSistemaPorFecha(
+  cod_int_artic: string,
+  tipo_cfdi: 'I' | 'T',
+): Promise<Array<{ fecha: string; cantidad: number }>> {
+  const articuloRow = await Articulo.findOne({
+    where: { cod_int_artic: Number(cod_int_artic) },
+    attributes: ['id_artic'],
+    raw: true,
+  }) as any;
+  if (!articuloRow?.id_artic) return [];
+
+  const empresaAlmacen = await Empresa_Sucursal.findOne({
+    where: { id_empresa_sys_anterior: '20' },
+    attributes: ['id_empre'],
+    raw: true,
+  }) as any;
+  if (!empresaAlmacen?.id_empre) return [];
+
+  const rows = await dbLocal.query<{ fecha: string; cantidad: string }>(`
+    SELECT to_char(f.fecha_emision, 'YYYY-MM-DD') AS fecha,
+           SUM(df.cantidad_facturada) AS cantidad
+    FROM detalle_factura df
+    JOIN facturas f ON f.id_factura = df.id_factura
+    WHERE f.tipo_cfdi = :tipo_cfdi
+      AND f.estatus_factura != 'CAN'
+      AND f.id_empresa_facturas = :id_empresa
+      AND df.id_articulo = :id_articulo
+    GROUP BY to_char(f.fecha_emision, 'YYYY-MM-DD')
+  `, {
+    replacements: { tipo_cfdi, id_empresa: empresaAlmacen.id_empre, id_articulo: articuloRow.id_artic },
+    type: QueryTypes.SELECT,
+  });
+
+  return rows.map(r => ({ fecha: String(r.fecha), cantidad: Number(r.cantidad) || 0 }));
+}
+
+function sumarEnRangoQuincena(movs: Array<{ fecha: string; cantidad: number }>, quincena: string): number {
+  const [inicioStr, finStr] = quincena.split(' a ').map(s => s.trim());
+  return movs
+    .filter(m => m.fecha >= inicioStr && m.fecha <= finStr)
+    .reduce((s, m) => s + m.cantidad, 0);
+}
 
 export interface IFiltrosMovimientos {
   id_empresa?: string;
@@ -34,7 +83,7 @@ export const Kardex_Movimiento_ArticuloRepository = {
   getTotalesPorPeriodosSTR: async (opts?: {
     articulo?: string;
     dias?: number;
-  }): Promise<Array<{ numero: number; quincena: string; str_total: number; total: number }>> => {
+  }): Promise<Array<{ numero: number; quincena: string; str_total: number; str_nuevo_total: number; total: number }>> => {
     const win = Math.max(1, Number(opts?.dias ?? 15));
 
     const sql = `
@@ -89,12 +138,28 @@ export const Kardex_Movimiento_ArticuloRepository = {
       replacements: { dias: win, articulo: opts?.articulo ?? null },
     });
 
-    return (rows as any[]).map(r => ({
+    const periodos = (rows as any[]).map(r => ({
       numero: Number(r.numero),
       quincena: String(r.quincena),
       str_total: Number(r.str_total) || 0,
+      str_nuevo_total: 0,
       total: Number(r.total) || 0,
     }));
+
+    // ── Traslados del sistema nuevo (facturas tipo 'T' = Traslado a mis empresas) ──
+    // Equivalen al STR del sistema anterior: mercancía que sale del Almacén
+    // hacia otra sucursal propia (no es venta directa a cliente final).
+    if (opts?.articulo && periodos.length) {
+      const trasladosNuevos = await getMovimientosNuevoSistemaPorFecha(opts.articulo, 'T');
+      for (const p of periodos) {
+        const nuevoEnPeriodo = sumarEnRangoQuincena(trasladosNuevos, p.quincena);
+        p.str_nuevo_total = nuevoEnPeriodo;
+        p.str_total += nuevoEnPeriodo;
+        p.total += nuevoEnPeriodo;
+      }
+    }
+
+    return periodos;
   },
 
   /*
@@ -246,13 +311,29 @@ export const Kardex_Movimiento_ArticuloRepository = {
       replacements: { dias: win, articulo: opts?.articulo ?? null },
     });
 
-    return (rows as any[]).map(r => ({
+    const periodos: QuincenaPorTipo[] = (rows as any[]).map(r => ({
       numero: Number(r.numero),
       quincena: String(r.quincena),
       svm_total: Number(r.svm_total) || 0,
       svt_total: Number(r.svt_total) || 0,
+      svt_nuevo_total: 0,
       total: Number(r.total) || 0,
     }));
+
+    // ── Ventas del sistema nuevo (facturas tipo 'I' = Ingreso) ──────────────
+    // Se suman al bucket SVT (Almacén) porque esas ventas no están en el
+    // kardex viejo.
+    if (opts?.articulo && periodos.length) {
+      const ventasNuevas = await getMovimientosNuevoSistemaPorFecha(opts.articulo, 'I');
+      for (const p of periodos) {
+        const nuevoEnPeriodo = sumarEnRangoQuincena(ventasNuevas, p.quincena);
+        p.svt_nuevo_total = nuevoEnPeriodo;
+        p.svt_total += nuevoEnPeriodo;
+        p.total += nuevoEnPeriodo;
+      }
+    }
+
+    return periodos;
 
   },
   /*

@@ -154,24 +154,38 @@ export const Proyeccion_VentaService = {
         // ── 4. Series ────────────────────────────────────────────────────────
         const X = sorted.map((_, i) => i + 1);
         const ySVM = sorted.map(q => Number(q.svm_total) || 0);
+        const ySVTNuevo = sorted.map((q: any) => Number(q.svt_nuevo_total) || 0);
+        // svt_total del repo ya incluye la porción del sistema nuevo (facturas);
+        // se cuenta como demanda de Almacén para el cálculo, igual que la legacy.
         const ySVT = sorted.map(q => Number(q.svt_total) || 0);
         const nextPeriodo = N + 1;
 
         // ── 5. STR → 30 % demanda real ───────────────────────────────────────
         const mapSTRporQuin = new Map<string, number>();
         const mapSTRporEnd = new Map<string, number>();
-        for (const t of trasladosK) {
+        const mapSTRNuevoPorQuin = new Map<string, number>();
+        const mapSTRNuevoPorEnd = new Map<string, number>();
+        for (const t of trasladosK as any[]) {
             const quin = String(t.quincena).trim();
             const end = getEnd(quin);
             const val = Number(t.str_total ?? 0) || 0;
-            if (quin) mapSTRporQuin.set(quin, val);
-            if (end) mapSTRporEnd.set(end, val);
+            const valNuevo = Number(t.str_nuevo_total ?? 0) || 0;
+            if (quin) { mapSTRporQuin.set(quin, val); mapSTRNuevoPorQuin.set(quin, valNuevo); }
+            if (end) { mapSTRporEnd.set(end, val); mapSTRNuevoPorEnd.set(end, valNuevo); }
         }
         const ySTR = sorted.map(p => {
             const quin = String(p.quincena).trim();
             const end = getEnd(quin);
             if (mapSTRporQuin.has(quin)) return mapSTRporQuin.get(quin)!;
             if (end && mapSTRporEnd.has(end)) return mapSTRporEnd.get(end)!;
+            return 0;
+        });
+        // Porción de ySTR que viene de traslados 'T' del sistema nuevo (solo para graficar aparte).
+        const ySTRNuevo = sorted.map(p => {
+            const quin = String(p.quincena).trim();
+            const end = getEnd(quin);
+            if (mapSTRNuevoPorQuin.has(quin)) return mapSTRNuevoPorQuin.get(quin)!;
+            if (end && mapSTRNuevoPorEnd.has(end)) return mapSTRNuevoPorEnd.get(end)!;
             return 0;
         });
 
@@ -376,7 +390,9 @@ export const Proyeccion_VentaService = {
             quincena: String(p.quincena),
             svm: ySVM[i],
             svt: ySVT[i],
+            svt_nuevo: ySVTNuevo[i], // porción de svt que viene de facturas del sistema nuevo
             str: ySTR[i],
+            str_nuevo: ySTRNuevo[i], // porción de str que viene de traslados 'T' del sistema nuevo
             str_dem: ySTR_dem[i],
             total_salidas: ySalidas[i],
             total: usaTotalRango ? yTotal[i] : ySalidas[i],
@@ -389,7 +405,9 @@ export const Proyeccion_VentaService = {
             totales: {
                 svm: tot(ySVM),
                 svt: tot(ySVT),
+                svt_nuevo: tot(ySVTNuevo),
                 str: tot(ySTR),
+                str_nuevo: tot(ySTRNuevo),
                 str_dem: tot(ySTR_dem),
                 salidas: tot(ySalidas),
                 total: tot(yTotalModelo),
