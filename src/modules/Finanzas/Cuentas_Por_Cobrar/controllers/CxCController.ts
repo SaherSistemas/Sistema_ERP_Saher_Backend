@@ -361,6 +361,18 @@ export class CxCController {
         }
     };
 
+    static cancelarRecibo = async (req: Request, res: Response) => {
+        try {
+            const { numero_recibo } = req.params;
+            const resultado = await CxCService.cancelarRecibo(numero_recibo);
+            res.status(200).json({ message: 'Recibo cancelado correctamente.', ...resultado });
+        } catch (error: any) {
+            console.error(error);
+            const status = /no se encontraron|ya fueron aplicados/.test(error.message) ? 400 : 500;
+            res.status(status).json({ message: error?.message ?? 'Error al cancelar el recibo.' });
+        }
+    };
+
     // GET /api/finanzas/cxc/reporte-saldos?fecha_corte=YYYY-MM-DD&formato=pdf|xlsx
     static reporteSaldosClientes = async (req: Request, res: Response) => {
         try {

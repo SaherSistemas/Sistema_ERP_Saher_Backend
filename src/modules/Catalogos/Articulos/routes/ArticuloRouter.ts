@@ -9,7 +9,7 @@ router.post('/', ArticuloController.create);
 router.get('/buscar', ArticuloController.getBycodBarroNombre);
 router.get('/buscarPorCodigoBarras/:cod_barr_artic', ArticuloController.getByCodigoBarras);
 router.get('/paraVenta/:cantidad/:cod_barr_artic', ArticuloController.getAllParaVenta);
-router.get('/', ArticuloController.getAllPaginados);
+router.get('/', authMiddleware, ArticuloController.getAllPaginados);
 router.get('/paginaDeArticulo/:id_artic', ArticuloController.getPaginaArticuloParaContinuarCompra);
 router.get('/paraCompra/:id_empresasucursal', ArticuloController.getAllParaCompra);
 router.get('/negados/:id_empresa_sucursal', ArticuloController.getAllArticulosNegadosParaCompra);

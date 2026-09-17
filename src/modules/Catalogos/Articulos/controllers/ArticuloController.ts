@@ -42,13 +42,14 @@ async function _syncPrecioPolyDB(
 }
 
 export class ArticuloController {
-  static getAllPaginados = async (req: Request, res: Response) => {
+  static getAllPaginados = async (req: AuthedRequest, res: Response) => {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
       const query = (req.query.query as string) || '';
+      const id_empresa_sucursal = req.user?.id_empresa;
 
-      const TodosArticulosParaCompra = await ArticuloService.getAllPaginado(page, limit, query);
+      const TodosArticulosParaCompra = await ArticuloService.getAllPaginado(page, limit, query, id_empresa_sucursal);
       res.status(200).json(TodosArticulosParaCompra);
     } catch (error) {
       console.error(error);

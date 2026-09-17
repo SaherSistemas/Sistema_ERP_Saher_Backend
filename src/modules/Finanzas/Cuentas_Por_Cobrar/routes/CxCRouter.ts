@@ -44,6 +44,7 @@ router.patch('/pago/:id_pago_cxc/aplicar', CxCController.aplicarPago);
 router.patch('/recibo/:numero_recibo/aplicar', authMiddleware, CxCController.aplicarRecibo);
 router.patch('/pago/:id_pago_cxc/editar', CxCController.editarPago);
 router.patch('/pago/:id_pago_cxc/cancelar', CxCController.cancelarPago);
+router.patch('/recibo/:numero_recibo/cancelar', authMiddleware, CxCController.cancelarRecibo);
 
 // ─── TIMBRADO ─────────────────────────────────────────────────────────────────
 router.get('/cfdi-por-timbrar', CxCController.getCFDIPorTimbrar);

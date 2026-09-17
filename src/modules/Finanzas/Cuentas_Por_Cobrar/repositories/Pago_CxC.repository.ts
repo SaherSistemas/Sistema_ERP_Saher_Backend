@@ -271,7 +271,19 @@ export const Pago_CxCRepository = {
     // ─── SIGUIENTE CONSECUTIVO DE RECIBO PARA UN AGENTE ──────────────────────────
     //  Busca el mayor consecutivo ya usado con el patrón {cod}_{N} y devuelve N+1.
     //  El regex asegura que solo se consideren filas con formato correcto.
-    getSiguienteConsecutivoAgente: async (cod_identi_agente: string): Promise<number> => {
+    //
+    //  Debe llamarse SIEMPRE con la `transaction` en la que se va a insertar el
+    //  pago_cxc resultante: usa un advisory lock transaccional (por agente) para
+    //  que dos capturas concurrentes del mismo agente no lean el mismo MAX() y
+    //  reutilicen el mismo numero_recibo — eso ya pasó en producción (dos
+    //  clientes distintos terminaron compartiendo un recibo, ej. "FRF_11855").
+    //  Sin este lock, "leer MAX + insertar" no es atómico.
+    getSiguienteConsecutivoAgente: async (cod_identi_agente: string, transaction?: Transaction): Promise<number> => {
+        await dbLocal.query(
+            `SELECT pg_advisory_xact_lock(hashtext(:llave))`,
+            { replacements: { llave: `recibo_agente_${cod_identi_agente}` }, transaction }
+        );
+
         const rows = await dbLocal.query<{ siguiente: number }>(`
             SELECT COALESCE(
                 MAX(CAST(SPLIT_PART(numero_recibo, '_', 2) AS INTEGER)),
@@ -282,6 +294,7 @@ export const Pago_CxCRepository = {
         `, {
             replacements: { patron: `^${cod_identi_agente}_[0-9]+$` },
             type: QueryTypes.SELECT,
+            transaction,
         });
         return Number(rows[0]?.siguiente ?? 1);
     },

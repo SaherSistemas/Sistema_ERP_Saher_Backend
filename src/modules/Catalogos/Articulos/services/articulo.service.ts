@@ -4,9 +4,10 @@ export const ArticuloService = {
   getAllPaginado: async (
     page: number = 1,
     limit: number,
-    query: string = ""
+    query: string = "",
+    id_empresa_sucursal?: string
   ) => {
-    return await ArticuloRepository.getAllPag(page, limit, query);
+    return await ArticuloRepository.getAllPag(page, limit, query, id_empresa_sucursal);
   },
   getBycodBarroNombre: async (query: string) => {
     return await ArticuloRepository.getBycodBarroNombre(query);

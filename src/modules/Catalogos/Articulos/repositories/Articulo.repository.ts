@@ -66,7 +66,7 @@ export const ArticuloRepository = {
 
         return ivaDelArticulo;
     },
-    getAllPag: async (page: number, limit: number, query: string) => {
+    getAllPag: async (page: number, limit: number, query: string, id_empresa_sucursal?: string) => {
         const offset = (page - 1) * limit;
 
         // Divide por espacios para búsqueda multi-palabra (AND de palabras)
@@ -92,8 +92,30 @@ export const ArticuloRepository = {
             order: [['cod_int_artic', 'ASC']],
         });
 
+        const idsArticulos = rows.map(r => r.id_artic);
+        const existenciaMap = new Map<string, number>();
+        if (id_empresa_sucursal && idsArticulos.length) {
+            const stockRows = await dbLocal.query<{ id_articulo: string; existencia: string }>(`
+                SELECT id_articulo, COALESCE(SUM(cantidad), 0) AS existencia
+                FROM stock_ubicacion_lote
+                WHERE id_empresa_sucursal = :id_empresa_sucursal
+                  AND id_articulo IN (:idsArticulos)
+                GROUP BY id_articulo
+            `, {
+                replacements: { id_empresa_sucursal, idsArticulos },
+                type: QueryTypes.SELECT,
+            });
+            for (const r of stockRows) existenciaMap.set(r.id_articulo, Number(r.existencia));
+        }
+
+        const data = rows.map(r => {
+            const plain: any = r.toJSON();
+            plain.existencia = id_empresa_sucursal ? (existenciaMap.get(r.id_artic) ?? 0) : null;
+            return plain;
+        });
+
         return {
-            data: rows,
+            data,
             total: count,
             page,
             totalPages: Math.ceil(count / limit)

@@ -447,22 +447,21 @@ export function generarTxtPago(opts: {
     L.push('[DOCTOS_PAGOS_RETENCIONES]');
     L.push('[/DOCTOS_PAGOS_RETENCIONES]', '');
 
-    // DOCTOS_PAGOS_TRASLADOS: UNA línea por TASA (no por documento) — igual que
-    // PAGOS_IMPUESTOS_TRASLADOS, reutiliza los mismos buckets ya sumados entre
-    // todos los documentos del recibo. Un recibo con 3 facturas y 2 tasas (16%+0%)
-    // da exactamente 2 líneas, no 6 (2 por documento).
+    // DOCTOS_PAGOS_TRASLADOS: el desglose de impuestos es POR DOCUMENTO
+    // (cada DoctoRelacionado/factura trae su propio ImpuestosDR en el estándar
+    // del SAT) — a diferencia de PAGOS_IMPUESTOS_TRASLADOS, que sí es el
+    // agregado de todo el pago (nivel P1) y va en 2 líneas. Aquí NO se puede
+    // atribuirle todo a "DP1": cada factura del recibo necesita su propia base
+    // e impuesto, aunque una misma tasa se repita en varios documentos.
     {
         L.push('[DOCTOS_PAGOS_TRASLADOS]');
         let dptIdx = 1;
-        if (baseIva16 > 0 || impIva16 > 0) {
-            L.push(`DPT${dptIdx++}: DP1@002@${fmt2(baseIva16)}@${fmt2(impIva16)}@Tasa@0.160000`);
-        }
-        if (baseIva8 > 0 || impIva8 > 0) {
-            L.push(`DPT${dptIdx++}: DP1@002@${fmt2(baseIva8)}@${fmt2(impIva8)}@Tasa@0.080000`);
-        }
-        if (baseIva0 > 0) {
-            L.push(`DPT${dptIdx++}: DP1@002@${fmt2(baseIva0)}@0.00@Tasa@0.000000`);
-        }
+        documentos.forEach((d, i) => {
+            d.impuestos.forEach(imp => {
+                const tasaStr = imp.tasa >= 0.16 ? '0.160000' : imp.tasa >= 0.08 ? '0.080000' : '0.000000';
+                L.push(`DPT${dptIdx++}: DP${i + 1}@002@${fmt2(imp.base)}@${fmt2(imp.importe)}@Tasa@${tasaStr}`);
+            });
+        });
         L.push('[/DOCTOS_PAGOS_TRASLADOS]', '');
     }
 

@@ -897,22 +897,32 @@ export const Pedido_AlmacenService = {
       }],
     }) as any[];
 
+    const idsArticulos = [...new Set(
+      detalles
+        .map(det => (det.toJSON ? det.toJSON() : det))
+        .map((plain: any) => plain.articulo?.id_artic ?? plain.id_articulo)
+        .filter(Boolean)
+    )];
+
+    const precios = idsArticulos.length
+      ? await DetalleListaPrecio.findAll({
+          where: { id_lista_precio: idLista, id_artic: { [Op.in]: idsArticulos } },
+          attributes: ['id_artic', 'precios'],
+          raw: true,
+        }) as any[]
+      : [];
+    const mapaPrecios = new Map(precios.map((p: any) => [p.id_artic, Number(p.precios)]));
+
     const resultado: any[] = [];
     for (const det of detalles) {
       const plain = det.toJSON ? det.toJSON() : det;
       const idArticulo = plain.articulo?.id_artic ?? plain.id_articulo;
       if (!idArticulo) continue;
 
-      const precioActual = await DetalleListaPrecio.findOne({
-        where: { id_lista_precio: idLista, id_artic: idArticulo },
-        attributes: ['precios'],
-        raw: true,
-      }) as any;
-
-      if (!precioActual) continue;
+      const pActual = mapaPrecios.get(idArticulo);
+      if (pActual === undefined) continue;
 
       const pVenta = Number(plain.precio_venta);
-      const pActual = Number(precioActual.precios);
       if (pVenta < pActual) {
         resultado.push({
           id_detalle_pedido_almacen: plain.id_detalle_pedido_almacen,

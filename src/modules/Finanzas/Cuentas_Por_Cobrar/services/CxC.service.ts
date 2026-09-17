@@ -350,14 +350,9 @@ export const CxCService = {
             throw new Error('Debe incluir al menos un abono en el recibo');
         }
 
-        // ── Resolver agente y generar folio ──────────────────────────────────────
+        // ── Resolver agente ───────────────────────────────────────────────────────
         const agente = await AgenteRepository.getByIdEmpleado(data.id_empleado_captura);
         if (!agente) throw new Error('El empleado capturista no tiene un agente de venta asociado');
-
-        const consecutivo   = await Pago_CxCRepository.getSiguienteConsecutivoAgente(agente.cod_identi_agente);
-        const numero_recibo = data.numero_recibo_custom?.trim()
-            ? data.numero_recibo_custom.trim()
-            : `${agente.cod_identi_agente}_${String(consecutivo).padStart(4, '0')}`;
 
         // ── Transacción ───────────────────────────────────────────────────────────
         const t = await dbLocal.transaction({
@@ -365,6 +360,16 @@ export const CxCService = {
         });
 
         try {
+            // El consecutivo se genera DENTRO de la transacción, con un advisory
+            // lock por agente (ver getSiguienteConsecutivoAgente) — si se genera
+            // afuera, dos capturas simultáneas del mismo agente pueden leer el
+            // mismo MAX() y terminar compartiendo numero_recibo entre clientes
+            // distintos (pasó en producción: "FRF_11855" con 2 clientes).
+            const consecutivo   = await Pago_CxCRepository.getSiguienteConsecutivoAgente(agente.cod_identi_agente, t);
+            const numero_recibo = data.numero_recibo_custom?.trim()
+                ? data.numero_recibo_custom.trim()
+                : `${agente.cod_identi_agente}_${String(consecutivo).padStart(4, '0')}`;
+
             const pagosCreados = [];
 
             for (const abono of data.abonos) {
@@ -945,6 +950,32 @@ export const CxCService = {
             await t.rollback();
             throw err;
         }
+    },
+
+    // Cancela TODOS los pagos (aún no aplicados) de un recibo en una sola operación.
+    // Un recibo puede abonar varias facturas/remisiones a la vez; cancelarlo cancela
+    // el recibo completo, nunca solo uno de sus documentos.
+    cancelarRecibo: async (numero_recibo: string) => {
+        const pagosRecibo = await Pago_CxCRepository.getByNumeroRecibo(numero_recibo);
+        if (!pagosRecibo || pagosRecibo.length === 0)
+            throw new Error('No se encontraron pagos para este recibo');
+
+        const pendientes = pagosRecibo.filter((p: any) => p.estatus_pago === 'CAP');
+        if (pendientes.length === 0)
+            throw new Error('Todos los pagos de este recibo ya fueron aplicados o cancelados');
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        try {
+            for (const pago of pendientes) {
+                await Pago_CxCRepository.cancelar(pago.id_pago_cxc, t);
+            }
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+
+        return { ok: true, pagos_cancelados: pendientes.length };
     },
 
     getSaldoHistorico: async (id_cliente_alm: string, fecha_corte: string) => {
