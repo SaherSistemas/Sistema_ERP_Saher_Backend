@@ -368,8 +368,9 @@ export const Pedido_AlmacenRepository = {
     page?: number;
     limit?: number;
     excluir_finalizados?: boolean;
+    id_agente?: string;
   }) => {
-    const { fecha_inicio, fecha_fin, status, busqueda, page = 1, limit = 50, excluir_finalizados } = params;
+    const { fecha_inicio, fecha_fin, status, busqueda, page = 1, limit = 50, excluir_finalizados, id_agente } = params;
     const offset = (page - 1) * limit;
 
     const where: any = {};
@@ -384,7 +385,10 @@ export const Pedido_AlmacenRepository = {
     if (status) {
       where.status_pedido_alm = status;
     } else if (excluir_finalizados) {
-      where.status_pedido_alm = { [Op.notIn]: ['CH', 'EM', 'FA', 'EN'] };
+      where.status_pedido_alm = { [Op.notIn]: ['CH', 'EM', 'FA', 'EN', 'CN'] };
+    }
+    if (id_agente) {
+      where.id_agente_pedido_alm = id_agente;
     }
     if (busqueda) {
       const q = busqueda.replace(/'/g, "''");
@@ -399,6 +403,7 @@ export const Pedido_AlmacenRepository = {
       attributes: [
         'id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'tipo_pedido_alm',
         'origen_pedido', 'createdAt', 'inicio_surtido', 'fecha_max_entrega_alm', 'fecha_entrega_al_cliente',
+        'fecha_facturado_pedido_alm',
       ],
       include: [
         {
@@ -667,7 +672,8 @@ export const Pedido_AlmacenRepository = {
       ) aud ON aud.id_articulo = a.id_artic AND aud.id_empresa_sucursal = :id_empresa
       LEFT JOIN ubicacion_sucursal us ON us.id_ubicacion_sucursal = aud.id_ubicacion_default
       WHERE dpa.id_pedido_almacen = :id_pedido_alm
-      ORDER BY us.pasillo_ub NULLS LAST, us.anaquel_ub NULLS LAST, us.nivel_ub NULLS LAST, us.posicion_ub NULLS LAST
+      -- Orden natural: anaquel/nivel/posición como número (1, 2, 9, 10 y no 1, 10, 2, 9)
+      ORDER BY us.pasillo_ub NULLS LAST, NULLIF(regexp_replace(us.anaquel_ub, '[^0-9]', '', 'g'), '')::int NULLS LAST, us.anaquel_ub NULLS LAST, NULLIF(regexp_replace(us.nivel_ub, '[^0-9]', '', 'g'), '')::int NULLS LAST, us.nivel_ub NULLS LAST, NULLIF(regexp_replace(us.posicion_ub, '[^0-9]', '', 'g'), '')::int NULLS LAST, us.posicion_ub NULLS LAST
     `, { type: QueryTypes.SELECT, replacements: { id_pedido_alm, id_empresa } });
 
     // Lotes asignados por detalle

@@ -25,6 +25,7 @@ export const Pago_CxCRepository = {
             monto_pago: data.monto_pago,
             fecha_pago: data.fecha_pago,
             referencia_pago: data.referencia_pago ?? null,
+            id_banco: data.id_banco ?? null,
             id_empleado_captura: data.id_empleado_captura,
             id_empleado_aplica: null,
             fecha_aplicado: null,
@@ -327,6 +328,7 @@ export const Pago_CxCRepository = {
                         'valor_documento', cxc.monto_total,
                         'id_forma_pago',   p.id_forma_pago,
                         'referencia_pago', p.referencia_pago,
+                        'banco',           bco.descrip_banco,
                         'fecha_deposito',  TO_CHAR(p.fecha_pago, 'YYYY-MM-DD'),
                         'monto',           p.monto_pago
                     ) ORDER BY p.fecha_pago
@@ -339,6 +341,7 @@ export const Pago_CxCRepository = {
             LEFT JOIN estado        est ON est.id_esta          = ciu.id_esta_ciuda
             LEFT JOIN facturas      f   ON f.id_factura        = cxc.id_factura
             LEFT JOIN remision      r   ON r.id_remision       = cxc.id_remision
+            LEFT JOIN cat_bancos    bco ON bco.id_banco        = p.id_banco
             WHERE p.numero_recibo = :numero_recibo
               AND p.estatus_pago != 'CAN'
             GROUP BY p.numero_recibo
@@ -356,6 +359,7 @@ export const Pago_CxCRepository = {
                 valor_documento: Number(a.valor_documento),
                 id_forma_pago:   String(a.id_forma_pago ?? ''),
                 referencia_pago: a.referencia_pago as string | null ?? null,
+                banco:           a.banco ? String(a.banco).trim() : null,
                 fecha_deposito:  String(a.fecha_deposito ?? ''),
                 monto:           Number(a.monto),
             }));

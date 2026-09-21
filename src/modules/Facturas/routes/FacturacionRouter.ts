@@ -17,6 +17,10 @@ router.get('/dashboard/resumen-diario', authMiddleware, FacturacionController.re
 router.get('/dashboard/top-clientes', authMiddleware, FacturacionController.topClientes);
 router.get('/dashboard/top-articulos', authMiddleware, FacturacionController.topArticulos);
 
+// Bitácora de créditos autorizados por un administrador (debe ir antes de '/:id_factura')
+// GET /api/facturas/autorizaciones-credito?fecha_inicio=&fecha_fin=
+router.get('/autorizaciones-credito', authMiddleware, FacturacionController.getAutorizacionesCredito);
+
 // Lista de facturas con filtros opcionales
 // GET /api/facturas?estatus=TIM&tipo_cfdi=I&fecha_inicio=&fecha_fin=&busqueda=&page=1&limit=50
 router.get('/', authMiddleware, FacturacionController.getList);
@@ -40,6 +44,18 @@ router.post('/timbrar-egreso', authMiddleware, FacturacionController.timbrarEgre
 // Body: { id_factura, fecha_pago, id_forma_pago, monto_pago, num_parcialidad, saldo_anterior, moneda?, id_pago_cxc? }
 // POST /api/facturas/timbrar-pago
 router.post('/timbrar-pago', authMiddleware, FacturacionController.timbrarPago);
+
+// Crea la remisión faltante de una factura de Público General
+// POST /api/facturas/:id_factura/remision
+router.post('/:id_factura/remision', authMiddleware, FacturacionController.generarRemision);
+
+// Deshace la facturación de un pedido aún sin timbrar (requiere credenciales de administrador)
+// POST /api/facturas/:id_factura/deshacer  body: { usuario_admin, password_admin, liberar_stock? }
+router.post('/:id_factura/deshacer', authMiddleware, FacturacionController.deshacerFacturacion);
+
+// Genera la hoja de traspaso de un traslado (tipo T) y la regresa como PDF
+// POST /api/facturas/:id_factura/traspaso-pdf
+router.post('/:id_factura/traspaso-pdf', authMiddleware, FacturacionController.generarTraspasoPdf);
 
 // Descarga el PDF de un traslado (tipo T, estatus GEN)
 // GET /api/facturas/traslado-pdf/:id_factura

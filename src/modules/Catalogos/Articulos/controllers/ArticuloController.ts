@@ -7,6 +7,7 @@ import { ArticuloService } from '../services/articulo.service';
 import Articulo from '../model/Articulo';
 import ListaPrecio from '../../../Comercial/Precios/model/Lista_Precio';
 import { dbPoly } from '../../../../config/db';
+import { upsertCostoAlmacenPoly, upsertPrecioGpoPoly } from '../../../../utils/polyCostos';
 import { QueryTypes } from 'sequelize';
 import { LotesArticuloSucursalRepository } from '../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
@@ -172,6 +173,30 @@ export class ArticuloController {
     }
   };
 
+  // PATCH /articulo/:id_artic/colectivo  { colectivo_artic: number | null }
+  // Compras registra cuántas piezas trae cada colectivo; null lo deja sin registrar.
+  static actualizarColectivo = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_artic } = req.params;
+      const raw = req.body?.colectivo_artic;
+      const colectivo = raw === null || raw === undefined || raw === '' ? null : Number(raw);
+      if (colectivo !== null && (!Number.isInteger(colectivo) || colectivo < 1 || colectivo > 100000)) {
+        res.status(400).json({ message: 'El colectivo debe ser un número entero mayor a 0.' });
+        return;
+      }
+      const articulo = await Articulo.findByPk(id_artic, { attributes: ['id_artic'] });
+      if (!articulo) {
+        res.status(404).json({ message: 'Artículo no encontrado.' });
+        return;
+      }
+      await articulo.update({ colectivo_artic: colectivo });
+      res.status(200).json({ id_artic, colectivo_artic: colectivo });
+    } catch (error) {
+      console.error('[actualizarColectivo]', error);
+      res.status(500).json({ message: 'Error al guardar el colectivo.' });
+    }
+  };
+
   // GET /articulo/:id_artic/existencia
   static getExistencia = async (req: AuthedRequest, res: Response) => {
     try {
@@ -231,12 +256,9 @@ export class ArticuloController {
 
       // Actualizar costo en PolyDB almacenes1
       if (modeloArticulo.cod_int_artic) {
-        await dbPoly.query(`
-          INSERT INTO public.almacenes1 (empcdempn, almcdalmn, artcdartn, almultctn, almcfeultd, almcosprn, almexistn)
-          VALUES (99999, 1, :codIntArtic, :costoPromedio, NOW(), :costoPromedio, 0)
-          ON CONFLICT (empcdempn, almcdalmn, artcdartn)
-          DO UPDATE SET almultctn = EXCLUDED.almultctn, almcfeultd = EXCLUDED.almcfeultd, almcosprn = EXCLUDED.almcosprn
-        `, { type: QueryTypes.INSERT, replacements: { codIntArtic: modeloArticulo.cod_int_artic, costoPromedio } });
+        // Solo se toca (y su fecha) si el costo promedio cambió
+        const resultadoCosto = await upsertCostoAlmacenPoly(modeloArticulo.cod_int_artic, costoPromedio, costoPromedio);
+        console.log(`[PolyDB] almacenes1 art=${modeloArticulo.cod_int_artic} costo=${costoPromedio} → ${resultadoCosto}`);
       }
 
       const listasDePrecioGrupo = await Grupo_Empresa_Lista_PrecioRepository
@@ -271,16 +293,10 @@ export class ArticuloController {
           console.log(`[PolyDB] lista=${idLista} codGrupo=${codGrupo} codArtic=${modeloArticulo.cod_int_artic} precio=${precio} costo=${costoPromedio}`);
           if (codGrupo != null && modeloArticulo.cod_int_artic != null) {
             const margenPoly = precio > 0 ? ((precio - costoPromedio) / precio) * 100 : 0;
-            await dbPoly.query(`
-              UPDATE preciogpo
-              SET grpprecin = :precio,
-                  grpcoston = :costo,
-                  grpmargen = :margen,
-                  grpstatuc = 'A',
-                  grpfechad = CURRENT_DATE
-              WHERE grpcdgrpn = :codGrupo AND artcdartn = :codArtic
-            `, { type: QueryTypes.UPDATE, replacements: { codGrupo, codArtic: modeloArticulo.cod_int_artic, precio, costo: costoPromedio, margen: margenPoly } });
-            console.log(`[PolyDB] UPDATE preciogpo grpcdgrpn=${codGrupo} artcdartn=${modeloArticulo.cod_int_artic} OK`);
+            const resultadoPrecio = await upsertPrecioGpoPoly({
+              codGrupo, codArtic: modeloArticulo.cod_int_artic, precio, costo: costoPromedio, margen: margenPoly, soloActualizar: true,
+            });
+            console.log(`[PolyDB] preciogpo grpcdgrpn=${codGrupo} artcdartn=${modeloArticulo.cod_int_artic} → ${resultadoPrecio}`);
           }
         } catch (polyErr) {
           console.error('[PolyDB] Error actualizando preciogpo:', polyErr);

@@ -29,6 +29,7 @@ export interface ICapturarPago {
     monto_pago: number;
     fecha_pago: Date;
     referencia_pago?: string;
+    id_banco?: string | null;
     id_empleado_captura: string;
     notas?: string;
 }
@@ -48,6 +49,7 @@ export interface ICapturarPagoCliente {
     id_metodo_pago: string;
     id_forma_pago: string;
     referencia_pago?: string;
+    id_banco?: string | null;     // banco del cheque / de la transferencia
     id_empleado_captura: string;
     notas?: string;
     abonos: IAbonoCxC[];          // una entrada por cada CxC a abonar

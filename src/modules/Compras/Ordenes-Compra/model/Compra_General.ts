@@ -65,7 +65,15 @@ class Compra_General extends Model {
     @Column(DataType.STRING(25))
     declare tipo_compra: string
 
+    // Si esta compra nace justo después de que otra se finalizó por accidente
+    // el mismo día (y esa otra aún no fue recibida), apunta a ella para
+    // avisar en pantalla que son continuación una de la otra.
+    @ForeignKey(() => Compra_General)
+    @Column({ type: DataType.UUID, allowNull: true })
+    declare id_compra_general_previa: string | null
 
+    @BelongsTo(() => Compra_General, 'id_compra_general_previa')
+    declare compraPrevia: Compra_General
 
     @HasMany(() => Compra_Proveedor)
     compra_proveedor: Compra_Proveedor

@@ -288,6 +288,21 @@ export const Stock_Ubicacion_LoteRepository = {
         });
     },
 
+    // Fila del mismo lote en la misma ubicación (para sumarle en vez de duplicarla)
+    findMismaUbicacionYLote: async (
+        id_empresa_sucursal: string, id_articulo: string, id_lote: string,
+        id_ubicacion_sucursal: string, tx: Transaction, excluirId?: string,
+    ) => {
+        return Stock_Ubicacion_Lote.findOne({
+            where: {
+                id_empresa_sucursal, id_articulo, id_lote, id_ubicacion_sucursal,
+                ...(excluirId ? { id_stock_ubicacion_lote: { [Op.ne]: excluirId } } : {}),
+            },
+            transaction: tx,
+            lock: tx.LOCK.UPDATE,
+        });
+    },
+
     create: async (dto: CrearStockUbicacionLoteDTO, tx: Transaction) => {
         if (!dto.id_lote) throw new Error("id_lote requerido");
         return Stock_Ubicacion_Lote.create(

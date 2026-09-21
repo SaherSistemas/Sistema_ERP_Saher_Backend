@@ -3,7 +3,7 @@ import { ICreateCompra_Proveedor, IEsctructuraCompra } from "../interface/Compra
 import { v4 as uuidv4 } from 'uuid';
 
 import { ICreateCompra_General } from "../interface/Compra_General.interface";
-import { Op, Sequelize, Transaction, WhereOptions } from "sequelize";
+import { Op, QueryTypes, Sequelize, Transaction, WhereOptions } from "sequelize";
 
 import { Empresa_SucursalRepository } from "../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository";
 import { EmpleadoRepository } from "../../../RRHH/repositories/Empleado.repository";
@@ -49,6 +49,25 @@ export const CompraGeneralRepository = {
             limit,
             offset
         });
+
+        // Importe pedido (cantidad × precio de lo solicitado, sin IVA). total_compra_general
+        // solo se llena al capturar facturas, así que una compra recién enviada marcaba $0.
+        if (rows.length > 0) {
+            const pedidos = await Compra_General.sequelize!.query<{ id_compra_general: string; total_pedido: string }>(`
+                SELECT cp.id_compra_general,
+                       COALESCE(SUM(d.cantidad_detcompsol * d.precio_detcompsol), 0) AS total_pedido
+                FROM detalle_compra_solicitado d
+                JOIN compra_proveedor cp ON cp.id_comp = d.idcompr_detcompsol
+                WHERE cp.id_compra_general IN (:ids)
+                GROUP BY cp.id_compra_general
+            `, {
+                type: QueryTypes.SELECT,
+                replacements: { ids: rows.map(r => r.id_compra_general) },
+            });
+            const porCompra = new Map(pedidos.map(p => [p.id_compra_general, Number(p.total_pedido)]));
+            rows.forEach(r => r.setDataValue('total_pedido' as any, porCompra.get(r.id_compra_general) ?? 0));
+        }
+
         return { total: count, compras: rows };
     },
 
@@ -70,6 +89,9 @@ export const CompraGeneralRepository = {
                 id_empresa_sucursal: id_empresa,
                 estado_comp: 'C'
             },
+            include: [
+                { model: Compra_General, as: 'compraPrevia', attributes: ['id_compra_general', 'id_interno_compra_gen'] },
+            ],
             order: [['fecha_inicio', 'DESC']]
         })
     },
@@ -96,7 +118,8 @@ export const CompraGeneralRepository = {
             fecha_inicio,
             id_empresa_sucursal: id_empre,
             ultimo_articulo_guardado,
-            tipo_compra: tipo_compra
+            tipo_compra: tipo_compra,
+            id_compra_general_previa: data.id_compra_general_previa ?? null,
         })
     },
 
@@ -108,6 +131,38 @@ export const CompraGeneralRepository = {
     compraGeneralEmpresa: async (id_empresa_sucursal: string) => {
         const compra = await CompraGeneralRepository.getCompraEnCaptura(id_empresa_sucursal)
         return compra
+    },
+
+    // Última compra de esta empresa finalizada HOY que aún no se envió al proveedor
+    // (estado 'A' = capturada pero no enviada). Se usa para relacionar una compra
+    // nueva con una que se finalizó por accidente el mismo día, sin reabrirla.
+    getUltimaFinalizadaMismoDiaSinEnviar: async (id_empresa_sucursal: string) => {
+        const inicioDia = new Date();
+        inicioDia.setHours(0, 0, 0, 0);
+
+        return await Compra_General.findOne({
+            where: {
+                id_empresa_sucursal,
+                estado_comp: 'A',
+                fecha_fin_captura: { [Op.gte]: inicioDia },
+            },
+            order: [['fecha_fin_captura', 'DESC']],
+        });
+    },
+
+    // Regresa a "Capturando" una compra que se había finalizado por accidente
+    // (y su(s) compra_proveedor relacionadas), para poder seguir acumulando
+    // artículos en la misma en vez de crear una compra aparte.
+    reabrirCompra: async (id_compra_general: string) => {
+        await Compra_Proveedor.update(
+            { estado_comp: 'C' },
+            { where: { id_compra_general, estado_comp: 'A' } },
+        );
+        await Compra_General.update(
+            { estado_comp: 'C', fecha_fin_captura: null as any },
+            { where: { id_compra_general } },
+        );
+        return await Compra_General.findByPk(id_compra_general);
     },
     finalizarCapturaCompraGenYCompraProv: async (id_empresa_sucursal: string, id_empleado_finaliza: string) => {
         const compra = await CompraGeneralRepository.compraGeneralEmpresa(id_empresa_sucursal)

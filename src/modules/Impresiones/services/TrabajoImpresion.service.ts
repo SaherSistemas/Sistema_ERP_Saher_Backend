@@ -119,11 +119,19 @@ export const TrabajoImpresionService = {
                 : await Pedido_AlmacenRepository.getByCodInterno(id_pedido_alm);
             if (!pedido) throw new Error('Pedido no encontrado');
 
-            let remision = await Remision.findOne({
-                where: { id_pedido_alm: pedido.id_pedido_alm },
-                order: [['fecha_remision', 'DESC']],
-                attributes: ['id_remision', 'folio_remision'],
-            });
+            // Un pedido puede tener varias remisiones (la factura se parte por límite): si se indica
+            // cuál (id_remision), se imprime ESA con sus propios productos; si no, la más reciente.
+            let remision = extraBody?.id_remision
+                ? await Remision.findOne({
+                    where: { id_remision: extraBody.id_remision, id_pedido_alm: pedido.id_pedido_alm },
+                    attributes: ['id_remision', 'folio_remision'],
+                })
+                : await Remision.findOne({
+                    where: { id_pedido_alm: pedido.id_pedido_alm },
+                    order: [['fecha_remision', 'DESC']],
+                    attributes: ['id_remision', 'folio_remision'],
+                });
+            if (extraBody?.id_remision && !remision) throw new Error('La remisión indicada no pertenece a este pedido.');
 
             // Si no existe, crearla automáticamente desde los datos del pedido
             if (!remision) {

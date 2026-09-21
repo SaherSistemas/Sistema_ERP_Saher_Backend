@@ -2,6 +2,7 @@ import { Column, Model, DataType, Table, PrimaryKey, ForeignKey, BelongsTo } fro
 import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal'
 import Articulo from '../../../Catalogos/Articulos/model/Articulo'
 import Empleado from '../../../RRHH/model/Empleado'
+import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal'
 
 @Table({ tableName: 'movimiento_articulo', timestamps: false })
 class Movimiento_Articulo extends Model {
@@ -35,6 +36,13 @@ class Movimiento_Articulo extends Model {
 
     @Column({ type: DataType.DATE, allowNull: false })
     declare fecha: Date
+
+    @ForeignKey(() => Lote_Articulo_Sucursal)
+    @Column({ type: DataType.UUID, allowNull: true })
+    declare id_lote: string | null
+
+    @BelongsTo(() => Lote_Articulo_Sucursal)
+    declare lote: Lote_Articulo_Sucursal
 
     @Column({ type: DataType.UUID, allowNull: true })
     declare documento_ref: string | null

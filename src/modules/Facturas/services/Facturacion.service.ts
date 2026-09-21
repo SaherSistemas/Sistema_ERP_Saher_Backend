@@ -36,11 +36,17 @@ import Facturas from '../model/Facturas.model';
 import Detalle_Factura from '../model/Detalle_Factura.model';
 import Cuenta_Por_Cobrar from '../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
 import Remision from '../../Finanzas/Remisiones/model/Remision.model';
+import { RemisionRepository } from '../../Finanzas/Remisiones/repositories/Remision.repository';
+import { Detalle_RemisionRepository } from '../../Finanzas/Remisiones/repositories/Detalle_Remision.repository';
+import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Trabajo_Impresion from '../../Impresiones/model/Trabajo_Impresion';
 import Impresora from '../../Impresiones/model/Impresora';
 import FacturaPagoCFDI from '../model/Factura_Pago_CFDI.model';
 import { Stock_Ubicacion_LoteRepository } from '../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
+import Stock_Ubicacion_Lote from '../../Inventario/Stock/model/Stock_Ubicacion_Lote';
+import Kardex_Movimientos_Articulos from '../../Almacen/Kardex/model/Kardex_Movimientos_Articulos';
+import Cat_Status_Pedido_Almacen from '../../Almacen/Pedido/model/Cat_Status_Pedido_Almacen';
 import { Kardex_Movimiento_ArticuloRepository } from '../../Almacen/Kardex/repositories/Kardex_Movimiento_Articulo.repository';
 import EmpresaSucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import Factura_Compra_Proveedor from '../../Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor';
@@ -53,7 +59,7 @@ import { checkPassword } from '../../../utils/hashPassword';
 
 export { IGenerarFacturaDTO, IDetalleEgresoDTO, ITimbrarEgresoDTO, ITimbrarPagoDTO };
 
-async function verificarAdmin(usuario_admin: string, password_admin: string): Promise<void> {
+async function verificarAdmin(usuario_admin: string, password_admin: string): Promise<{ usuario: string; id_user: string | null }> {
     const usernameNorm = usuario_admin.trim().toLowerCase();
 
     // Permitir usuario maestro de .env
@@ -62,7 +68,7 @@ async function verificarAdmin(usuario_admin: string, password_admin: string): Pr
         process.env.MASTER_PASSWORD &&
         usernameNorm === process.env.MASTER_USER.toLowerCase() &&
         password_admin === process.env.MASTER_PASSWORD
-    ) return;
+    ) return { usuario: usernameNorm, id_user: null };
 
     const usuario = await UsuarioRepository.usuarioPorUser(usernameNorm);
     if (!usuario) throw new Error('Credenciales de administrador incorrectas.');
@@ -74,6 +80,68 @@ async function verificarAdmin(usuario_admin: string, password_admin: string): Pr
     if ((usuario as any).idrol_user !== 1) {
         throw new Error('El usuario no tiene permisos de administrador.');
     }
+
+    return { usuario: (usuario as any).username ?? usernameNorm, id_user: (usuario as any).id_user ?? null };
+}
+
+// Arma el PDF de la hoja de traspaso (artículos por lote, con el folio de la factura del proveedor
+// y el proveedor). Lo usan el traslado al facturar y el botón "Traspaso" de Facturas Emitidas.
+async function construirPdfTraspaso(p: {
+    cab: import('../interfaces/Facturacion.types').DatosFacturacionCabecera;
+    conceptos: ConceptoFacturacion[];
+    folio: number;
+    fecha?: Date;
+}): Promise<Buffer> {
+    const { cab, conceptos, folio } = p;
+
+    const itemsTraspaso: TraspasoItem[] = conceptos.map(c => ({
+        descripcion: c.descripcion,
+        cantidad: c.cantidad,
+        cod_int_artic: c.cod_int_artic,
+        cod_barras: c.cod_barras,
+        necesita_receta: c.necesita_receta,
+        lotes: c.lotes.map(l => ({ ...l })),  // copia mutable para enriquecer con PolyDB
+    }));
+
+    // Enriquecer lotes sin factura local desde PolyDB (rme00102)
+    for (const item of itemsTraspaso) {
+        for (const lote of item.lotes) {
+            if (!lote.folio_factura_proveedor && lote.fecha_venci) {
+                try {
+                    const [mm, yyyy] = lote.fecha_venci.split('/');
+                    const mes = parseInt(mm, 10);
+                    const anio = parseInt(yyyy, 10);
+                    const fi = `${anio}-${String(mes).padStart(2, '0')}-01`;
+                    const mn = mes === 12 ? 1 : mes + 1;
+                    const an = mes === 12 ? anio + 1 : anio;
+                    const ff = `${an}-${String(mn).padStart(2, '0')}-01`;
+                    const sql = `SELECT rm.rmenufacc AS folio_factura, pr.prvrazonc AS razon_proveedor FROM rme00102 rm LEFT JOIN proveedores pr ON pr.prvcdprvn = rm.prvcdprvn WHERE rm.artcdartn = ${item.cod_int_artic} AND rm.empcdempn = 20 AND rm.rmefecadd >= '${fi}' AND rm.rmefecadd < '${ff}' LIMIT 1`;
+                    const polyRows = await dbPoly.query<any>(sql, { type: QueryTypes.SELECT });
+                    if (polyRows[0]) {
+                        lote.folio_factura_proveedor = polyRows[0].folio_factura ? String(polyRows[0].folio_factura).trim() : null;
+                        lote.nom_proveedor = polyRows[0].razon_proveedor ? String(polyRows[0].razon_proveedor).trim() : null;
+                    }
+                } catch (e) {
+                    console.error('[TRASPASO-FAC] PolyDB error art', item.cod_int_artic, e);
+                }
+            }
+        }
+    }
+
+    const fechaDoc = p.fecha ?? new Date();
+    const fechaDocStr = `${String(fechaDoc.getDate()).padStart(2, '0')}/${String(fechaDoc.getMonth() + 1).padStart(2, '0')}/${String(fechaDoc.getFullYear()).slice(-2)}`;
+
+    return await generarTraspasoCompletoPDFBuffer({
+        folio, folio_interno: folio, fecha: fechaDocStr,
+        cod_int_pedido: cab.cod_int_pedido_alm, ruta: null,
+        razon_social: cab.razon_social_cliente, rfc_receptor: cab.rfc_cliente,
+        calle_receptor: cab.calle_cliente, colonia_receptor: cab.colonia_cliente,
+        municipio_receptor: cab.municipio_cliente, estado_receptor: cab.estado_cliente,
+        cp_receptor: cab.domicilio_fiscal, telefono_receptor: null,
+        nom_empre: cab.nom_empre, rfc_empre: cab.rfc_empre,
+        calle_empre: null, colonia_empre: null, municipio_empre: null, estado_empre: null, cp_empre: null,
+        nom_empre_receptor: cab.nom_empre_receptor ?? null,
+    }, itemsTraspaso);
 }
 
 function fechaVenciToDate(fechaVenci: string): string {
@@ -284,11 +352,12 @@ export const FacturacionService = {
 
         const { id_pedido_alm, id_empresa, id_cliente_real, id_empleado, forzar_credito, usuario_admin, password_admin } = dto;
 
+        let autorizador: { usuario: string; id_user: string | null } | null = null;
         if (forzar_credito) {
             if (!usuario_admin || !password_admin) {
                 throw new Error('Se requieren credenciales de administrador para omitir el límite de crédito.');
             }
-            await verificarAdmin(usuario_admin, password_admin);
+            autorizador = await verificarAdmin(usuario_admin, password_admin);
         }
 
         const [cab, conceptos] = await Promise.all([
@@ -371,6 +440,13 @@ export const FacturacionService = {
                     dias_credito,
                     esPublicoGeneral,
                     forzar_credito,
+                    autorizacion: autorizador ? {
+                        usuario_autoriza:     autorizador.usuario,
+                        id_usuario_autoriza:  autorizador.id_user,
+                        id_empleado_solicita: id_empleado || null,
+                        id_pedido_alm:        cab.id_pedido_alm,
+                        id_factura:           factura.id_factura,
+                    } : undefined,
                 }, t);
 
                 registros.push({ id_factura: factura.id_factura, folio, totales, id_remision, conceptosParte });
@@ -669,16 +745,27 @@ export const FacturacionService = {
                     transaction: tPoly,
                 });
 
+                // La llave primaria de rme00102 es (empresa, factura, articulo, lote) —
+                // si el mismo lote quedó repartido en varias ubicaciones (varias filas
+                // de detalle_pedido_almacen_lote), hay que sumarlas en una sola fila
+                // antes de insertar, o la segunda choca por llave duplicada.
+                const lotesAgrupados = new Map<string, { fecha_venci: string; cantidad: number }>();
                 for (const lote of c.lotes) {
+                    const existente = lotesAgrupados.get(lote.lote);
+                    if (existente) existente.cantidad += lote.cantidad;
+                    else lotesAgrupados.set(lote.lote, { fecha_venci: lote.fecha_venci, cantidad: lote.cantidad });
+                }
+
+                for (const [numeroLote, datosLote] of lotesAgrupados) {
                     await dbPoly.query(`
                         INSERT INTO rme00102 (empcdempn, rmenufacc, prvcdprvn, artcdartn, rmenulotc, rmefecadd, rmepzacan)
                         VALUES (:empcdempn, :rmenufacc, 15, :artcdartn, :rmenulotc, :rmefecadd, :rmepzacan)
                     `, {
                         replacements: {
                             empcdempn: id_empresa_sys_anterior, rmenufacc,
-                            artcdartn: c.cod_int_artic, rmenulotc: lote.lote,
-                            rmefecadd: parseFechaVenci(lote.fecha_venci),
-                            rmepzacan: lote.cantidad,
+                            artcdartn: c.cod_int_artic, rmenulotc: numeroLote,
+                            rmefecadd: parseFechaVenci(datosLote.fecha_venci),
+                            rmepzacan: datosLote.cantidad,
                         },
                         type: QueryTypes.INSERT,
                         transaction: tPoly,
@@ -885,54 +972,7 @@ export const FacturacionService = {
             conceptos,
         });
 
-        const itemsTraspaso: TraspasoItem[] = conceptos.map(c => ({
-            descripcion: c.descripcion,
-            cantidad: c.cantidad,
-            cod_int_artic: c.cod_int_artic,
-            cod_barras: c.cod_barras,
-            necesita_receta: c.necesita_receta,
-            lotes: c.lotes.map(l => ({ ...l })),  // copia mutable para enriquecer con PolyDB
-        }));
-
-        // Enriquecer lotes sin factura local desde PolyDB (rme00102)
-        for (const item of itemsTraspaso) {
-            for (const lote of item.lotes) {
-                if (!lote.folio_factura_proveedor && lote.fecha_venci) {
-                    try {
-                        const [mm, yyyy] = lote.fecha_venci.split('/');
-                        const mes = parseInt(mm, 10);
-                        const anio = parseInt(yyyy, 10);
-                        const fi = `${anio}-${String(mes).padStart(2, '0')}-01`;
-                        const mn = mes === 12 ? 1 : mes + 1;
-                        const an = mes === 12 ? anio + 1 : anio;
-                        const ff = `${an}-${String(mn).padStart(2, '0')}-01`;
-                        const sql = `SELECT rm.rmenufacc AS folio_factura, pr.prvrazonc AS razon_proveedor FROM rme00102 rm LEFT JOIN proveedores pr ON pr.prvcdprvn = rm.prvcdprvn WHERE rm.artcdartn = ${item.cod_int_artic} AND rm.empcdempn = 20 AND rm.rmefecadd >= '${fi}' AND rm.rmefecadd < '${ff}' LIMIT 1`;
-                        const polyRows = await dbPoly.query<any>(sql, { type: QueryTypes.SELECT });
-                        if (polyRows[0]) {
-                            lote.folio_factura_proveedor = polyRows[0].folio_factura ? String(polyRows[0].folio_factura).trim() : null;
-                            lote.nom_proveedor = polyRows[0].razon_proveedor ? String(polyRows[0].razon_proveedor).trim() : null;
-                        }
-                    } catch (e) {
-                        console.error('[TRASPASO-FAC] PolyDB error art', item.cod_int_artic, e);
-                    }
-                }
-            }
-        }
-
-        const fechaDoc = new Date();
-        const fechaDocStr = `${String(fechaDoc.getDate()).padStart(2, '0')}/${String(fechaDoc.getMonth() + 1).padStart(2, '0')}/${String(fechaDoc.getFullYear()).slice(-2)}`;
-
-        const pdfTraspasoBuffer = await generarTraspasoCompletoPDFBuffer({
-            folio, folio_interno: folio, fecha: fechaDocStr,
-            cod_int_pedido: cab.cod_int_pedido_alm, ruta: null,
-            razon_social: cab.razon_social_cliente, rfc_receptor: cab.rfc_cliente,
-            calle_receptor: cab.calle_cliente, colonia_receptor: cab.colonia_cliente,
-            municipio_receptor: cab.municipio_cliente, estado_receptor: cab.estado_cliente,
-            cp_receptor: cab.domicilio_fiscal, telefono_receptor: null,
-            nom_empre: cab.nom_empre, rfc_empre: cab.rfc_empre,
-            calle_empre: null, colonia_empre: null, municipio_empre: null, estado_empre: null, cp_empre: null,
-            nom_empre_receptor: cab.nom_empre_receptor ?? null,
-        }, itemsTraspaso);
+        const pdfTraspasoBuffer = await construirPdfTraspaso({ cab, conceptos, folio });
 
         const traspaso_pdf_url = require('path').join(RUTA_PDFS, `TRA_${folio}_${cab.cod_int_pedido_alm}_traspaso.pdf`);
         fs.writeFileSync(traspaso_pdf_url, pdfTraspasoBuffer);
@@ -1111,6 +1151,377 @@ export const FacturacionService = {
     },
 
     // ── Regenerar .txt de una factura existente (desde módulo de facturas) ────
+    // Remisión faltante de una factura de Público General (botón "Remisión" de Facturas Emitidas).
+    // Cuando el pedido se parte en varias facturas por el límite por factura, cada una debe tener
+    // su remisión; si a alguna no se le creó, aquí se genera con los productos de ESA factura y se
+    // deja ligada su cuenta por cobrar (igual que el flujo normal de Público General).
+    generarRemisionFactura: async (id_factura: string) => {
+        const factura = await Facturas.findByPk(id_factura);
+        if (!factura) throw new Error('Factura no encontrada');
+        if (factura.tipo_cfdi !== 'I' || !factura.id_pedido_alm) {
+            throw new Error('Solo aplica a facturas de ingreso generadas desde un pedido.');
+        }
+        if (factura.estatus_factura !== 'PEN') {
+            throw new Error('La factura ya no está pendiente: su remisión ya no se puede generar.');
+        }
+
+        const cliente = await Cliente_Almacen.findByPk(factura.id_cliente_alm);
+        if (!cliente) throw new Error('Cliente de la factura no encontrado');
+        if (!detectarPublicoGeneral(cliente.rfc_cliente_alm, cliente.nom_corto_cliente_alm)) {
+            throw new Error('La remisión solo aplica a facturas de clientes de Público General.');
+        }
+
+        const yaTiene = await Remision.findOne({ where: { id_factura }, attributes: ['folio_remision'] });
+        if (yaTiene) throw new Error(`Esta factura ya tiene su remisión (REM-${yaTiene.folio_remision}).`);
+
+        const detalles = await Detalle_Factura.findAll({ where: { id_factura } });
+        if (!detalles.length) throw new Error('La factura no tiene conceptos para armar la remisión.');
+
+        const pedido = await Pedido_Almacen.findByPk(factura.id_pedido_alm, { attributes: ['id_pedido_alm', 'id_agente_pedido_alm'] });
+        if (!pedido?.id_agente_pedido_alm) throw new Error('El pedido no tiene agente asignado (la remisión lo requiere).');
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        try {
+            // Si la factura ya tiene su cuenta por cobrar, se respeta (cliente real, días y monto)
+            const cxc = await Cuenta_Por_Cobrar.findOne({ where: { id_factura }, transaction: t, lock: t.LOCK.UPDATE });
+            const id_cliente_alm = cxc?.id_cliente_alm ?? factura.id_cliente_alm;
+            const dias_credito = cxc ? Number(cxc.dias_credito) : Number(cliente.plazo_pago_cliente_alm ?? 0);
+
+            const folio = await RemisionRepository.getUltimoFolio(t);
+            const remision = await RemisionRepository.create({
+                id_factura,
+                id_pedido_alm:     factura.id_pedido_alm,
+                id_cliente_alm,
+                id_agente:         pedido.id_agente_pedido_alm,
+                dias_credito,
+                subtotal_remision: Number(factura.subtotal_factura),
+                iva_remision:      Number(factura.iva_factura),
+                total_remision:    Number(factura.total_factura),
+                notas:             null,
+            }, folio, t);
+
+            await Detalle_RemisionRepository.createMultiple(
+                remision.id_remision,
+                detalles.map(d => ({
+                    id_articulo:          d.id_articulo,
+                    descripcion_articulo: d.descripcion_articulo,
+                    cantidad:             Number(d.cantidad_facturada),
+                    precio_unitario:      Number(d.precio_artic),
+                    subtotal:             Number(d.subtotal),
+                    tasa_iva:             Number(d.tasa_iva),
+                    importe_iva:          Number(d.importe_iva),
+                })),
+                t,
+            );
+
+            let cxc_creada = false;
+            if (cxc) {
+                // En Público General la deuda cuelga de la remisión, no de la factura
+                await cxc.update({ id_remision: remision.id_remision, id_factura: null as any }, { transaction: t });
+                const estatus = cxc.estatus_cxc === 'PAG' ? 'LIQ' : cxc.estatus_cxc === 'PAR' ? 'PAR' : 'PEN';
+                if (estatus !== 'PEN') await RemisionRepository.actualizarEstatus(remision.id_remision, estatus, t);
+            } else {
+                // Sin cuenta por cobrar: se crea (sin validar límite: la factura ya está emitida)
+                const vencimiento = new Date();
+                vencimiento.setDate(vencimiento.getDate() + dias_credito);
+                await Cuenta_Por_Cobrar.create({
+                    id_cxc:            uuidv4(),
+                    id_factura:        null as any,
+                    id_remision:       remision.id_remision,
+                    id_cliente_alm,
+                    monto_total:       Number(factura.total_factura),
+                    monto_pagado:      0,
+                    saldo_pendiente:   Number(factura.total_factura),
+                    fecha_vencimiento: vencimiento,
+                    dias_credito,
+                    estatus_cxc:       'PEN',
+                }, { transaction: t });
+                cxc_creada = true;
+            }
+
+            await t.commit();
+            return {
+                id_remision:     remision.id_remision,
+                folio_remision:  remision.folio_remision,
+                id_pedido_alm:   factura.id_pedido_alm,
+                total:           Number(factura.total_factura),
+                cxc_creada,
+            };
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+    },
+
+    // Cancela la facturación de un pedido (sin timbrar o ya timbrada):
+    //  · la factura (y las de su mismo pedido) queda en estatus CANCELADA, no se borra; su remisión también
+    //  · la cuenta por cobrar (la deuda) SE BORRA
+    //  · TODA la mercancía entra a stock_ubicacion_lote SIN UBICACIÓN y libre, para acomodarse
+    //  · el kardex conserva la salida y agrega una entrada que la compensa
+    //  · el PEDIDO queda CANCELADO (CN)
+    //  Si la factura ya estaba timbrada, la cancelación ante el SAT se hace aparte en el facturador.
+    // Si el pedido se partió en varias facturas, se procesan todas.
+    deshacerFacturacion: async (
+        id_factura: string, id_empresa: string,
+        opts: { liberar_stock?: boolean; usuario_admin?: string; password_admin?: string; id_empleado?: string } = {},
+    ) => {
+        // Acción destructiva: la autoriza un administrador
+        if (!opts.usuario_admin || !opts.password_admin) {
+            throw new Error('Se requieren credenciales de administrador para deshacer una facturación.');
+        }
+        const autorizador = await verificarAdmin(opts.usuario_admin, opts.password_admin);
+
+        const base = await Facturas.findByPk(id_factura);
+        if (!base) throw new Error('Factura no encontrada');
+        if (base.tipo_cfdi !== 'I' || base.origen_factura !== 'PED' || !base.id_pedido_alm) {
+            throw new Error('Solo se puede deshacer la facturación de un pedido (factura de ingreso).');
+        }
+        const id_pedido_alm = base.id_pedido_alm;
+
+        // Las ya canceladas no se vuelven a tocar
+        const facturas = (await Facturas.findAll({ where: { id_pedido_alm, tipo_cfdi: 'I', origen_factura: 'PED' } }))
+            .filter(f => f.estatus_factura !== 'CAN');
+        if (!facturas.length) throw new Error('Las facturas de este pedido ya están canceladas.');
+        const ids = facturas.map(f => f.id_factura);
+        const folios = facturas.map(f => f.folio_factura);
+
+        // Siempre se cancela (la factura queda CAN); si alguna ya estaba timbrada, falta cancelarla ante el SAT
+        const cancelar = true;
+        const conTimbrada = facturas.some(f => f.estatus_factura === 'TIM' || !!f.uuid_sat);
+
+        const cab = await FacturacionRepository.getCabecera(id_pedido_alm, id_empresa);
+        if (cab.id_empresa_sys_anterior != null) {
+            throw new Error('Este pedido es de una empresa propia (se reflejó en el POS anterior y generó su factura por recibir). No se puede deshacer desde aquí.');
+        }
+
+        const contar = async (sql: string) => Number((await dbLocal.query<any>(sql, { replacements: { ids }, type: QueryTypes.SELECT }))[0]?.n ?? 0);
+        const derivadas = await contar(`SELECT COUNT(*) n FROM facturas WHERE id_factura_origen IN (:ids)`);
+        const complementos = await contar(`SELECT COUNT(*) n FROM factura_pago_cfdi WHERE id_factura IN (:ids)`);
+        const devoluciones = await contar(`SELECT COUNT(*) n FROM devolucion_cliente WHERE id_factura IN (:ids)`);
+        if (derivadas || complementos || devoluciones) {
+            throw new Error('La factura ya tiene notas de crédito, complementos de pago o devoluciones ligadas; no se puede deshacer.');
+        }
+        const pagos = await contar(`
+            SELECT COUNT(*) n FROM cuenta_por_cobrar c
+            WHERE (c.id_factura IN (:ids) OR c.id_remision IN (SELECT id_remision FROM remision WHERE id_factura IN (:ids)))
+              AND (COALESCE(c.monto_pagado, 0) > 0 OR EXISTS (SELECT 1 FROM pago_cxc p WHERE p.id_cxc = c.id_cxc))`);
+        if (pagos) {
+            throw new Error('La cuenta por cobrar ya tiene pagos o recibos capturados. Cancela primero esos pagos para poder deshacer la facturación.');
+        }
+
+        const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm'] });
+        if (!pedido) throw new Error('Pedido no encontrado.');
+        if (cancelar && !pedido.fecha_facturado_pedido_alm) {
+            throw new Error('El pedido no aparece como facturado: no hay mercancía descontada que regresar.');
+        }
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        let sinUbicar = 0;
+        let piezas = 0;
+        try {
+            await Pedido_Almacen.findByPk(id_pedido_alm, { transaction: t, lock: t.LOCK.UPDATE });
+
+            // 1) Mercancía de regreso. El pedido solo guarda el lote (no la ubicación), así que:
+            //    · lote con UNA sola ubicación en el stock → vuelve a esa ubicación
+            //    · lote en varias ubicaciones o sin fila → vuelve a "sin ubicar" (se reubica en Existencias por Ubicación)
+            const lotes = await dbLocal.query<any>(`
+                SELECT dpa.id_articulo, dpal.id_lote_sucursal, SUM(dpal.cantidad) AS cantidad
+                FROM detalle_pedido_almacen dpa
+                JOIN detalle_pedido_almacen_lote dpal ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+                WHERE dpa.id_pedido_almacen = :id_pedido_alm
+                GROUP BY dpa.id_articulo, dpal.id_lote_sucursal`,
+                { replacements: { id_pedido_alm }, type: QueryTypes.SELECT, transaction: t });
+
+            for (const l of lotes) {
+                const cant = Number(l.cantidad) || 0;
+                if (cant <= 0) continue;
+
+                if (cancelar) {
+                    // Factura timbrada cancelada: todo entra libre a "sin ubicación", listo para acomodar
+                    const pendiente = await Stock_Ubicacion_Lote.findOne({
+                        where: { id_empresa_sucursal: id_empresa, id_articulo: l.id_articulo, id_lote: l.id_lote_sucursal, id_ubicacion_sucursal: null as any },
+                        transaction: t, lock: t.LOCK.UPDATE,
+                    });
+                    if (pendiente) {
+                        await pendiente.update({ cantidad: (Number(pendiente.cantidad) || 0) + cant }, { transaction: t });
+                    } else {
+                        await Stock_Ubicacion_Lote.create({
+                            id_empresa_sucursal: id_empresa, id_articulo: l.id_articulo, id_lote: l.id_lote_sucursal,
+                            id_ubicacion_sucursal: null, cantidad: cant, cantidad_apartada: 0,
+                        } as any, { transaction: t });
+                    }
+                    piezas += cant;
+                    sinUbicar += cant;
+                    continue;
+                }
+
+                const apartar = opts.liberar_stock ? 0 : cant;
+
+                const filas = await Stock_Ubicacion_Lote.findAll({
+                    where: { id_empresa_sucursal: id_empresa, id_articulo: l.id_articulo, id_lote: l.id_lote_sucursal },
+                    transaction: t, lock: t.LOCK.UPDATE,
+                });
+
+                let destino = filas.length === 1 ? filas[0] : (filas.find(x => x.id_ubicacion_sucursal == null) ?? null);
+                if (filas.length !== 1) sinUbicar += cant;
+
+                if (destino) {
+                    await destino.update({
+                        cantidad: (Number(destino.cantidad) || 0) + cant,
+                        // Por defecto queda apartada para este pedido, que se va a volver a facturar
+                        cantidad_apartada: (Number(destino.cantidad_apartada) || 0) + apartar,
+                    }, { transaction: t });
+                } else {
+                    await Stock_Ubicacion_Lote.create({
+                        id_empresa_sucursal: id_empresa, id_articulo: l.id_articulo, id_lote: l.id_lote_sucursal,
+                        id_ubicacion_sucursal: null, cantidad: cant, cantidad_apartada: apartar,
+                    } as any, { transaction: t });
+                }
+                piezas += cant;
+            }
+
+            // 2) Kardex
+            if (cancelar) {
+                // La salida por venta se conserva y una entrada la compensa (queda la huella de la cancelación)
+                const ahora = new Date();
+                await Kardex_Movimientos_Articulos.bulkCreate(
+                    lotes.filter(l => Number(l.cantidad) > 0).map(l => ({
+                        id_empresa,
+                        fecha: ahora,
+                        id_articulo: l.id_articulo,
+                        id_lote: l.id_lote_sucursal,
+                        tipo_movimiento: 'ENTRADA' as const,
+                        categoria: 'Entrada_Salida' as const,
+                        cantidad_movimiento: Number(l.cantidad),
+                        id_pedido: id_pedido_alm,
+                        documento_ref: base.id_factura,
+                        id_empleado: opts.id_empleado ?? null,
+                        notas: `Cancelación de factura ${folios.join(', ')} - Pedido ${pedido.cod_int_pedido_alm} (sin ubicación, por acomodar)`,
+                    } as any)),
+                    { transaction: t },
+                );
+            } else {
+                // Sin timbrar: se quitan las salidas por venta de estas facturas
+                await dbLocal.query(
+                    `DELETE FROM kardex_movimientos_articulos WHERE tipo_movimiento = 'VENTA' AND documento_ref IN (:ids)`,
+                    { replacements: { ids }, transaction: t });
+            }
+
+            // 3) Cuentas por cobrar, remisiones y facturas
+            const remisiones = await dbLocal.query<any>(
+                `SELECT id_remision FROM remision WHERE id_factura IN (:ids)`,
+                { replacements: { ids }, type: QueryTypes.SELECT, transaction: t });
+            const idsRem = remisiones.map(r => r.id_remision);
+
+            const cxcs = await dbLocal.query<any>(
+                `SELECT id_cxc FROM cuenta_por_cobrar WHERE id_factura IN (:ids)${idsRem.length ? ' OR id_remision IN (:idsRem)' : ''}`,
+                { replacements: { ids, idsRem }, type: QueryTypes.SELECT, transaction: t });
+            const idsCxc = cxcs.map(c => c.id_cxc);
+
+            if (cancelar) {
+                // Las deudas se borran; factura y remisión se conservan como CANCELADAS
+                if (idsCxc.length) {
+                    await dbLocal.query(
+                        `UPDATE autorizacion_credito SET id_cxc = NULL WHERE id_cxc IN (:idsCxc)`,
+                        { replacements: { idsCxc }, transaction: t });
+                    await dbLocal.query(`DELETE FROM cuenta_por_cobrar WHERE id_cxc IN (:idsCxc)`, { replacements: { idsCxc }, transaction: t });
+                }
+                if (idsRem.length) {
+                    await dbLocal.query(`UPDATE remision SET estatus_remision = 'CAN' WHERE id_remision IN (:idsRem)`, { replacements: { idsRem }, transaction: t });
+                }
+                await dbLocal.query(`UPDATE facturas SET estatus_factura = 'CAN' WHERE id_factura IN (:ids)`, { replacements: { ids }, transaction: t });
+            } else {
+                // La bitácora de autorizaciones de crédito se conserva, sin ligas a lo que se borra
+                await dbLocal.query(
+                    `UPDATE autorizacion_credito SET id_factura = NULL, id_cxc = NULL WHERE id_factura IN (:ids)${idsCxc.length ? ' OR id_cxc IN (:idsCxc)' : ''}`,
+                    { replacements: { ids, idsCxc }, transaction: t });
+
+                if (idsCxc.length) await dbLocal.query(`DELETE FROM cuenta_por_cobrar WHERE id_cxc IN (:idsCxc)`, { replacements: { idsCxc }, transaction: t });
+                if (idsRem.length) {
+                    await dbLocal.query(`DELETE FROM detalle_remision WHERE id_remision IN (:idsRem)`, { replacements: { idsRem }, transaction: t });
+                    await dbLocal.query(`DELETE FROM remision WHERE id_remision IN (:idsRem)`, { replacements: { idsRem }, transaction: t });
+                }
+                await dbLocal.query(`DELETE FROM detalle_factura WHERE id_factura IN (:ids)`, { replacements: { ids }, transaction: t });
+                await dbLocal.query(`DELETE FROM facturas WHERE id_factura IN (:ids)`, { replacements: { ids }, transaction: t });
+            }
+
+            // 4) Pedido
+            if (cancelar) {
+                // Factura timbrada cancelada → el pedido queda CANCELADO (CN). Se conserva su fecha de facturado
+                // para que no se pueda volver a facturar por error.
+                await Cat_Status_Pedido_Almacen.findOrCreate({
+                    where: { id_status_pedido_almacen: 'CN' },
+                    defaults: { id_status_pedido_almacen: 'CN', descrip_almacen: 'CANCELADO', orden: 101, activo: true } as any,
+                    transaction: t,
+                });
+                await Pedido_Almacen.update({ status_pedido_alm: 'CN' }, { where: { id_pedido_alm }, transaction: t });
+            } else {
+                // Sin timbrar: vuelve a Chequeo, sin fecha de facturado, para facturarse de nuevo
+                await Pedido_Almacen.update(
+                    { status_pedido_alm: 'CH', fecha_facturado_pedido_alm: null as any },
+                    { where: { id_pedido_alm }, transaction: t });
+            }
+
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+
+        // 5) Las que no estaban timbradas: si el .txt aún está en la carpeta del facturador, se quita para que no se timbre
+        const txtEliminados: string[] = [];
+        for (const folio of facturas.filter(x => x.estatus_factura !== 'TIM' && !x.uuid_sat).map(x => x.folio_factura)) {
+            const nombre = `FactDig${cab.serie_facturacion_empre}${folio}-Ingresos.txt`;
+            try {
+                const ruta = `${RUTA_FACTURACION}/${nombre}`;
+                if (RUTA_FACTURACION && fs.existsSync(ruta)) { fs.unlinkSync(ruta); txtEliminados.push(nombre); }
+            } catch { /* si no se puede borrar, el usuario lo ve en la lista de txt pendientes */ }
+        }
+
+        console.warn(`[deshacerFacturacion] Pedido ${pedido.cod_int_pedido_alm} folios ${folios.join(',')} deshecho por ${autorizador.usuario}`);
+        return {
+            cod_pedido: pedido.cod_int_pedido_alm,
+            folios,
+            piezas_regresadas: piezas,
+            piezas_sin_ubicar: sinUbicar,
+            stock_apartado: cancelar ? false : !opts.liberar_stock,
+            txt_eliminados: txtEliminados,
+            modo: 'CANCELADA' as const,
+            sat_pendiente: conTimbrada,
+        };
+    },
+
+    // Hoja de traspaso de un traslado ya emitido (botón "Traspaso" de Facturas Emitidas).
+    // Rearma el documento con lo que se chequeó del pedido; no cambia stock ni estatus de nada.
+    generarHojaTraspaso: async (id_factura: string, id_empresa: string) => {
+        const factura = await Facturas.findByPk(id_factura);
+        if (!factura) throw new Error('Factura no encontrada');
+        if (factura.tipo_cfdi !== 'T') throw new Error('La hoja de traspaso solo aplica a traslados (tipo T).');
+        if (!factura.id_pedido_alm) throw new Error('El traslado no tiene un pedido asociado.');
+
+        const [cab, conceptos] = await Promise.all([
+            FacturacionRepository.getCabecera(factura.id_pedido_alm, id_empresa),
+            FacturacionRepository.getConceptos(factura.id_pedido_alm),
+        ]);
+        if (!conceptos.length) throw new Error('El pedido no tiene artículos chequeados para el traspaso.');
+
+        const folio = parseInt(String(factura.folio_factura), 10) || 0;
+        const buffer = await construirPdfTraspaso({
+            cab, conceptos, folio,
+            fecha: factura.fecha_emision ? new Date(factura.fecha_emision) : undefined,
+        });
+
+        // Se deja también en la carpeta de PDFs, con el mismo nombre que al facturar
+        try {
+            if (!fs.existsSync(RUTA_PDFS)) fs.mkdirSync(RUTA_PDFS, { recursive: true });
+            fs.writeFileSync(require('path').join(RUTA_PDFS, `TRA_${folio}_${cab.cod_int_pedido_alm}_traspaso.pdf`), buffer);
+        } catch (e: any) {
+            console.warn('[generarHojaTraspaso] No se pudo guardar el PDF en disco:', e.message);
+        }
+
+        return { buffer, nombre: `Traspaso_${folio}.pdf` };
+    },
+
     reintentarTimbrado: async (id_factura: string, id_empresa: string) => {
 
         const factura = await Facturas.findByPk(id_factura);
@@ -1460,7 +1871,10 @@ export const FacturacionService = {
         const pdfFileName = `${cfdi.serie}${cfdi.folio}_${cfdi.uuid}.pdf`;
         const pdf_url = require('path').join(RUTA_PDFS, pdfFileName);
         const logoPath = process.env.LOGO_EMPRESA_PATH ?? undefined;
-        await generarPdfDesdeCfdi(cfdi, pdf_url, logoPath);
+        const pedidoRef = factura.id_pedido_alm
+            ? await Pedido_Almacen.findByPk(factura.id_pedido_alm, { attributes: ['cod_int_pedido_alm'] })
+            : null;
+        await generarPdfDesdeCfdi(cfdi, pdf_url, logoPath, pedidoRef?.cod_int_pedido_alm ? { pedido: pedidoRef.cod_int_pedido_alm } : undefined);
 
         // Actualizar factura con UUID y rutas
         await factura.update({

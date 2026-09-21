@@ -30,13 +30,13 @@ export const ValeService = {
             JOIN detalle_pedido_almacen dpa ON dpa.id_pedido_almacen = pa.id_pedido_alm
             WHERE pa.id_pedido_alm IN (:ids)
               AND pa.origen_pedido = 'VALE'
-              AND pa.status_pedido_alm = 'CH'
+              AND pa.status_pedido_alm IN ('CH', 'EN')
             GROUP BY pa.id_empleado_vale
         `, { type: QueryTypes.SELECT, replacements: { ids: ids_pedidos } });
 
         const [updated] = await Pedido_Almacen.update(
             { status_pedido_alm: 'PF' },
-            { where: { id_pedido_alm: { [Op.in]: ids_pedidos }, origen_pedido: 'VALE', status_pedido_alm: 'CH' } }
+            { where: { id_pedido_alm: { [Op.in]: ids_pedidos }, origen_pedido: 'VALE', status_pedido_alm: { [Op.in]: ['CH', 'EN'] } } }
         );
 
         // Descontar saldo de cada empleado involucrado
@@ -68,7 +68,9 @@ export const ValeService = {
 
         const totalVale = dto.articulos.reduce((s, a) => s + a.cantidad * a.precio_unitario, 0);
 
-        // Calcular deuda real desde pedidos activos (no usar saldo_vale_actual que puede estar desactualizado)
+        // Calcular deuda real desde los vales del empleado (no usar saldo_vale_actual, que puede estar desactualizado).
+        // Cuentan todos los que aún no se cobran: capturado, surtiendo, chequeado, empacado y ENTREGADO (EN).
+        // Dejan de contar al pasar a PF (cobrado / pendiente de facturar) o FA.
         const [deudaRow] = await dbLocal.query<{ total_activos: string }>(`
             SELECT COALESCE(SUM(
                 (SELECT COALESCE(SUM(dpa.precio_venta * dpa.cant_pedida), 0)
@@ -78,7 +80,7 @@ export const ValeService = {
             FROM pedido_almacen pa
             WHERE pa.id_empleado_vale = :id_empleado
               AND pa.origen_pedido = 'VALE'
-              AND pa.status_pedido_alm NOT IN ('EN', 'PF', 'EC', 'CO', 'NE')
+              AND pa.status_pedido_alm NOT IN ('PF', 'EC', 'CO', 'NE', 'FA', 'CN')
         `, { type: QueryTypes.SELECT, replacements: { id_empleado: dto.id_empleado } });
 
         const deudaActual = parseFloat(deudaRow?.total_activos ?? '0');
@@ -209,24 +211,28 @@ export const ValeService = {
                 e.ap_pat_empleado,
                 e.ap_mat_empleado,
                 e.limite_credito_vale,
-                e.saldo_vale_actual,
-                COALESCE(SUM(
+                -- DEUDA: vales chequeados, empacados y entregados (CH, EM, EN) que aún no se cobran.
+                -- (Se calcula de los vales; el campo guardado en el empleado no se mantiene.)
+                COALESCE(SUM(CASE WHEN pa.status_pedido_alm IN ('CH', 'EM', 'EN') THEN
                     (SELECT COALESCE(SUM(dpa.precio_venta * dpa.cant_pedida), 0)
-                     FROM detalle_pedido_almacen dpa
-                     WHERE dpa.id_pedido_almacen = pa.id_pedido_alm
-                    )
-                ), 0) AS total_vales_activos
+                     FROM detalle_pedido_almacen dpa WHERE dpa.id_pedido_almacen = pa.id_pedido_alm)
+                END), 0) AS saldo_vale_actual,
+                -- En proceso: capturados y surtiendo (todavía sin chequear)
+                COALESCE(SUM(CASE WHEN pa.status_pedido_alm IN ('CA', 'SU') THEN
+                    (SELECT COALESCE(SUM(dpa.precio_venta * dpa.cant_pedida), 0)
+                     FROM detalle_pedido_almacen dpa WHERE dpa.id_pedido_almacen = pa.id_pedido_alm)
+                END), 0) AS total_vales_activos
             FROM empleado e
             LEFT JOIN pedido_almacen pa ON pa.id_empleado_vale = e.id_empleado
                 AND pa.origen_pedido = 'VALE'
-                AND pa.status_pedido_alm NOT IN ('EN', 'PF', 'EC', 'CO', 'NE', 'FA')
+                AND pa.status_pedido_alm IN ('CA', 'SU', 'CH', 'EM', 'EN')
                 ${fecha_inicio ? `AND pa."createdAt"::date >= :fecha_inicio` : ''}
                 ${fecha_fin    ? `AND pa."createdAt"::date <= :fecha_fin`    : ''}
             WHERE e.id_sucursal_empleado = :id_empresa
               AND e.estatus_empleado = true
             GROUP BY e.id_empleado, e.idinterno_empleado, e.nombre_empleado,
                      e.ap_pat_empleado, e.ap_mat_empleado,
-                     e.limite_credito_vale, e.saldo_vale_actual
+                     e.limite_credito_vale
             ORDER BY e.ap_pat_empleado ASC
         `, { type: QueryTypes.SELECT, replacements: { id_empresa, fecha_inicio, fecha_fin } });
 

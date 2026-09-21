@@ -1,12 +1,15 @@
 import { Router } from "express"
 import { CompraProveedorController } from "../controllers/CompraProveedorController"
+import { authMiddleware } from "../../../../middleware/auth"
 const router = Router()
 
-router.post('/', CompraProveedorController.createCompraProveedor)
+router.post('/', authMiddleware, CompraProveedorController.createCompraProveedor)
+router.get('/captura/:id_empresa', authMiddleware, CompraProveedorController.lineasEnCaptura) //LÍNEAS CAPTURADAS EN LA COMPRA ABIERTA (refresco entre capturistas)
 
 router.get('/compraProveedorPorGeneral/:id_compra_general', CompraProveedorController.comprasProveedorPorIDCompraGeneral) //TODAS LAS COMPRASPROVEEDOR POR UN ID COMPRA GENERAL 
 router.get('/compraProveedorDevolucionesPendientes', CompraProveedorController.CompraDevolucionPendiente)
-router.get('/articulosGenerarPDF/:id_comp', CompraProveedorController.generarPDFListado)
+router.get('/detalleOrden/:id_comp', CompraProveedorController.detalleOrden) //VISTA PREVIA DE LA ORDEN (NO CAMBIA ESTADO)
+router.get('/articulosGenerarPDF/:id_comp', CompraProveedorController.generarPDFListado) //GENERA EL PDF Y MARCA COMO ENVIADA
 
 router.get('/nombreArchivoPDF/:id_comp', CompraProveedorController.nombreArchivoPDF)
 

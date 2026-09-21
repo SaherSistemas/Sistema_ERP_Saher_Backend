@@ -7,7 +7,6 @@ import Ubicacion_Sucursal from "../model/Ubicacion_Sucursal";
 
 const norm = (v?: string | null) => (v ?? "").trim();
 const up = (v?: string | null) => norm(v).toUpperCase();
-const pad2 = (v?: string | null) => norm(v).padStart(2, "0");
 
 export const Ubicacion_SucursalService = {
     create: async (dto: ICrearUbicacionDTO) => {
@@ -48,9 +47,10 @@ export const Ubicacion_SucursalService = {
         } else {
             // ESTANTERIA
             const pasillo = up(dto.pasillo_ub);
-            const anaquel = pad2(dto.anaquel_ub);
-            const nivel = pad2(dto.nivel_ub);
-            const posicion = pad2(dto.posicion_ub);
+            // Sin relleno de ceros: se guarda como se escribe (así están las ubicaciones existentes, p. ej. D-10-4-1)
+            const anaquel = norm(dto.anaquel_ub);
+            const nivel = norm(dto.nivel_ub);
+            const posicion = norm(dto.posicion_ub);
 
             if (!pasillo || !anaquel || !nivel || !posicion) {
                 throw new Error("pasillo/anaquel/nivel/posicion requeridos");

@@ -35,6 +35,13 @@ class Detalle_Compra_Solicitado extends Model {
     })
     declare precio_detcompsol: number
 
+    // Quién capturó / modificó por última vez esta línea (empleado del token). Sin FK a propósito.
+    @Column({
+        type: DataType.UUID,
+        allowNull: true
+    })
+    declare id_empleado_captura: string | null
+
     @BelongsTo(() => Compra)
     declare compra: Compra;
 

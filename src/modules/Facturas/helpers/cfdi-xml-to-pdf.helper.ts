@@ -201,6 +201,8 @@ export interface PdfExtras {
     receptorDomicilio?: string;    // calle + colonia + CP + ciudad
     receptorNomComercial?: string;
     direccionEntrega?: string;
+    /** Folio del pedido (cod_int_pedido_alm). Se usa cuando el XML no lo trae en las condiciones de pago. */
+    pedido?: string;
 }
 
 export async function generarPdfDesdeCfdi(
@@ -216,7 +218,7 @@ export async function generarPdfDesdeCfdi(
     // Parse pedido & agente from condicionesDePago
     const pedidoMatch = cfdi.condicionesDePago.match(/Numero de Pedido[:\s]*([\w_]+)/i);
     const agenteMatch = cfdi.condicionesDePago.match(/Agente[:\s]*(.+)/i);
-    const pedido = pedidoMatch?.[1] ?? '';
+    const pedido = pedidoMatch?.[1] || extras?.pedido || '';
     const agente = agenteMatch?.[1]?.trim() ?? '';
 
     return new Promise((resolve, reject) => {
@@ -280,11 +282,16 @@ export async function generarPdfDesdeCfdi(
             ly += 10;
         }
 
-        // Pedido folio under company name (left side)
+        // Folio del pedido en un recuadro, igual que en la remisión
         if (pedido) {
-            doc.font('Helvetica-Bold').fontSize(8).fillColor('#1d4ed8');
-            doc.text(`Pedido: ${pedido}`, ML, ly, { width: leftW });
-            ly += 11;
+            ly += 3;
+            const boxW = Math.min(leftW, 190);
+            doc.rect(ML, ly, boxW, 20).lineWidth(1).strokeColor('#333').stroke();
+            doc.font('Helvetica-Bold').fontSize(8).fillColor('#000');
+            doc.text('Pedido:', ML + 8, ly + 6, { lineBreak: false });
+            doc.font('Helvetica-Bold').fontSize(10).fillColor('#1d4ed8');
+            doc.text(pedido, ML + 48, ly + 5, { width: boxW - 54, lineBreak: false });
+            ly += 26;
         }
 
         // Metadata table (right)

@@ -77,6 +77,13 @@ class Pago_CxC extends Model {
     })
     declare referencia_pago: string;
 
+    // Banco del cheque o de la transferencia (cat_bancos.id_banco). Sin FK a propósito.
+    @Column({
+        type: DataType.STRING(3),
+        allowNull: true
+    })
+    declare id_banco: string | null;
+
     // Quién capturó el pago
     @ForeignKey(() => Empleado)
     @Column({

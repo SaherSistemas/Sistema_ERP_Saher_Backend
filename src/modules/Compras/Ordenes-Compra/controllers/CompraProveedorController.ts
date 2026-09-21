@@ -1,4 +1,6 @@
 import type { Request, Response } from "express"
+import type { AuthedRequest } from "../../../../middleware/auth"
+import { Detalle_Compra_SolicitadoRepository } from "../repositories/Detalle_Compra_Solicitado.repository"
 import { compraProveedorService } from "../services/compraProveedor.service"
 import { ICompra_Proveedor, IEsctructuraCompra } from "../interface/Compra_Proveedor.interface"
 
@@ -29,15 +31,32 @@ export class CompraProveedorController {
             res.status(500).json({ message: 'Error al finalizar la captura de la compra.' });
         }
     }
-    static createCompraProveedor = async (req: Request, res: Response) => {
+    static createCompraProveedor = async (req: AuthedRequest, res: Response) => {
         try {
-            const data: IEsctructuraCompra = req.body
-            // console.log("DATAAA EN CONTROLLER", data);
+            // El empleado sale del token, nunca del body
+            const data: IEsctructuraCompra = { ...req.body, id_empleado: req.user?.id_referencia_persona ?? null }
             const newCompra = await compraProveedorService.createCompraProveedor(data)
             res.status(201).json({ mensaje: "Compra creada correctamente.", compra: newCompra })
-        } catch (error) {
+        } catch (error: any) {
+            // Otra persona cambió este artículo mientras esta pantalla lo tenía abierto
+            if (error?.code === 'CONFLICTO_CAPTURA') {
+                res.status(409).json({ code: error.code, message: error.message, actual: error.actual, capturista: error.capturista })
+                return
+            }
             console.error(error);
             res.status(500).json({ message: "Error al crear la compra" })
+        }
+    }
+
+    // Líneas de la compra en captura agrupadas por artículo (la pantalla las consulta cada pocos segundos)
+    static lineasEnCaptura = async (req: Request, res: Response) => {
+        try {
+            const { id_empresa } = req.params
+            const r = await Detalle_Compra_SolicitadoRepository.getLineasEnCaptura(id_empresa)
+            res.status(200).json({ totales: r.cantidadesPorArticulo, proveedores: r.proveedoresPorArticulo })
+        } catch (error) {
+            console.error('[lineasEnCaptura]', error)
+            res.status(500).json({ message: 'No se pudieron consultar las capturas.' })
         }
     }
     static comprasProveedorPorIDCompraGeneral = async (req: Request, res: Response) => {
@@ -60,6 +79,16 @@ export class CompraProveedorController {
             res.status(500).json({ message: "Error al obtener devoluciones pendientes." });
         }
     }
+    static detalleOrden = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const orden = await compraProveedorService.obtenerDetalleOrden(id_comp);
+            res.status(200).json(orden);
+        } catch (error) {
+            console.error('Error al obtener el detalle de la orden:', error);
+            res.status(500).json({ message: 'No se pudo obtener el detalle de la orden.' });
+        }
+    };
     static generarPDFListado = async (req: Request, res: Response) => {
         try {
             const { id_comp } = req.params;

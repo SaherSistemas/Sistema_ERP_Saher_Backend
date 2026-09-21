@@ -15,6 +15,8 @@ export type CompraProveedorDTO = {
     total_comp_recibido: number;
     total_iva_recibido: number;
     costo_por_envio: number;
+    /** Importe de lo pedido (cantidad × precio, sin IVA); solo lo trae el listado por compra general. */
+    total_pedido?: number;
 
     estado_comp: EstadoCompra;
 

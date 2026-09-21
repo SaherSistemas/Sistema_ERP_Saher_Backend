@@ -6,6 +6,7 @@ import Facturas from '../model/Facturas.model';
 import FacturaPagoCFDI from '../model/Factura_Pago_CFDI.model';
 import EmpresaSucursal from '../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
+import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
 import { Op, QueryTypes } from 'sequelize';
 import { dbLocal } from '../../../config/db';
 import { parseCfdiXml, generarPdfDesdeCfdi, PdfExtras } from '../helpers/cfdi-xml-to-pdf.helper';
@@ -223,6 +224,10 @@ async function procesarXml(xmlPath: string) {
                 (empresa as any).id_colonia_empre ?? null
             );
         }
+    }
+    if (factura.id_pedido_alm) {
+        const ped = await Pedido_Almacen.findByPk(factura.id_pedido_alm, { attributes: ['cod_int_pedido_alm'] });
+        if (ped?.cod_int_pedido_alm) extras.pedido = ped.cod_int_pedido_alm;
     }
     if (factura.id_cliente_alm) {
         const cliente = await Cliente_Almacen.findByPk(factura.id_cliente_alm);

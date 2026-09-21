@@ -18,6 +18,12 @@ router.get('/dashboard/cobros-diarios', CxCController.getCobrosDiarios);
 router.get('/clientes-deudores', authMiddleware, CxCController.getClientesDeudores);
 router.post('/cliente/:id_cliente_alm/pago', CxCController.capturarPagoCliente);
 
+// ─── RECIBOS DESDE UNA SELECCIÓN DE CxC (pantalla del ERP) ───────────────────
+// POST /api/cxc/recibos-seleccion/previa → cuentas frescas + cuánto se puede abonar
+// POST /api/cxc/recibos-seleccion        → un recibo por cliente, quedan en CAP (por aplicar)
+router.post('/recibos-seleccion/previa', authMiddleware, CxCController.previaReciboSeleccion);
+router.post('/recibos-seleccion', authMiddleware, CxCController.capturarRecibosSeleccion);
+
 // ─── ANTIGÜEDAD DE SALDOS ────────────────────────────────────────────────────
 // GET /api/cxc/antiguedad-saldos                     → todos los clientes
 // GET /api/cxc/antiguedad-saldos/:id_cliente_alm     → un cliente

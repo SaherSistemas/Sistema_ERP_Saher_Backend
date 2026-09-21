@@ -12,7 +12,10 @@ export const Movimiento_ArticuloController = {
             if (!id_empresa) { res.status(400).json({ ok: false, message: 'id_empresa requerido' }); return }
             if (!id_empleado) { res.status(400).json({ ok: false, message: 'id_empleado requerido' }); return }
 
-            const { id_articulo, tipo_movimiento, cantidad, fecha, documento_ref, notas } = req.body
+            const {
+                id_articulo, tipo_movimiento, cantidad, fecha, documento_ref, notas,
+                id_lote, numero_lote, fecha_vencimiento, costo_unitario,
+            } = req.body
 
             if (!id_articulo) { res.status(400).json({ ok: false, message: 'id_articulo requerido' }); return }
             if (!tipo_movimiento) { res.status(400).json({ ok: false, message: 'tipo_movimiento requerido' }); return }
@@ -27,6 +30,10 @@ export const Movimiento_ArticuloController = {
                 documento_ref: documento_ref || null,
                 notas: notas || null,
                 id_empleado,
+                id_lote: id_lote || null,
+                numero_lote: numero_lote || undefined,
+                fecha_vencimiento: fecha_vencimiento || undefined,
+                costo_unitario: costo_unitario != null && costo_unitario !== '' ? Number(costo_unitario) : null,
             })
 
             res.status(201).json({ ok: true, data: resultado })
@@ -76,6 +83,22 @@ export const Movimiento_ArticuloController = {
         } catch (e: any) {
             console.error('[Movimiento_ArticuloController.obtenerExistencias]', e)
             res.status(400).json({ ok: false, message: e.message ?? 'Error al obtener existencias' })
+        }
+    },
+
+    getLotesConDisponible: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa = String(req.user?.id_empresa || req.query.id_empresa || '').trim()
+            const { id_articulo } = req.params
+
+            if (!id_empresa) { res.status(400).json({ ok: false, message: 'id_empresa requerido' }); return }
+
+            const resultado = await Movimiento_ArticuloService.getLotesConDisponible(id_empresa, id_articulo)
+
+            res.status(200).json(resultado)
+        } catch (e: any) {
+            console.error('[Movimiento_ArticuloController.getLotesConDisponible]', e)
+            res.status(400).json({ ok: false, message: e.message ?? 'Error al obtener lotes' })
         }
     },
 }

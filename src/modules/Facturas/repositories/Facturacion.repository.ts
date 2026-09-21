@@ -4,7 +4,7 @@ import Facturas from '../model/Facturas.model';
 import Detalle_Factura from '../model/Detalle_Factura.model';
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
-import { resolverGrupoPagoP } from '../helpers/factura.helper';
+import { resolverGrupoPagoP, detectarPublicoGeneral } from '../helpers/factura.helper';
 import {
     DatosFacturacionCabecera,
     ConceptoFacturacion,
@@ -58,7 +58,7 @@ export const FacturacionRepository = {
                 {
                     model:      Cliente_Almacen,
                     as:         'cliente',
-                    attributes: ['razon_social_cliente_alm', 'rfc_cliente_alm'],
+                    attributes: ['razon_social_cliente_alm', 'rfc_cliente_alm', 'nom_corto_cliente_alm'],
                 },
                 {
                     model:      Pedido_Almacen,
@@ -71,6 +71,21 @@ export const FacturacionRepository = {
             limit,
             offset,
         });
+
+        // Para el botón "Remisión": qué facturas de Público General siguen sin su remisión
+        if (rows.length) {
+            const conRemision = new Set(
+                (await dbLocal.query<{ id_factura: string }>(
+                    `SELECT DISTINCT id_factura FROM remision WHERE id_factura IN (:ids)`,
+                    { replacements: { ids: rows.map(r => r.id_factura) }, type: QueryTypes.SELECT },
+                )).map(r => r.id_factura),
+            );
+            rows.forEach(r => {
+                const c: any = (r as any).cliente;
+                r.setDataValue('tiene_remision' as any, conRemision.has(r.id_factura) as any);
+                r.setDataValue('es_publico_general' as any, detectarPublicoGeneral(c?.rfc_cliente_alm, c?.nom_corto_cliente_alm) as any);
+            });
+        }
 
         return { total: count, paginas: Math.ceil(count / limit), page, facturas: rows };
     },
@@ -124,8 +139,81 @@ export const FacturacionRepository = {
             type: QueryTypes.SELECT,
         });
 
-        if (!rows.length) throw new Error('Pedido no encontrado para facturación');
+        if (!rows.length) throw new Error(await FacturacionRepository.explicarFallaCabecera(id_pedido_alm, id_empresa));
         return rows[0];
+    },
+
+    // La consulta de cabecera usa JOINs internos: si a UN solo eslabón le falta un dato
+    // (cliente, colonia, ciudad, estado, empresa…) no regresa nada y antes solo decía
+    // "Pedido no encontrado". Aquí se revisa eslabón por eslabón y se dice cuál falta.
+    explicarFallaCabecera: async (id_pedido_alm: string, id_empresa: string): Promise<string> => {
+        const [d] = await dbLocal.query<any>(`
+            SELECT pa.id_pedido_alm, pa.cod_int_pedido_alm, pa.id_cliente_pedido_alm,
+                   ca.id_cliente_alm, ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm,
+                   ca.id_colonia_cliente_alm,
+                   co_ca.id_colonia AS colonia_cliente, co_ca.id_ciuda_colonia,
+                   ci_ca.id_ciuda   AS ciudad_cliente,  ci_ca.id_esta_ciuda,
+                   es_ca.id_esta    AS estado_cliente,
+                   es.id_empre      AS empresa, es.id_colonia_empre,
+                   co_es.id_colonia AS colonia_empresa
+            FROM pedido_almacen pa
+            LEFT JOIN cliente_almacen ca    ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+            LEFT JOIN colonia         co_ca ON co_ca.id_colonia  = ca.id_colonia_cliente_alm
+            LEFT JOIN ciudad          ci_ca ON ci_ca.id_ciuda    = co_ca.id_ciuda_colonia
+            LEFT JOIN estado          es_ca ON es_ca.id_esta     = ci_ca.id_esta_ciuda
+            LEFT JOIN empresa_sucursal es   ON es.id_empre       = :id_empresa
+            LEFT JOIN colonia         co_es ON co_es.id_colonia  = es.id_colonia_empre
+            WHERE pa.id_pedido_alm = :id_pedido_alm
+            LIMIT 1
+        `, { replacements: { id_pedido_alm, id_empresa }, type: QueryTypes.SELECT });
+
+        if (!d) return 'Pedido no encontrado para facturación (el pedido no existe).';
+
+        const cliente = (d.nom_corto_cliente_alm || d.razon_social_cliente_alm || '').toString().trim();
+        const de = cliente ? ` del cliente "${cliente}"` : '';
+
+        if (!d.id_cliente_pedido_alm) return 'El pedido no tiene cliente asignado.';
+        if (!d.id_cliente_alm)        return 'El cliente del pedido ya no existe en el catálogo de clientes.';
+        if (!d.id_colonia_cliente_alm) return `Falta la colonia${de}: capturarla en el catálogo de clientes (se necesita para el domicilio fiscal de la factura).`;
+        if (!d.colonia_cliente)       return `La colonia${de} ya no existe en el catálogo: vuelve a elegirla en el cliente.`;
+        if (!d.ciudad_cliente)        return `La colonia${de} no tiene ciudad asignada en el catálogo de colonias.`;
+        if (!d.estado_cliente)        return `La ciudad de la colonia${de} no tiene estado asignado en el catálogo de ciudades.`;
+        if (!d.empresa)               return `No se encontró la empresa emisora del usuario (${id_empresa}).`;
+        if (!d.id_colonia_empre || !d.colonia_empresa) return 'La empresa emisora no tiene colonia capturada (necesaria para el lugar de expedición).';
+
+        return 'Pedido no encontrado para facturación.';
+    },
+
+    // Bitácora de créditos autorizados por un administrador (pedidos facturados por encima del límite)
+    getAutorizacionesCredito: async (filtros: { fecha_inicio?: string; fecha_fin?: string }) => {
+        const condiciones: string[] = [];
+        const replacements: Record<string, any> = {};
+        if (filtros.fecha_inicio) { condiciones.push(`ac."createdAt" >= :fecha_inicio`); replacements.fecha_inicio = filtros.fecha_inicio; }
+        if (filtros.fecha_fin)    { condiciones.push(`ac."createdAt" <  (:fecha_fin::date + INTERVAL '1 day')`); replacements.fecha_fin = filtros.fecha_fin; }
+        const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+
+        return await dbLocal.query(`
+            SELECT
+                ac.id_autorizacion_credito,
+                ac."createdAt"                  AS fecha,
+                ac.usuario_autoriza,
+                ac.limite_credito, ac.adeudo_previo, ac.monto_documento, ac.excedente,
+                pa.id_pedido_alm, pa.cod_int_pedido_alm,
+                f.id_factura, f.folio_factura,
+                ca.id_cliente_alm, ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm,
+                NULLIF(TRIM(CONCAT(es.nombre_empleado, ' ', es.ap_pat_empleado)), '') AS solicito,
+                NULLIF(TRIM(CONCAT(ea.nombre_empleado, ' ', ea.ap_pat_empleado)), '') AS nombre_autoriza
+            FROM autorizacion_credito ac
+            LEFT JOIN pedido_almacen  pa ON pa.id_pedido_alm  = ac.id_pedido_alm
+            LEFT JOIN facturas        f  ON f.id_factura      = ac.id_factura
+            LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = ac.id_cliente_alm
+            LEFT JOIN empleado        es ON es.id_empleado    = ac.id_empleado_solicita
+            LEFT JOIN usuario         u  ON u.id_user         = ac.id_usuario_autoriza
+            LEFT JOIN empleado        ea ON ea.id_empleado    = u.id_referencia_persona
+            ${where}
+            ORDER BY ac."createdAt" DESC
+            LIMIT 1000
+        `, { replacements, type: QueryTypes.SELECT });
     },
 
     getConceptos: async (id_pedido_alm: string): Promise<ConceptoFacturacion[]> => {
@@ -154,25 +242,40 @@ export const FacturacionRepository = {
                 ti.impuesto_sat,
                 ti.tipo_factor,
                 (
+                    -- Un mismo lote puede quedar repartido en varias ubicaciones del
+                    -- anaquel (varias filas de detalle_pedido_almacen_lote/chequeo) —
+                    -- se agrupan por (lote, fecha_venci) para no duplicarlo en el CFDI,
+                    -- el PDF ni el reflejo al sistema viejo.
                     SELECT JSON_AGG(JSON_BUILD_OBJECT(
-                        'lote',                   COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal),
-                        'fecha_venci',             TO_CHAR(COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal), 'FMMM/YYYY'),
-                        'cantidad',               dpac2.cant_chequeada,
-                        'folio_factura_proveedor', fcp.folio_factura_proveedor,
-                        'nom_proveedor',           pr.nomcort_prove
+                        'lote',                   sub.lote,
+                        'fecha_venci',             sub.fecha_venci,
+                        'cantidad',               sub.cantidad,
+                        'folio_factura_proveedor', sub.folio_factura_proveedor,
+                        'nom_proveedor',           sub.nom_proveedor
                     ))
-                    FROM detalle_pedido_almacen_chequeo dpac2
-                    JOIN detalle_pedido_almacen_lote       dpal ON dpal.id_detalle_pedido_almacen_lote = dpac2.id_detalle_pedido_almacen_lote
-                    JOIN lote_articulo_sucursal             las  ON las.id_lote_sucursal               = dpal.id_lote_sucursal
-                    LEFT JOIN lotes_recibidos_compra        lrc  ON lrc.id_loterecibido                = las.id_loterecibido_lote_sucursal
-                    LEFT JOIN detalle_compra_recibido       dcr  ON dcr.id_detcomprec                  = lrc.id_detallecompr_recibido
-                    LEFT JOIN detalle_factura_compra_proveedor dfcp ON dfcp.id_factura_proveedor_detalle = dcr.id_detalle_factura_compra_proveedor
-                    LEFT JOIN factura_compra_proveedor      fcp  ON fcp.id_factura_proveedor           = dfcp.id_factura_compra_proveedor
-                    LEFT JOIN compra_proveedor              cp   ON cp.id_comp                         = fcp.id_compra_prove_factura
-                    LEFT JOIN proveedor                     pr   ON pr.id_prove                        = cp.idprove_comp
-                    WHERE dpac2.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
-                      AND dpac2.estado != 'CANCELADO'
-                      AND dpac2.cant_chequeada > 0
+                    FROM (
+                        SELECT
+                            COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal) AS lote,
+                            TO_CHAR(COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal), 'FMMM/YYYY') AS fecha_venci,
+                            SUM(dpac2.cant_chequeada)         AS cantidad,
+                            MIN(fcp.folio_factura_proveedor)  AS folio_factura_proveedor,
+                            MIN(pr.nomcort_prove)             AS nom_proveedor
+                        FROM detalle_pedido_almacen_chequeo dpac2
+                        JOIN detalle_pedido_almacen_lote       dpal ON dpal.id_detalle_pedido_almacen_lote = dpac2.id_detalle_pedido_almacen_lote
+                        JOIN lote_articulo_sucursal             las  ON las.id_lote_sucursal               = dpal.id_lote_sucursal
+                        LEFT JOIN lotes_recibidos_compra        lrc  ON lrc.id_loterecibido                = las.id_loterecibido_lote_sucursal
+                        LEFT JOIN detalle_compra_recibido       dcr  ON dcr.id_detcomprec                  = lrc.id_detallecompr_recibido
+                        LEFT JOIN detalle_factura_compra_proveedor dfcp ON dfcp.id_factura_proveedor_detalle = dcr.id_detalle_factura_compra_proveedor
+                        LEFT JOIN factura_compra_proveedor      fcp  ON fcp.id_factura_proveedor           = dfcp.id_factura_compra_proveedor
+                        LEFT JOIN compra_proveedor              cp   ON cp.id_comp                         = fcp.id_compra_prove_factura
+                        LEFT JOIN proveedor                     pr   ON pr.id_prove                        = cp.idprove_comp
+                        WHERE dpac2.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+                          AND dpac2.estado != 'CANCELADO'
+                          AND dpac2.cant_chequeada > 0
+                        GROUP BY
+                            COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal),
+                            TO_CHAR(COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal), 'FMMM/YYYY')
+                    ) AS sub
                 ) AS lotes
             FROM detalle_pedido_almacen dpa
             JOIN pedido_almacen         pa   ON pa.id_pedido_alm              = dpa.id_pedido_almacen

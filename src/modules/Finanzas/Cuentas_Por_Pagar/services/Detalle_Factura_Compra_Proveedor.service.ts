@@ -1,5 +1,6 @@
 import { QueryOptionsWithType, QueryTypes, Transaction } from "sequelize";
 import { dbLocal, dbPoly } from "../../../../config/db";
+import { upsertCostoAlmacenPoly, upsertPrecioGpoPoly } from "../../../../utils/polyCostos";
 import { Detalle_Factura_Compra_ProveedorRepository } from "../repositories/Detalle_Factura_Compra_Proveedor.repository";
 import { Factura_Compra_ProveedorRepository } from "../repositories/Factura_Compra_Proveedor.repository";
 import { IModificarLotesDetalleFacturaDTO } from "../interface/Detalle_Factura_Compra_Proveedor.interface";
@@ -100,26 +101,9 @@ export const Detalle_Factura_Compra_ProveedorService = {
 
             // 6) Actualizar precios en ERP y PolyDB
             if (id_artic && data.id_empresa && modeloArticulo && grupoEmpresa) {
-                await dbPoly.query(`
-                    INSERT INTO public.almacenes1
-                        (empcdempn, almcdalmn, artcdartn, almultctn, almcfeultd, almcosprn, almexistn)
-                    VALUES
-                        (:empcdempn, :almcdalmn, :codIntArtic, :costoNeto, NOW(), :costoPromedioActualizado, 0)
-                    ON CONFLICT (empcdempn, almcdalmn, artcdartn)
-                    DO UPDATE SET
-                        almultctn = EXCLUDED.almultctn,
-                        almcfeultd = EXCLUDED.almcfeultd,
-                        almcosprn = EXCLUDED.almcosprn
-                `, {
-                    replacements: {
-                        empcdempn: 99999,
-                        almcdalmn: 1,
-                        codIntArtic: modeloArticulo.cod_int_artic,
-                        costoNeto,
-                        costoPromedioActualizado,
-                    },
-                    type: QueryTypes.INSERT,
-                });
+                // PolyDB solo se toca (y su fecha) si el costo promedio cambió: subió o bajó
+                const resultadoCosto = await upsertCostoAlmacenPoly(modeloArticulo.cod_int_artic, costoNeto, costoPromedioActualizado);
+                console.log(`[PolyDB] almacenes1 art=${modeloArticulo.cod_int_artic} costo=${costoPromedioActualizado} → ${resultadoCosto}`);
 
                 const listasDePrecioGrupo = await Grupo_Empresa_Lista_PrecioRepository
                     .getSoloListasDePrecioPorIDGrupo(grupoEmpresa.idgrup_empre);
@@ -165,25 +149,12 @@ export const Detalle_Factura_Compra_ProveedorService = {
                             const margenPoly = precioPorLista > 0
                                 ? ((precioPorLista - costoPromedioActualizado) / precioPorLista) * 100
                                 : 0;
-                            await dbPoly.query(`
-                                INSERT INTO preciogpo (grpcdgrpn, artcdartn, grpprecin, grpcoston, grpmargen, grpstatuc, grpfechad, grppreofn, grpfecofD, grppzalmn, grpmulOfc)
-                                VALUES (:codGrupo, :codArtic, :precio, :costo, :margen, 'A', CURRENT_DATE, NULL, NULL, NULL, 'N')
-                                ON CONFLICT (grpcdgrpn, artcdartn)
-                                DO UPDATE SET
-                                    grpprecin = EXCLUDED.grpprecin,
-                                    grpcoston = EXCLUDED.grpcoston,
-                                    grpmargen = EXCLUDED.grpmargen,
-                                    grpstatuc = 'A',
-                                    grpfechad = CURRENT_DATE
-                            `, {
-                                type: QueryTypes.INSERT,
-                                replacements: {
-                                    codGrupo,
-                                    codArtic: modeloArticulo.cod_int_artic,
-                                    precio: precioPorLista,
-                                    costo: costoPromedioActualizado,
-                                    margen: margenPoly,
-                                },
+                            await upsertPrecioGpoPoly({
+                                codGrupo,
+                                codArtic: modeloArticulo.cod_int_artic,
+                                precio: precioPorLista,
+                                costo: costoPromedioActualizado,
+                                margen: margenPoly,
                             });
                         }
                     } catch (polyErr) {

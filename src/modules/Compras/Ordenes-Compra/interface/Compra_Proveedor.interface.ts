@@ -38,6 +38,9 @@ export interface IEsctructuraCompra {
         precio_detcompsol: number
     }
     reemplazar?: boolean;
+    id_empleado?: string | null;
+    cantidad_esperada?: number;
+    forzar?: boolean;
 }
 
 

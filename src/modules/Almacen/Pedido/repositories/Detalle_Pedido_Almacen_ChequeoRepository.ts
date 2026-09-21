@@ -179,7 +179,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                 id_detalle_pedido_almacen: { [Op.in]: ids },
                 estado: { [Op.in]: ['ASIGNADO', 'EN_PROCESO'] },
             },
-            attributes: ['id_detalle_chequeo', 'id_detalle_pedido_almacen', 'cant_surtida_lote', 'cant_chequeada', 'estado'],
+            attributes: ['id_detalle_chequeo', 'id_detalle_pedido_almacen', 'id_detalle_pedido_almacen_lote', 'cant_surtida_lote', 'cant_chequeada', 'estado'],
         });
     },
 

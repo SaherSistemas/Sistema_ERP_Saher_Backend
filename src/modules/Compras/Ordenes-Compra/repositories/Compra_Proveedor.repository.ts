@@ -5,7 +5,7 @@ import Detalle_Compra_Solicitado from '../model/Detalle_Compra_Solicitado';
 import Proveedor from '../../Proveedores/model/Proveedor';
 
 import { v4 as uuidv4 } from 'uuid';
-import { fn, literal, Op, Transaction } from 'sequelize';
+import { fn, literal, Op, QueryTypes, Transaction } from 'sequelize';
 import { ICreateCompra_Proveedor } from '../interface/Compra_Proveedor.interface';
 import { Factura_Compra_ProveedorRepository } from '../../../Finanzas/Cuentas_Por_Pagar/repositories/Factura_Compra_Proveedor.repository';
 import { EmpleadoRepository } from '../../../RRHH/repositories/Empleado.repository';
@@ -43,7 +43,7 @@ export const Compra_ProveedorRepository = {
    */
 
   getAllCompra_ProveedorPorIdCompGener: async (id_compra_general: string) => {
-    return await Compra_Proveedor.findAll({
+    const rows = await Compra_Proveedor.findAll({
       where: { id_compra_general },
       include: [
         {
@@ -51,6 +51,25 @@ export const Compra_ProveedorRepository = {
         }
       ]
     });
+
+    // Importe pedido por proveedor (cantidad × precio, sin IVA). total_comp_factura
+    // solo se llena al capturar facturas, así que antes de eso marcaba $0.
+    if (rows.length > 0) {
+      const pedidos = await Compra_Proveedor.sequelize!.query<{ id_comp: string; total_pedido: string }>(`
+        SELECT d.idcompr_detcompsol AS id_comp,
+               COALESCE(SUM(d.cantidad_detcompsol * d.precio_detcompsol), 0) AS total_pedido
+        FROM detalle_compra_solicitado d
+        WHERE d.idcompr_detcompsol IN (:ids)
+        GROUP BY d.idcompr_detcompsol
+      `, {
+        type: QueryTypes.SELECT,
+        replacements: { ids: rows.map(r => r.id_comp) },
+      });
+      const porComp = new Map(pedidos.map(p => [p.id_comp, Number(p.total_pedido)]));
+      rows.forEach(r => r.setDataValue('total_pedido' as any, porComp.get(r.id_comp) ?? 0));
+    }
+
+    return rows;
   },
 
   actualizarTotalesCompraProveedor: async (id_comp: string, totalSinIva: number, totaliva: number, t?: Transaction) => {
@@ -320,7 +339,7 @@ export const Compra_ProveedorRepository = {
       include: [
         {
           model: Detalle_Compra_Solicitado,
-          attributes: ['cantidad_detcompsol', 'precio_detcompsol'],
+          attributes: ['id_detcompsol', 'cantidad_detcompsol', 'precio_detcompsol'],
           include: [
             {
               model: Articulo,

@@ -48,6 +48,68 @@ async function _getEmisor(id_empresa?: string): Promise<EmisorTxt & { num_cuenta
     };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Registra UN recibo (abonos a varias CxC de un mismo cliente) dentro de la
+//  transacción recibida. Cada abono queda en estatus CAP (pendiente de aplicar).
+//  `prefijo` arma el folio {prefijo}_{consecutivo} cuando no se manda uno propio.
+// ─────────────────────────────────────────────────────────────────────────────
+async function _capturarReciboEnTx(data: ICapturarPagoCliente, prefijo: string, t: Transaction) {
+    // El consecutivo se genera DENTRO de la transacción, con un advisory
+    // lock por prefijo (ver getSiguienteConsecutivoAgente) — si se genera
+    // afuera, dos capturas simultáneas pueden leer el mismo MAX() y terminar
+    // compartiendo numero_recibo entre clientes distintos (pasó en producción:
+    // "FRF_11855" con 2 clientes).
+    const consecutivo   = await Pago_CxCRepository.getSiguienteConsecutivoAgente(prefijo, t);
+    const numero_recibo = data.numero_recibo_custom?.trim()
+        ? data.numero_recibo_custom.trim()
+        : `${prefijo}_${String(consecutivo).padStart(4, '0')}`;
+
+    const pagosCreados = [];
+
+    for (const abono of data.abonos) {
+        const cxc = await CxCRepository.getById(abono.id_cxc);
+        if (!cxc) throw new Error(`CxC ${abono.id_cxc} no encontrada`);
+        if (cxc.id_cliente_alm !== data.id_cliente_alm)
+            throw new Error(`La CxC ${abono.id_cxc} no pertenece al cliente indicado`);
+        if (cxc.estatus_cxc === 'PAG')
+            throw new Error(`La CxC ${abono.id_cxc} ya está pagada`);
+        if (cxc.estatus_cxc === 'CAN')
+            throw new Error(`La CxC ${abono.id_cxc} está cancelada`);
+        if (abono.monto_abono <= 0)
+            throw new Error(`El monto del abono a CxC ${abono.id_cxc} debe ser mayor a 0`);
+
+        // Saldo disponible = saldo_pendiente − pagos CAP ya registrados (aún no aplicados)
+        const capExistente = ((await Pago_CxC.sum('monto_pago', {
+            where: { id_cxc: abono.id_cxc, estatus_pago: 'CAP' },
+            transaction: t,
+        })) as number) || 0;
+        const saldoDisponible = Number(cxc.saldo_pendiente) - capExistente;
+        if (abono.monto_abono > saldoDisponible)
+            throw new Error(
+                `El abono ($${abono.monto_abono.toFixed(2)}) excede el saldo disponible ` +
+                `($${saldoDisponible.toFixed(2)}) de la CxC ${abono.id_cxc}` +
+                (capExistente > 0 ? ` — ya hay $${capExistente.toFixed(2)} en revisión para esta cuenta` : '')
+            );
+
+        const pago = await Pago_CxCRepository.capturar({
+            id_cxc: abono.id_cxc,
+            numero_recibo,
+            id_metodo_pago: data.id_metodo_pago,
+            id_forma_pago: data.id_forma_pago,
+            monto_pago: abono.monto_abono,
+            fecha_pago: data.fecha_deposito as any,
+            referencia_pago: data.referencia_pago,
+            id_banco: data.id_banco,
+            id_empleado_captura: data.id_empleado_captura,
+            notas: data.notas,
+        }, t);
+
+        pagosCreados.push(pago);
+    }
+
+    return { numero_recibo, pagosCreados };
+}
+
 // Nota: el prorrateo de IVA por tasa vive ahora en
 // Facturas/helpers/factura.helper.ts (calcularImpuestosProporcionalesPago),
 // compartido con Facturacion.service.ts — ver import arriba (aliased como
@@ -104,7 +166,8 @@ async function _generarTxtUno(cfdi: FacturaPagoCFDI, id_empresa?: string): Promi
             subtotal_factura:  monto_pagado,
             iva_factura:       0,
             total_factura:     monto_pagado,
-            estatus_factura:   'TIM',
+            // PEN hasta que el XmlWatcher lea el XML timbrado; ahí pasa a TIM con su UUID
+            estatus_factura:   'PEN',
             id_cliente_alm:    (factura?.dataValues ?? factura as any)?.id_cliente_alm ?? null,
             id_factura_origen: id_factura,
             uuid_relacionado:  (factura?.dataValues ?? factura as any)?.uuid_sat ?? null,
@@ -248,7 +311,8 @@ async function _generarTxtRecibo(cfdis: FacturaPagoCFDI[], id_empresa?: string):
             subtotal_factura:  documentos.reduce((s, d) => s + d.monto_pago, 0),
             iva_factura:       0,
             total_factura:     documentos.reduce((s, d) => s + d.monto_pago, 0),
-            estatus_factura:   'TIM',
+            // PEN hasta que el XmlWatcher lea el XML timbrado; ahí pasa a TIM con su UUID
+            estatus_factura:   'PEN',
             id_cliente_alm:    clienteId ?? null,
             id_factura_origen: primerCfdi?.id_factura ?? null,
             uuid_relacionado:  documentos[0]?.uuid_relacionado ?? null,
@@ -360,57 +424,7 @@ export const CxCService = {
         });
 
         try {
-            // El consecutivo se genera DENTRO de la transacción, con un advisory
-            // lock por agente (ver getSiguienteConsecutivoAgente) — si se genera
-            // afuera, dos capturas simultáneas del mismo agente pueden leer el
-            // mismo MAX() y terminar compartiendo numero_recibo entre clientes
-            // distintos (pasó en producción: "FRF_11855" con 2 clientes).
-            const consecutivo   = await Pago_CxCRepository.getSiguienteConsecutivoAgente(agente.cod_identi_agente, t);
-            const numero_recibo = data.numero_recibo_custom?.trim()
-                ? data.numero_recibo_custom.trim()
-                : `${agente.cod_identi_agente}_${String(consecutivo).padStart(4, '0')}`;
-
-            const pagosCreados = [];
-
-            for (const abono of data.abonos) {
-                const cxc = await CxCRepository.getById(abono.id_cxc);
-                if (!cxc) throw new Error(`CxC ${abono.id_cxc} no encontrada`);
-                if (cxc.id_cliente_alm !== data.id_cliente_alm)
-                    throw new Error(`La CxC ${abono.id_cxc} no pertenece al cliente indicado`);
-                if (cxc.estatus_cxc === 'PAG')
-                    throw new Error(`La CxC ${abono.id_cxc} ya está pagada`);
-                if (cxc.estatus_cxc === 'CAN')
-                    throw new Error(`La CxC ${abono.id_cxc} está cancelada`);
-                if (abono.monto_abono <= 0)
-                    throw new Error(`El monto del abono a CxC ${abono.id_cxc} debe ser mayor a 0`);
-
-                // Saldo disponible = saldo_pendiente − pagos CAP ya registrados (aún no aplicados)
-                const capExistente = ((await Pago_CxC.sum('monto_pago', {
-                    where: { id_cxc: abono.id_cxc, estatus_pago: 'CAP' },
-                    transaction: t,
-                })) as number) || 0;
-                const saldoDisponible = Number(cxc.saldo_pendiente) - capExistente;
-                if (abono.monto_abono > saldoDisponible)
-                    throw new Error(
-                        `El abono ($${abono.monto_abono.toFixed(2)}) excede el saldo disponible ` +
-                        `($${saldoDisponible.toFixed(2)}) de la CxC ${abono.id_cxc}` +
-                        (capExistente > 0 ? ` — ya hay $${capExistente.toFixed(2)} en revisión para esta cuenta` : '')
-                    );
-
-                const pago = await Pago_CxCRepository.capturar({
-                    id_cxc: abono.id_cxc,
-                    numero_recibo,
-                    id_metodo_pago: data.id_metodo_pago,
-                    id_forma_pago: data.id_forma_pago,
-                    monto_pago: abono.monto_abono,
-                    fecha_pago: data.fecha_deposito as any,
-                    referencia_pago: data.referencia_pago,
-                    id_empleado_captura: data.id_empleado_captura,
-                    notas: data.notas,
-                }, t);
-
-                pagosCreados.push(pago);
-            }
+            const { numero_recibo, pagosCreados } = await _capturarReciboEnTx(data, agente.cod_identi_agente, t);
 
             await t.commit();
 
@@ -422,6 +436,148 @@ export const CxCService = {
                 pagos: pagosCreados,
             };
 
+        } catch (error) {
+            await t.rollback();
+            throw error;
+        }
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  RECIBOS DESDE UNA SELECCIÓN DE CxC (pantalla Cuentas por Cobrar del ERP)
+    //  Datos frescos de cada cuenta seleccionada + lo que ya está "en revisión"
+    //  (pagos CAP sin aplicar), para saber cuánto se puede abonar todavía.
+    // ─────────────────────────────────────────────────────────────────────────
+    getCuentasParaRecibo: async (ids_cxc: string[]) => {
+        if (!ids_cxc.length) return [];
+        const rows = await dbLocal.query<{
+            id_cxc: string; id_cliente_alm: string; estatus_cxc: string;
+            saldo_pendiente: string; en_revision: string; folio: string | null;
+            razon_social: string; nom_corto: string | null; rfc: string | null;
+        }>(`
+            SELECT cxc.id_cxc, cxc.id_cliente_alm, cxc.estatus_cxc, cxc.saldo_pendiente,
+                   COALESCE(f.folio_factura::text, r.folio_remision::text) AS folio,
+                   ca.razon_social_cliente_alm AS razon_social,
+                   ca.nom_corto_cliente_alm    AS nom_corto,
+                   ca.rfc_cliente_alm          AS rfc,
+                   COALESCE((
+                       SELECT SUM(p.monto_pago) FROM pago_cxc p
+                       WHERE p.id_cxc = cxc.id_cxc AND p.estatus_pago = 'CAP'
+                   ), 0) AS en_revision
+            FROM cuenta_por_cobrar cxc
+            JOIN cliente_almacen ca ON ca.id_cliente_alm = cxc.id_cliente_alm
+            LEFT JOIN facturas   f ON f.id_factura  = cxc.id_factura
+            LEFT JOIN remision   r ON r.id_remision = cxc.id_remision
+            WHERE cxc.id_cxc IN (:ids)
+            ORDER BY ca.razon_social_cliente_alm, cxc.fecha_vencimiento
+        `, { replacements: { ids: ids_cxc }, type: QueryTypes.SELECT });
+
+        return rows.map(r => {
+            const saldo = Number(r.saldo_pendiente);
+            const enRevision = Number(r.en_revision);
+            return {
+                id_cxc: r.id_cxc,
+                id_cliente_alm: r.id_cliente_alm,
+                estatus_cxc: r.estatus_cxc,
+                folio: r.folio,
+                cliente: { razon_social: r.razon_social, nom_corto: r.nom_corto, rfc: r.rfc },
+                saldo_pendiente: saldo,
+                en_revision: enRevision,
+                disponible: Math.max(0, +(saldo - enRevision).toFixed(2)),
+            };
+        });
+    },
+
+    // Crea un recibo por cada cliente de la selección, todos en UNA transacción:
+    // o se crean todos o no se crea ninguno. Cada abono queda en CAP (pendiente de
+    // aplicar); al aplicarlo el encargado se genera el CFDI de pago y su .txt.
+    capturarRecibosPorSeleccion: async (data: {
+        id_empleado_captura: string;
+        fecha_deposito: string;
+        id_metodo_pago: string;
+        id_forma_pago: string;
+        referencia_pago?: string;
+        notas?: string;
+        numero_recibo_custom?: string;
+        abonos: { id_cxc: string; monto_abono: number }[];
+    }) => {
+        if (!data.abonos?.length) throw new Error('Debe incluir al menos un abono en el recibo');
+        if (!data.fecha_deposito) throw new Error('La fecha del depósito es obligatoria');
+        if (!data.id_forma_pago) throw new Error('La forma de pago es obligatoria');
+
+        const ids = data.abonos.map(a => a.id_cxc);
+        if (new Set(ids).size !== ids.length) throw new Error('Hay cuentas repetidas en la selección');
+
+        // Validación amigable de toda la selección, antes de tocar nada
+        const cuentas = await CxCService.getCuentasParaRecibo(ids);
+        const porId = new Map(cuentas.map(c => [c.id_cxc, c]));
+        const fmt = (n: number) => `$${n.toFixed(2)}`;
+        const problemas: string[] = [];
+        for (const a of data.abonos) {
+            const c = porId.get(a.id_cxc);
+            if (!c) { problemas.push(`Una de las cuentas ya no existe (${a.id_cxc})`); continue; }
+            const etiqueta = `Folio ${c.folio ?? '—'} (${c.cliente.nom_corto ?? c.cliente.razon_social})`;
+            if (c.estatus_cxc === 'PAG') problemas.push(`${etiqueta}: ya está pagada`);
+            else if (c.estatus_cxc === 'CAN') problemas.push(`${etiqueta}: está cancelada`);
+            else if (!(Number(a.monto_abono) > 0)) problemas.push(`${etiqueta}: el abono debe ser mayor a 0`);
+            else if (Number(a.monto_abono) > c.disponible + 0.001)
+                problemas.push(
+                    `${etiqueta}: el abono ${fmt(Number(a.monto_abono))} excede lo disponible ${fmt(c.disponible)}` +
+                    (c.en_revision > 0 ? ` (ya hay ${fmt(c.en_revision)} en revisión)` : '')
+                );
+        }
+        if (problemas.length) throw new Error(`No se pudo generar el recibo:\n• ${problemas.join('\n• ')}`);
+
+        // Un recibo por cliente
+        const porCliente = new Map<string, { abonos: { id_cxc: string; monto_abono: number }[] }>();
+        for (const a of data.abonos) {
+            const c = porId.get(a.id_cxc)!;
+            if (!porCliente.has(c.id_cliente_alm)) porCliente.set(c.id_cliente_alm, { abonos: [] });
+            porCliente.get(c.id_cliente_alm)!.abonos.push({ id_cxc: a.id_cxc, monto_abono: Number(a.monto_abono) });
+        }
+        if (data.numero_recibo_custom?.trim() && porCliente.size > 1) {
+            throw new Error('Un número de recibo propio solo se puede usar cuando la selección es de un solo cliente.');
+        }
+
+        // Prefijo del folio: el código de agente si el usuario es agente; si no, "ERP"
+        const agente = await AgenteRepository.getByIdEmpleado(data.id_empleado_captura);
+        const prefijo = agente?.cod_identi_agente || 'ERP';
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        try {
+            const recibos: {
+                numero_recibo: string; id_cliente_alm: string; cliente: string;
+                total_abonado: number; pagos_creados: number;
+            }[] = [];
+
+            for (const [id_cliente_alm, grupo] of porCliente) {
+                const { numero_recibo, pagosCreados } = await _capturarReciboEnTx({
+                    id_cliente_alm,
+                    numero_recibo_custom: data.numero_recibo_custom,
+                    fecha_deposito: data.fecha_deposito,
+                    id_metodo_pago: data.id_metodo_pago,
+                    id_forma_pago: data.id_forma_pago,
+                    referencia_pago: data.referencia_pago,
+                    id_empleado_captura: data.id_empleado_captura,
+                    notas: data.notas,
+                    abonos: grupo.abonos,
+                }, prefijo, t);
+
+                const ref = porId.get(grupo.abonos[0].id_cxc)!;
+                recibos.push({
+                    numero_recibo,
+                    id_cliente_alm,
+                    cliente: ref.cliente.nom_corto ?? ref.cliente.razon_social,
+                    total_abonado: grupo.abonos.reduce((s, a) => s + a.monto_abono, 0),
+                    pagos_creados: pagosCreados.length,
+                });
+            }
+
+            await t.commit();
+            return {
+                ok: true,
+                recibos,
+                total_abonado: recibos.reduce((s, r) => s + r.total_abonado, 0),
+            };
         } catch (error) {
             await t.rollback();
             throw error;
@@ -565,6 +721,8 @@ export const CxCService = {
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
         const cfdisCreados: FacturaPagoCFDI[] = [];
+        // Facturas de Público General (crédito por remisión) que con este recibo quedaron liquidadas
+        const facturasPublicoGeneral = new Set<string>();
 
         try {
             for (const pago of pendientes) {
@@ -594,6 +752,10 @@ export const CxCService = {
                         cxcActualizada.estatus_cxc === 'PAG' ? 'LIQ' :
                         cxcActualizada.estatus_cxc === 'PAR' ? 'PAR' : 'PEN';
                     await RemisionRepository.actualizarEstatus(cxc.id_remision, nuevoEstatus, t);
+
+                    // Igual que en aplicarPago: al liquidarse la remisión, la factura de Público
+                    // General se emite como INGRESO (no lleva complemento de pago).
+                    if (cxcActualizada.estatus_cxc === 'PAG' && factura) facturasPublicoGeneral.add(factura.id_factura);
                 }
 
                 // Crear registro CFDI pendiente solo si la factura está timbrada y es PPD
@@ -632,16 +794,30 @@ export const CxCService = {
             timbrado = await _generarTxtRecibo(cfdisCreados);
         }
 
+        // Facturas de Público General liquidadas: generar su TXT de ingreso
+        const ingresosPublicoGeneral: { id_factura: string; ok: boolean; ruta_txt?: string; error?: string }[] = [];
+        for (const id_factura of facturasPublicoGeneral) {
+            const r = await timbrarIngresoPublicoGeneral(id_factura);
+            ingresosPublicoGeneral.push({ id_factura, ...r });
+            if (!r.ok) console.warn(`[aplicarRecibo] No se pudo generar TXT Público General (${id_factura}): ${r.error}`);
+        }
+        const pgOk  = ingresosPublicoGeneral.filter(x => x.ok).length;
+        const pgErr = ingresosPublicoGeneral.length - pgOk;
+        const sufijoPG = ingresosPublicoGeneral.length === 0 ? '' :
+            ` ${pgOk} factura(s) de Público General generada(s) como ingreso` +
+            (pgErr > 0 ? ` y ${pgErr} con error (reintenta con ↺ en Facturas)` : '') + '.';
+
         return {
             ok: true,
             pagos_aplicados: pendientes.length,
             cfdis_generados: cfdisCreados.length,
             timbrado,
-            mensaje: cfdisCreados.length === 0
+            ingresos_publico_general: ingresosPublicoGeneral,
+            mensaje: (cfdisCreados.length === 0
                 ? `${pendientes.length} pago(s) aplicados. Sin facturas PPD — no se genera complemento.`
                 : timbrado?.ok
                     ? `${pendientes.length} pago(s) aplicados y ${cfdisCreados.length} .txt de pago generados.`
-                    : `${pendientes.length} pago(s) aplicados. Generación de .txt falló: ${timbrado?.error}`,
+                    : `${pendientes.length} pago(s) aplicados. Generación de .txt falló: ${timbrado?.error}`) + sufijoPG,
         };
     },
 
@@ -1082,7 +1258,7 @@ export const CxCService = {
         // Limpiar también la fila "P" (wrapper) — si no, se queda con el uuid_sat
         // viejo (o sin ninguno) y el watcher nunca la vuelve a tomar en el próximo timbrado.
         await Facturas.update(
-            { uuid_sat: null, fecha_timbrado: null, xml_url: null, pdf_url: null },
+            { uuid_sat: null, fecha_timbrado: null, xml_url: null, pdf_url: null, estatus_factura: 'PEN' },
             { where: { id_factura: id_factura_p } }
         );
 

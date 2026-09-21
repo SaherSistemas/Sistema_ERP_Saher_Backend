@@ -7,6 +7,7 @@ export interface AbonoRecibo {
     valor_documento:       number;   // monto_total de la CxC
     id_forma_pago:         string;   // '01'=efectivo, '02'=cheque, '03'=transferencia...
     referencia_pago:       string | null;  // número de cheque / transferencia
+    banco?:                string | null;  // banco del cheque / de la transferencia
     fecha_deposito:        string;   // ISO date
     monto:                 number;   // monto_pago
 }
@@ -206,7 +207,8 @@ export function generarReciboPDFBuffer(datos: DatosRecibo): Promise<Buffer> {
 
         const chequeVal   = esCheque ? formatMXN(ab.monto)             : '';
         const efectivoVal = esEfectivo ? formatMXN(ab.monto)           : '';
-        const bancoVal    = (esCheque || esTrans) ? (ab.referencia_pago ?? '') : '';
+        // Columna BANCO: el banco elegido al capturar; si no hay (recibos anteriores) se queda la referencia
+        const bancoVal    = (esCheque || esTrans) ? (ab.banco || ab.referencia_pago || '') : '';
 
         const vals = [
             ab.folio_documento,

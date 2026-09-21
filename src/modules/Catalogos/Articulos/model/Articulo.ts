@@ -134,6 +134,13 @@ class Articulo extends Model {
   })
   declare necesita_receta: boolean;
 
+  // Piezas que trae cada colectivo (caja/paquete). NULL = aún no registrado por Compras.
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: true
+  })
+  declare colectivo_artic: number | null;
+
   @HasMany(() => DetalleListaPrecio)
   detalle_lista_precio: DetalleListaPrecio;
 

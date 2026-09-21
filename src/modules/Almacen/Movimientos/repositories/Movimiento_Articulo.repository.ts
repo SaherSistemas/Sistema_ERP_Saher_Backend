@@ -1,7 +1,8 @@
-import { Op, QueryTypes, WhereOptions } from 'sequelize'
+import { Op, QueryTypes, Transaction, WhereOptions } from 'sequelize'
 import Movimiento_Articulo from '../model/Movimiento_Articulo'
 import Articulo from '../../../Catalogos/Articulos/model/Articulo'
 import Empleado from '../../../RRHH/model/Empleado'
+import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal'
 import { ICreateMovimientoArticulo, IFiltrosMovimientoArticulo } from '../interface/Movimiento_Articulo.interface'
 
 const TIPOS_ENTRADA = ['AJUSTE_ENTRADA']
@@ -9,8 +10,8 @@ const TIPOS_SALIDA = ['SALIDA_MERMA', 'SALIDA_ENTREGA']
 
 export const Movimiento_ArticuloRepository = {
 
-    create: async (data: ICreateMovimientoArticulo) => {
-        return await Movimiento_Articulo.create({ ...data })
+    create: async (data: ICreateMovimientoArticulo & { id_lote?: string | null }, transaction?: Transaction) => {
+        return await Movimiento_Articulo.create({ ...data }, { transaction })
     },
 
     findMovimientos: async (filtros: IFiltrosMovimientoArticulo) => {
@@ -36,6 +37,7 @@ export const Movimiento_ArticuloRepository = {
             include: [
                 { model: Articulo, attributes: ['id_artic', 'des_artic', 'cod_barr_artic'] },
                 { model: Empleado, attributes: ['id_empleado', 'nombre_empleado', 'ap_pat_empleado'] },
+                { model: Lote_Articulo_Sucursal, as: 'lote', attributes: ['numero_lote_sucursal'], required: false },
             ],
             order: [['fecha', 'DESC']],
             limit,

@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit';
 import dayjs from 'dayjs';
-import { Transaction } from "sequelize";
+import { QueryTypes, Transaction } from "sequelize";
 import { ICreateCompra_Proveedor, IEsctructuraCompra } from "../interface/Compra_Proveedor.interface";
 import { ArticuloRepository } from '../../../Catalogos/Articulos/repositories/Articulo.repository';
 import { Compra_ProveedorRepository } from "../repositories/Compra_Proveedor.repository";
@@ -47,6 +47,17 @@ export const compraProveedorService = {
 
         //BUSCAR O CREAR COMPRA GENERAL EN EL ESTAOD "C"
         let compraGeneralActiva = await CompraGeneralRepository.getCompraEnCaptura(id_empresa);
+
+        if (!compraGeneralActiva) {
+            // Si la última compra de hoy se finalizó por accidente y aún no se envía
+            // al proveedor (estado 'A'), la reabrimos para acumular en la misma en
+            // vez de crear una compra aparte.
+            const compraPrevia = await CompraGeneralRepository.getUltimaFinalizadaMismoDiaSinEnviar(id_empresa)
+            if (compraPrevia) {
+                compraGeneralActiva = await CompraGeneralRepository.reabrirCompra(compraPrevia.id_compra_general)
+            }
+        }
+
         let compraProveedor = await Compra_ProveedorRepository.findCompraProveedor_CapturandoByProveedor(id_proveedor, id_empresa)
 
         //CRAR COMPRA GENERAL
@@ -83,7 +94,10 @@ export const compraProveedorService = {
                     precio_detcompsol: detalle.precio_detcompsol,
                 }
             ],
-            reemplazar: data.reemplazar
+            reemplazar: data.reemplazar,
+            id_empleado: data.id_empleado ?? null,
+            cantidad_esperada: data.cantidad_esperada,
+            forzar: data.forzar,
         }
         const Detalles = await Detalle_Compra_SolicitadoRepository.addDetallesCompraSolicitado(dataAcumularOAgregarDetalles);
 
@@ -93,6 +107,73 @@ export const compraProveedorService = {
             detalle_agregado: Detalles
         }
 
+    },
+
+    // Vista previa de la orden (mismos cálculos que el PDF). No cambia ningún estado:
+    // marcar como enviada ocurre solo al generar el PDF.
+    obtenerDetalleOrden: async (id_comp: string) => {
+        const compra = await Compra_ProveedorRepository.getByID(id_comp);
+        if (!compra) throw new Error('Compra no encontrada');
+
+        const { proveedor, detallesCompra } = await Compra_ProveedorRepository.articulosDetalleCompraProveedor(id_comp);
+
+        // Renglones que ya tienen mercancía recibida/capturada en una factura: no se pueden cambiar ni quitar
+        const idsDet = (detallesCompra ?? []).map((d: any) => d.id_detcompsol).filter(Boolean);
+        const bloqueados = new Set<string>();
+        if (idsDet.length) {
+            const filas = await dbLocal.query<any>(
+                `SELECT DISTINCT id_detcompsol FROM detalle_factura_compra_proveedor WHERE id_detcompsol IN (:ids)`,
+                { replacements: { ids: idsDet }, type: QueryTypes.SELECT });
+            filas.forEach(f => bloqueados.add(f.id_detcompsol));
+        }
+
+        let subtotal = 0;
+        const ivaGroups: Record<string, number> = {};
+        const items = (detallesCompra ?? []).map((item: any) => {
+            const cantidad = Number(item.cantidad_detcompsol);
+            const precioUnitario = Number(item.precio_detcompsol);
+            const pctIva = Number(item.articulo?.tipo_iva?.porcentaje_iva ?? 0);
+            const base = cantidad * precioUnitario;
+            const iva = base * pctIva;
+
+            subtotal += base;
+            const tasa = `${(pctIva * 100).toFixed(0)}%`;
+            ivaGroups[tasa] = (ivaGroups[tasa] ?? 0) + iva;
+
+            return {
+                id_detcompsol: item.id_detcompsol as string,
+                bloqueado: bloqueados.has(item.id_detcompsol),
+                cod_barr_artic: item.articulo?.cod_barr_artic ?? '',
+                cod_int_artic: item.articulo?.cod_int_artic ?? null,
+                des_artic: item.articulo?.des_artic ?? '',
+                cantidad,
+                precio_unitario: precioUnitario,
+                porcentaje_iva: pctIva,
+                iva,
+                importe: base + iva,
+            };
+        });
+
+        const iva = Object.keys(ivaGroups).sort().map(tasa => ({ tasa, monto: ivaGroups[tasa] }));
+        const totalIva = iva.reduce((s, g) => s + g.monto, 0);
+
+        return {
+            id_comp,
+            estado_comp: compra.estado_comp,
+            fecha_enviada_proveedor: compra.fecha_enviada_proveedor ?? null,
+            proveedor: {
+                nomcort_prove: proveedor?.nomcort_prove ?? null,
+                razsoc_prove: proveedor?.razsoc_prove ?? null,
+                rfc_prove: proveedor?.rfc_prove ?? null,
+                telef_prove: proveedor?.telef_prove ?? null,
+                corr_prove: proveedor?.corr_prove ?? null,
+            },
+            items,
+            subtotal,
+            iva,
+            total_iva: totalIva,
+            total: subtotal + totalIva,
+        };
     },
 
     generarPDFListado: async (id_comp: string): Promise<Buffer> => {

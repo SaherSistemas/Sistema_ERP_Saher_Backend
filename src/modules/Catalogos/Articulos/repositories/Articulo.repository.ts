@@ -17,6 +17,7 @@ import CategoriaExcluidaCompra from '../../../Compras/Ordenes-Compra/model/Categ
 import Compra_General from '../../../Compras/Ordenes-Compra/model/Compra_General';
 import Compra_Proveedor from '../../../Compras/Ordenes-Compra/model/Compra_Proveedor';
 import Detalle_Compra_Solicitado from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Solicitado';
+import { Detalle_Compra_SolicitadoRepository } from '../../../Compras/Ordenes-Compra/repositories/Detalle_Compra_Solicitado.repository';
 import Detalle_Compra_Negados from '../../../Compras/Ordenes-Compra/model/Detalle_Compra_Negados';
 import { LotesArticuloSucursalRepository } from '../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository';
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
@@ -190,11 +191,32 @@ export const ArticuloRepository = {
             ];
         }
 
+        // Solo artículos que algún proveedor trae en su listado (los que no tienen
+        // a quién comprarse no sirven en esta pantalla). Se conservan los que ya
+        // tienen pedido en la compra abierta para que no "desaparezcan" si el
+        // listado del proveedor se refrescó después de pedirlos.
+        const idEmpresaSql = String(id_empresasucursal).replace(/'/g, "''");
+        whereArticulo[Op.and] = [
+            literal(`(
+                trim("Articulo"."cod_barr_artic") IN (
+                    SELECT trim(dlp.cod_barra_pro_detlist) FROM detalle_listado_proveedor dlp
+                )
+                OR "Articulo"."id_artic" IN (
+                    SELECT dcs.idarticulo_detcompsol
+                    FROM detalle_compra_solicitado dcs
+                    JOIN compra_proveedor cp ON cp.id_comp = dcs.idcompr_detcompsol
+                    JOIN compra_general cg ON cg.id_compra_general = cp.id_compra_general
+                    WHERE cg.id_empresa_sucursal = '${idEmpresaSql}'
+                      AND cg.estado_comp = 'C'
+                )
+            )`),
+        ];
+
         const { count, rows } = await Articulo.findAndCountAll({
             where: whereArticulo,
             order: [['cod_int_artic', 'ASC']],
             offset,
-            attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'prioridad_artic'],
+            attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'des_gener_artic', 'colectivo_artic', 'prioridad_artic'],
             limit
         });
 
@@ -205,60 +227,10 @@ export const ArticuloRepository = {
             },
         });
 
-        const cantidadesPorArticulo: Record<string, number> = {};
-        const proveedoresPorArticulo: Record<string, { nombre: string; cantidad: number, id_detcompsol: string }[]> = {};
-
-        if (compraGeneral) {
-            const compras = await Compra_Proveedor.findAll({
-                where: { id_compra_general: compraGeneral.id_compra_general },
-                attributes: ['id_comp'],
-                include: [{ model: Proveedor, attributes: ['nomcort_prove'] }],
-                raw: true
-            });
-            //console.log(compras)
-            const idsCompras = compras.map(c => c.id_comp);
-
-            const nombreProveedorPorComp: Record<string, string> = {};
-            compras.forEach((cp: any) => {
-                nombreProveedorPorComp[cp.id_comp] = cp['proveedor.nomcort_prove'] ?? 'Desconocido';
-            });
-            //console.log(nombreProveedorPorComp)
-            if (idsCompras.length > 0) {
-                const detalles = await Detalle_Compra_Solicitado.findAll({
-                    where: {
-                        idcompr_detcompsol: { [Op.in]: idsCompras }
-                    },
-                    attributes: [
-                        'idarticulo_detcompsol',
-                        [Sequelize.fn('SUM', Sequelize.col('cantidad_detcompsol')), 'total']
-                    ],
-                    group: ['idarticulo_detcompsol'],
-                    raw: true
-                });
-
-                detalles.forEach((d) => {
-                    const idArticulo = d['idarticulo_detcompsol'];
-                    const total = Number(d['total'] ?? 0);
-                    cantidadesPorArticulo[idArticulo] = total;
-                });
-
-                const detallesRaw = await Detalle_Compra_Solicitado.findAll({
-                    where: { idcompr_detcompsol: { [Op.in]: idsCompras } },
-                    attributes: ['id_detcompsol', 'idarticulo_detcompsol', 'idcompr_detcompsol', 'cantidad_detcompsol'],
-                    raw: true
-                });
-
-                detallesRaw.forEach((d: any) => {
-                    const idArt = d.idarticulo_detcompsol;
-                    const nombre = nombreProveedorPorComp[d.idcompr_detcompsol] ?? 'Desconocido';
-                    const cantidad = Number(d.cantidad_detcompsol);
-                    if (!proveedoresPorArticulo[idArt]) proveedoresPorArticulo[idArt] = [];
-                    const existing = proveedoresPorArticulo[idArt].find(p => p.nombre === nombre);
-                    if (existing) existing.cantidad += cantidad;
-                    else proveedoresPorArticulo[idArt].push({ nombre, cantidad, id_detcompsol: d.id_detcompsol });
-                });
-            }
-        }
+        // Líneas ya capturadas en la compra abierta (con quién las capturó); mismo cálculo que el refresco en vivo
+        const { cantidadesPorArticulo, proveedoresPorArticulo } = compraGeneral
+            ? await Detalle_Compra_SolicitadoRepository.getLineasEnCaptura(id_empresasucursal)
+            : { cantidadesPorArticulo: {} as Record<string, number>, proveedoresPorArticulo: {} as Record<string, any[]> };
 
         rows.forEach((articulo) => {
             articulo.setDataValue('totalSolicitado', cantidadesPorArticulo[articulo.id_artic] || 0);
@@ -329,6 +301,7 @@ export const ArticuloRepository = {
                 a.des_gener_artic,
                 a.cod_int_artic,
                 a.cod_barr_artic,
+                a.colectivo_artic,
                 SUM(dpn.cantidad_negada)              AS cantidad_negada,
                 MIN(dpn.fecha)                        AS fecha_negado,
                 MIN(dpn.fecha) + INTERVAL '7 days'   AS fecha_limite_recuperacion
@@ -338,7 +311,7 @@ export const ArticuloRepository = {
             WHERE dpn.motivo = 'SIN_EXISTENCIA'
               AND dpn.recuperado = false
               AND dpn.fecha + INTERVAL '7 days' >= NOW()
-            GROUP BY a.id_artic, a.des_artic, a.des_gener_artic, a.cod_int_artic, a.cod_barr_artic
+            GROUP BY a.id_artic, a.des_artic, a.des_gener_artic, a.cod_int_artic, a.cod_barr_artic, a.colectivo_artic
         `, { type: QueryTypes.SELECT });
 
         // Mismo shape que Detalle_Compra_Negados para que TablaProductos lo renderice igual
@@ -349,6 +322,7 @@ export const ArticuloRepository = {
                 des_gener_artic: r.des_gener_artic,
                 cod_int_artic: r.cod_int_artic,
                 cod_barr_artic: r.cod_barr_artic,
+                colectivo_artic: r.colectivo_artic ?? null,
                 totalSolicitado: 0,
                 proveedoresDetalle: [],
             },

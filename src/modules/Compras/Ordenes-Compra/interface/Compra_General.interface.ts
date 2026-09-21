@@ -24,5 +24,6 @@ export interface ICreateCompra_General {
     id_empre: string
     estado_comp: string
     ultimo_articulo_guardado?: string
+    id_compra_general_previa?: string | null
 }
 

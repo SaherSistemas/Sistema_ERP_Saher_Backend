@@ -79,6 +79,37 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // PATCH /almacen/pedido/lote/:id_detalle_pedido_almacen_lote/cambiar  body: { id_lote_nuevo }
+  static cambiarLoteDetalle = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_detalle_pedido_almacen_lote } = req.params;
+      const { id_lote_nuevo } = req.body ?? {};
+      if (!id_lote_nuevo) { res.status(400).json({ message: 'id_lote_nuevo requerido' }); return; }
+      const r = await Pedido_AlmacenService.cambiarLoteDetalle(
+        id_detalle_pedido_almacen_lote, id_lote_nuevo, req.user?.id_empresa as string,
+      );
+      console.warn(`[cambiarLoteDetalle] Pedido ${r.cod_pedido}: lote → ${r.lote_nuevo} (${r.cantidad} pz) por ${req.user?.username}`);
+      res.status(200).json(r);
+    } catch (error: any) {
+      console.error('[cambiarLoteDetalle]', error);
+      res.status(400).json({ message: error?.message ?? 'No se pudo cambiar el lote.' });
+    }
+  };
+
+  // PATCH /almacen/pedido/lote/:id_detalle_pedido_almacen_lote/lote-factura  body: { numero_lote, fecha_caducidad } (vacío = quitar)
+  static fijarLoteFactura = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_detalle_pedido_almacen_lote } = req.params;
+      const { numero_lote, fecha_caducidad } = req.body ?? {};
+      const r = await Pedido_AlmacenService.fijarLoteFactura(id_detalle_pedido_almacen_lote, numero_lote ?? null, fecha_caducidad ?? null);
+      console.warn(`[fijarLoteFactura] Pedido ${r.cod_pedido}: ${r.quitado ? 'lote de factura quitado' : 'lote de factura = ' + r.numero_lote} por ${req.user?.username}`);
+      res.status(200).json(r);
+    } catch (error: any) {
+      console.error('[fijarLoteFactura]', error);
+      res.status(400).json({ message: error?.message ?? 'No se pudo cambiar el lote de la factura.' });
+    }
+  };
+
   static negarDiferenciasChequeo = async (req: AuthedRequest, res: Response) => {
     try {
       const { id_pedido_alm } = req.params;
@@ -402,11 +433,11 @@ export class Pedido_AlmacenController {
   // GET /pedido/lista-gestion?fecha_inicio=&fecha_fin=&status=&busqueda=
   static getListaGestion = async (req: Request, res: Response) => {
     try {
-      const { fecha_inicio, fecha_fin, status, busqueda } = req.query as Record<string, string>;
+      const { fecha_inicio, fecha_fin, status, busqueda, id_agente } = req.query as Record<string, string>;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
       const excluir_finalizados = req.query.excluir_finalizados === 'true';
-      const data = await Pedido_AlmacenService.getListaGestion({ fecha_inicio: fecha_inicio || undefined, fecha_fin: fecha_fin || undefined, status, busqueda, page, limit, excluir_finalizados: excluir_finalizados || undefined });
+      const data = await Pedido_AlmacenService.getListaGestion({ fecha_inicio: fecha_inicio || undefined, fecha_fin: fecha_fin || undefined, status, busqueda, page, limit, excluir_finalizados: excluir_finalizados || undefined, id_agente: id_agente || undefined });
       res.json(data);
     } catch (error: any) {
       console.log(error);
@@ -532,6 +563,20 @@ export class Pedido_AlmacenController {
       res.json(resultado);
     } catch (error: any) {
       res.status(error.status || 500).json({ message: error.message || 'Error al entregar vale.' });
+    }
+  };
+
+  // PATCH /:id_pedido_alm/facturar-sin-surtido — reserva stock (FEFO) y timbra directo, sin Surtido/Chequeo
+  static facturarSinSurtido = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_pedido_alm } = req.params;
+      const id_empresa = req.user?.id_empresa;
+      const id_empleado = req.user?.id_referencia_persona;
+      const resultado = await Pedido_AlmacenService.facturarSinSurtido(id_pedido_alm, id_empresa, id_empleado);
+      res.json(resultado);
+    } catch (error: any) {
+      console.error(error);
+      res.status(error.status || 500).json({ message: error.message || 'Error al facturar el pedido.' });
     }
   };
 

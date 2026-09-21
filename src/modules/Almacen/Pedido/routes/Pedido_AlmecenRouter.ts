@@ -45,9 +45,12 @@ router.post('/:id_pedido_alm/finalizar-surtido-papel', Pedido_AlmacenController.
 router.post('/:id_pedido_alm/reimprimir-traspaso', Pedido_AlmacenController.reimprimirTraspaso);
 router.get('/:id_pedido_alm/lotes-disponibles/:id_detalle', Pedido_AlmacenController.getLotesDisponiblesDetalle);
 router.post('/:id_pedido_alm/negar-diferencias-chequeo', Pedido_AlmacenController.negarDiferenciasChequeo);
+router.patch('/lote/:id_detalle_pedido_almacen_lote/cambiar', Pedido_AlmacenController.cambiarLoteDetalle);
+router.patch('/lote/:id_detalle_pedido_almacen_lote/lote-factura', Pedido_AlmacenController.fijarLoteFactura);
 router.get('/:id_pedido_alm/cambios-precio-chequeo', Pedido_AlmacenController.getCambiosPrecioChequeo);
 router.patch('/:id_pedido_alm/cambiar-status', Pedido_AlmacenController.cambiarStatus);
 router.post('/:id_pedido_alm/entregar-vale', Pedido_AlmacenController.entregarVale);
+router.patch('/:id_pedido_alm/facturar-sin-surtido', Pedido_AlmacenController.facturarSinSurtido);
 router.patch('/:id/fecha-entrega', Pedido_AlmacenController.actualizarFechaEntrega);
 router.post('/:id/detalle', Pedido_AlmacenController.agregarDetalle);
 router.delete('/:id/detalle/:id_detalle', Pedido_AlmacenController.eliminarDetalle);

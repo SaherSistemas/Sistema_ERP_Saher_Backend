@@ -34,12 +34,54 @@ export class CxCController {
     static capturarPagoCliente = async (req: Request, res: Response) => {
         try {
             const { id_cliente_alm } = req.params;
-            const resultado = await CxCService.capturarPagoCliente({ ...req.body, id_cliente_alm });
+            // La app manda el banco como id_banco_transferencia (nombre anterior); se acepta también id_banco
+            const id_banco = (req.body?.id_banco ?? req.body?.id_banco_transferencia ?? null) || null;
+            if (req.body?.id_forma_pago === '02' && !id_banco) {
+                res.status(400).json({ message: 'Selecciona el banco del cheque.' });
+                return;
+            }
+            const resultado = await CxCService.capturarPagoCliente({ ...req.body, id_banco, id_cliente_alm });
             res.status(201).json(resultado);
         } catch (error: any) {
             console.error(error);
             const status = /no encontrada|no pertenece|pagada|cancelada|excede|mayor a 0|al menos un/i.test(error.message) ? 400 : 500;
             res.status(status).json({ message: error.message ?? 'Error al registrar el pago.' });
+        }
+    };
+
+    // ─── RECIBOS DESDE UNA SELECCIÓN DE CxC (ERP) ─────────────────────────────
+    // POST /recibos-seleccion/previa   Body: { ids_cxc: string[] }
+    //   → datos frescos de cada cuenta y cuánto se puede abonar (saldo − en revisión)
+    static previaReciboSeleccion = async (req: AuthedRequest, res: Response) => {
+        try {
+            const ids: string[] = Array.isArray(req.body?.ids_cxc) ? req.body.ids_cxc : [];
+            if (!ids.length) { res.status(400).json({ message: 'Selecciona al menos una cuenta.' }); return; }
+            const cuentas = await CxCService.getCuentasParaRecibo(ids);
+            res.status(200).json({ cuentas });
+        } catch (error: any) {
+            console.error('[previaReciboSeleccion]', error);
+            res.status(500).json({ message: error.message ?? 'Error al preparar el recibo.' });
+        }
+    };
+
+    // POST /recibos-seleccion
+    // Body: { fecha_deposito, id_metodo_pago?, id_forma_pago, referencia_pago?, notas?,
+    //         numero_recibo_custom?, abonos: [{ id_cxc, monto_abono }] }
+    // Crea un recibo por cliente (todos o ninguno); quedan pendientes de aplicar.
+    static capturarRecibosSeleccion = async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empleado_captura = req.user?.id_referencia_persona;
+            if (!id_empleado_captura) { res.status(401).json({ message: 'No se pudo identificar al usuario.' }); return; }
+            const resultado = await CxCService.capturarRecibosPorSeleccion({
+                ...req.body,
+                id_metodo_pago: req.body?.id_metodo_pago || 'PUE',
+                id_empleado_captura,
+            });
+            res.status(201).json(resultado);
+        } catch (error: any) {
+            console.error('[capturarRecibosSeleccion]', error);
+            const status = /No se pudo generar|obligatori|al menos un|repetidas|solo se puede usar|no encontrada|mayor a 0|excede/i.test(error.message) ? 400 : 500;
+            res.status(status).json({ message: error.message ?? 'Error al generar el recibo.' });
         }
     };
 

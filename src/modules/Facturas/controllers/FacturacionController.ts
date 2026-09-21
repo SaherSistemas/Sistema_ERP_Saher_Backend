@@ -34,11 +34,73 @@ export class FacturacionController {
         }
     };
 
+    // POST /api/facturas/:id_factura/remision
+    // Crea la remisión faltante de una factura de Público General (el PDF se ve/descarga desde el front)
+    static generarRemision = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const r = await FacturacionService.generarRemisionFactura(id_factura);
+            res.status(201).json(r);
+        } catch (error: any) {
+            console.error('[generarRemision]', error);
+            res.status(400).json({ message: error?.message ?? 'No se pudo generar la remisión.' });
+        }
+    };
+
+    // POST /api/facturas/:id_factura/deshacer
+    // Deshace la facturación de un pedido aún sin timbrar (mercancía al stock, borra factura/remisión/CxC)
+    static deshacerFacturacion = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const { liberar_stock, usuario_admin, password_admin } = req.body ?? {};
+            const r = await FacturacionService.deshacerFacturacion(id_factura, req.user?.id_empresa as string, {
+                liberar_stock: !!liberar_stock, usuario_admin, password_admin,
+                id_empleado: req.user?.id_referencia_persona,
+            });
+            res.json(r);
+        } catch (error: any) {
+            console.error('[deshacerFacturacion]', error);
+            res.status(400).json({ message: error?.message ?? 'No se pudo deshacer la facturación.' });
+        }
+    };
+
+    // POST /api/facturas/:id_factura/traspaso-pdf
+    // Genera la hoja de traspaso de un traslado (tipo T) y la regresa como PDF
+    static generarTraspasoPdf = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const id_empresa = req.user?.id_empresa;
+            const { buffer, nombre } = await FacturacionService.generarHojaTraspaso(id_factura, id_empresa);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="${nombre}"`);
+            res.send(buffer);
+        } catch (error: any) {
+            console.error('[generarTraspasoPdf]', error);
+            res.status(400).json({ message: error?.message ?? 'No se pudo generar la hoja de traspaso.' });
+        }
+    };
+
+    // GET /api/facturas/autorizaciones-credito?fecha_inicio=&fecha_fin=
+    // Pedidos facturados por encima del límite de crédito con autorización de un administrador
+    static getAutorizacionesCredito = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { fecha_inicio, fecha_fin } = req.query as Record<string, string>;
+            const filas = await FacturacionRepository.getAutorizacionesCredito({ fecha_inicio, fecha_fin });
+            res.json({ autorizaciones: filas });
+        } catch (error: any) {
+            console.error('[getAutorizacionesCredito]', error);
+            res.status(500).json({ message: error?.message ?? 'Error al consultar las autorizaciones.' });
+        }
+    };
+
     static getLotesByFactura = async (req: AuthedRequest, res: Response) => {
         try {
             const { id_factura } = req.params;
             const factura = await Facturas.findByPk(id_factura, { attributes: ['id_pedido_alm'] });
             if (!factura) { res.status(404).json({ message: 'Factura no encontrada' }); return; }
+            // Un mismo lote puede estar repartido en varias ubicaciones del anaquel
+            // (varias filas de detalle_pedido_almacen_lote) — se agrupan aquí para
+            // mostrar una sola fila por (artículo, lote) con la cantidad sumada.
             const lotes = await dbLocal.query<any>(`
                 SELECT
                     dpa.id_articulo,
@@ -46,12 +108,13 @@ export class FacturacionController {
                     a.cod_barr_artic,
                     las.numero_lote_sucursal AS lote,
                     TO_CHAR(las.fecha_venci_lote_sucursal, 'MM/YYYY') AS fecha_venci,
-                    dpal.cantidad
+                    SUM(dpal.cantidad) AS cantidad
                 FROM detalle_pedido_almacen_lote dpal
                 JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpal.id_detalle_pedido_almacen
                 JOIN lote_articulo_sucursal las ON las.id_lote_sucursal = dpal.id_lote_sucursal
                 JOIN articulo a ON a.id_artic = dpa.id_articulo
                 WHERE dpa.id_pedido_almacen = :id_pedido_alm
+                GROUP BY dpa.id_articulo, a.des_artic, a.cod_barr_artic, las.numero_lote_sucursal, las.fecha_venci_lote_sucursal
                 ORDER BY a.des_artic, las.numero_lote_sucursal
             `, { type: QueryTypes.SELECT, replacements: { id_pedido_alm: (factura as any).id_pedido_alm } });
             res.json(lotes);

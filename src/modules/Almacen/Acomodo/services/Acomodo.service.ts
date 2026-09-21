@@ -82,15 +82,40 @@ export const AcomodoServices = {
 
             const [primera, ...resto] = lineas;
 
-            const actualizado = await Stock_Ubicacion_LoteRepository.updateUbicacionYCantidad(
-                id_empresa_sucursal,
-                id_stock_ubicacion_lote,
-                { id_ubicacion_sucursal: primera.ubicacion_id, cantidad: primera.cantidad },
-                t
+            // Si ese lote ya está en esa ubicación, se SUMA a la fila existente en vez de duplicarla
+            const existentePrimera = await Stock_Ubicacion_LoteRepository.findMismaUbicacionYLote(
+                id_empresa_sucursal, p.id_articulo, p.id_lote, primera.ubicacion_id, t, id_stock_ubicacion_lote
             );
+            let actualizado;
+            if (existentePrimera) {
+                await existentePrimera.update(
+                    { cantidad: (Number(existentePrimera.cantidad) || 0) + primera.cantidad },
+                    { transaction: t }
+                );
+                await pendiente.destroy({ transaction: t });
+                actualizado = existentePrimera;
+            } else {
+                actualizado = await Stock_Ubicacion_LoteRepository.updateUbicacionYCantidad(
+                    id_empresa_sucursal,
+                    id_stock_ubicacion_lote,
+                    { id_ubicacion_sucursal: primera.ubicacion_id, cantidad: primera.cantidad },
+                    t
+                );
+            }
 
             const creados = [];
             for (const linea of resto) {
+                const existente = await Stock_Ubicacion_LoteRepository.findMismaUbicacionYLote(
+                    id_empresa_sucursal, p.id_articulo, p.id_lote, linea.ubicacion_id, t
+                );
+                if (existente) {
+                    await existente.update(
+                        { cantidad: (Number(existente.cantidad) || 0) + linea.cantidad },
+                        { transaction: t }
+                    );
+                    creados.push(existente.get({ plain: true }));
+                    continue;
+                }
                 const nuevo = await Stock_Ubicacion_LoteRepository.create(
                     {
                         id_empresa_sucursal,

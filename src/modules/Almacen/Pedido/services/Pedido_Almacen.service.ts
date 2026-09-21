@@ -32,6 +32,7 @@ import Detalle_Pedido_Almacen_ChequeoModel from '../model/Detalle_Pedido_Almacen
 import Detalle_Pedido_Almacen_LoteModel from '../model/Detalle_Pedido_Almacen_Lote';
 import Detalle_Pedido_Almacen_AsignacionModel from '../model/Detalle_Pedido_Almacen_Asignacion';
 import { Kardex_Movimiento_ArticuloRepository } from '../../Kardex/repositories/Kardex_Movimiento_Articulo.repository';
+import { etiquetaUbicacion } from '../../Existencias/services/Existencias.service';
 import { FacturacionService } from '../../../Facturas/services/Facturacion.service';
 
 
@@ -939,29 +940,184 @@ export const Pedido_AlmacenService = {
     return resultado;
   },
 
+  // Negar lo que se surtió pero no se pudo chequear (no estaba físicamente).
+  // Esto NO debe facturarse ni descontarse como si se hubiera vendido: hay que
+  // reducir el lote-detalle reservado y liberar su apartada de inmediato, o al
+  // facturar se descuenta la cantidad ORIGINAL surtida (incluyendo lo negado)
+  // en vez de solo lo realmente entregado.
+  // Cambia el lote de una línea surtida (antes de facturar): libera lo apartado del lote anterior y aparta
+  // la misma cantidad del lote nuevo. El chequeo y los precios no se tocan; solo el lote.
+  cambiarLoteDetalle: async (
+    id_detalle_pedido_almacen_lote: string,
+    id_lote_nuevo: string,
+    id_empresa: string,
+  ) => {
+    const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+    try {
+      const linea = await Detalle_Pedido_Almacen_LoteModel.findByPk(id_detalle_pedido_almacen_lote, {
+        transaction: t, lock: t.LOCK.UPDATE,
+      });
+      if (!linea) throw new Error('La línea de lote no existe.');
+
+      const [info] = await dbLocal.query<any>(`
+        SELECT dpa.id_articulo, pa.cod_int_pedido_alm, pa.status_pedido_alm
+        FROM detalle_pedido_almacen dpa
+        JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
+        WHERE dpa.id_detalle_pedido_almacen = :id`,
+        { replacements: { id: linea.id_detalle_pedido_almacen }, type: QueryTypes.SELECT, transaction: t });
+      if (!info) throw new Error('No se encontró el pedido de esta línea.');
+      if (!['SU', 'CH', 'EM'].includes(info.status_pedido_alm)) {
+        throw new Error('Solo se puede cambiar el lote mientras el pedido no esté facturado (Surtiendo, Chequeado o Empacado).');
+      }
+      if (linea.id_lote_sucursal === id_lote_nuevo) throw new Error('Ese ya es el lote de la línea.');
+
+      const [lote] = await dbLocal.query<any>(
+        `SELECT id_lote_sucursal, numero_lote_sucursal FROM lote_articulo_sucursal
+         WHERE id_lote_sucursal = :l AND id_artic = :a AND id_empre = :e`,
+        { replacements: { l: id_lote_nuevo, a: info.id_articulo, e: id_empresa }, type: QueryTypes.SELECT, transaction: t });
+      if (!lote) throw new Error('El lote elegido no es de este artículo o no pertenece a esta sucursal.');
+
+      const cantidad = Number(linea.cantidad) || 0;
+      const loteAnterior = linea.id_lote_sucursal;
+
+      // 1) Liberar lo apartado del lote anterior
+      let porLiberar = cantidad;
+      const filasAnt = await Stock_Ubicacion_Lote.findAll({
+        where: { id_lote: loteAnterior, id_empresa_sucursal: id_empresa, cantidad_apartada: { [Op.gt]: 0 } },
+        order: [['cantidad_apartada', 'DESC']], transaction: t, lock: t.LOCK.UPDATE,
+      });
+      for (const f of filasAnt) {
+        if (porLiberar <= 0) break;
+        const apartada = Number(f.cantidad_apartada) || 0;
+        const liberar = Math.min(porLiberar, apartada);
+        await f.update({ cantidad_apartada: apartada - liberar }, { transaction: t });
+        porLiberar -= liberar;
+      }
+
+      // 2) Apartar en el lote nuevo (solo lo disponible)
+      const filasNuevo = await Stock_Ubicacion_Lote.findAll({
+        where: { id_lote: id_lote_nuevo, id_empresa_sucursal: id_empresa },
+        transaction: t, lock: t.LOCK.UPDATE,
+      });
+      const disponible = filasNuevo.reduce((s, f) => s + Math.max(0, (Number(f.cantidad) || 0) - (Number(f.cantidad_apartada) || 0)), 0);
+      if (disponible < cantidad) {
+        throw new Error(`El lote ${String(lote.numero_lote_sucursal).trim()} solo tiene ${disponible} pz disponibles y la línea necesita ${cantidad}.`);
+      }
+      let porApartar = cantidad;
+      const ordenadas = [...filasNuevo].sort((a, b) =>
+        ((Number(b.cantidad) || 0) - (Number(b.cantidad_apartada) || 0)) - ((Number(a.cantidad) || 0) - (Number(a.cantidad_apartada) || 0)));
+      for (const f of ordenadas) {
+        if (porApartar <= 0) break;
+        const libre = Math.max(0, (Number(f.cantidad) || 0) - (Number(f.cantidad_apartada) || 0));
+        const tomar = Math.min(libre, porApartar);
+        if (tomar <= 0) continue;
+        await f.update({ cantidad_apartada: (Number(f.cantidad_apartada) || 0) + tomar }, { transaction: t });
+        porApartar -= tomar;
+      }
+
+      // 3) La línea queda con el lote nuevo (el lote "de factura" capturado a mano era del anterior)
+      await linea.update({ id_lote_sucursal: id_lote_nuevo, lote_factura_numero: null, lote_factura_fecha: null }, { transaction: t });
+
+      await t.commit();
+      return { cod_pedido: info.cod_int_pedido_alm, cantidad, lote_nuevo: String(lote.numero_lote_sucursal).trim() };
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+  },
+
+  // Lote que se IMPRIME en la factura, escrito a mano (como en una migración). Solo afecta a la factura:
+  // el lote físico, el stock y lo apartado no cambian. Sin número ni fecha se quita y vuelve el lote real.
+  fijarLoteFactura: async (
+    id_detalle_pedido_almacen_lote: string,
+    numero_lote: string | null,
+    fecha_caducidad: string | null,
+  ) => {
+    const linea = await Detalle_Pedido_Almacen_LoteModel.findByPk(id_detalle_pedido_almacen_lote);
+    if (!linea) throw new Error('La línea de lote no existe.');
+
+    const [info] = await dbLocal.query<any>(`
+      SELECT pa.cod_int_pedido_alm, pa.status_pedido_alm
+      FROM detalle_pedido_almacen dpa JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
+      WHERE dpa.id_detalle_pedido_almacen = :id`,
+      { replacements: { id: linea.id_detalle_pedido_almacen }, type: QueryTypes.SELECT });
+    if (!info) throw new Error('No se encontró el pedido de esta línea.');
+    if (!['SU', 'CH', 'EM'].includes(info.status_pedido_alm)) {
+      throw new Error('Solo se puede cambiar el lote de la factura mientras el pedido no esté facturado.');
+    }
+
+    const numero = (numero_lote ?? '').trim();
+    if (!numero) {
+      await linea.update({ lote_factura_numero: null, lote_factura_fecha: null });
+      return { cod_pedido: info.cod_int_pedido_alm, quitado: true };
+    }
+    if (numero.length > 60) throw new Error('El número de lote es demasiado largo.');
+    if (!fecha_caducidad || !/^\d{4}-\d{2}-\d{2}$/.test(fecha_caducidad)) {
+      throw new Error('Captura la caducidad del lote.');
+    }
+    // A mediodía UTC para que la zona horaria no mueva el día (ni el mes que sale en la factura)
+    const fecha = new Date(`${fecha_caducidad}T12:00:00.000Z`);
+    if (isNaN(fecha.getTime())) throw new Error('La caducidad no es una fecha válida.');
+
+    await linea.update({ lote_factura_numero: numero, lote_factura_fecha: fecha });
+    return { cod_pedido: info.cod_int_pedido_alm, quitado: false, numero_lote: numero };
+  },
+
   negarDiferenciasChequeo: async (id_pedido_alm: string) => {
     const filasIncompletas = await Detalle_Pedido_Almacen_ChequeoRepository.getIncompletasPorPedido(id_pedido_alm);
 
     if (!filasIncompletas.length) return { negados: 0 };
 
-    const registros: any[] = [];
-    for (const fila of filasIncompletas) {
-      const cantSurtida = Number(fila.cant_surtida_lote) || 0;
-      const cantChecada = Number(fila.cant_chequeada) || 0;
-      const diferencia = cantSurtida - cantChecada;
-      if (diferencia <= 0) continue;
-      registros.push({
-        id_detalle_pedido_almacen: fila.id_detalle_pedido_almacen,
-        cantidad_negada: diferencia,
-        motivo: 'DIFERENCIA_CHEQUEO',
-      });
-    }
+    const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+    try {
+      let negados = 0;
+      for (const fila of filasIncompletas as any[]) {
+        const cantSurtida = Number(fila.cant_surtida_lote) || 0;
+        const cantChecada = Number(fila.cant_chequeada) || 0;
+        const diferencia = cantSurtida - cantChecada;
+        if (diferencia <= 0) continue;
 
-    for (const reg of registros) {
-      await Detalle_Pedido_NegadoRepository.create(reg);
-    }
+        if (fila.id_detalle_pedido_almacen_lote) {
+          const loteDetalle = await Detalle_Pedido_Almacen_LoteModel.findByPk(
+            fila.id_detalle_pedido_almacen_lote,
+            { transaction: t, lock: t.LOCK.UPDATE },
+          );
+          if (loteDetalle) {
+            const nuevaCantidad = Math.max(0, Number((loteDetalle as any).cantidad) - diferencia);
+            await loteDetalle.update({ cantidad: nuevaCantidad }, { transaction: t });
 
-    return { negados: registros.length };
+            // detalle_pedido_almacen_lote solo guarda el lote (no la ubicación exacta), así que
+            // la apartada se libera de las filas de stock de ESE lote que tengan apartada.
+            let porLiberar = diferencia;
+            const filasStock = await Stock_Ubicacion_Lote.findAll({
+              where: { id_lote: (loteDetalle as any).id_lote_sucursal, cantidad_apartada: { [Op.gt]: 0 } },
+              order: [['cantidad_apartada', 'DESC']],
+              transaction: t,
+              lock: t.LOCK.UPDATE,
+            });
+            for (const stock of filasStock) {
+              if (porLiberar <= 0) break;
+              const apartada = Number((stock as any).cantidad_apartada);
+              const liberar = Math.min(porLiberar, apartada);
+              await stock.update({ cantidad_apartada: apartada - liberar }, { transaction: t });
+              porLiberar -= liberar;
+            }
+          }
+        }
+
+        await Detalle_Pedido_NegadoRepository.create({
+          id_detalle_pedido_almacen: fila.id_detalle_pedido_almacen,
+          cantidad_negada: diferencia,
+          motivo: 'DIFERENCIA_CHEQUEO',
+        }, t);
+        negados++;
+      }
+      await t.commit();
+      return { negados };
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
   },
 
   finalizarCaptura: async (id_pedido: string) => {
@@ -1071,6 +1227,71 @@ export const Pedido_AlmacenService = {
         }
       })
     );
+
+    // Ubicación de CADA lote (donde está físicamente), no la ubicación por defecto del artículo
+    const idsLote = Array.from(new Set(itemsConFefo.flatMap((i: any) => i.lotes.map((l: any) => l.id_lote_sucursal).filter(Boolean))));
+    if (idsLote.length) {
+      const stock = await dbLocal.query<any>(`
+        SELECT s.id_stock_ubicacion_lote, s.id_lote, s.id_ubicacion_sucursal, s.cantidad,
+               u.tipo_ubicacion, u.tarima_ub, u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub
+        FROM stock_ubicacion_lote s
+        LEFT JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = s.id_ubicacion_sucursal
+        WHERE s.id_empresa_sucursal = :id_empresa AND s.id_lote IN (:ids) AND COALESCE(s.cantidad, 0) > 0`,
+        { replacements: { id_empresa, ids: idsLote }, type: QueryTypes.SELECT });
+      const etiqueta = (r: any) => (r.id_ubicacion_sucursal ? etiquetaUbicacion(r) : 'Sin ubicación');
+      // Prioridad cuando el lote está en varias ubicaciones: primero la ubicación de estantería,
+      // después la tarima y al final "sin ubicación". Solo se muestra el nivel de mayor prioridad.
+      const prioridad = (r: any) => (!r.id_ubicacion_sucursal ? 2 : r.tarima_ub ? 1 : 0);
+      const porLote = new Map<string, any[]>();
+      for (const r of stock) {
+        const l = porLote.get(r.id_lote) ?? [];
+        l.push(r);
+        porLote.set(r.id_lote, l);
+      }
+      const ubicacionDeLote = (id_lote: string) => {
+        const filas = porLote.get(id_lote) ?? [];
+        if (!filas.length) return '';
+        const mejor = Math.min(...filas.map(prioridad));
+        // Filas duplicadas de la misma ubicación se suman: es una sola ubicación
+        const porEtiqueta = new Map<string, number>();
+        for (const r of filas.filter(x => prioridad(x) === mejor)) {
+          porEtiqueta.set(etiqueta(r), (porEtiqueta.get(etiqueta(r)) ?? 0) + (Number(r.cantidad) || 0));
+        }
+        return porEtiqueta.size > 1
+          ? Array.from(porEtiqueta.entries()).map(([e, c]) => `${e} (${c})`).join(', ')
+          : Array.from(porEtiqueta.keys())[0];
+      };
+      for (const item of itemsConFefo as any[]) {
+        for (const l of item.lotes) l.ubicacion_lote = ubicacionDeLote(l.id_lote_sucursal);
+      }
+
+      // Ruta de surtido: se ordena por la ubicación real de los lotes (estantería antes que tarima, y
+      // anaquel/nivel/posición como número: 1, 2, 9, 10). Los artículos sin ubicación de lote quedan al final.
+      const enteros = (v: any) => { const n = parseInt(String(v ?? '').replace(/[^0-9]/g, ''), 10); return Number.isNaN(n) ? Number.MAX_SAFE_INTEGER : n; };
+      const llave = (r: any) => [prioridad(r), String(r.pasillo_ub ?? r.tarima_ub ?? ''), enteros(r.anaquel_ub), enteros(r.nivel_ub), enteros(r.posicion_ub)];
+      const comparar = (a: any[], b: any[]) => {
+        for (let i = 0; i < a.length; i++) {
+          if (a[i] < b[i]) return -1;
+          if (a[i] > b[i]) return 1;
+        }
+        return 0;
+      };
+      const mejorLlave = (item: any): any[] | null => {
+        const llaves = item.lotes
+          .flatMap((l: any) => porLote.get(l.id_lote_sucursal) ?? [])
+          .map(llave)
+          .sort(comparar);
+        return llaves[0] ?? null;
+      };
+      const conLlave = (itemsConFefo as any[]).map((item, idx) => ({ item, idx, k: mejorLlave(item) }));
+      conLlave.sort((x, y) => {
+        if (x.k && y.k) return comparar(x.k, y.k) || x.idx - y.idx;
+        if (x.k) return -1;
+        if (y.k) return 1;
+        return x.idx - y.idx;
+      });
+      itemsConFefo.splice(0, itemsConFefo.length, ...conLlave.map(c => c.item));
+    }
 
     return { cabecera: data.cabecera, items: itemsConFefo };
   },
@@ -1408,7 +1629,7 @@ export const Pedido_AlmacenService = {
   //   CH    → elimina solo chequeos (lotes se conservan, se re-asigna chequeo)
   //   otros → solo cambia el campo
   cambiarStatus: async (id_pedido_alm: string, nuevo_status: string) => {
-    const STATUSES_VALIDOS = ['EC', 'CO', 'CA', 'SU', 'CH', 'EM', 'FA', 'EN', 'NE'];
+    const STATUSES_VALIDOS = ['EC', 'CO', 'CA', 'SU', 'CH', 'EM', 'FA', 'EN', 'NE', 'CN'];
     if (!STATUSES_VALIDOS.includes(nuevo_status)) {
       throw { status: 400, message: `Status inválido: ${nuevo_status}. Válidos: ${STATUSES_VALIDOS.join(', ')}` };
     }
