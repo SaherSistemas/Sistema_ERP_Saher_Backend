@@ -80,7 +80,7 @@ export class CxCController {
             res.status(201).json(resultado);
         } catch (error: any) {
             console.error('[capturarRecibosSeleccion]', error);
-            const status = /No se pudo generar|obligatori|al menos un|repetidas|solo se puede usar|no encontrada|mayor a 0|excede/i.test(error.message) ? 400 : 500;
+            const status = /No se pudo generar|obligatori|Selecciona el banco|al menos un|repetidas|solo se puede usar|no encontrada|mayor a 0|excede/i.test(error.message) ? 400 : 500;
             res.status(status).json({ message: error.message ?? 'Error al generar el recibo.' });
         }
     };

@@ -505,6 +505,7 @@ export const CxCService = {
         id_metodo_pago: string;
         id_forma_pago: string;
         referencia_pago?: string;
+        id_banco?: string | null;
         notas?: string;
         numero_recibo_custom?: string;
         abonos: { id_cxc: string; monto_abono: number }[];
@@ -512,6 +513,11 @@ export const CxCService = {
         if (!data.abonos?.length) throw new Error('Debe incluir al menos un abono en el recibo');
         if (!data.fecha_deposito) throw new Error('La fecha del depósito es obligatoria');
         if (!data.id_forma_pago) throw new Error('La forma de pago es obligatoria');
+        // Cheque (02) y transferencia (03) llevan siempre su banco
+        if (['02', '03'].includes(data.id_forma_pago) && !data.id_banco) {
+            throw new Error(data.id_forma_pago === '02' ? 'Selecciona el banco del cheque.' : 'Selecciona el banco de la transferencia.');
+        }
+        const id_banco = ['02', '03'].includes(data.id_forma_pago) ? (data.id_banco || undefined) : undefined;
 
         const ids = data.abonos.map(a => a.id_cxc);
         if (new Set(ids).size !== ids.length) throw new Error('Hay cuentas repetidas en la selección');
@@ -568,6 +574,7 @@ export const CxCService = {
                     id_metodo_pago: data.id_metodo_pago,
                     id_forma_pago: data.id_forma_pago,
                     referencia_pago: data.referencia_pago,
+                    id_banco,
                     id_empleado_captura: data.id_empleado_captura,
                     notas: data.notas,
                     abonos: grupo.abonos,

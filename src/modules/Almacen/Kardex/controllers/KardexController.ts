@@ -29,6 +29,20 @@ export const KardexController = {
         }
     },
 
+    obtenerKardexArticulo: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa = String(req.user?.id_empresa || '').trim();
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+            const fecha_inicio = String(req.query.fecha_inicio || '').trim() || undefined;
+            const fecha_fin = String(req.query.fecha_fin || '').trim() || undefined;
+            const data = await KardexService.getKardexArticulo(id_empresa, req.params.id_articulo, fecha_inicio, fecha_fin);
+            res.status(200).json(data);
+        } catch (e: any) {
+            console.error('[KardexController.obtenerKardexArticulo]', e);
+            res.status(400).json({ message: e.message ?? 'Error al consultar el kardex.' });
+        }
+    },
+
     obtenerMovimientos: async (req: AuthedRequest, res: Response) => {
         try {
             const id_empresa = String(req.user?.id_empresa || req.query.id_empresa || '').trim();
