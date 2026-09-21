@@ -53,7 +53,16 @@ async function _getEmisor(id_empresa?: string): Promise<EmisorTxt & { num_cuenta
 //  transacción recibida. Cada abono queda en estatus CAP (pendiente de aplicar).
 //  `prefijo` arma el folio {prefijo}_{consecutivo} cuando no se manda uno propio.
 // ─────────────────────────────────────────────────────────────────────────────
-async function _capturarReciboEnTx(data: ICapturarPagoCliente, prefijo: string, t: Transaction) {
+// Clave para juntar cuentas en un mismo recibo: el RFC. Los RFC genéricos (público en general / extranjero) y los
+// clientes sin RFC no identifican a un cliente concreto, así que esos se agrupan por cliente.
+const RFC_GENERICOS = new Set(['XAXX010101000', 'XEXX010101000']);
+export function claveReciboCliente(rfc: string | null | undefined, id_cliente_alm: string): string {
+    const r = (rfc ?? '').trim().toUpperCase();
+    return r && !RFC_GENERICOS.has(r) ? `RFC:${r}` : `CLI:${id_cliente_alm}`;
+}
+
+// `mismoRfc`: el recibo junta cuentas de varios clientes con el mismo RFC (ya validado por quien llama)
+async function _capturarReciboEnTx(data: ICapturarPagoCliente, prefijo: string, t: Transaction, mismoRfc = false) {
     // El consecutivo se genera DENTRO de la transacción, con un advisory
     // lock por prefijo (ver getSiguienteConsecutivoAgente) — si se genera
     // afuera, dos capturas simultáneas pueden leer el mismo MAX() y terminar
@@ -69,7 +78,7 @@ async function _capturarReciboEnTx(data: ICapturarPagoCliente, prefijo: string, 
     for (const abono of data.abonos) {
         const cxc = await CxCRepository.getById(abono.id_cxc);
         if (!cxc) throw new Error(`CxC ${abono.id_cxc} no encontrada`);
-        if (cxc.id_cliente_alm !== data.id_cliente_alm)
+        if (!mismoRfc && cxc.id_cliente_alm !== data.id_cliente_alm)
             throw new Error(`La CxC ${abono.id_cxc} no pertenece al cliente indicado`);
         if (cxc.estatus_cxc === 'PAG')
             throw new Error(`La CxC ${abono.id_cxc} ya está pagada`);
@@ -527,12 +536,13 @@ export const CxCService = {
         }
         if (problemas.length) throw new Error(`No se pudo generar el recibo:\n• ${problemas.join('\n• ')}`);
 
-        // Un recibo por cliente
-        const porCliente = new Map<string, { abonos: { id_cxc: string; monto_abono: number }[] }>();
+        // Un recibo por RFC (varias cuentas/sucursales con el mismo RFC van juntas en un solo recibo)
+        const porCliente = new Map<string, { abonos: { id_cxc: string; monto_abono: number }[]; id_cliente_alm: string }>();
         for (const a of data.abonos) {
             const c = porId.get(a.id_cxc)!;
-            if (!porCliente.has(c.id_cliente_alm)) porCliente.set(c.id_cliente_alm, { abonos: [] });
-            porCliente.get(c.id_cliente_alm)!.abonos.push({ id_cxc: a.id_cxc, monto_abono: Number(a.monto_abono) });
+            const clave = claveReciboCliente(c.cliente.rfc, c.id_cliente_alm);
+            if (!porCliente.has(clave)) porCliente.set(clave, { abonos: [], id_cliente_alm: c.id_cliente_alm });
+            porCliente.get(clave)!.abonos.push({ id_cxc: a.id_cxc, monto_abono: Number(a.monto_abono) });
         }
         if (data.numero_recibo_custom?.trim() && porCliente.size > 1) {
             throw new Error('Un número de recibo propio solo se puede usar cuando la selección es de un solo cliente.');
@@ -549,7 +559,8 @@ export const CxCService = {
                 total_abonado: number; pagos_creados: number;
             }[] = [];
 
-            for (const [id_cliente_alm, grupo] of porCliente) {
+            for (const [, grupo] of porCliente) {
+                const id_cliente_alm = grupo.id_cliente_alm;
                 const { numero_recibo, pagosCreados } = await _capturarReciboEnTx({
                     id_cliente_alm,
                     numero_recibo_custom: data.numero_recibo_custom,
@@ -560,7 +571,7 @@ export const CxCService = {
                     id_empleado_captura: data.id_empleado_captura,
                     notas: data.notas,
                     abonos: grupo.abonos,
-                }, prefijo, t);
+                }, prefijo, t, true);
 
                 const ref = porId.get(grupo.abonos[0].id_cxc)!;
                 recibos.push({

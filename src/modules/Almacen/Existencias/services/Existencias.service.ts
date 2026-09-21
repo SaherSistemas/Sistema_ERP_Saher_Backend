@@ -1,4 +1,4 @@
-import { QueryTypes, Transaction } from 'sequelize'
+import { Op, QueryTypes, Transaction } from 'sequelize'
 import { dbLocal } from '../../../../config/db'
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote'
 import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal'
@@ -392,6 +392,136 @@ export const ExistenciasService = {
             await fila.destroy({ transaction: t })
             await t.commit()
             return { eliminada: true, piezas_dadas_de_baja: actual }
+        } catch (err) {
+            await t.rollback()
+            throw err
+        }
+    },
+
+    // Corrige el lote mismo (número y/o caducidad) en lote_articulo_sucursal. Aplica a TODAS las piezas de ese lote
+    // (todas sus ubicaciones y los pedidos que lo usan), porque todas apuntan al mismo registro de lote.
+    editarLote: async (d: {
+        id_empresa: string; id_lote: string; numero_lote: string; fecha_vencimiento: string
+    }) => {
+        const numero = (d.numero_lote ?? '').trim()
+        if (!numero) throw new Error('Captura el número de lote.')
+        if (numero.length > 50) throw new Error('El número de lote es demasiado largo (máx. 50).')
+        if (!d.fecha_vencimiento || !/^\d{4}-\d{2}-\d{2}$/.test(d.fecha_vencimiento)) throw new Error('Captura la fecha de caducidad.')
+        const fecha = new Date(`${d.fecha_vencimiento}T12:00:00.000Z`)
+        if (isNaN(fecha.getTime())) throw new Error('La fecha de caducidad no es válida.')
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED })
+        try {
+            const lote = await Lote_Articulo_Sucursal.findOne({
+                where: { id_lote_sucursal: d.id_lote, id_empre: d.id_empresa }, transaction: t, lock: t.LOCK.UPDATE,
+            })
+            if (!lote) throw new Error('El lote no existe.')
+
+            const repetido = await Lote_Articulo_Sucursal.findOne({
+                where: {
+                    id_artic: lote.id_artic, id_empre: d.id_empresa, numero_lote_sucursal: numero,
+                    id_lote_sucursal: { [Op.ne]: d.id_lote },
+                },
+                transaction: t,
+            })
+            if (repetido) {
+                throw new Error(`Ya existe otro lote ${numero} de este artículo. Para juntarlos usa el botón "Lote" (mover a otro lote).`)
+            }
+
+            const anterior = String(lote.numero_lote_sucursal).trim()
+            await lote.update({ numero_lote_sucursal: numero, fecha_venci_lote_sucursal: fecha }, { transaction: t })
+            await t.commit()
+            return { ok: true, anterior, nuevo: numero }
+        } catch (err) {
+            await t.rollback()
+            throw err
+        }
+    },
+
+    // Cambia el lote de TODA la existencia de una fila (ubicación + lote): pasa a otro lote existente o a uno
+    // nuevo (número + caducidad), en la misma ubicación. Si ya hay una fila de ese lote ahí, se suman.
+    // Sirve para corregir un lote mal capturado. El total del artículo no cambia, por eso no genera kardex.
+    cambiarLote: async (d: {
+        id_empresa: string; id_stock_ubicacion_lote: string
+        id_lote_destino?: string | null; numero_lote?: string | null; fecha_vencimiento?: string | null
+    }) => {
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED })
+        try {
+            const origen = await Stock_Ubicacion_Lote.findOne({
+                where: { id_stock_ubicacion_lote: d.id_stock_ubicacion_lote, id_empresa_sucursal: d.id_empresa },
+                transaction: t, lock: t.LOCK.UPDATE,
+            })
+            if (!origen) throw new Error('El registro de existencia no existe.')
+
+            const cantidad = Number(origen.cantidad) || 0
+            const apartada = Number(origen.cantidad_apartada) || 0
+            if (cantidad <= 0) throw new Error('Esta fila no tiene existencia que cambiar de lote.')
+            if (apartada > 0) {
+                throw new Error(`No se puede cambiar el lote: tiene ${apartada} pz apartadas por pedidos. Libéralas o espera a que se facturen.`)
+            }
+
+            const loteOrigen = await Lote_Articulo_Sucursal.findOne({
+                where: { id_lote_sucursal: origen.id_lote }, transaction: t, lock: t.LOCK.UPDATE,
+            })
+            if (!loteOrigen) throw new Error('El lote de origen no existe.')
+
+            let loteDestino: Lote_Articulo_Sucursal | null = null
+            if (d.id_lote_destino) {
+                loteDestino = await Lote_Articulo_Sucursal.findOne({
+                    where: { id_lote_sucursal: d.id_lote_destino, id_artic: origen.id_articulo, id_empre: d.id_empresa },
+                    transaction: t, lock: t.LOCK.UPDATE,
+                })
+                if (!loteDestino) throw new Error('El lote elegido no pertenece a este artículo.')
+            } else {
+                const numero = (d.numero_lote ?? '').trim()
+                if (!numero) throw new Error('Elige un lote existente o captura el número del lote nuevo.')
+                // El número de lote es único por artículo: si ya existe se usa ese
+                loteDestino = await Lote_Articulo_Sucursal.findOne({
+                    where: { id_artic: origen.id_articulo, id_empre: d.id_empresa, numero_lote_sucursal: numero },
+                    transaction: t, lock: t.LOCK.UPDATE,
+                })
+                if (!loteDestino) {
+                    if (!d.fecha_vencimiento) throw new Error('Captura la fecha de caducidad del lote nuevo.')
+                    loteDestino = await Lote_Articulo_Sucursal.create({
+                        id_artic: origen.id_articulo,
+                        id_empre: d.id_empresa,
+                        numero_lote_sucursal: numero,
+                        fecha_venci_lote_sucursal: new Date(d.fecha_vencimiento),
+                        cantidad_entrada_lote: 0,
+                        precio_costo_lote_sucursal: loteOrigen.precio_costo_lote_sucursal,
+                        estado_lote_sucursal: 'A',
+                    } as any, { transaction: t })
+                }
+            }
+            if (loteDestino.id_lote_sucursal === origen.id_lote) throw new Error('Ese ya es el lote de esta existencia.')
+
+            const existente = await Stock_Ubicacion_Lote.findOne({
+                where: {
+                    id_empresa_sucursal: d.id_empresa,
+                    id_articulo: origen.id_articulo,
+                    id_lote: loteDestino.id_lote_sucursal,
+                    id_ubicacion_sucursal: (origen.id_ubicacion_sucursal ?? null) as any,
+                },
+                transaction: t, lock: t.LOCK.UPDATE,
+            })
+            if (existente) {
+                await existente.update({ cantidad: (Number(existente.cantidad) || 0) + cantidad }, { transaction: t })
+                await origen.destroy({ transaction: t })
+            } else {
+                await origen.update({ id_lote: loteDestino.id_lote_sucursal }, { transaction: t })
+            }
+
+            await loteOrigen.update(
+                { cantidad_entrada_lote: Math.max(0, Number(loteOrigen.cantidad_entrada_lote) - cantidad) },
+                { transaction: t },
+            )
+            await loteDestino.update(
+                { cantidad_entrada_lote: (Number(loteDestino.cantidad_entrada_lote) || 0) + cantidad },
+                { transaction: t },
+            )
+
+            await t.commit()
+            return { ok: true, piezas: cantidad, lote: String(loteDestino.numero_lote_sucursal).trim() }
         } catch (err) {
             await t.rollback()
             throw err

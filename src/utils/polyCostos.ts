@@ -23,7 +23,7 @@ export async function upsertCostoAlmacenPoly(
 ): Promise<ResultadoPoly> {
     const [actual] = await dbPoly.query<{ almcosprn: string | number | null }>(`
         SELECT almcosprn FROM public.almacenes1
-        WHERE empcdempn = 99999 AND almcdalmn = 1 AND artcdartn = :cod LIMIT 1
+        WHERE empcdempn = 20 AND almcdalmn = 1 AND artcdartn = :cod LIMIT 1
     `, { replacements: { cod: cod_int_artic }, type: QueryTypes.SELECT });
 
     if (actual && actual.almcosprn != null && igual(actual.almcosprn, costoPromedio)) return 'SIN_CAMBIO';
@@ -32,7 +32,7 @@ export async function upsertCostoAlmacenPoly(
         INSERT INTO public.almacenes1
             (empcdempn, almcdalmn, artcdartn, almultctn, almcfeultd, almcosprn, almexistn)
         VALUES
-            (99999, 1, :cod, :costoNeto, NOW(), :costoPromedio, 0)
+            (20, 1, :cod, :costoNeto, NOW(), :costoPromedio, 0)
         ON CONFLICT (empcdempn, almcdalmn, artcdartn)
         DO UPDATE SET
             almultctn = EXCLUDED.almultctn,

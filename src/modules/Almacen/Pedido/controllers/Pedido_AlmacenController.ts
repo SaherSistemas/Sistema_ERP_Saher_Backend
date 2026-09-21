@@ -79,6 +79,38 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // PATCH /almacen/pedido/lote/:id_detalle_pedido_almacen_lote/cantidad  body: { cantidad }
+  static cambiarCantidadLoteDetalle = async (req: AuthedRequest, res: Response) => {
+    try {
+      const r = await Pedido_AlmacenService.cambiarCantidadLoteDetalle(
+        req.params.id_detalle_pedido_almacen_lote, Number(req.body?.cantidad), req.user?.id_empresa as string,
+      );
+      console.warn(`[cambiarCantidadLoteDetalle] Pedido ${r.cod_pedido}: ${r.anterior} → ${r.nueva} pz por ${req.user?.username}`);
+      res.status(200).json(r);
+    } catch (error: any) {
+      console.error('[cambiarCantidadLoteDetalle]', error);
+      res.status(400).json({ message: error?.message ?? 'No se pudo cambiar la cantidad.' });
+    }
+  };
+
+  // POST /almacen/pedido/detalle/:id_detalle_pedido_almacen/asignar-lote  body: { id_lote, cantidad }
+  static asignarLoteFaltante = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_detalle_pedido_almacen } = req.params;
+      const { id_lote, cantidad, lote_factura_numero, lote_factura_fecha } = req.body ?? {};
+      if (!id_lote) { res.status(400).json({ message: 'id_lote requerido' }); return; }
+      const r = await Pedido_AlmacenService.asignarLoteFaltante(
+        id_detalle_pedido_almacen, id_lote, Number(cantidad), req.user?.id_empresa as string,
+        { numero: lote_factura_numero, fecha: lote_factura_fecha },
+      );
+      console.warn(`[asignarLoteFaltante] Pedido ${r.cod_pedido}: +${r.cantidad} pz del lote ${r.lote} por ${req.user?.username}`);
+      res.status(200).json(r);
+    } catch (error: any) {
+      console.error('[asignarLoteFaltante]', error);
+      res.status(400).json({ message: error?.message ?? 'No se pudo asignar el lote.' });
+    }
+  };
+
   // PATCH /almacen/pedido/lote/:id_detalle_pedido_almacen_lote/cambiar  body: { id_lote_nuevo }
   static cambiarLoteDetalle = async (req: AuthedRequest, res: Response) => {
     try {

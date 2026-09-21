@@ -104,6 +104,41 @@ export const ExistenciasController = {
         }
     },
 
+    editarLote: async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_empresa } = ctx(req)
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return }
+            const b = req.body ?? {}
+            const r = await ExistenciasService.editarLote({
+                id_empresa, id_lote: req.params.id_lote, numero_lote: b.numero_lote, fecha_vencimiento: b.fecha_vencimiento,
+            })
+            console.warn(`[Existencias.editarLote] lote ${r.anterior} → ${r.nuevo} por ${req.user?.username}`)
+            res.status(200).json({ ok: true, data: r })
+        } catch (e: any) {
+            console.error('[Existencias.editarLote]', e)
+            res.status(400).json({ message: e.message ?? 'No se pudo editar el lote.' })
+        }
+    },
+
+    cambiarLote: async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_empresa } = ctx(req)
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return }
+            const b = req.body ?? {}
+            const r = await ExistenciasService.cambiarLote({
+                id_empresa,
+                id_stock_ubicacion_lote: req.params.id_stock_ubicacion_lote,
+                id_lote_destino: b.id_lote_destino || null,
+                numero_lote: b.numero_lote,
+                fecha_vencimiento: b.fecha_vencimiento,
+            })
+            res.status(200).json({ ok: true, data: r })
+        } catch (e: any) {
+            console.error('[Existencias.cambiarLote]', e)
+            res.status(400).json({ message: e.message ?? 'No se pudo cambiar el lote.' })
+        }
+    },
+
     mover: async (req: AuthedRequest, res: Response) => {
         try {
             const { id_empresa } = ctx(req)

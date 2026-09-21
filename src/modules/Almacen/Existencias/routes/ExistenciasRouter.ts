@@ -19,6 +19,14 @@ router.patch('/:id_stock_ubicacion_lote/cantidad', ExistenciasController.ajustar
 //   body: { notas }  → elimina la fila; lo que tuviera se da de baja como merma en el kardex
 router.post('/:id_stock_ubicacion_lote/eliminar', ExistenciasController.eliminar)
 
+// PATCH /api/almacen/existencias_ubicacion/lote/:id_lote   body: { numero_lote, fecha_vencimiento }
+//   corrige el número/caducidad del lote (lote_articulo_sucursal); aplica a todas sus ubicaciones
+router.patch('/lote/:id_lote', ExistenciasController.editarLote)
+
+// POST  /api/almacen/existencias_ubicacion/:id_stock_ubicacion_lote/cambiar-lote
+//   body: { id_lote_destino } | { numero_lote, fecha_vencimiento } → toda la existencia de la fila pasa a ese lote
+router.post('/:id_stock_ubicacion_lote/cambiar-lote', ExistenciasController.cambiarLote)
+
 // GET   /api/almacen/existencias_ubicacion/apartadas-sin-pedido  (antes de '/:id_articulo')
 router.get('/apartadas-sin-pedido', ExistenciasController.getApartadasSinPedido)
 

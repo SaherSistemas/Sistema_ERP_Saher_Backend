@@ -46,6 +46,8 @@ router.post('/:id_pedido_alm/reimprimir-traspaso', Pedido_AlmacenController.reim
 router.get('/:id_pedido_alm/lotes-disponibles/:id_detalle', Pedido_AlmacenController.getLotesDisponiblesDetalle);
 router.post('/:id_pedido_alm/negar-diferencias-chequeo', Pedido_AlmacenController.negarDiferenciasChequeo);
 router.patch('/lote/:id_detalle_pedido_almacen_lote/cambiar', Pedido_AlmacenController.cambiarLoteDetalle);
+router.patch('/lote/:id_detalle_pedido_almacen_lote/cantidad', Pedido_AlmacenController.cambiarCantidadLoteDetalle);
+router.post('/detalle/:id_detalle_pedido_almacen/asignar-lote', Pedido_AlmacenController.asignarLoteFaltante);
 router.patch('/lote/:id_detalle_pedido_almacen_lote/lote-factura', Pedido_AlmacenController.fijarLoteFactura);
 router.get('/:id_pedido_alm/cambios-precio-chequeo', Pedido_AlmacenController.getCambiosPrecioChequeo);
 router.patch('/:id_pedido_alm/cambiar-status', Pedido_AlmacenController.cambiarStatus);

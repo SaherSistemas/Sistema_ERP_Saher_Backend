@@ -49,6 +49,10 @@ export const FacturacionRepository = {
         if (filtros.busqueda) {
             where[Op.or] = [
                 { folio_factura: { [Op.iLike]: `%${filtros.busqueda}%` } },
+                { '$cliente.razon_social_cliente_alm$': { [Op.iLike]: `%${filtros.busqueda}%` } },
+                { '$cliente.nom_corto_cliente_alm$':     { [Op.iLike]: `%${filtros.busqueda}%` } },
+                { '$cliente.rfc_cliente_alm$':           { [Op.iLike]: `%${filtros.busqueda}%` } },
+                { '$pedido.cod_int_pedido_alm$':        { [Op.iLike]: `%${filtros.busqueda}%` } },
             ];
         }
 
