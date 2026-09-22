@@ -245,7 +245,8 @@ async function procesarXml(xmlPath: string) {
     const pdfPath = path.join(RUTA_PDFS, `${cfdi.serie}${cfdi.folio}_${cfdi.uuid}.pdf`);
     const logoPath = process.env.LOGO_EMPRESA_PATH ?? undefined;
     try {
-        await generarPdfDesdeCfdi(cfdi, pdfPath, logoPath, extras);
+        // El PDF de toda factura lleva, por default, la clave del SAT y la clave de unidad SAT por renglón
+        await generarPdfDesdeCfdi(cfdi, pdfPath, logoPath, extras, 'detalle_sat');
     } catch (pdfErr: any) {
         console.error(`[XmlWatcher] Error generando PDF para ${cfdi.uuid}:`, pdfErr.message);
         return;

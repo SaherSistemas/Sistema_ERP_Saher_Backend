@@ -1874,7 +1874,12 @@ export const FacturacionService = {
         const pedidoRef = factura.id_pedido_alm
             ? await Pedido_Almacen.findByPk(factura.id_pedido_alm, { attributes: ['cod_int_pedido_alm'] })
             : null;
-        await generarPdfDesdeCfdi(cfdi, pdf_url, logoPath, pedidoRef?.cod_int_pedido_alm ? { pedido: pedidoRef.cod_int_pedido_alm } : undefined);
+        // El PDF de toda factura lleva, por default, la clave del SAT y la clave de unidad SAT por renglón
+        await generarPdfDesdeCfdi(
+            cfdi, pdf_url, logoPath,
+            pedidoRef?.cod_int_pedido_alm ? { pedido: pedidoRef.cod_int_pedido_alm } : undefined,
+            'detalle_sat',
+        );
 
         // Actualizar factura con UUID y rutas
         await factura.update({
@@ -1894,6 +1899,37 @@ export const FacturacionService = {
             pdf_url,
             xml_url,
         };
+    },
+
+    // ── PDF con detalle SAT por renglón (Clave SAT + Clave de Unidad SAT), para clientes que lo piden ──
+    // Se genera a partir del XML ya timbrado; se guarda en disco junto al PDF/XML normales para no
+    // regenerarlo cada vez que se pida.
+    generarPdfDetalleSAT: async (id_factura: string): Promise<{ buffer: Buffer; nombre: string }> => {
+        const factura = await Facturas.findByPk(id_factura);
+        if (!factura) throw new Error('Factura no encontrada.');
+        if (!factura.xml_url || !fs.existsSync(factura.xml_url)) {
+            throw new Error('Esta factura no tiene su XML timbrado guardado; no se puede generar el detalle SAT.');
+        }
+
+        const xmlContent = fs.readFileSync(factura.xml_url, 'utf-8');
+        const cfdi = parseCfdiXml(xmlContent);
+
+        const pdfFileName = `${cfdi.serie}${cfdi.folio}_${cfdi.uuid}_SAT.pdf`;
+        const pdfPath = require('path').join(RUTA_PDFS, pdfFileName);
+
+        if (!fs.existsSync(pdfPath)) {
+            const logoPath = process.env.LOGO_EMPRESA_PATH ?? undefined;
+            const pedidoRef = factura.id_pedido_alm
+                ? await Pedido_Almacen.findByPk(factura.id_pedido_alm, { attributes: ['cod_int_pedido_alm'] })
+                : null;
+            await generarPdfDesdeCfdi(
+                cfdi, pdfPath, logoPath,
+                pedidoRef?.cod_int_pedido_alm ? { pedido: pedidoRef.cod_int_pedido_alm } : undefined,
+                'detalle_sat',
+            );
+        }
+
+        return { buffer: fs.readFileSync(pdfPath), nombre: `${cfdi.serie}${cfdi.folio}_SAT.pdf` };
     },
 };
 

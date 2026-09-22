@@ -427,13 +427,19 @@ export const CxCService = {
         const agente = await AgenteRepository.getByIdEmpleado(data.id_empleado_captura);
         if (!agente) throw new Error('El empleado capturista no tiene un agente de venta asociado');
 
+        // Si el agente escribió el folio de un recibo físico, el prefijo lo pone el backend con las
+        // iniciales YA resueltas arriba (nunca las que el navegador haya podido calcular/cargar).
+        const datosConFolio = data.numero_recibo_sufijo?.trim()
+            ? { ...data, numero_recibo_custom: `${agente.cod_identi_agente}_${data.numero_recibo_sufijo.trim()}` }
+            : data;
+
         // ── Transacción ───────────────────────────────────────────────────────────
         const t = await dbLocal.transaction({
             isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED,
         });
 
         try {
-            const { numero_recibo, pagosCreados } = await _capturarReciboEnTx(data, agente.cod_identi_agente, t);
+            const { numero_recibo, pagosCreados } = await _capturarReciboEnTx(datosConFolio, agente.cod_identi_agente, t);
 
             await t.commit();
 

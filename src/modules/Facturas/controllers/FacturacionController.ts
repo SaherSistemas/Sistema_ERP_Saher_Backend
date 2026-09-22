@@ -80,6 +80,21 @@ export class FacturacionController {
         }
     };
 
+    // POST /api/facturas/:id_factura/pdf-sat
+    // PDF con detalle SAT por renglón (Clave SAT + Clave de Unidad SAT), para clientes que lo requieren
+    static generarPdfDetalleSAT = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const { buffer, nombre } = await FacturacionService.generarPdfDetalleSAT(id_factura);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="${nombre}"`);
+            res.send(buffer);
+        } catch (error: any) {
+            console.error('[generarPdfDetalleSAT]', error);
+            res.status(400).json({ message: error?.message ?? 'No se pudo generar el detalle SAT.' });
+        }
+    };
+
     // GET /api/facturas/autorizaciones-credito?fecha_inicio=&fecha_fin=
     // Pedidos facturados por encima del límite de crédito con autorización de un administrador
     static getAutorizacionesCredito = async (req: AuthedRequest, res: Response) => {

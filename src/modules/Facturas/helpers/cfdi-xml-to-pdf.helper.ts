@@ -210,6 +210,10 @@ export async function generarPdfDesdeCfdi(
     outPath: string,
     logoPath?: string,
     extras?: PdfExtras,
+    // La tabla de artículos trae, por default, la clave del SAT (ClaveProdServ) y la clave de unidad SAT
+    // (ClaveUnidad) como columnas propias, además del código interno y la unidad de medida. 'normal' es el
+    // formato viejo (sin esas dos columnas); se conserva por si algo necesita el layout anterior.
+    modo: 'normal' | 'detalle_sat' = 'detalle_sat',
 ): Promise<string> {
 
     const qrUrl = urlVerificacion(cfdi);
@@ -378,7 +382,20 @@ export async function generarPdfDesdeCfdi(
         // ────────────────────────────────────────────────────────────────────
         // Items table header
         // ────────────────────────────────────────────────────────────────────
-        const COL = {
+        const esDetalleSAT = modo === 'detalle_sat';
+
+        // Layout normal (7 columnas) vs. detalle SAT (9 columnas: + Clave SAT + Cve. Unidad SAT)
+        const COL: Record<string, { x: number; w: number }> = esDetalleSAT ? {
+            clave:       { x: ML,        w: 44 },
+            claveSat:    { x: ML + 44,   w: 42 },
+            cant:        { x: ML + 86,   w: 26 },
+            unidad:      { x: ML + 112,  w: 34 },
+            claveUnidad: { x: ML + 146,  w: 38 },
+            desc:        { x: ML + 184,  w: 194 },
+            vu:          { x: ML + 378,  w: 56 },
+            importe:     { x: ML + 434,  w: 58 },
+            iva:         { x: ML + 492,  w: 48 },
+        } : {
             clave:  { x: ML,             w: 52 },
             cant:   { x: ML + 52,        w: 32 },
             unidad: { x: ML + 84,        w: 30 },
@@ -391,7 +408,17 @@ export async function generarPdfDesdeCfdi(
         function drawTableHeader(y: number) {
             doc.rect(ML, y, CONTENT_W, 14).fillColor('#e8e8e8').fill();
             doc.fillColor('#000');
-            const cols = [
+            const cols = esDetalleSAT ? [
+                [COL.clave,       'Cód. Interno'],
+                [COL.claveSat,    'Clave SAT'],
+                [COL.cant,        'Cant.'],
+                [COL.unidad,      'Unidad'],
+                [COL.claveUnidad, 'Cve. Unid. SAT'],
+                [COL.desc,        'Descripción'],
+                [COL.vu,          'V. Unitario'],
+                [COL.importe,     'Importe'],
+                [COL.iva,         'IVA'],
+            ] : [
                 [COL.clave,   'Cód. Barras'],
                 [COL.cant,    'Cant.'],
                 [COL.unidad,  'Unidad'],
@@ -399,9 +426,9 @@ export async function generarPdfDesdeCfdi(
                 [COL.vu,      'V. Unitario'],
                 [COL.importe, 'Importe'],
                 [COL.iva,     'IVA'],
-            ] as [typeof COL.clave, string][];
-            cols.forEach(([col, label]) => {
-                doc.font('Helvetica-Bold').fontSize(7).fillColor('#000');
+            ];
+            (cols as [{ x: number; w: number }, string][]).forEach(([col, label]) => {
+                doc.font('Helvetica-Bold').fontSize(esDetalleSAT ? 6 : 7).fillColor('#000');
                 doc.text(label, col.x + 2, y + 3, { width: col.w - 4, align: col === COL.desc ? 'left' : 'right' });
             });
             return y + 14;
@@ -426,15 +453,22 @@ export async function generarPdfDesdeCfdi(
             const bg = idx % 2 === 0 ? '#ffffff' : '#f9f9f9';
 
             // Row 1 — product
+            const fsBase = esDetalleSAT ? 6.5 : 7.5;
             doc.rect(ML, curY, CONTENT_W, ROW_H1).fillColor(bg).fill();
             doc.fillColor('#000');
-            doc.font('Helvetica').fontSize(7.5);
-            doc.text(c.noIdentificacion || c.claveProdServ, COL.clave.x + 2, curY + 4, { width: COL.clave.w - 4, lineBreak: false });
+            doc.font('Helvetica').fontSize(fsBase);
+            doc.text(c.noIdentificacion || c.claveProdServ, COL.clave.x + 2, curY + 4, { width: COL.clave.w - 4, lineBreak: false, ellipsis: esDetalleSAT });
+            if (esDetalleSAT) {
+                doc.text(c.claveProdServ, COL.claveSat.x + 2, curY + 4, { width: COL.claveSat.w - 4, lineBreak: false, ellipsis: true });
+            }
             doc.text(fmt2(c.cantidad), COL.cant.x + 2, curY + 4, { width: COL.cant.w - 4, align: 'right', lineBreak: false });
-            doc.text(c.unidad || c.claveUnidad, COL.unidad.x + 2, curY + 4, { width: COL.unidad.w - 4, lineBreak: false });
-            doc.font('Helvetica-Bold').fontSize(7.5);
+            doc.text(c.unidad || c.claveUnidad, COL.unidad.x + 2, curY + 4, { width: COL.unidad.w - 4, lineBreak: false, ellipsis: esDetalleSAT });
+            if (esDetalleSAT) {
+                doc.text(c.claveUnidad, COL.claveUnidad.x + 2, curY + 4, { width: COL.claveUnidad.w - 4, lineBreak: false, ellipsis: true });
+            }
+            doc.font('Helvetica-Bold').fontSize(fsBase);
             doc.text(c.descripcionLimpia, COL.desc.x + 2, curY + 4, { width: COL.desc.w - 4, lineBreak: false, ellipsis: true });
-            doc.font('Helvetica').fontSize(7.5);
+            doc.font('Helvetica').fontSize(fsBase);
             doc.text(fmt2(c.valorUnitario), COL.vu.x + 2, curY + 4, { width: COL.vu.w - 4, align: 'right', lineBreak: false });
             doc.text(fmt2(c.importe), COL.importe.x + 2, curY + 4, { width: COL.importe.w - 4, align: 'right', lineBreak: false });
             doc.text(fmt2(c.ivaImporte), COL.iva.x + 2, curY + 4, { width: COL.iva.w - 4, align: 'right', lineBreak: false });

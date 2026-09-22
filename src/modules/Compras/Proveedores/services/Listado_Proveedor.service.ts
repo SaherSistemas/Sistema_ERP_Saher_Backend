@@ -2,6 +2,8 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import * as XLSX from 'xlsx';
+import { QueryTypes } from 'sequelize';
+import { dbLocal } from '../../../../config/db';
 import { Listado_ProveedorRepository } from '../repositories/Listado_Proveedor.repository';
 
 export const Listado_ProveedorService = {
@@ -45,9 +47,22 @@ export const Listado_ProveedorService = {
             exist_pro_detlist: Number(row[columna_Existencia]) || 0,
             preio_pro_detlist: parseFloat(row[columna_Precio]) || 0.0,
         }));
-        await Listado_ProveedorRepository.eliminarListadoPorProveedor(id_proveedor);
-        await Listado_ProveedorRepository.crearListado(id_listado, id_proveedor);
-        await Listado_ProveedorRepository.insertarDetalles(detalle);
+        // Todo en una transacción con un lock por proveedor: si dos cargas del mismo proveedor llegan casi
+        // al mismo tiempo (doble clic en "Subir"), la segunda espera a que la primera termine su
+        // borrar+crear, en vez de que ambas borren y creen a la vez y el proveedor termine con 2 listados.
+        const t = await dbLocal.transaction();
+        try {
+            await dbLocal.query(`SELECT pg_advisory_xact_lock(hashtext(:id))`, {
+                replacements: { id: id_proveedor }, type: QueryTypes.SELECT, transaction: t,
+            });
+            await Listado_ProveedorRepository.eliminarListadoPorProveedor(id_proveedor, t);
+            await Listado_ProveedorRepository.crearListado(id_listado, id_proveedor, t);
+            await Listado_ProveedorRepository.insertarDetalles(detalle, t);
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
 
         fs.unlinkSync(filePath);
 

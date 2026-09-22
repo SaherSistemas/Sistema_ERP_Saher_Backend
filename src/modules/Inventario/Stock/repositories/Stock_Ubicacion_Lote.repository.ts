@@ -320,32 +320,61 @@ export const Stock_Ubicacion_LoteRepository = {
 
     // ─────────────────────────────────────────────────────────────────────────
     // DESCONTAR STOCK AL FACTURAR
-    //   Por cada lote registrado en detalle_pedido_almacen_lote del pedido:
-    //   · cantidad          -= lo surtido   (nunca baja de 0)
-    //   · cantidad_apartada -= lo surtido   (nunca baja de 0)
+    //   Por cada lote registrado en detalle_pedido_almacen_lote del pedido, se descuenta lo surtido
+    //   UNA sola vez, repartido entre las filas de stock_ubicacion_lote de ese lote (puede tener varias
+    //   ubicaciones). Antes se restaba el total a CADA fila que tuviera ese lote, así que un lote repartido
+    //   en 2 ubicaciones se descontaba 2 veces (la existencia del sistema quedaba por debajo de la física).
+    //   Primero se toma de las filas con apartada (de ahí salió físicamente al surtir) y, si no alcanza,
+    //   de la existencia libre que quede.
     // ─────────────────────────────────────────────────────────────────────────
     descontarStockPorPedido: async (id_pedido_alm: string, t: Transaction) => {
-        await dbLocal.query(`
-            UPDATE stock_ubicacion_lote AS sul
-            SET
-                cantidad          = GREATEST(0, sul.cantidad          - lp.total),
-                cantidad_apartada = GREATEST(0, sul.cantidad_apartada - lp.total)
-            FROM (
-                SELECT
-                    dpal.id_lote_sucursal,
-                    SUM(dpal.cantidad) AS total
-                FROM detalle_pedido_almacen      dpa
-                JOIN detalle_pedido_almacen_lote dpal
-                    ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
-                WHERE dpa.id_pedido_almacen = :id_pedido_alm
-                GROUP BY dpal.id_lote_sucursal
-            ) AS lp
-            WHERE sul.id_lote = lp.id_lote_sucursal
-        `, {
-            replacements: { id_pedido_alm },
-            type: QueryTypes.UPDATE,
-            transaction: t,
-        });
+        const porLote = await dbLocal.query<{ id_lote_sucursal: string; total: string }>(`
+            SELECT dpal.id_lote_sucursal, SUM(dpal.cantidad) AS total
+            FROM detalle_pedido_almacen      dpa
+            JOIN detalle_pedido_almacen_lote dpal
+                ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+            WHERE dpa.id_pedido_almacen = :id_pedido_alm
+            GROUP BY dpal.id_lote_sucursal
+        `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT, transaction: t });
+
+        for (const { id_lote_sucursal, total } of porLote) {
+            let restante = Number(total) || 0;
+            if (restante <= 0) continue;
+
+            const filas = await Stock_Ubicacion_Lote.findAll({
+                where: { id_lote: id_lote_sucursal },
+                order: [['cantidad_apartada', 'DESC']],
+                transaction: t,
+                lock: t.LOCK.UPDATE,
+            });
+
+            // 1) Primero de las filas con apartado: de ahí salió físicamente esta mercancía al surtir
+            for (const f of filas) {
+                if (restante <= 0) break;
+                const apartada = Number(f.cantidad_apartada) || 0;
+                const tomar = Math.min(apartada, restante);
+                if (tomar <= 0) continue;
+                const cant = Number(f.cantidad) || 0;
+                await f.update({
+                    cantidad: Math.max(0, cant - tomar),
+                    cantidad_apartada: Math.max(0, apartada - tomar),
+                }, { transaction: t });
+                restante -= tomar;
+            }
+
+            // 2) Si sobra (facturación directa u otro desfase sin apartado que lo respalde), de la
+            //    existencia libre que quede, empezando por la fila con más
+            if (restante > 0) {
+                for (const f of [...filas].sort((a, b) => (Number(b.cantidad) || 0) - (Number(a.cantidad) || 0))) {
+                    if (restante <= 0) break;
+                    const cant = Number(f.cantidad) || 0;
+                    const tomar = Math.min(cant, restante);
+                    if (tomar <= 0) continue;
+                    await f.update({ cantidad: Math.max(0, cant - tomar) }, { transaction: t });
+                    restante -= tomar;
+                }
+            }
+        }
     },
 
     getLotesMinimosConUbicaciones: async (

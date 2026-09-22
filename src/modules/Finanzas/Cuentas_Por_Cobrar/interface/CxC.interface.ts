@@ -43,7 +43,12 @@ export interface IAbonoCxC {
 export interface ICapturarPagoCliente {
     id_cliente_alm: string;
     // numero_recibo se genera en el backend: {cod_identi_agente}_{consecutivo 4 dígitos}
-    // Si el agente envía numero_recibo_custom, se usa ese en lugar del auto-generado
+    // Si el agente escribió el folio de un recibo físico, manda solo el sufijo (lo que escribió, sin
+    // prefijo): el backend antepone el {cod_identi_agente} que YA resolvió del empleado, para no
+    // depender de que el navegador tenga cargadas las iniciales del agente (si esa carga falla o llega
+    // tarde, el recibo se guardaba con el sufijo pero sin prefijo, ej. "_12035").
+    numero_recibo_sufijo?: string;
+    /** @deprecated usar numero_recibo_sufijo. Se mantiene por compatibilidad: folio completo ya armado. */
     numero_recibo_custom?: string;
     fecha_deposito: string;       // YYYY-MM-DD
     id_metodo_pago: string;

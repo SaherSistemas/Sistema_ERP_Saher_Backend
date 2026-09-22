@@ -1,7 +1,7 @@
 import Listado_Proveedor from '../model/Listados_Proveedor';
 import Detalle_Listado_Proveedor from '../model/Detalle_Listado_Proveedor';
 import Proveedor from '../model/Proveedor';
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 
 export const Listado_ProveedorRepository = {
     getAllProveedorConListados: async () => {
@@ -63,37 +63,40 @@ export const Listado_ProveedorRepository = {
     },
 
 
-    crearListado: async (id_listado: string, id_proveedor: string) => {
+    crearListado: async (id_listado: string, id_proveedor: string, t?: Transaction) => {
         return await Listado_Proveedor.create({
             id_listprove: id_listado,
             id_prove_listprove: id_proveedor
-        });
+        }, { transaction: t });
     },
 
-    insertarDetalles: async (detalles: any[]) => {
+    insertarDetalles: async (detalles: any[], t?: Transaction) => {
         return await Detalle_Listado_Proveedor.bulkCreate(detalles, {
             updateOnDuplicate: [
                 "cod_barra_pro_detlist",
                 "descrip_pro_detlis",
                 "exist_pro_detlist",
                 "preio_pro_detlist"
-            ]
+            ],
+            transaction: t,
         });
     },
-    eliminarListadoPorProveedor: async (id_proveedor: string) => {
-        const listadoExistente = await Listado_Proveedor.findOne({
-            where: { id_prove_listprove: id_proveedor }
+    // Borra TODOS los listados que tenga el proveedor (por si ya había más de uno) y sus detalles.
+    eliminarListadoPorProveedor: async (id_proveedor: string, t?: Transaction) => {
+        const listadosExistentes = await Listado_Proveedor.findAll({
+            where: { id_prove_listprove: id_proveedor },
+            transaction: t,
         });
+        if (!listadosExistentes.length) return;
 
-        if (listadoExistente) {
-            await Detalle_Listado_Proveedor.destroy({
-                where: { id_list_detlist: listadoExistente.id_listprove }
-            });
-
-            await Listado_Proveedor.destroy({
-                where: { id_prove_listprove: id_proveedor }
-            });
-        }
+        await Detalle_Listado_Proveedor.destroy({
+            where: { id_list_detlist: { [Op.in]: listadosExistentes.map(l => l.id_listprove) } },
+            transaction: t,
+        });
+        await Listado_Proveedor.destroy({
+            where: { id_prove_listprove: id_proveedor },
+            transaction: t,
+        });
     }
 
 }
