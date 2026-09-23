@@ -106,6 +106,12 @@ class Facturas extends Model {
     @Column({ type: DataType.TEXT, allowNull: true })
     declare uuid_relacionado: string;     //! UUID SAT de la factura origen (para E y P)
 
+    // Folio del recibo (pago_cxc.numero_recibo) que dio origen a este complemento de pago (solo tipo='P').
+    // Es la clave real para volver a armar TODAS las facturas que cubrió el recibo — antes se adivinaba
+    // por RFC + ventana de tiempo, lo que a veces mezclaba pagos de recibos distintos hechos casi juntos.
+    @Column({ type: DataType.STRING(60), allowNull: true })
+    declare numero_recibo: string | null;
+
     // ── Relaciones ─────────────────────────────────────────
     @BelongsTo(() => Cliente_Almacen)
     declare cliente: Cliente_Almacen;

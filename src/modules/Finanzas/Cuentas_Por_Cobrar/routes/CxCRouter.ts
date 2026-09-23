@@ -43,6 +43,7 @@ router.get('/cliente/:id_cliente_alm', CxCController.getByCliente);
 // ─── PAGOS ────────────────────────────────────────────────────────────────────
 router.get('/pagos/pendientes', CxCController.getPagosParaAplicar);
 router.get('/pagos/aplicados', CxCController.getPagosAplicados);
+router.get('/pagos/por-rango', CxCController.getPagosPorRango);
 router.get('/pagos/historial/:id_cxc', CxCController.getHistorialCxC);
 router.get('/pagos/mis-recibos', authMiddleware, CxCController.getMisRecibos);
 router.post('/:id_cxc/pago', CxCController.capturarPago);
@@ -51,6 +52,7 @@ router.patch('/recibo/:numero_recibo/aplicar', authMiddleware, CxCController.apl
 router.patch('/pago/:id_pago_cxc/editar', CxCController.editarPago);
 router.patch('/pago/:id_pago_cxc/cancelar', CxCController.cancelarPago);
 router.patch('/recibo/:numero_recibo/cancelar', authMiddleware, CxCController.cancelarRecibo);
+router.patch('/recibo/:numero_recibo/deshacer', authMiddleware, CxCController.cancelarReciboAplicado);
 
 // ─── TIMBRADO ─────────────────────────────────────────────────────────────────
 router.get('/cfdi-por-timbrar', CxCController.getCFDIPorTimbrar);

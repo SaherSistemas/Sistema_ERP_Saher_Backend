@@ -17,7 +17,7 @@ import { calcularImpuestosProporcionalesPago as _impuestosProporcionalesPago, re
 import { FacturacionRepository } from '../../../Facturas/repositories/Facturacion.repository';
 import EmpresaSucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { generarReciboPDFBuffer } from '../helpers/recibo_cobranza.pdf';
-import { timbrarIngresoPublicoGeneral } from '../../../Facturas/services/Facturacion.service';
+import { timbrarIngresoPublicoGeneral, verificarAdmin } from '../../../Facturas/services/Facturacion.service';
 import { v4 as uuidv4 } from 'uuid';
 import Cat_Bancos from '../../../Catalogos/model/Cat_Bancos';
 
@@ -142,6 +142,8 @@ async function _generarTxtUno(cfdi: FacturaPagoCFDI, id_empresa?: string): Promi
         const saldo_anterior = Number(d.saldo_anterior);
         const num_parcialidad = d.num_parcialidad;
         const uuid_relacionado = d.uuid_relacionado;
+        const pagoCxc = d.id_pago_cxc ? await Pago_CxC.findByPk(d.id_pago_cxc) : null;
+        const numero_recibo = (pagoCxc?.dataValues ?? pagoCxc as any)?.numero_recibo ?? null;
 
         if (!id_pago_cfdi) return { ok: false, error: 'Registro sin PK — ignorado' };
         if (!fecha_pago)   return { ok: false, error: 'Fecha de pago inválida' };
@@ -180,6 +182,7 @@ async function _generarTxtUno(cfdi: FacturaPagoCFDI, id_empresa?: string): Promi
             id_cliente_alm:    (factura?.dataValues ?? factura as any)?.id_cliente_alm ?? null,
             id_factura_origen: id_factura,
             uuid_relacionado:  (factura?.dataValues ?? factura as any)?.uuid_sat ?? null,
+            numero_recibo,
         });
 
         const receptor: ReceptorTxt = {
@@ -249,6 +252,8 @@ async function _generarTxtRecibo(cfdis: FacturaPagoCFDI[], id_empresa?: string):
         const fecha_pago    = d0.fecha_pago;
         const forma_de_pago = d0.forma_de_pago;
         const moneda        = d0.moneda ?? 'MXN';
+        const pagoCxc0      = d0.id_pago_cxc ? await Pago_CxC.findByPk(d0.id_pago_cxc) : null;
+        const numero_recibo = (pagoCxc0?.dataValues ?? pagoCxc0 as any)?.numero_recibo ?? null;
 
         if (!fecha_pago) return { ok: false, error: 'Fecha de pago inválida' };
         const fechaStr = new Date(fecha_pago).toISOString().split('T')[0];
@@ -325,6 +330,7 @@ async function _generarTxtRecibo(cfdis: FacturaPagoCFDI[], id_empresa?: string):
             id_cliente_alm:    clienteId ?? null,
             id_factura_origen: primerCfdi?.id_factura ?? null,
             uuid_relacionado:  documentos[0]?.uuid_relacionado ?? null,
+            numero_recibo,
         });
 
         const { ruta } = generarTxtPago({
@@ -1015,6 +1021,11 @@ export const CxCService = {
         return await Pago_CxCRepository.getPagosAplicados(filtros);
     },
 
+    // TODOS los recibos (por aplicar, aplicados o cancelados) de un rango de fechas
+    getPagosPorRango: async (filtros: { fecha_inicio?: string; fecha_fin?: string }) => {
+        return await Pago_CxCRepository.getPagosPorRango(filtros);
+    },
+
     // ─────────────────────────────────────────────────────────────────────────
     //  PAGOS APL SIN CFDI DE PAGO — para timbrado manual desde el ERP
     // ─────────────────────────────────────────────────────────────────────────
@@ -1178,6 +1189,77 @@ export const CxCService = {
         return { ok: true, pagos_cancelados: pendientes.length };
     },
 
+    // ─────────────────────────────────────────────────────────────────────────
+    //  DESHACER RECIBO YA APLICADO — acción destructiva, requiere admin.
+    //  A cada CxC que este recibo pagó le regresa el monto (vuelve a deberse), y si
+    //  estaba ligada a una remisión le regresa su estatus. Los pagos quedan CAN.
+    //  El complemento de pago (factura tipo P) de este recibo también queda CAN —
+    //  la factura de venta original NO se toca, solo el pago que se le hizo.
+    //  Si ese complemento ya estaba timbrado ante el SAT, cancelarlo ahí es aparte
+    //  (este sistema no timbra/cancela directo con el PAC, solo genera el .txt).
+    // ─────────────────────────────────────────────────────────────────────────
+    cancelarReciboAplicado: async (
+        numero_recibo: string,
+        opts: { usuario_admin?: string; password_admin?: string; id_empleado?: string } = {},
+    ) => {
+        if (!opts.usuario_admin || !opts.password_admin) {
+            throw new Error('Se requieren credenciales de administrador para deshacer un recibo ya aplicado.');
+        }
+        const autorizador = await verificarAdmin(opts.usuario_admin, opts.password_admin);
+
+        const pagosRecibo = await Pago_CxCRepository.getByNumeroRecibo(numero_recibo);
+        if (!pagosRecibo || pagosRecibo.length === 0) throw new Error('No se encontraron pagos para este recibo');
+
+        const aplicados = pagosRecibo.filter((p: any) => p.estatus_pago === 'APL');
+        if (aplicados.length === 0) throw new Error('Este recibo no tiene pagos aplicados que deshacer.');
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        try {
+            for (const pago of aplicados) {
+                const cxcActualizada = await CxCRepository.revertirPago(pago.id_cxc, Number(pago.monto_pago), t);
+
+                if (cxcActualizada.id_remision) {
+                    const nuevoEstatusRem =
+                        cxcActualizada.estatus_cxc === 'PAG' ? 'LIQ' :
+                            cxcActualizada.estatus_cxc === 'PAR' ? 'PAR' : 'PEN';
+                    await RemisionRepository.actualizarEstatus(cxcActualizada.id_remision, nuevoEstatusRem, t);
+                }
+
+                await Pago_CxC.update(
+                    {
+                        estatus_pago: 'CAN',
+                        notas: `${pago.notas ? pago.notas + ' — ' : ''}Recibo aplicado deshecho por ${autorizador.usuario}`,
+                    },
+                    { where: { id_pago_cxc: pago.id_pago_cxc }, transaction: t },
+                );
+            }
+
+            // El/los complemento(s) de pago (factura tipo P) de este recibo quedan cancelados.
+            // La factura de venta original (tipo I) no se toca — solo se deshace el pago.
+            const [, complementosCancelados] = await Facturas.update(
+                { estatus_factura: 'CAN' },
+                { where: { tipo_cfdi: 'P', numero_recibo, estatus_factura: { [Op.ne]: 'CAN' } }, transaction: t, returning: true },
+            );
+            const teniaTimbrado = (complementosCancelados as any[])?.some(f => !!f.uuid_sat) ?? false;
+
+            await t.commit();
+
+            console.warn(`[cancelarReciboAplicado] Recibo ${numero_recibo}: ${aplicados.length} pago(s) deshechos por ${autorizador.usuario}`);
+            return {
+                ok: true,
+                pagos_revertidos: aplicados.length,
+                monto_revertido: aplicados.reduce((s, p: any) => s + Number(p.monto_pago), 0),
+                complementos_cancelados: (complementosCancelados as any[])?.length ?? 0,
+                aviso_sat: teniaTimbrado
+                    ? 'Al menos un complemento de pago ya estaba timbrado ante el SAT — cancélalo también ahí con tu facturador; aquí solo quedó cancelado en el sistema.'
+                    : null,
+            };
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+    },
+
     getSaldoHistorico: async (id_cliente_alm: string, fecha_corte: string) => {
         return await CxCRepository.getSaldoHistorico(id_cliente_alm, fecha_corte);
     },
@@ -1207,6 +1289,7 @@ export const CxCService = {
             id_factura_origen: fp.id_factura_origen,
             id_cliente_alm:    fp.id_cliente_alm,
             total_factura:     Number(fp.total_factura),
+            numero_recibo:     fp.numero_recibo,
         });
         if (!grupo.length) throw new Error('Complemento de pago no encontrado');
 

@@ -47,8 +47,14 @@ export const ArticuloRepository = {
             limit: 20
         });
     },
+    // Muchos códigos de barras del catálogo quedaron con espacios de relleno a la derecha
+    // (viene de la migración, la columna es varchar(15) pero el dato real trae menos dígitos
+    // y se guardó rellenado) — por eso se compara recortando ambos lados, no con igualdad exacta.
     getByCodigoBarras: async (cod_barr_artic: string) => {
-        return await Articulo.findOne({ where: { cod_barr_artic } });
+        const buscado = String(cod_barr_artic ?? '').trim();
+        return await Articulo.findOne({
+            where: Sequelize.where(Sequelize.fn('TRIM', Sequelize.col('cod_barr_artic')), buscado),
+        });
     },
     getByPK: async (id_artic: string, options?: { transaction?: Transaction }) => {
         return await Articulo.findByPk(id_artic, {

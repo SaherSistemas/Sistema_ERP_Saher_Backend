@@ -1,4 +1,4 @@
-import { Op, QueryTypes, Transaction } from 'sequelize';
+import { Op, QueryTypes, Transaction, literal } from 'sequelize';
 import { dbLocal } from '../../../config/db';
 import Facturas from '../model/Facturas.model';
 import Detalle_Factura from '../model/Detalle_Factura.model';
@@ -19,6 +19,7 @@ export const FacturacionRepository = {
     getList: async (filtros: {
         estatus?:        string;
         tipo_cfdi?:      string;
+        metodo_pago?:    string;   // 'PPD' | 'PUE'
         id_cliente_alm?: string;
         busqueda?:       string;
         fecha_inicio?:   string;
@@ -33,6 +34,7 @@ export const FacturacionRepository = {
         const where: any = {};
         if (filtros.estatus)        where.estatus_factura = filtros.estatus;
         if (filtros.tipo_cfdi)      where.tipo_cfdi       = filtros.tipo_cfdi;
+        if (filtros.metodo_pago)    where.id_metodo_pago  = filtros.metodo_pago;
         if (filtros.id_cliente_alm) where.id_cliente_alm  = filtros.id_cliente_alm;
 
         if (filtros.fecha_inicio || filtros.fecha_fin) {
@@ -71,7 +73,7 @@ export const FacturacionRepository = {
                     required:   false,
                 },
             ],
-            order:  [['fecha_emision', 'DESC']],
+            order:  [[literal('CAST(folio_factura AS INTEGER)'), 'DESC']],
             limit,
             offset,
         });
@@ -520,6 +522,7 @@ export const FacturacionRepository = {
                 id_factura_origen:  f.id_factura_origen,
                 id_cliente_alm:     f.id_cliente_alm,
                 total_factura:      Number(f.total_factura),
+                numero_recibo:      f.numero_recibo,
             });
 
             f.pagos_relacionados = grupo.length

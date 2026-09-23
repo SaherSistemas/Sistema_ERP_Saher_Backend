@@ -42,6 +42,15 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
         });
         return results;
     },
+    // Cambia el artículo de un renglón de factura (lo que se recibió físicamente no coincide con lo
+    // solicitado/facturado bajo ese código — misma línea, otro artículo del catálogo).
+    actualizarArticulo: async (id_factura_proveedor_detalle: string, id_artic: string) => {
+        const [, [detalle]] = await Detalle_Factura_Compra_Proveedor.update(
+            { id_artic },
+            { where: { id_factura_proveedor_detalle }, returning: true },
+        );
+        return detalle;
+    },
     marcarDetalleFacturaCompraProveedorComoRecibido: async (id_factura_proveedor_detalle: string, t: Transaction) => {
         const [affectedRows, [detalle]] = await Detalle_Factura_Compra_Proveedor.update(
             {

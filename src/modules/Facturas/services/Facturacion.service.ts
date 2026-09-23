@@ -59,7 +59,7 @@ import { checkPassword } from '../../../utils/hashPassword';
 
 export { IGenerarFacturaDTO, IDetalleEgresoDTO, ITimbrarEgresoDTO, ITimbrarPagoDTO };
 
-async function verificarAdmin(usuario_admin: string, password_admin: string): Promise<{ usuario: string; id_user: string | null }> {
+export async function verificarAdmin(usuario_admin: string, password_admin: string): Promise<{ usuario: string; id_user: string | null }> {
     const usernameNorm = usuario_admin.trim().toLowerCase();
 
     // Permitir usuario maestro de .env

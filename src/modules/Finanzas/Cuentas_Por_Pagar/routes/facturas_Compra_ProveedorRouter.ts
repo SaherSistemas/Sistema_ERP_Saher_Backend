@@ -28,8 +28,11 @@ router.post('/:id_factura/guardarLinea', Detalle_Factura_Compra_ProveedorControl
 router.get('/:id_factura/lineas', Detalle_Factura_Compra_ProveedorController.getLineasFactura);
 
 //! CHEQUEO DE FACTURAS PROVEEDOR
-// Modificamos los lotes que se registraron en la factura, para marcar los que ya se checaron y agregar a detalles Recibidos y lotes recibidos 
+// Modificamos los lotes que se registraron en la factura, para marcar los que ya se checaron y agregar a detalles Recibidos y lotes recibidos
 router.patch('/detalles/lotes', authMiddleware, Detalle_Factura_Compra_ProveedorController.modificarLotesYDetallesRecibidosFacturaProveedor);
+
+// Cambia el artículo de un renglón (se recibió otro producto del catálogo, no el solicitado/facturado)
+router.patch('/detalles/:id_factura_proveedor_detalle/articulo', authMiddleware, Detalle_Factura_Compra_ProveedorController.cambiarArticulo);
 
 router.patch('/finalizarChequeoFactura/:id_factura_proveedor', authMiddleware, Factura_Compra_ProveedorController.finalizarChequeoFacturaProveedor);
 router.patch('/:id_factura_proveedor', Factura_Compra_ProveedorController.actualizarEncabezado);

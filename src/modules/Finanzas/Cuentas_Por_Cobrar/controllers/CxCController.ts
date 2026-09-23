@@ -235,6 +235,23 @@ export class CxCController {
         }
     };
 
+    // GET /finanzas/cxc/pagos/por-rango?fecha_inicio=&fecha_fin=
+    // Todos los recibos del rango, sin importar estatus (por aplicar, aplicado o cancelado)
+    static getPagosPorRango = async (req: Request, res: Response) => {
+        try {
+            const { fecha_inicio, fecha_fin } = req.query as { fecha_inicio?: string; fecha_fin?: string };
+            if (!fecha_inicio && !fecha_fin) {
+                res.status(400).json({ message: 'Indica al menos una fecha (desde o hasta).' });
+                return;
+            }
+            const pagos = await CxCService.getPagosPorRango({ fecha_inicio, fecha_fin });
+            res.status(200).json({ pagos });
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error.message ?? 'Error al obtener los recibos del rango.' });
+        }
+    };
+
     // ─── PAGOS APL SIN CFDI ───────────────────────────────────────────────────
     static getPagosAplicadosSinCFDI = async (req: Request, res: Response) => {
         try {
@@ -412,6 +429,24 @@ export class CxCController {
             console.error(error);
             const status = /no se encontraron|ya fueron aplicados/.test(error.message) ? 400 : 500;
             res.status(status).json({ message: error?.message ?? 'Error al cancelar el recibo.' });
+        }
+    };
+
+    // PATCH /api/finanzas/cxc/recibo/:numero_recibo/deshacer
+    // Body: { usuario_admin, password_admin } — deshace un recibo YA APLICADO: regresa la deuda a
+    // cada cuenta que pagó y cancela su complemento de pago. Acción destructiva, requiere admin.
+    static cancelarReciboAplicado = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { numero_recibo } = req.params;
+            const { usuario_admin, password_admin } = req.body ?? {};
+            const resultado = await CxCService.cancelarReciboAplicado(numero_recibo, {
+                usuario_admin, password_admin, id_empleado: req.user?.id_referencia_persona,
+            });
+            res.status(200).json({ message: 'Recibo deshecho correctamente.', ...resultado });
+        } catch (error: any) {
+            console.error(error);
+            const status = /credenciales|no autorizado|no se encontraron|no tiene pagos aplicados|se requieren/i.test(error.message) ? 400 : 500;
+            res.status(status).json({ message: error?.message ?? 'Error al deshacer el recibo.' });
         }
     };
 

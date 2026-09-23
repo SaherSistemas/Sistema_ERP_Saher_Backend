@@ -13,6 +13,7 @@ import { parseCfdiXml, generarPdfDesdeCfdi, PdfExtras } from '../helpers/cfdi-xm
 import { RUTA_PDFS } from '../helpers/pdf.helper';
 import { ImpresoraRepository } from '../../Impresiones/repositories/ImpresoraRepository';
 import { TrabajoImpresionRepository } from '../../Impresiones/repositories/TrabajoImpresionRepository';
+import { detectarPublicoGeneral } from '../helpers/factura.helper';
 
 const POLL_MS = 3000;
 const PROCESADOS = new Set<string>();
@@ -229,6 +230,9 @@ async function procesarXml(xmlPath: string) {
         const ped = await Pedido_Almacen.findByPk(factura.id_pedido_alm, { attributes: ['cod_int_pedido_alm'] });
         if (ped?.cod_int_pedido_alm) extras.pedido = ped.cod_int_pedido_alm;
     }
+    // Se guarda aparte para decidir, más abajo, si esta factura necesita trabajo de impresión —
+    // las de Público General (ingreso) no se imprimen automáticamente, no se usan en papel.
+    let esPublicoGeneral = false;
     if (factura.id_cliente_alm) {
         const cliente = await Cliente_Almacen.findByPk(factura.id_cliente_alm);
         if (cliente) {
@@ -238,6 +242,10 @@ async function procesarXml(xmlPath: string) {
             );
             extras.receptorNomComercial = (cliente as any).nom_corto_cliente_alm ?? undefined;
             extras.direccionEntrega     = (cliente as any).direccion_entrega_cliente_alm ?? undefined;
+            esPublicoGeneral = detectarPublicoGeneral(
+                (cliente as any).rfc_cliente_alm,
+                (cliente as any).nom_corto_cliente_alm,
+            );
         }
     }
 
@@ -267,8 +275,11 @@ async function procesarXml(xmlPath: string) {
     console.log(`[XmlWatcher] ✓ Factura ${factura.id_factura} timbrada. UUID=${cfdi.uuid}`);
     // El XML se deja en su carpeta original — PROCESADOS evita reprocesarlo en esta sesión
 
-    // Crear trabajo de impresión para la factura timbrada
-    if (factura.id_empresa_facturas) {
+    // Crear trabajo de impresión para la factura timbrada — excepto la de ingreso de Público
+    // General: esa no se necesita en papel, se timbra sola cuando se liquida la cuenta.
+    if (esPublicoGeneral && factura.tipo_cfdi === 'I') {
+        console.log(`[XmlWatcher] Factura ${factura.folio_factura} es de Público General — no se manda a imprimir.`);
+    } else if (factura.id_empresa_facturas) {
         try {
             const id_impresora = await ImpresoraRepository.getImpresora(factura.id_empresa_facturas, 'PRINCIPAL');
             await TrabajoImpresionRepository.create({

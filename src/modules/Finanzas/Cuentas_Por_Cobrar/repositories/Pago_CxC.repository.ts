@@ -170,6 +170,55 @@ export const Pago_CxCRepository = {
         });
     },
 
+    // TODOS los recibos de un rango de fechas, sin importar su estatus (por aplicar, aplicado o
+    // cancelado) — para poder buscar hacia atrás un recibo aunque ya se haya aplicado o cancelado,
+    // en vez de solo ver los pendientes de hoy. Filtros opcionales sobre fecha_pago.
+    getPagosPorRango: async (filtros: { fecha_inicio?: string; fecha_fin?: string }) => {
+        const { Op } = await import('sequelize');
+
+        const where: any = {};
+        if (filtros.fecha_inicio || filtros.fecha_fin) {
+            where.fecha_pago = {};
+            if (filtros.fecha_inicio) where.fecha_pago[Op.gte] = new Date(filtros.fecha_inicio);
+            if (filtros.fecha_fin)    where.fecha_pago[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
+        }
+
+        return await Pago_CxC.findAll({
+            where,
+            include: [
+                { model: Cat_Metodo_Pago, attributes: ['id_metodo_pago', 'descripcion_metodo_pago'] },
+                { model: Cat_Forma_De_Pago, attributes: ['id_forma_de_pago', 'descripcion_forma_de_pago'] },
+                {
+                    model: Empleado,
+                    foreignKey: 'id_empleado_captura',
+                    as: 'empleado_captura',
+                    attributes: ['id_empleado', 'nombre_empleado', 'ap_pat_empleado'],
+                },
+                {
+                    model: Cuenta_Por_Cobrar,
+                    attributes: ['id_cxc', 'monto_total', 'saldo_pendiente', 'estatus_cxc', 'fecha_vencimiento'],
+                    include: [
+                        {
+                            model: Cliente_Almacen,
+                            attributes: ['id_cliente_alm', 'razon_social_cliente_alm', 'nom_corto_cliente_alm', 'rfc_cliente_alm'],
+                        },
+                        {
+                            model: Facturas,
+                            attributes: ['id_factura', 'folio_factura', 'uuid_sat', 'total_factura'],
+                            required: false,
+                        },
+                        {
+                            model: Remision,
+                            attributes: ['id_remision', 'folio_remision', 'total_remision'],
+                            required: false,
+                        },
+                    ],
+                },
+            ],
+            order: [['fecha_pago', 'DESC']],
+        });
+    },
+
     // Todos los pagos de una CxC
     getByIdCxC: async (id_cxc: string) => {
         return await Pago_CxC.findAll({

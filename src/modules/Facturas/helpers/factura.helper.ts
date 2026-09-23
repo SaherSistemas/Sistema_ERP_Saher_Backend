@@ -59,14 +59,19 @@ export function calcularTotales(conceptos: ConceptoFacturacion[]) {
 //  No distingue una tercera tasa (8%/exento) en facturas migradas, pero
 //  cubre el caso real de este negocio (16% + 0%).
 //
-//  IMPORTANTE: aquí NO se redondea a 2 decimales. Cuando un recibo cubre
-//  varias facturas (_generarTxtRecibo / regenerarTxtPagoCFDI), generarTxtPago
-//  suma el resultado de esta función entre todos los documentos por tasa —
-//  si cada documento ya viniera redondeado, la suma de partes redondeadas
-//  se corre 1-2 centavos del total real (comprobado: 495.84 vs 495.82 real).
-//  El redondeo final a 2 decimales se aplica UNA sola vez, ya sumado, en
-//  cfdi_txt.helper.ts vía fmt2().
+//  Se redondea a 2 decimales AQUÍ (el valor que de verdad se imprime por documento
+//  en DOCTOS_PAGOS_TRASLADOS). Antes no se redondeaba aquí, con la idea de que el
+//  total del header (INFO_PAGOS/PAGOS_IMPUESTOS_TRASLADOS) saliera más "exacto" al
+//  redondear una sola vez, ya sumado — pero eso rompe algo más importante: cuando un
+//  recibo cubre varias facturas, esa suma sin redondear no coincide con la suma real
+//  de lo que se imprime en cada DPx (cada uno YA se ve redondeado con fmt2 al
+//  escribirse). El PAC valida que el header cuadre con la suma de los documentos, así
+//  que lo que debe coincidir es la suma de las partes redondeadas, no la del monto
+//  "ideal" sin redondear. Por eso ahora se redondea una sola vez, aquí, y tanto el
+//  header como cada DPx usan ese mismo número — nunca se desalinean.
 // ─────────────────────────────────────────────────────────────────────────────
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
 export async function calcularImpuestosProporcionalesPago(
     id_factura: string,
     monto_pagado: number,
@@ -90,8 +95,8 @@ export async function calcularImpuestosProporcionalesPago(
     if (grupos.length) {
         return grupos.map(g => ({
             tasa:    Number(g.tasa_iva),
-            base:    Number(g.base)    * proporcion,
-            importe: Number(g.importe) * proporcion,
+            base:    round2(Number(g.base)    * proporcion),
+            importe: round2(Number(g.importe) * proporcion),
         }));
     }
 
@@ -103,16 +108,16 @@ export async function calcularImpuestosProporcionalesPago(
     if (base16Total > 0) {
         resultado.push({
             tasa:    0.16,
-            base:    base16Total * proporcion,
-            importe: iva_factura * proporcion,
+            base:    round2(base16Total * proporcion),
+            importe: round2(iva_factura * proporcion),
         });
     }
     if (base0Total > 0) {
-        resultado.push({ tasa: 0, base: base0Total * proporcion, importe: 0 });
+        resultado.push({ tasa: 0, base: round2(base0Total * proporcion), importe: 0 });
     }
     if (!resultado.length) {
         // Factura de migración sin subtotal/iva registrado — último recurso.
-        resultado.push({ tasa: 0, base: monto_pagado, importe: 0 });
+        resultado.push({ tasa: 0, base: round2(monto_pagado), importe: 0 });
     }
     return resultado;
 }
@@ -123,41 +128,79 @@ export async function calcularImpuestosProporcionalesPago(
 //  CxC.service.ts (regenerar TXT) y Facturacion.repository.ts (detalle de
 //  factura) — antes cada lado tenía su propia copia de este matching.
 //
-//  Camino 1: id_factura_origen ya apunta a la factura pagada (1 documento).
-//  Camino 2: recibo multi-factura — busca pagos del mismo cliente creados
-//  junto con esta fila P (ventana de 5s) cuya suma exacta dé su total.
+//  Camino 1 (correcto, recibos nuevos): la fila "P" guarda su propio
+//  numero_recibo. Se buscan TODOS los factura_pago_cfdi cuyo pago_cxc
+//  pertenezca a ese mismo recibo — es la clave real, sin adivinar nada.
+//
+//  Camino 2 (fallback, recibos viejos sin numero_recibo guardado):
+//    2a) id_factura_origen ya apunta a la factura pagada (1 documento), y su
+//        monto ya cuadra con el total → recibo de 1 sola factura.
+//    2b) si no cuadra, es multi-factura: se busca por RFC + ventana de tiempo.
+//        OJO: esto puede juntar de más si dos recibos DISTINTOS del mismo RFC
+//        se aplicaron casi al mismo segundo — por eso ya no es el camino
+//        principal, solo el respaldo para las filas "P" creadas antes de
+//        que existiera numero_recibo.
 // ─────────────────────────────────────────────────────────────────────────────
+const RFC_GENERICOS_PAGO = new Set(['XAXX010101000', 'XEXX010101000']);
+
 export async function resolverGrupoPagoP(fp: {
     id_factura: string;               // id de la fila "P" en `facturas`
     id_factura_origen: string | null;
     id_cliente_alm: string;
     total_factura: number;
+    numero_recibo?: string | null;
 }): Promise<{ id_pago_cfdi: string; id_factura_origen: string }[]> {
+    const cuadra = (filas: { monto_pagado: string }[]) =>
+        Math.abs(filas.reduce((s, f) => s + Number(f.monto_pagado), 0) - fp.total_factura) < 0.02;
+
+    // Camino 1: numero_recibo es la clave real del recibo — sin ambigüedad posible.
+    if (fp.numero_recibo) {
+        const porRecibo = await dbLocal.query<{ id_pago_cfdi: string; id_factura: string; monto_pagado: string }>(`
+            SELECT fpc.id_pago_cfdi, fpc.id_factura, fpc.monto_pagado
+            FROM factura_pago_cfdi fpc
+            JOIN pago_cxc pc ON pc.id_pago_cxc = fpc.id_pago_cxc
+            WHERE pc.numero_recibo = :numero_recibo
+        `, { replacements: { numero_recibo: fp.numero_recibo }, type: QueryTypes.SELECT });
+        if (porRecibo.length) {
+            return porRecibo.map(r => ({ id_pago_cfdi: r.id_pago_cfdi, id_factura_origen: r.id_factura }));
+        }
+    }
+
+    // Camino 2a (fallback): 1 sola factura pagada — id_factura_origen ya apunta a ella.
     if (fp.id_factura_origen) {
-        const rows = await dbLocal.query<{ id_pago_cfdi: string; id_factura: string }>(
-            `SELECT id_pago_cfdi, id_factura FROM factura_pago_cfdi WHERE id_factura = :id_factura_origen`,
+        const rows = await dbLocal.query<{ id_pago_cfdi: string; id_factura: string; monto_pagado: string }>(
+            `SELECT id_pago_cfdi, id_factura, monto_pagado FROM factura_pago_cfdi WHERE id_factura = :id_factura_origen`,
             { replacements: { id_factura_origen: fp.id_factura_origen }, type: QueryTypes.SELECT }
         );
-        if (rows.length) return rows.map(r => ({ id_pago_cfdi: r.id_pago_cfdi, id_factura_origen: r.id_factura }));
+        if (rows.length && cuadra(rows)) {
+            return rows.map(r => ({ id_pago_cfdi: r.id_pago_cfdi, id_factura_origen: r.id_factura }));
+        }
     }
+
+    // Camino 2b (fallback): recibo multi-factura sin numero_recibo guardado — por RFC + ventana de 5s.
+    const [clienteP] = await dbLocal.query<{ rfc_cliente_alm: string | null }>(
+        `SELECT rfc_cliente_alm FROM cliente_almacen WHERE id_cliente_alm = :id_cliente_alm`,
+        { replacements: { id_cliente_alm: fp.id_cliente_alm }, type: QueryTypes.SELECT }
+    );
+    const rfcP = (clienteP?.rfc_cliente_alm ?? '').trim().toUpperCase();
+    const mismoRfc = !!rfcP && !RFC_GENERICOS_PAGO.has(rfcP);
 
     const filas = await dbLocal.query<{ id_pago_cfdi: string; id_factura: string; monto_pagado: string }>(`
         SELECT fp.id_pago_cfdi, fp.id_factura, fp.monto_pagado
         FROM factura_pago_cfdi fp
-        JOIN facturas fi ON fi.id_factura = fp.id_factura
-        WHERE fi.id_cliente_alm = :id_cliente_alm
+        JOIN facturas fi        ON fi.id_factura = fp.id_factura
+        JOIN cliente_almacen ca ON ca.id_cliente_alm = fi.id_cliente_alm
+        WHERE (${mismoRfc ? 'ca.rfc_cliente_alm = :rfcP' : 'fi.id_cliente_alm = :id_cliente_alm'})
           AND ABS(EXTRACT(EPOCH FROM (
                 fp."createdAt" - (SELECT "createdAt" FROM facturas WHERE id_factura = :id_factura_p)
           ))) < 5
         ORDER BY fp."createdAt"
     `, {
-        replacements: { id_cliente_alm: fp.id_cliente_alm, id_factura_p: fp.id_factura },
+        replacements: { rfcP, id_cliente_alm: fp.id_cliente_alm, id_factura_p: fp.id_factura },
         type: QueryTypes.SELECT,
     });
 
-    if (!filas.length) return [];
-    const suma = filas.reduce((s, f) => s + Number(f.monto_pagado), 0);
-    if (Math.abs(suma - fp.total_factura) >= 0.02) return [];
+    if (!filas.length || !cuadra(filas)) return [];
     return filas.map(f => ({ id_pago_cfdi: f.id_pago_cfdi, id_factura_origen: f.id_factura }));
 }
 

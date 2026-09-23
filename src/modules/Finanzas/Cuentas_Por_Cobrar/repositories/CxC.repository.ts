@@ -243,6 +243,27 @@ export const CxCRepository = {
         }, { transaction: t });
     },
 
+    // Reversa de aplicarPago: le devuelve el monto a la cuenta (para deshacer un recibo ya aplicado).
+    // Recalcula el estatus igual que al aplicar, solo que hacia atrás (VEN si ya venció y quedó sin pagar).
+    revertirPago: async (id_cxc: string, monto_pago: number, t: Transaction) => {
+        const cxc = await Cuenta_Por_Cobrar.findByPk(id_cxc, { transaction: t, lock: t.LOCK.UPDATE });
+        if (!cxc) throw new Error('CxC no encontrada');
+
+        const nuevo_pagado = Math.max(0, Number(cxc.monto_pagado) - monto_pago);
+        const nuevo_saldo = Number(cxc.monto_total) - nuevo_pagado;
+        const vencida = !!cxc.fecha_vencimiento && new Date(cxc.fecha_vencimiento) < new Date();
+        const estatus_cxc =
+            nuevo_saldo <= 0 ? 'PAG' :
+                nuevo_pagado > 0 ? 'PAR' :
+                    (vencida ? 'VEN' : 'PEN');
+
+        return await cxc.update({
+            monto_pagado: nuevo_pagado,
+            saldo_pendiente: Math.max(nuevo_saldo, 0),
+            estatus_cxc,
+        }, { transaction: t });
+    },
+
     marcarVencidas: async () => {
         return await Cuenta_Por_Cobrar.update(
             { estatus_cxc: 'VEN' },

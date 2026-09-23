@@ -1865,8 +1865,9 @@ export const Pedido_AlmacenService = {
     });
     const ids = idsDetalles.map((d: any) => d.id_detalle_pedido_almacen);
 
-    if (['CA', 'SU'].includes(nuevo_status)) {
-      // Revertir a capturado o re-surtir desde cero: borrar todo el trabajo de surtido y chequeo
+    if (['CA', 'SU', 'NE', 'CN'].includes(nuevo_status)) {
+      // Revertir a capturado/re-surtir, o negar/cancelar definitivamente: en ambos casos
+      // hay que liberar el stock apartado y borrar el trabajo de surtido y chequeo.
       let piezas_liberadas = 0;
       if (ids.length) {
         // Lo surtido de un pedido aún sin facturar está apartado en stock_ubicacion_lote: se libera junto con los lotes.
@@ -1895,7 +1896,13 @@ export const Pedido_AlmacenService = {
         await Detalle_Pedido_Almacen_LoteModel.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } } });
         await Detalle_Pedido_Almacen_AsignacionModel.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } } });
       }
-      await (pedido as any).update({ status_pedido_alm: nuevo_status, inicio_surtido: null, fin_surtido: null });
+      // Al reiniciar surtido (CA/SU) se resetean los tiempos; al negar/cancelar se conservan como bitácora.
+      const updatePayload: any = { status_pedido_alm: nuevo_status };
+      if (['CA', 'SU'].includes(nuevo_status)) {
+        updatePayload.inicio_surtido = null;
+        updatePayload.fin_surtido = null;
+      }
+      await (pedido as any).update(updatePayload);
       return { ok: true, status_anterior, nuevo_status, limpieza: 'lotes+asignaciones+chequeos', piezas_liberadas };
     }
 

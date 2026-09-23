@@ -172,6 +172,28 @@ export const Detalle_Factura_Compra_ProveedorService = {
         }
     },
 
+    // Cambia el artículo de un renglón: lo que llegó físicamente es otro producto del catálogo,
+    // no el que se solicitó/facturó bajo ese código de barras (cambio de presentación del proveedor,
+    // por ejemplo). Solo antes de checar esa línea — si ya se registraron lotes con el artículo
+    // anterior, hay que deshacer ese chequeo primero para no dejar existencia mal atribuida.
+    cambiarArticulo: async (id_factura_proveedor_detalle: string, id_artic: string) => {
+        const detalle = await Detalle_Factura_Compra_ProveedorRepository.getByPK(id_factura_proveedor_detalle);
+        if (!detalle) throw new Error('Renglón de factura no encontrado.');
+        if ((detalle as any).checado) {
+            throw new Error('Este renglón ya fue checado con el artículo anterior; no se puede cambiar así nada más.');
+        }
+
+        const factura = await Factura_Compra_Proveedor.findByPk(detalle.id_factura_compra_proveedor);
+        if (factura && !['C', 'R'].includes((factura as any).estado_factura_proveedor)) {
+            throw new Error('Solo se puede cambiar el artículo mientras la factura está Capturada (C) o Recibida (R).');
+        }
+
+        const articulo = await ArticuloRepository.getByPK(id_artic);
+        if (!articulo) throw new Error('El artículo indicado no existe.');
+
+        return await Detalle_Factura_Compra_ProveedorRepository.actualizarArticulo(id_factura_proveedor_detalle, id_artic);
+    },
+
     guardarLineaFactura: async (id_factura: string, linea: any) => {
         const result = await Detalle_Factura_Compra_ProveedorRepository.guardarLineaFactura(id_factura, linea);
         await Factura_Compra_ProveedorRepository.recalcularTotales(id_factura);
