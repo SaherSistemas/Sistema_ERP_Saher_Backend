@@ -72,6 +72,56 @@ export const Compra_ProveedorRepository = {
     return rows;
   },
 
+  // Vista plana "por proveedor": todos los renglones proveedor-orden de todas las
+  // compras generales del rango de fechas, sin tener que abrir cada compra una por una.
+  getTodasOrdenesPorProveedor: async (id_empresa: string, fechaInicio: string, fechaFin: string) => {
+    const rows = await Compra_Proveedor.sequelize!.query<{
+      id_comp: string; id_compra_general: string; estado_comp: string;
+      fecha_enviada_proveedor: string | null; total_comp_factura: string; total_iva_factura: string;
+      fecha_inicio: string; tipo_compra: string; fecha_fin_captura: string | null; fin_de_registro_lotes: string | null;
+      id_prove: string; nomcort_prove: string;
+      total_pedido: string;
+    }>(`
+      SELECT cp.id_comp, cp.id_compra_general, cp.estado_comp, cp.fecha_enviada_proveedor, cp.fin_de_registro_lotes,
+             cp.total_comp_factura, cp.total_iva_factura,
+             cg.fecha_inicio, cg.tipo_compra, cg.fecha_fin_captura,
+             p.id_prove, p.nomcort_prove,
+             COALESCE((
+                 SELECT SUM(d.cantidad_detcompsol * d.precio_detcompsol)
+                 FROM detalle_compra_solicitado d
+                 WHERE d.idcompr_detcompsol = cp.id_comp
+             ), 0) AS total_pedido
+      FROM compra_proveedor cp
+      JOIN compra_general cg ON cg.id_compra_general = cp.id_compra_general
+      JOIN proveedor p       ON p.id_prove = cp.idprove_comp
+      WHERE cg.id_empresa_sucursal = :id_empresa
+        AND cg.fecha_inicio::date BETWEEN :fecha_inicio AND :fecha_fin
+      ORDER BY p.nomcort_prove ASC, cg.fecha_inicio DESC
+    `, {
+      type: QueryTypes.SELECT,
+      replacements: { id_empresa, fecha_inicio: fechaInicio, fecha_fin: fechaFin },
+    });
+
+    return rows.map(r => {
+      const pedido = Number(r.total_pedido);
+      const facturado = Number(r.total_comp_factura) + Number(r.total_iva_factura);
+      return {
+        id_comp: r.id_comp,
+        id_compra_general: r.id_compra_general,
+        estado_comp: r.estado_comp,
+        fecha_enviada_proveedor: r.fecha_enviada_proveedor,
+        fecha_inicio: r.fecha_inicio,
+        tipo_compra: r.tipo_compra,
+        fecha_fin_captura: r.fecha_fin_captura,
+        fin_de_registro_lotes: r.fin_de_registro_lotes,
+        proveedor: { id_prove: r.id_prove, nomcort_prove: r.nomcort_prove },
+        total: pedido > 0 ? pedido : facturado,
+        total_pedido: pedido,
+        total_facturado: facturado,
+      };
+    });
+  },
+
   actualizarTotalesCompraProveedor: async (id_comp: string, totalSinIva: number, totaliva: number, t?: Transaction) => {
     return await Compra_Proveedor.update({
       total_comp_factura: literal(`total_comp_factura + ${Number(totalSinIva)}`),
@@ -367,16 +417,20 @@ export const Compra_ProveedorRepository = {
     id_comp: string,
     totalCompra: number,
     ivaRecibido: number,
-    t?: Transaction
+    t?: Transaction,
+    sinDevoluciones: boolean = false,
   ) => {
-
+    // Si el chequeo cerró sin faltantes/devoluciones no hace falta pasar por
+    // "Capturar Lotes" aparte — se da por completada de una vez (F). Si quedó
+    // algo negado/faltante, se queda en Z (fin de chequeo, pendiente de acomodar).
     return await Compra_Proveedor.update(
       {
         total_comp_recibido: totalCompra,
         total_iva_recibido: ivaRecibido,
         fin_de_checado: new Date(), // ← siempre fecha de cierre de checado
         fin_de_compra_proveedor: new Date(), // ← fecha de cierre definitiva
-        estado_comp: 'Z'
+        estado_comp: sinDevoluciones ? 'F' : 'Z',
+        ...(sinDevoluciones ? { fin_de_registro_lotes: new Date() } : {}),
       },
       {
         where: { id_comp },

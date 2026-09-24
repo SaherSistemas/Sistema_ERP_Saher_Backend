@@ -480,8 +480,9 @@ export const Factura_Compra_ProveedorRepository = {
         const detalles = (detallesInst || []).map((d: any) => {
             const plain = typeof d?.toJSON === 'function' ? d.toJSON() : d;
 
-            // Artículo: normal (vía solicitado) o extra (directo)
-            const articulo = plain.detalleCompraSolicitado?.articulo ?? plain.articulo ?? null;
+            // Artículo real de esta línea: el directo (plain.articulo, id_artic) tiene prioridad —
+            // puede haber sido corregido con "Cambiar artículo"; si no, cae al solicitado originalmente.
+            const articulo = plain.articulo ?? plain.detalleCompraSolicitado?.articulo ?? null;
 
             // Cantidad recibida = suma de detallesRecibidos
             const detallesRec: any[] = Array.isArray(plain.detallesRecibidos) ? plain.detallesRecibidos : [];

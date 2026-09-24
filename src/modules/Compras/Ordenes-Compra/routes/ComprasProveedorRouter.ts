@@ -6,7 +6,8 @@ const router = Router()
 router.post('/', authMiddleware, CompraProveedorController.createCompraProveedor)
 router.get('/captura/:id_empresa', authMiddleware, CompraProveedorController.lineasEnCaptura) //LÍNEAS CAPTURADAS EN LA COMPRA ABIERTA (refresco entre capturistas)
 
-router.get('/compraProveedorPorGeneral/:id_compra_general', CompraProveedorController.comprasProveedorPorIDCompraGeneral) //TODAS LAS COMPRASPROVEEDOR POR UN ID COMPRA GENERAL 
+router.get('/compraProveedorPorGeneral/:id_compra_general', CompraProveedorController.comprasProveedorPorIDCompraGeneral) //TODAS LAS COMPRASPROVEEDOR POR UN ID COMPRA GENERAL
+router.get('/todasPorProveedor/:id_empresa', CompraProveedorController.getTodasOrdenesPorProveedor) //VISTA PLANA: TODAS LAS ÓRDENES DEL RANGO, AGRUPADAS POR PROVEEDOR
 router.get('/compraProveedorDevolucionesPendientes', CompraProveedorController.CompraDevolucionPendiente)
 router.get('/detalleOrden/:id_comp', CompraProveedorController.detalleOrden) //VISTA PREVIA DE LA ORDEN (NO CAMBIA ESTADO)
 router.get('/articulosGenerarPDF/:id_comp', CompraProveedorController.generarPDFListado) //GENERA EL PDF Y MARCA COMO ENVIADA

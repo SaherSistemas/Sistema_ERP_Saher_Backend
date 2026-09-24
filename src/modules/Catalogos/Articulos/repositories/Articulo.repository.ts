@@ -197,15 +197,17 @@ export const ArticuloRepository = {
             ];
         }
 
-        // Solo artículos que algún proveedor trae en su listado (los que no tienen
-        // a quién comprarse no sirven en esta pantalla). Se conservan los que ya
-        // tienen pedido en la compra abierta para que no "desaparezcan" si el
-        // listado del proveedor se refrescó después de pedirlos.
+        // Solo artículos que algún proveedor trae en su listado CON EXISTENCIA (si
+        // ningún proveedor lo tiene disponible ahora mismo, no sirve de nada verlo
+        // aquí para comprar). Se conservan los que ya tienen pedido en la compra
+        // abierta para que no "desaparezcan" si el listado del proveedor se
+        // refrescó después de pedirlos.
         const idEmpresaSql = String(id_empresasucursal).replace(/'/g, "''");
         whereArticulo[Op.and] = [
             literal(`(
                 trim("Articulo"."cod_barr_artic") IN (
                     SELECT trim(dlp.cod_barra_pro_detlist) FROM detalle_listado_proveedor dlp
+                    WHERE dlp.exist_pro_detlist > 0
                 )
                 OR "Articulo"."id_artic" IN (
                     SELECT dcs.idarticulo_detcompsol

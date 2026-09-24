@@ -35,29 +35,61 @@ export const KardexService = {
         const lotesIds = Array.from(new Set(rows.map((r: any) => r.id_lote).filter(Boolean)));
         const empIds = Array.from(new Set(rows.map((r: any) => r.id_empleado).filter(Boolean)));
         const pedIds = Array.from(new Set(rows.map((r: any) => r.id_pedido).filter(Boolean)));
+        // Para ENTRADA de compra, documento_ref guarda el id_factura_compra_proveedor (ver
+        // registrarKardexEntradas en ChequeoFactura.js) — de ahí sacamos folio + proveedor.
+        const facturaProveedorIds = Array.from(new Set(
+            rows.filter((r: any) => r.tipo === 'ENTRADA' && r.documento_ref).map((r: any) => r.documento_ref)
+        ));
         const lotes = lotesIds.length ? await dbLocal.query<any>(
             `SELECT id_lote_sucursal, numero_lote_sucursal FROM lote_articulo_sucursal WHERE id_lote_sucursal IN (:ids)`,
             { replacements: { ids: lotesIds }, type: QueryTypes.SELECT }) : [];
         const emps = empIds.length ? await dbLocal.query<any>(
             `SELECT id_empleado, nombre_empleado, ap_pat_empleado FROM empleado WHERE id_empleado IN (:ids)`,
             { replacements: { ids: empIds }, type: QueryTypes.SELECT }) : [];
-        const peds = pedIds.length ? await dbLocal.query<any>(
-            `SELECT id_pedido_alm, cod_int_pedido_alm FROM pedido_almacen WHERE id_pedido_alm IN (:ids)`,
-            { replacements: { ids: pedIds }, type: QueryTypes.SELECT }) : [];
+        const peds = pedIds.length ? await dbLocal.query<any>(`
+            SELECT pa.id_pedido_alm, pa.cod_int_pedido_alm,
+                   ca.razon_social_cliente_alm, ca.nom_corto_cliente_alm
+            FROM pedido_almacen pa
+            LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+            WHERE pa.id_pedido_alm IN (:ids)
+        `, { replacements: { ids: pedIds }, type: QueryTypes.SELECT }) : [];
+        const facturasProveedor = facturaProveedorIds.length ? await dbLocal.query<any>(`
+            SELECT fcp.id_factura_proveedor, fcp.folio_factura_proveedor, pr.nomcort_prove
+            FROM factura_compra_proveedor fcp
+            LEFT JOIN compra_proveedor cp ON cp.id_comp     = fcp.id_compra_prove_factura
+            LEFT JOIN proveedor        pr ON pr.id_prove    = cp.idprove_comp
+            WHERE fcp.id_factura_proveedor IN (:ids)
+        `, { replacements: { ids: facturaProveedorIds }, type: QueryTypes.SELECT }) : [];
+
         const loteMap = new Map(lotes.map((l: any) => [l.id_lote_sucursal, String(l.numero_lote_sucursal).trim()]));
         const empMap = new Map(emps.map((e: any) => [e.id_empleado, `${e.nombre_empleado} ${e.ap_pat_empleado}`.trim()]));
         const pedMap = new Map(peds.map((p: any) => [p.id_pedido_alm, p.cod_int_pedido_alm]));
+        const clienteMap = new Map(peds.map((p: any) => [
+            p.id_pedido_alm,
+            (p.nom_corto_cliente_alm?.trim() || p.razon_social_cliente_alm?.trim() || null),
+        ]));
+        const facturaProveedorMap = new Map(facturasProveedor.map((f: any) => [
+            f.id_factura_proveedor,
+            {
+                folio: f.folio_factura_proveedor ?? null,
+                proveedor: f.nomcort_prove?.trim() || null,
+            },
+        ]));
 
         const movs = rows.map((r: any) => {
             const cant = Number(r.cantidad) || 0;
             let signo: number;
             if (r.origen === 'M') signo = r.tipo === 'AJUSTE_ENTRADA' ? 1 : -1;
             else signo = SIGNO_KARDEX[r.tipo] ?? 0;
+            const fp = r.tipo === 'ENTRADA' && r.documento_ref ? facturaProveedorMap.get(r.documento_ref) : null;
             return {
                 id: r.id, fecha: r.fecha, tipo: r.tipo, origen: r.origen,
                 documento_ref: r.documento_ref ?? null, notas: r.notas ?? null,
                 lote: r.id_lote ? (loteMap.get(r.id_lote) ?? null) : null,
                 pedido: r.id_pedido ? (pedMap.get(r.id_pedido) ?? null) : null,
+                cliente: r.id_pedido ? (clienteMap.get(r.id_pedido) ?? null) : null,
+                proveedor: fp?.proveedor ?? null,
+                folio_factura_proveedor: fp?.folio ?? null,
                 empleado: r.id_empleado ? (empMap.get(r.id_empleado) ?? null) : null,
                 entrada: signo > 0 ? cant : 0,
                 salida: signo < 0 ? cant : 0,

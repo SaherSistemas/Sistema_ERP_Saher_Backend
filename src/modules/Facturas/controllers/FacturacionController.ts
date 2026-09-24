@@ -153,8 +153,11 @@ export class FacturacionController {
 
     static getList = async (req: AuthedRequest, res: Response) => {
         try {
-            const { estatus, tipo_cfdi, metodo_pago, id_cliente_alm, busqueda, fecha_inicio, fecha_fin, page, limit } = req.query as any;
-            const resultado = await FacturacionRepository.getList({ estatus, tipo_cfdi, metodo_pago, id_cliente_alm, busqueda, fecha_inicio, fecha_fin, page, limit });
+            const { estatus, tipo_cfdi, metodo_pago, con_recibo, id_cliente_alm, busqueda, fecha_inicio, fecha_fin, page, limit } = req.query as any;
+            const resultado = await FacturacionRepository.getList({
+                estatus, tipo_cfdi, metodo_pago, id_cliente_alm, busqueda, fecha_inicio, fecha_fin, page, limit,
+                con_recibo: con_recibo === 'true' || con_recibo === '1',
+            });
             res.json(resultado);
         } catch (error: any) {
             console.error(error);

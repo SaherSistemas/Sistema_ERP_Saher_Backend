@@ -17,7 +17,7 @@ import { calcularImpuestosProporcionalesPago as _impuestosProporcionalesPago, re
 import { FacturacionRepository } from '../../../Facturas/repositories/Facturacion.repository';
 import EmpresaSucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { generarReciboPDFBuffer } from '../helpers/recibo_cobranza.pdf';
-import { timbrarIngresoPublicoGeneral, verificarAdmin } from '../../../Facturas/services/Facturacion.service';
+import { timbrarIngresoPublicoGeneral, generarFacturaAbonoPublicoGeneral, verificarAdmin } from '../../../Facturas/services/Facturacion.service';
 import { v4 as uuidv4 } from 'uuid';
 import Cat_Bancos from '../../../Catalogos/model/Cat_Bancos';
 
@@ -638,10 +638,14 @@ export const CxCService = {
         const saldo_anterior = Number(cxc.saldo_pendiente);
 
         // ── Resolver la Factura tipo I asociada ───────────────────────────────
+        // Público General ya no crea Factura al vender — remisionRow.id_factura solo
+        // sigue lleno en remisiones viejas (de antes de este cambio) que aún esperan
+        // su timbrado con el flujo anterior (una sola factura al liquidarse el total).
         let id_factura_ref: string | null = cxc.id_factura ?? null;
+        let remisionRow: Remision | null = null;
         if (!id_factura_ref && cxc.id_remision) {
-            const remision = await Remision.findByPk(cxc.id_remision);
-            if (remision) id_factura_ref = remision.id_factura;
+            remisionRow = await Remision.findByPk(cxc.id_remision);
+            if (remisionRow?.id_factura) id_factura_ref = remisionRow.id_factura;
         }
         const factura = id_factura_ref ? await Facturas.findByPk(id_factura_ref) : null;
 
@@ -704,25 +708,41 @@ export const CxCService = {
                 timbrado = await _generarTxtUno(cfdiCreado);
             }
 
-            // 6. Público General: si la CxC quedó PAG (pago total), generar TXT de ingreso ahora
-            let timbradoPublicoGeneral: { ok: boolean; ruta_txt?: string; error?: string } | null = null;
-            if (cxc.id_remision && cxcActualizada.estatus_cxc === 'PAG' && factura) {
-                timbradoPublicoGeneral = await timbrarIngresoPublicoGeneral(factura.id_factura);
-                if (timbradoPublicoGeneral.ok) {
-                    console.log(`[aplicarPago] TXT Público General generado: ${timbradoPublicoGeneral.ruta_txt}`);
-                } else {
-                    console.warn(`[aplicarPago] No se pudo generar TXT Público General: ${timbradoPublicoGeneral.error}`);
+            // 6. Público General: cada abono genera su propia Factura de Ingreso, prorateada
+            //    contra el total de la venta — no se espera a que el CxC quede liquidado.
+            //    (Compatibilidad: si esta remisión ya traía una Factura pre-creada de antes
+            //    de este cambio, se sigue timbrando con el flujo anterior solo al liquidarse.)
+            let timbradoPublicoGeneral: { ok: boolean; ruta_txt?: string; error?: string; folio?: number } | null = null;
+            if (cxc.id_remision) {
+                if (factura) {
+                    if (cxcActualizada.estatus_cxc === 'PAG') {
+                        timbradoPublicoGeneral = await timbrarIngresoPublicoGeneral(factura.id_factura);
+                    }
+                } else if (remisionRow) {
+                    timbradoPublicoGeneral = await generarFacturaAbonoPublicoGeneral({
+                        id_pedido_alm: remisionRow.id_pedido_alm,
+                        id_cliente_alm: cxc.id_cliente_alm,
+                        monto_total_venta: Number(cxc.monto_total),
+                        monto_pago: Number(pago.monto_pago),
+                        id_forma_pago: pago.id_forma_pago,
+                        folio_remision: remisionRow.folio_remision,
+                    });
+                }
+                if (timbradoPublicoGeneral?.ok) {
+                    console.log(`[aplicarPago] Factura Público General generada (folio ${timbradoPublicoGeneral.folio ?? '—'}): ${timbradoPublicoGeneral.ruta_txt}`);
+                } else if (timbradoPublicoGeneral) {
+                    console.warn(`[aplicarPago] No se pudo generar la factura de Público General: ${timbradoPublicoGeneral.error}`);
                 }
             }
 
-            const mensajeTimbrado = !factura
-                ? 'Pago aplicado. No hay factura asociada, no se genera complemento de pago.'
-                : cxc.id_remision && cxcActualizada.estatus_cxc === 'PAG'
-                    ? timbradoPublicoGeneral?.ok
-                        ? `Pago total aplicado. TXT de factura Público General generado: ${timbradoPublicoGeneral.ruta_txt}`
-                        : `Pago total aplicado. Error generando TXT Público General: ${timbradoPublicoGeneral?.error}`
-                : cxc.id_remision
-                    ? 'Pago parcial aplicado. El TXT se generará cuando se liquide el total.'
+            const mensajeTimbrado = cxc.id_remision
+                ? (timbradoPublicoGeneral
+                    ? (timbradoPublicoGeneral.ok
+                        ? `Pago aplicado. Factura de Público General generada (folio ${timbradoPublicoGeneral.folio ?? '—'}): ${timbradoPublicoGeneral.ruta_txt}`
+                        : `Pago aplicado. Error generando la factura de Público General: ${timbradoPublicoGeneral.error}`)
+                    : 'Pago aplicado.')
+                : !factura
+                    ? 'Pago aplicado. No hay factura asociada, no se genera complemento de pago.'
                     : factura.id_metodo_pago === 'PUE'
                         ? 'Pago aplicado. La factura es PUE — no se genera complemento de pago.'
                         : !factura.uuid_sat
@@ -751,8 +771,14 @@ export const CxCService = {
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
         const cfdisCreados: FacturaPagoCFDI[] = [];
-        // Facturas de Público General (crédito por remisión) que con este recibo quedaron liquidadas
-        const facturasPublicoGeneral = new Set<string>();
+        // Facturas "viejas" (pre-creadas antes de este cambio) que con este recibo quedaron liquidadas
+        const facturasPublicoGeneralViejas = new Set<string>();
+        // Abonos nuevos de Público General: cada uno genera su propia Factura prorateada
+        const abonosPublicoGeneralNuevos: {
+            id_pedido_alm: string; id_cliente_alm: string;
+            monto_total_venta: number; monto_pago: number;
+            id_forma_pago: string; folio_remision: number;
+        }[] = [];
 
         try {
             for (const pago of pendientes) {
@@ -761,11 +787,12 @@ export const CxCService = {
 
                 const saldo_anterior = Number(cxc.saldo_pendiente);
 
-                // Resolver factura
+                // Resolver factura (id_factura_ref solo sigue lleno en remisiones viejas)
                 let id_factura_ref: string | null = cxc.id_factura ?? null;
+                let remisionRow: Remision | null = null;
                 if (!id_factura_ref && cxc.id_remision) {
-                    const remision = await Remision.findByPk(cxc.id_remision);
-                    if (remision) id_factura_ref = remision.id_factura;
+                    remisionRow = await Remision.findByPk(cxc.id_remision);
+                    if (remisionRow?.id_factura) id_factura_ref = remisionRow.id_factura;
                 }
                 const factura = id_factura_ref ? await Facturas.findByPk(id_factura_ref) : null;
 
@@ -783,9 +810,22 @@ export const CxCService = {
                         cxcActualizada.estatus_cxc === 'PAR' ? 'PAR' : 'PEN';
                     await RemisionRepository.actualizarEstatus(cxc.id_remision, nuevoEstatus, t);
 
-                    // Igual que en aplicarPago: al liquidarse la remisión, la factura de Público
-                    // General se emite como INGRESO (no lleva complemento de pago).
-                    if (cxcActualizada.estatus_cxc === 'PAG' && factura) facturasPublicoGeneral.add(factura.id_factura);
+                    if (factura) {
+                        // Compatibilidad: remisión vieja con Factura pre-creada — se timbra
+                        // con el flujo anterior solo cuando se liquida por completo.
+                        if (cxcActualizada.estatus_cxc === 'PAG') facturasPublicoGeneralViejas.add(factura.id_factura);
+                    } else if (remisionRow) {
+                        // Público General nuevo: este abono genera su propia Factura,
+                        // prorateada — sin esperar a que se liquide el total.
+                        abonosPublicoGeneralNuevos.push({
+                            id_pedido_alm: remisionRow.id_pedido_alm,
+                            id_cliente_alm: cxc.id_cliente_alm,
+                            monto_total_venta: Number(cxc.monto_total),
+                            monto_pago: Number(pago.monto_pago),
+                            id_forma_pago: pago.id_forma_pago,
+                            folio_remision: remisionRow.folio_remision,
+                        });
+                    }
                 }
 
                 // Crear registro CFDI pendiente solo si la factura está timbrada y es PPD
@@ -824,12 +864,18 @@ export const CxCService = {
             timbrado = await _generarTxtRecibo(cfdisCreados);
         }
 
-        // Facturas de Público General liquidadas: generar su TXT de ingreso
-        const ingresosPublicoGeneral: { id_factura: string; ok: boolean; ruta_txt?: string; error?: string }[] = [];
-        for (const id_factura of facturasPublicoGeneral) {
+        // Facturas de Público General: viejas (liquidadas, flujo anterior) + abonos
+        // nuevos (cada uno con su propia Factura prorateada)
+        const ingresosPublicoGeneral: { id_factura: string | null; ok: boolean; ruta_txt?: string; error?: string; folio?: number }[] = [];
+        for (const id_factura of facturasPublicoGeneralViejas) {
             const r = await timbrarIngresoPublicoGeneral(id_factura);
             ingresosPublicoGeneral.push({ id_factura, ...r });
             if (!r.ok) console.warn(`[aplicarRecibo] No se pudo generar TXT Público General (${id_factura}): ${r.error}`);
+        }
+        for (const abono of abonosPublicoGeneralNuevos) {
+            const r = await generarFacturaAbonoPublicoGeneral(abono);
+            ingresosPublicoGeneral.push({ id_factura: r.id_factura ?? null, ...r });
+            if (!r.ok) console.warn(`[aplicarRecibo] No se pudo generar la factura de Público General: ${r.error}`);
         }
         const pgOk  = ingresosPublicoGeneral.filter(x => x.ok).length;
         const pgErr = ingresosPublicoGeneral.length - pgOk;

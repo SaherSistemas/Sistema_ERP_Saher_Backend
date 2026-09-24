@@ -20,6 +20,7 @@ export const FacturacionRepository = {
         estatus?:        string;
         tipo_cfdi?:      string;
         metodo_pago?:    string;   // 'PPD' | 'PUE'
+        con_recibo?:     boolean;  // true = solo facturas con un pago/recibo ya registrado
         id_cliente_alm?: string;
         busqueda?:       string;
         fecha_inicio?:   string;
@@ -41,11 +42,26 @@ export const FacturacionRepository = {
             where.fecha_emision = {};
             if (filtros.fecha_inicio) where.fecha_emision[Op.gte] = new Date(filtros.fecha_inicio);
             if (filtros.fecha_fin)    where.fecha_emision[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
-        } else if (!filtros.busqueda) {
+        } else if (!filtros.busqueda && !filtros.con_recibo) {
             // Sin filtros de fecha ni búsqueda → limitar al último mes para no escanear toda la tabla
             const hace30dias = new Date();
             hace30dias.setDate(hace30dias.getDate() - 30);
             where.fecha_emision = { [Op.gte]: hace30dias };
+        }
+
+        // Solo facturas que ya tienen un pago/recibo real registrado (pago_cxc), vía su CxC
+        // directa o (Público General) vía la CxC de su remisión.
+        if (filtros.con_recibo) {
+            const idsConRecibo = (await dbLocal.query<{ id_factura: string }>(`
+                SELECT DISTINCT f.id_factura
+                FROM facturas f
+                LEFT JOIN remision r           ON r.id_factura   = f.id_factura
+                JOIN cuenta_por_cobrar cxc      ON cxc.id_factura = f.id_factura OR cxc.id_remision = r.id_remision
+                JOIN pago_cxc pc                ON pc.id_cxc = cxc.id_cxc AND pc.estatus_pago != 'CAN'
+                WHERE f.tipo_cfdi = 'I'
+            `, { type: QueryTypes.SELECT })).map(r => r.id_factura);
+
+            where.id_factura = { [Op.in]: idsConRecibo };
         }
 
         if (filtros.busqueda) {
@@ -80,16 +96,40 @@ export const FacturacionRepository = {
 
         // Para el botón "Remisión": qué facturas de Público General siguen sin su remisión
         if (rows.length) {
+            const ids = rows.map(r => r.id_factura);
+
             const conRemision = new Set(
                 (await dbLocal.query<{ id_factura: string }>(
                     `SELECT DISTINCT id_factura FROM remision WHERE id_factura IN (:ids)`,
-                    { replacements: { ids: rows.map(r => r.id_factura) }, type: QueryTypes.SELECT },
+                    { replacements: { ids }, type: QueryTypes.SELECT },
                 )).map(r => r.id_factura),
             );
+
+            // Forma de pago real con la que se liquidó (efectivo/transferencia/cheque…), tomada
+            // del recibo (pago_cxc) aplicado — no del id_forma_pago de la factura, que solo es
+            // la condición configurada en el catálogo del cliente al momento de facturar.
+            // La CxC de una factura directa cuelga de facturas.id_factura; la de Público General
+            // cuelga de la remisión (remision.id_factura = facturas.id_factura).
+            const formaPagoPorFactura = new Map<string, string>();
+            (await dbLocal.query<{ id_factura: string; descripcion_forma_de_pago: string }>(`
+                SELECT DISTINCT ON (f.id_factura)
+                       f.id_factura, cfp.descripcion_forma_de_pago
+                FROM facturas f
+                LEFT JOIN remision r          ON r.id_factura   = f.id_factura
+                LEFT JOIN cuenta_por_cobrar cxc ON cxc.id_factura = f.id_factura OR cxc.id_remision = r.id_remision
+                LEFT JOIN pago_cxc pc          ON pc.id_cxc = cxc.id_cxc AND pc.estatus_pago != 'CAN'
+                LEFT JOIN cat_forma_de_pago cfp ON cfp.id_forma_de_pago = pc.id_forma_pago
+                WHERE f.id_factura IN (:ids)
+                ORDER BY f.id_factura, pc.fecha_pago DESC NULLS LAST
+            `, { replacements: { ids }, type: QueryTypes.SELECT })).forEach(r => {
+                if (r.descripcion_forma_de_pago) formaPagoPorFactura.set(r.id_factura, r.descripcion_forma_de_pago);
+            });
+
             rows.forEach(r => {
                 const c: any = (r as any).cliente;
                 r.setDataValue('tiene_remision' as any, conRemision.has(r.id_factura) as any);
                 r.setDataValue('es_publico_general' as any, detectarPublicoGeneral(c?.rfc_cliente_alm, c?.nom_corto_cliente_alm) as any);
+                r.setDataValue('forma_pago_recibo' as any, formaPagoPorFactura.get(r.id_factura) ?? null);
             });
         }
 
@@ -286,8 +326,11 @@ export const FacturacionRepository = {
             FROM detalle_pedido_almacen dpa
             JOIN pedido_almacen         pa   ON pa.id_pedido_alm              = dpa.id_pedido_almacen
             JOIN articulo               a    ON a.id_artic                    = dpa.id_articulo
-            JOIN unidadmedida           um   ON um.id_medida                  = a.unidmedi_artic
-            JOIN tipo_iva               ti   ON ti.id_iva                     = a.tipo_de_iva
+            -- LEFT (no INNER): un artículo con catálogo incompleto (sin unidad de medida o
+            -- sin tipo de IVA asignado) no debe desaparecer en silencio del pedido — ya se le
+            -- descontó stock real, así que se valida abajo y se avisa en vez de omitirlo.
+            LEFT JOIN unidadmedida      um   ON um.id_medida                  = a.unidmedi_artic
+            LEFT JOIN tipo_iva          ti   ON ti.id_iva                     = a.tipo_de_iva
             LEFT JOIN detalle_pedido_almacen_chequeo dpac
                 ON dpac.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
                AND dpac.estado != 'CANCELADO'
@@ -304,6 +347,15 @@ export const FacturacionRepository = {
             replacements: { id_pedido_alm },
             type: QueryTypes.SELECT,
         });
+
+        const incompletos = rows.filter(r => r.cve_sat == null || r.tasa_iva == null || r.sat_medida == null);
+        if (incompletos.length) {
+            const detalle = incompletos.map(r => `${r.descripcion} (cód. ${r.cod_int_artic})`).join(', ');
+            throw new Error(
+                `Estos artículos tienen el catálogo incompleto (falta clave SAT, tipo de IVA o unidad de medida) `
+                + `y no se pueden facturar/trasladar hasta completarlos: ${detalle}`
+            );
+        }
 
         return rows.map(r => {
             const cantidad        = Number(r.cantidad);
@@ -514,6 +566,19 @@ export const FacturacionRepository = {
         f.detalle_facturas = f.detalles ?? [];
         delete f.detalles;
 
+        const [formaPago] = await dbLocal.query<{ descripcion_forma_de_pago: string }>(`
+            SELECT cfp.descripcion_forma_de_pago
+            FROM facturas f
+            LEFT JOIN remision r          ON r.id_factura   = f.id_factura
+            LEFT JOIN cuenta_por_cobrar cxc ON cxc.id_factura = f.id_factura OR cxc.id_remision = r.id_remision
+            LEFT JOIN pago_cxc pc          ON pc.id_cxc = cxc.id_cxc AND pc.estatus_pago != 'CAN'
+            LEFT JOIN cat_forma_de_pago cfp ON cfp.id_forma_de_pago = pc.id_forma_pago
+            WHERE f.id_factura = :id_factura
+            ORDER BY pc.fecha_pago DESC NULLS LAST
+            LIMIT 1
+        `, { replacements: { id_factura }, type: QueryTypes.SELECT });
+        f.forma_pago_recibo = formaPago?.descripcion_forma_de_pago ?? null;
+
         // Tipo P (complemento de pago) no tiene detalle_factura (no son "conceptos"
         // de venta) — en su lugar se arma la lista de facturas que cubrió este pago.
         if (f.tipo_cfdi === 'P') {
@@ -538,6 +603,33 @@ export const FacturacionRepository = {
         }
 
         return f;
+    },
+
+    // Forma de pago SAT real (código, ej. '01') con la que se liquidó el CxC de esta
+    // factura — viene del recibo (pago_cxc) aplicado, no de un default de catálogo.
+    // Se usa para el .txt de Ingreso de Público General, que se genera justo cuando
+    // el CxC ya quedó pagado por completo.
+    getFormaPagoRealPorFactura: async (id_factura: string): Promise<string | null> => {
+        const [row] = await dbLocal.query<{ id_forma_pago: string }>(`
+            SELECT pc.id_forma_pago
+            FROM facturas f
+            LEFT JOIN remision r           ON r.id_factura   = f.id_factura
+            LEFT JOIN cuenta_por_cobrar cxc ON cxc.id_factura = f.id_factura OR cxc.id_remision = r.id_remision
+            LEFT JOIN pago_cxc pc           ON pc.id_cxc = cxc.id_cxc AND pc.estatus_pago != 'CAN'
+            WHERE f.id_factura = :id_factura
+            ORDER BY pc.fecha_pago DESC NULLS LAST
+            LIMIT 1
+        `, { replacements: { id_factura }, type: QueryTypes.SELECT });
+        return row?.id_forma_pago ?? null;
+    },
+
+    // Folios de la(s) remisión(es) que originaron esta factura (Público General),
+    // para armar la leyenda "Factura Generada de Remisión(es) X, Y, Z".
+    getFoliosRemisionPorFactura: async (id_factura: string): Promise<number[]> => {
+        const rows = await dbLocal.query<{ folio_remision: number }>(`
+            SELECT folio_remision FROM remision WHERE id_factura = :id_factura ORDER BY folio_remision
+        `, { replacements: { id_factura }, type: QueryTypes.SELECT });
+        return rows.map(r => r.folio_remision);
     },
 
     actualizarTimbrado: async (id_factura: string, data: {

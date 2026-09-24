@@ -96,7 +96,35 @@ export const Pedido_AlmacenRepository = {
       ],
     });
     // console.log("PEDIDOS POR CHECAR EN REPO:", pedidos)
-    return pedidos;
+
+    // Para los VALE: saber si ya terminaron su chequeo (todas sus filas
+    // en detalle_pedido_almacen_chequeo son TERMINADO/CANCELADO), para poder
+    // ofrecer "Entregar Vale" directo en el tablero sin reabrir el chequeo.
+    const idsVale = pedidos
+      .filter((p: any) => (p.tipo_pedido_alm || '').trim() === 'VAL' || p.origen_pedido === 'VALE')
+      .map((p: any) => p.id_pedido_alm);
+
+    let completos = new Set<string>();
+    if (idsVale.length) {
+      const filas = await dbLocal.query<{ id_pedido_almacen: string; pendientes: string; total: string }>(`
+        SELECT dpa.id_pedido_almacen,
+               COUNT(*) FILTER (WHERE dpac.estado IN ('ASIGNADO','EN_PROCESO')) AS pendientes,
+               COUNT(*) AS total
+        FROM detalle_pedido_almacen_chequeo dpac
+        JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpac.id_detalle_pedido_almacen
+        WHERE dpa.id_pedido_almacen IN (:ids)
+        GROUP BY dpa.id_pedido_almacen
+      `, { replacements: { ids: idsVale }, type: QueryTypes.SELECT });
+
+      completos = new Set(
+        filas.filter(f => Number(f.total) > 0 && Number(f.pendientes) === 0).map(f => f.id_pedido_almacen)
+      );
+    }
+
+    return pedidos.map((p: any) => {
+      const json = p.toJSON ? p.toJSON() : p;
+      return { ...json, chequeo_completo: completos.has(p.id_pedido_alm) };
+    });
   },
 
 

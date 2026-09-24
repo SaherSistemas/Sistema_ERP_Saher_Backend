@@ -446,7 +446,7 @@ export const Kardex_Movimiento_ArticuloRepository = {
     id_pedido_alm: string;
     id_empresa: string;
     id_empleado: string;
-    id_factura: string;   // documento_ref (UUID de la factura generada)
+    id_factura: string | null;   // documento_ref (UUID de la factura generada) — null en Público General, ya no se crea factura al vender
     cod_pedido: string;   // para la nota descriptiva
     t: Transaction;
   }) => {

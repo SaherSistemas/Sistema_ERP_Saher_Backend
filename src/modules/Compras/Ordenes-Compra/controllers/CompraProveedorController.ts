@@ -31,6 +31,24 @@ export class CompraProveedorController {
             res.status(500).json({ message: 'Error al finalizar la captura de la compra.' });
         }
     }
+    // Vista plana "por proveedor": GET /compras_proveedor/todasPorProveedor/:id_empresa?fecha_inicio=&fecha_fin=
+    static getTodasOrdenesPorProveedor = async (req: Request, res: Response) => {
+        try {
+            const { id_empresa } = req.params;
+            const fecha_inicio = String(req.query.fecha_inicio ?? '');
+            const fecha_fin = String(req.query.fecha_fin ?? '');
+            if (!fecha_inicio || !fecha_fin) {
+                res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+                return;
+            }
+            const ordenes = await compraProveedorService.getTodasOrdenesPorProveedor(id_empresa, fecha_inicio, fecha_fin);
+            res.status(200).json({ ordenes });
+        } catch (error) {
+            console.error('[getTodasOrdenesPorProveedor]', error);
+            res.status(500).json({ message: 'No se pudieron obtener las órdenes por proveedor.' });
+        }
+    }
+
     static createCompraProveedor = async (req: AuthedRequest, res: Response) => {
         try {
             // El empleado sale del token, nunca del body

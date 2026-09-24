@@ -241,7 +241,9 @@ export function particionarConceptos(
 }
 
 export async function crearCxCyRemision(params: {
-    factura_id:       string;
+    // null para Público General: ya no se crea ninguna Factura al momento de vender —
+    // cada abono genera su propia Factura después, cuando se aplica el pago.
+    factura_id:       string | null;
     cab:              Pick<DatosFacturacionCabecera, 'id_pedido_alm' | 'id_cliente_alm' | 'id_agente_alm'>;
     totales:          { subtotal: number; iva: number; total: number };
     conceptos:        ConceptoFacturacion[];

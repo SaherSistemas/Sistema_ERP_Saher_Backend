@@ -164,6 +164,123 @@ export function generarTxtIngreso(opts: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// INGRESO — PÚBLICO GENERAL (formato resumido: un concepto por tasa de IVA,
+// sin detalle artículo por artículo — el receptor es genérico, no hace falta).
+// ─────────────────────────────────────────────────────────────────────────────
+const RFC_PUBLICO_GENERAL_TXT = 'XAXX010101000';
+
+export function generarTxtIngresoPublicoGeneral(opts: {
+    emisor: EmisorTxt;
+    folio: number;
+    forma_pago: string;   // código SAT real de lo que cobró el recibo (01, 03, etc.)
+    conceptos: ConceptoTxt[]; // itemizados; aquí se consolidan por tasa_iva
+    leyenda: string;
+    nombreArchivo?: string;
+}): { ruta: string; contenido: string } {
+
+    const { emisor, folio, forma_pago, conceptos, leyenda } = opts;
+
+    // Un solo renglón por tasa de IVA presente (ej. 0% y 16%), sumando el subtotal
+    // de todos los artículos que caen en esa tasa.
+    const mapaTasas = new Map<number, { subtotal: number; impuesto_sat: string; tipo_factor: string }>();
+    for (const c of conceptos) {
+        const entry = mapaTasas.get(c.tasa_iva) ?? { subtotal: 0, impuesto_sat: c.impuesto_sat, tipo_factor: c.tipo_factor };
+        entry.subtotal += c.subtotal_linea;
+        mapaTasas.set(c.tasa_iva, entry);
+    }
+    const tasasOrdenadas = Array.from(mapaTasas.entries()).sort((a, b) => a[0] - b[0]); // tasa menor primero (0% antes que 16%)
+
+    const conceptosConsolidados = tasasOrdenadas.map(([tasa, datos]) => ({
+        cve_sat: '01010101',
+        sat_medida: 'ACT',
+        desc_medida: 'Actividad',
+        cod_barras: '',
+        cantidad: 1,
+        descripcion: `PRODUCTOS O SERVICIOS GRAVADOS TASA ${Math.round(tasa * 100)}%`,
+        precio_unitario: +datos.subtotal.toFixed(2),
+        descuento: 0,
+        subtotal_linea: +datos.subtotal.toFixed(2),
+        tasa_iva: tasa,
+        impuesto_sat: datos.impuesto_sat,
+        tipo_factor: datos.tipo_factor,
+    }));
+
+    const subtotal = conceptosConsolidados.reduce((s, c) => s + c.subtotal_linea, 0);
+    const totalTraslados = conceptosConsolidados.reduce((s, c) => s + +(c.subtotal_linea * c.tasa_iva).toFixed(2), 0);
+    const totalNeto = +(subtotal + totalTraslados).toFixed(2);
+
+    const L: string[] = [];
+    L.push('[DATOS_EMISOR]');
+    L.push(`NOMBRE1: ${emisor.nom_empre}`);
+    L.push(`REGIMENFISCAL: ${emisor.regimen_fiscal_empre}`);
+    L.push(`RFC1: ${emisor.rfc_empre}`);
+    L.push('[/DATOS_EMISOR]', '');
+
+    L.push('[DATOS_RECEPTOR]');
+    L.push('NOMBRE2: VENTA AL PUBLICO EN GENERAL');
+    L.push(`RFC2: ${RFC_PUBLICO_GENERAL_TXT}`);
+    L.push(`DOMICILIOFISCAL: ${emisor.lugar_expedicion}`);
+    L.push('REGIMENFISCAL2: 616');
+    L.push('USOCFDI: S01');
+    L.push('[/DATOS_RECEPTOR]', '');
+
+    L.push('[DATOS_CFD]');
+    const series = derivarSeries(emisor.serie_ingreso);
+    L.push(`FOLIO: ${folio}`);
+    L.push(`SERIE: ${series.ingreso}`);
+    L.push(`LUGAREXPEDICION: ${emisor.lugar_expedicion}`);
+    L.push('TIPO_COMPROBANTE: I');
+    L.push(`FORMAPAGO: ${forma_pago}`);
+    L.push('METODOPAGO: PUE');
+    L.push('NUMCTAPAGO: ');
+    L.push('DESCUENTO: 0.00');
+    L.push('MOTIVODESCUENTO: _');
+    L.push('MONEDA: MXN');
+    L.push('TIPOCAMBIO: 1');
+    L.push('TOTALRETENIDOS: 0.00');
+    L.push(`TOTALTRASLADOS: ${fmt2(totalTraslados)}`);
+    L.push(`SUBTOTAL: ${fmt2(subtotal)}`);
+    L.push(`TOTALNETO: ${fmt2(totalNeto)}`);
+    L.push(`LEYENDA: ${leyenda}`);
+    L.push('OCULTAR_UUID: 1');
+    L.push('VALIDEZ_OBLIGACIONES: 2');
+    L.push('[/DATOS_CFD]', '');
+
+    L.push('[CONCEPTOS]');
+    conceptosConsolidados.forEach((c, i) => {
+        L.push(
+            `C${i + 1}: ${c.cve_sat}@${c.sat_medida}@${c.desc_medida}@${c.cod_barras}` +
+            `@${fmt4(c.cantidad)}@${c.descripcion}@${fmt2(c.precio_unitario)}@${fmt2(c.descuento)}@${fmt2(c.subtotal_linea)}`
+        );
+    });
+    L.push('[/CONCEPTOS]', '');
+
+    L.push('[TRASLADADOS_CONCEPTOS]');
+    conceptosConsolidados.forEach((c, i) => {
+        const importeIva = +(c.subtotal_linea * c.tasa_iva).toFixed(2);
+        L.push(
+            `TC${i + 1}: C${i + 1}@${fmt2(c.subtotal_linea)}@${c.impuesto_sat}` +
+            `@${c.tipo_factor}@${fmt2(c.tasa_iva)}@${fmt2(importeIva)}`
+        );
+    });
+    L.push('[/TRASLADADOS_CONCEPTOS]', '');
+
+    L.push('[IMPUESTOS_TRASLADADOS]');
+    conceptosConsolidados.forEach((c, i) => {
+        const importeIva = +(c.subtotal_linea * c.tasa_iva).toFixed(2);
+        L.push(
+            `IT${i + 1}: ${c.impuesto_sat}@${c.tipo_factor}@${fmt2(c.tasa_iva)}@${fmt2(importeIva)}@${fmt2(c.subtotal_linea)}`
+        );
+    });
+    L.push('[/IMPUESTOS_TRASLADADOS]', '');
+
+    const contenido = L.join('\r\n');
+    const nombreArchivo = opts.nombreArchivo ?? `FactDig${series.ingreso}${folio}-Ingresos.txt`;
+    const ruta = escribirTxt(nombreArchivo, L);
+    return { ruta, contenido };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // EGRESO (Nota de Crédito)
 // ─────────────────────────────────────────────────────────────────────────────
 export function generarTxtEgreso(opts: {

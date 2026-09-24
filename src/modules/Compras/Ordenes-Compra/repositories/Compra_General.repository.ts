@@ -83,11 +83,17 @@ export const CompraGeneralRepository = {
     },
 
 
-    getCompraEnCaptura: async (id_empresa: string) => {
+    // tipo_compra opcional: si se pasa, solo busca la compra en captura DE ESE TIPO
+    // (evita que una Normal/Negados/Especial se cuele dentro de una Directa abierta
+    // por error, o viceversa). Sin el parámetro, se mantiene el comportamiento viejo
+    // ("cualquiera que esté abierta") para los usos que solo necesitan saber si HAY
+    // algo abierto, sin importar de qué tipo.
+    getCompraEnCaptura: async (id_empresa: string, tipo_compra?: string) => {
         return await Compra_General.findOne({
             where: {
                 id_empresa_sucursal: id_empresa,
-                estado_comp: 'C'
+                estado_comp: 'C',
+                ...(tipo_compra ? { tipo_compra } : {}),
             },
             include: [
                 { model: Compra_General, as: 'compraPrevia', attributes: ['id_compra_general', 'id_interno_compra_gen'] },
@@ -136,7 +142,7 @@ export const CompraGeneralRepository = {
     // Última compra de esta empresa finalizada HOY que aún no se envió al proveedor
     // (estado 'A' = capturada pero no enviada). Se usa para relacionar una compra
     // nueva con una que se finalizó por accidente el mismo día, sin reabrirla.
-    getUltimaFinalizadaMismoDiaSinEnviar: async (id_empresa_sucursal: string) => {
+    getUltimaFinalizadaMismoDiaSinEnviar: async (id_empresa_sucursal: string, tipo_compra: string) => {
         const inicioDia = new Date();
         inicioDia.setHours(0, 0, 0, 0);
 
@@ -144,6 +150,7 @@ export const CompraGeneralRepository = {
             where: {
                 id_empresa_sucursal,
                 estado_comp: 'A',
+                tipo_compra,
                 fecha_fin_captura: { [Op.gte]: inicioDia },
             },
             order: [['fecha_fin_captura', 'DESC']],

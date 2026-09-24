@@ -109,12 +109,14 @@ export const Factura_Compra_ProveedorService = {
                         await Detalle_Compra_NegadosRepository.agregarProductosNegados(detallesNegados, t);
                     }
                 }
-                // 6) Actualizar totales compra proveedor
+                // 6) Actualizar totales compra proveedor — si no hubo negados/devoluciones
+                // en este chequeo, se marca directo como Completada (F) en vez de solo Z.
                 await Compra_ProveedorRepository.compraProveedorTerminarRecibida(
                     factura.compra.id_comp,
                     totalesRecibidos.subtotal,
                     totalesRecibidos.iva,
-                    t
+                    t,
+                    totalesNegados.total === 0,
                 );
                 // 7) Compra general
                 await CompraGeneralRepository.actualizarTotalesCompraGeneralPorCompraProveedor(
@@ -188,10 +190,13 @@ export const Factura_Compra_ProveedorService = {
             const lotesArticuloSucursal: ICreaterOrUdateLotesArticuloSucursal[] = [];
 
             for (const d of detallesClasificados) {
-                // Para traslados el artículo viene directo; para compras viene por detalleCompraSolicitado
+                // d.id_artic es el artículo real de esta línea de factura (por default el solicitado,
+                // pero puede haber sido corregido con "Cambiar artículo" si llegó algo distinto) — debe
+                // tener prioridad sobre detalleCompraSolicitado.idarticulo_detcompsol, que es solo lo
+                // que se pidió originalmente.
                 const idArticulo = esTraslado
                     ? (d.articulo?.id_artic ?? d.id_artic)
-                    : (d.detalleCompraSolicitado?.idarticulo_detcompsol ?? d.id_artic);
+                    : (d.id_artic ?? d.detalleCompraSolicitado?.idarticulo_detcompsol);
                 if (!idArticulo) continue;
 
                 const recibido = Number(d?.resumen?.recibido ?? 0);

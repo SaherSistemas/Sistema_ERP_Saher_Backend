@@ -30,6 +30,12 @@ export const compraProveedorService = {
         const plain = rows.map((r: any) => typeof r.get === 'function' ? r.get({ plain: true }) : r);
         return plain.map(mapCompraProveedor)
     },
+    // Vista plana "por proveedor": todos los renglones proveedor-orden de todas las
+    // compras generales del rango de fechas (Compras Actuales → "Ver por proveedor").
+    getTodasOrdenesPorProveedor: async (id_empresa: string, fechaInicio: string, fechaFin: string) => {
+        return await Compra_ProveedorRepository.getTodasOrdenesPorProveedor(id_empresa, fechaInicio, fechaFin);
+    },
+
     getComprasPendientes: async () => {
         const rows = await Factura_Compra_ProveedorRepository.getFacturasPendientes();
         const plain = rows.map((r: any) => typeof r.get === 'function' ? r.get({ plain: true }) : r);
@@ -45,14 +51,15 @@ export const compraProveedorService = {
         const articulo = await ArticuloRepository.getByIDFlexible(detalle.idarticulo_detcompsol)
         const uuidArticulo = articulo.id_artic;
 
-        //BUSCAR O CREAR COMPRA GENERAL EN EL ESTAOD "C"
-        let compraGeneralActiva = await CompraGeneralRepository.getCompraEnCaptura(id_empresa);
+        //BUSCAR O CREAR COMPRA GENERAL EN EL ESTAOD "C" — solo del mismo tipo que se está
+        // capturando ahora, para no mezclar (ej. Normal cayendo dentro de una Directa abierta)
+        let compraGeneralActiva = await CompraGeneralRepository.getCompraEnCaptura(id_empresa, tipo_compra);
 
         if (!compraGeneralActiva) {
             // Si la última compra de hoy se finalizó por accidente y aún no se envía
             // al proveedor (estado 'A'), la reabrimos para acumular en la misma en
             // vez de crear una compra aparte.
-            const compraPrevia = await CompraGeneralRepository.getUltimaFinalizadaMismoDiaSinEnviar(id_empresa)
+            const compraPrevia = await CompraGeneralRepository.getUltimaFinalizadaMismoDiaSinEnviar(id_empresa, tipo_compra)
             if (compraPrevia) {
                 compraGeneralActiva = await CompraGeneralRepository.reabrirCompra(compraPrevia.id_compra_general)
             }
@@ -129,7 +136,7 @@ export const compraProveedorService = {
 
         let subtotal = 0;
         const ivaGroups: Record<string, number> = {};
-        const items = (detallesCompra ?? []).map((item: any) => {
+        let items = (detallesCompra ?? []).map((item: any) => {
             const cantidad = Number(item.cantidad_detcompsol);
             const precioUnitario = Number(item.precio_detcompsol);
             const pctIva = Number(item.articulo?.tipo_iva?.porcentaje_iva ?? 0);
@@ -154,6 +161,56 @@ export const compraProveedorService = {
             };
         });
 
+        // Compra Directa: no usa detalle_compra_solicitado — la factura ya se registró
+        // directo en factura_compra_proveedor/detalle_factura_compra_proveedor. Si no
+        // hay nada en el flujo normal, se busca ahí para mostrar lo que sí se capturó.
+        let esDirecta = false;
+        if (items.length === 0) {
+            const filasDirecta = await dbLocal.query<any>(`
+                SELECT dfcp.id_factura_proveedor_detalle AS id_detcompsol,
+                       dfcp.cantidad_articulo_facturada    AS cantidad,
+                       dfcp.precio_articulo_factura        AS precio_unitario,
+                       a.cod_barr_artic, a.cod_int_artic, a.des_artic,
+                       COALESCE(ti.porcentaje_iva, 0)       AS porcentaje_iva
+                FROM factura_compra_proveedor fcp
+                JOIN detalle_factura_compra_proveedor dfcp ON dfcp.id_factura_compra_proveedor = fcp.id_factura_proveedor
+                JOIN articulo a ON a.id_artic = dfcp.id_artic
+                LEFT JOIN tipo_iva ti ON ti.id_iva = a.tipo_de_iva
+                WHERE fcp.id_compra_prove_factura = :id_comp
+                ORDER BY a.des_artic
+            `, { replacements: { id_comp }, type: QueryTypes.SELECT });
+
+            if (filasDirecta.length) {
+                esDirecta = true;
+                subtotal = 0;
+                for (const key of Object.keys(ivaGroups)) delete ivaGroups[key];
+                items = filasDirecta.map((item: any) => {
+                    const cantidad = Number(item.cantidad);
+                    const precioUnitario = Number(item.precio_unitario);
+                    const pctIva = Number(item.porcentaje_iva ?? 0);
+                    const base = cantidad * precioUnitario;
+                    const iva = base * pctIva;
+
+                    subtotal += base;
+                    const tasa = `${(pctIva * 100).toFixed(0)}%`;
+                    ivaGroups[tasa] = (ivaGroups[tasa] ?? 0) + iva;
+
+                    return {
+                        id_detcompsol: item.id_detcompsol as string,
+                        bloqueado: true, // ya es una factura registrada — no se edita desde aquí
+                        cod_barr_artic: (item.cod_barr_artic ?? '').trim(),
+                        cod_int_artic: item.cod_int_artic ?? null,
+                        des_artic: item.des_artic ?? '',
+                        cantidad,
+                        precio_unitario: precioUnitario,
+                        porcentaje_iva: pctIva,
+                        iva,
+                        importe: base + iva,
+                    };
+                });
+            }
+        }
+
         const iva = Object.keys(ivaGroups).sort().map(tasa => ({ tasa, monto: ivaGroups[tasa] }));
         const totalIva = iva.reduce((s, g) => s + g.monto, 0);
 
@@ -161,6 +218,7 @@ export const compraProveedorService = {
             id_comp,
             estado_comp: compra.estado_comp,
             fecha_enviada_proveedor: compra.fecha_enviada_proveedor ?? null,
+            es_directa: esDirecta,
             proveedor: {
                 nomcort_prove: proveedor?.nomcort_prove ?? null,
                 razsoc_prove: proveedor?.razsoc_prove ?? null,

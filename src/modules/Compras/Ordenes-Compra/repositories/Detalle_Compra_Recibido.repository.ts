@@ -69,7 +69,9 @@ export const Detalle_Compra_RecibidosRepository = {
         throw new Error("Detalle compra solicitado no encontrado");
       }
       idCompra = detalleSolicitado.idcompr_detcompsol;
-      idArticulo = detalleSolicitado.idarticulo_detcompsol;
+      // id_artic del detalle factura tiene prioridad: es el artículo real de esta línea
+      // (puede haber sido corregido con "Cambiar artículo" si llegó algo distinto de lo solicitado).
+      idArticulo = todo_el_detalle.id_artic ?? detalleSolicitado.idarticulo_detcompsol;
       precioUnitario = Number(detalleSolicitado.precio_detcompsol) || 0;
     }
 
