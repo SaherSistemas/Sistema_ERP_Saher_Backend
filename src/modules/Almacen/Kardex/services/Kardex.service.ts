@@ -79,7 +79,7 @@ export const KardexService = {
         const movs = rows.map((r: any) => {
             const cant = Number(r.cantidad) || 0;
             let signo: number;
-            if (r.origen === 'M') signo = r.tipo === 'AJUSTE_ENTRADA' ? 1 : -1;
+            if (r.origen === 'M') signo = (r.tipo === 'AJUSTE_ENTRADA' || r.tipo === 'INICIAL') ? 1 : -1;
             else signo = SIGNO_KARDEX[r.tipo] ?? 0;
             const fp = r.tipo === 'ENTRADA' && r.documento_ref ? facturaProveedorMap.get(r.documento_ref) : null;
             return {

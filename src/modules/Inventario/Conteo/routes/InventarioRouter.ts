@@ -14,6 +14,9 @@ router.post('/random',  InventarioController.crearRandom);
 // Conteo de un renglón
 router.patch('/detalle/:id_detalle/conteo', InventarioController.actualizarConteo);
 
+// Agregar renglón manual (artículo/lote no generado automáticamente)
+router.post('/:id/manual', InventarioController.agregarManual);
+
 // Cambios de status
 router.patch('/:id/iniciar',          InventarioController.iniciar);
 router.patch('/:id/terminar',         InventarioController.terminar);

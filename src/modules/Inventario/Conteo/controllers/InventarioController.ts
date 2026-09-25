@@ -69,6 +69,29 @@ export const InventarioController = {
         }
     },
 
+    agregarManual: async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id } = req.params;
+            const { id_articulo, id_lote, numero_lote_nuevo, fecha_vencimiento_nueva, cant_contada, comentario, id_ubicacion_sucursal } = req.body;
+            if (!id_articulo) { res.status(400).json({ mensaje: 'id_articulo requerido' }); return; }
+            if (cant_contada === undefined || cant_contada === null) {
+                res.status(400).json({ mensaje: 'cant_contada requerida' }); return;
+            }
+            const data = await InventarioService.agregarManual(id, {
+                id_articulo,
+                id_lote: id_lote || null,
+                numero_lote_nuevo,
+                fecha_vencimiento_nueva,
+                cant_contada: Number(cant_contada),
+                comentario,
+                id_ubicacion_sucursal: id_ubicacion_sucursal !== undefined ? (id_ubicacion_sucursal || null) : undefined,
+            });
+            res.status(201).json(data);
+        } catch (e: any) {
+            res.status(400).json({ mensaje: e.message });
+        }
+    },
+
     crearRandom: async (req: AuthedRequest, res: Response) => {
         try {
             const { cantidad, notas } = req.body;
@@ -116,7 +139,8 @@ export const InventarioController = {
 
     aplicar: async (req: AuthedRequest, res: Response) => {
         try {
-            const data = await InventarioService.aplicar(req.params.id, req.user.id_referencia_persona);
+            const marcarInicial = req.body?.marcar_inicial === true;
+            const data = await InventarioService.aplicar(req.params.id, req.user.id_referencia_persona, marcarInicial);
             res.json(data);
         } catch (e: any) {
             res.status(400).json({ mensaje: e.message });

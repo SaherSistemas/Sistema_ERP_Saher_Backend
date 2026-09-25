@@ -51,6 +51,32 @@ export const Stock_Ubicacion_LoteController = {
         }
     },
 
+    ajustar: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa_sucursal = String(req.user?.id_empresa || req.body.id_empresa_sucursal || '').trim();
+            const id_empleado = String(req.user?.id_referencia_persona || req.body.id_empleado || '').trim();
+            const { id_stock_ubicacion_lote, cantidad_real, notas } = req.body;
+
+            if (!id_empresa_sucursal) { res.status(400).json({ ok: false, message: 'id_empresa requerido' }); return; }
+            if (!id_empleado) { res.status(400).json({ ok: false, message: 'id_empleado requerido' }); return; }
+            if (!id_stock_ubicacion_lote) { res.status(400).json({ ok: false, message: 'id_stock_ubicacion_lote requerido' }); return; }
+            if (cantidad_real === undefined || cantidad_real === null || cantidad_real === '') {
+                res.status(400).json({ ok: false, message: 'cantidad_real requerida' }); return;
+            }
+
+            const resultado = await Stock_Ubicacion_LoteService.ajustarCantidad({
+                id_empresa_sucursal,
+                id_stock_ubicacion_lote,
+                cantidad_real: Number(cantidad_real),
+                id_empleado,
+                notas: notas || null,
+            });
+            res.status(200).json({ ok: true, data: resultado });
+        } catch (error: any) {
+            res.status(400).json({ ok: false, message: error?.message || "Error al ajustar la cantidad" });
+        }
+    },
+
     mover: async (req: Request & { user?: any }, res: Response) => {
         try {
             const id_empresa_sucursal = req.user?.id_empresa || req.body.id_empresa_sucursal;

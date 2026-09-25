@@ -1,4 +1,4 @@
-export type TipoMovimientoArticulo = 'AJUSTE_ENTRADA' | 'SALIDA_MERMA' | 'SALIDA_ENTREGA'
+export type TipoMovimientoArticulo = 'AJUSTE_ENTRADA' | 'SALIDA_MERMA' | 'SALIDA_ENTREGA' | 'INICIAL'
 
 export interface ICreateMovimientoArticulo {
     id_empresa: string

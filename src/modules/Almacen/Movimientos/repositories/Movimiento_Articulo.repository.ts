@@ -72,9 +72,9 @@ export const Movimiento_ArticuloRepository = {
                 m.id_articulo,
                 a.des_artic,
                 a.cod_barr_artic,
-                COALESCE(SUM(CASE WHEN m.tipo_movimiento = 'AJUSTE_ENTRADA' THEN m.cantidad ELSE 0 END), 0) AS total_entradas,
+                COALESCE(SUM(CASE WHEN m.tipo_movimiento IN ('AJUSTE_ENTRADA','INICIAL') THEN m.cantidad ELSE 0 END), 0) AS total_entradas,
                 COALESCE(SUM(CASE WHEN m.tipo_movimiento IN ('SALIDA_MERMA','SALIDA_ENTREGA') THEN m.cantidad ELSE 0 END), 0) AS total_salidas,
-                COALESCE(SUM(CASE WHEN m.tipo_movimiento = 'AJUSTE_ENTRADA' THEN m.cantidad
+                COALESCE(SUM(CASE WHEN m.tipo_movimiento IN ('AJUSTE_ENTRADA','INICIAL') THEN m.cantidad
                                   WHEN m.tipo_movimiento IN ('SALIDA_MERMA','SALIDA_ENTREGA') THEN -m.cantidad
                                   ELSE 0 END), 0) AS existencia
             FROM movimiento_articulo m

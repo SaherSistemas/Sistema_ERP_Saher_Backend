@@ -26,10 +26,10 @@ class Movimiento_Articulo extends Model {
     declare articulo: Articulo
 
     @Column({
-        type: DataType.ENUM('AJUSTE_ENTRADA', 'SALIDA_MERMA', 'SALIDA_ENTREGA'),
+        type: DataType.ENUM('AJUSTE_ENTRADA', 'SALIDA_MERMA', 'SALIDA_ENTREGA', 'INICIAL'),
         allowNull: false
     })
-    declare tipo_movimiento: 'AJUSTE_ENTRADA' | 'SALIDA_MERMA' | 'SALIDA_ENTREGA'
+    declare tipo_movimiento: 'AJUSTE_ENTRADA' | 'SALIDA_MERMA' | 'SALIDA_ENTREGA' | 'INICIAL'
 
     @Column({ type: DataType.INTEGER, allowNull: false })
     declare cantidad: number

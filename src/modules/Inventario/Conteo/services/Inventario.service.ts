@@ -3,6 +3,8 @@ import { dbLocal } from '../../../../config/db';
 import { InventarioRepository } from '../repositories/Inventario.repository';
 import { TipoInventario, StatusInventario } from '../model/Inventario';
 import Stock_Ubicacion_Lote from '../../Stock/model/Stock_Ubicacion_Lote';
+import Lote_Articulo_Sucursal from '../../Lotes/model/Lote_Articulo_Sucursal';
+import { LotesArticuloSucursalRepository } from '../../Lotes/repository/Lote_ArticuloSucursal.repository';
 
 export const InventarioService = {
 
@@ -39,10 +41,10 @@ export const InventarioService = {
                 tx,
             );
 
-            // Pasar a EN_CONTEO automáticamente si hay renglones (dentro de la misma tx)
-            if (detalles.length > 0) {
-                await inv.update({ status: 'EN_CONTEO' }, { transaction: tx });
-            }
+            // Pasar a EN_CONTEO automáticamente (aunque no haya renglones todavía: p.ej.
+            // una ubicación vacía en sistema donde el surtidor va a agregar lo que
+            // encuentre físicamente vía "agregarManual").
+            await inv.update({ status: 'EN_CONTEO' }, { transaction: tx });
 
             return { inventario: inv, total_renglones: detalles.length };
         });
@@ -88,6 +90,71 @@ export const InventarioService = {
         ajustar?: boolean;
     }) => InventarioRepository.actualizarConteo(id_detalle_inventario, data),
 
+    // Agrega un artículo/lote encontrado físicamente que no venía en el conteo
+    // generado automáticamente (lote distinto al esperado, o artículo nunca
+    // antes registrado en esta ubicación). Si ya existe un renglón para ese
+    // mismo artículo+lote en este inventario, actualiza su conteo en vez de
+    // duplicarlo.
+    agregarManual: async (id_inventario: string, dto: {
+        id_articulo: string;
+        id_lote?: string | null;
+        numero_lote_nuevo?: string;
+        fecha_vencimiento_nueva?: string;
+        cant_contada: number;
+        comentario?: string;
+        // Ubicación explícita (p.ej. al corregir el lote de un renglón que ya
+        // traía una ubicación concreta). Si no se manda, se usa la del filtro
+        // del inventario (caso de un inventario tipo UBICACION completo).
+        id_ubicacion_sucursal?: string | null;
+    }) => {
+        const inv = await InventarioRepository.getById(id_inventario);
+        if (!inv) throw new Error('Inventario no encontrado');
+        if (inv.status !== 'EN_CONTEO') throw new Error('El inventario debe estar EN_CONTEO para agregar renglones');
+        if (!dto.cant_contada || dto.cant_contada < 0) throw new Error('Cantidad contada inválida');
+
+        const id_ubicacion_sucursal = dto.id_ubicacion_sucursal !== undefined
+            ? dto.id_ubicacion_sucursal
+            : (inv.filtro as any)?.id_ubicacion_sucursal ?? null;
+
+        let id_lote: string | null = dto.id_lote ?? null;
+        if (!id_lote && dto.numero_lote_nuevo?.trim()) {
+            if (!dto.fecha_vencimiento_nueva) throw new Error('Fecha de caducidad requerida para un lote nuevo.');
+            const lote = await LotesArticuloSucursalRepository.updateOrCreateLoteSucursal({
+                id_artic: dto.id_articulo,
+                id_empre: inv.id_empresa_sucursal,
+                numero_lote_sucursal: dto.numero_lote_nuevo.trim(),
+                fecha_venci_lote_sucursal: new Date(dto.fecha_vencimiento_nueva) as any,
+                cantidad_entrada_lote: 0,
+                precio_costo_lote_sucursal: 0,
+                estado_lote_sucursal: 'A',
+            } as any);
+            id_lote = lote.id_lote_sucursal;
+        } else if (id_lote) {
+            const loteExistente = await Lote_Articulo_Sucursal.findOne({
+                where: { id_lote_sucursal: id_lote, id_artic: dto.id_articulo, id_empre: inv.id_empresa_sucursal },
+            });
+            if (!loteExistente) throw new Error('El lote indicado no pertenece a este artículo/empresa.');
+        }
+
+        const existente = await InventarioRepository.buscarDetalleExistente(id_inventario, dto.id_articulo, id_lote, id_ubicacion_sucursal);
+        if (existente) {
+            return InventarioRepository.actualizarConteo(existente.id_detalle_inventario, {
+                cant_contada: dto.cant_contada,
+                comentario: dto.comentario,
+            });
+        }
+
+        return InventarioRepository.crearDetalleManual({
+            id_inventario,
+            id_empresa_sucursal: inv.id_empresa_sucursal,
+            id_articulo: dto.id_articulo,
+            id_ubicacion_sucursal,
+            id_lote,
+            cant_contada: dto.cant_contada,
+            comentario: dto.comentario ?? null,
+        });
+    },
+
     // Pasa de BORRADOR → EN_CONTEO manualmente
     iniciar: async (id_inventario: string) => {
         const inv = await InventarioRepository.getById(id_inventario);
@@ -118,8 +185,8 @@ export const InventarioService = {
         return { ok: true };
     },
 
-    aplicar: (id_inventario: string, aplicado_por: string) =>
-        InventarioRepository.aplicar(id_inventario, aplicado_por),
+    aplicar: (id_inventario: string, aplicado_por: string, marcarInicial: boolean = false) =>
+        InventarioRepository.aplicar(id_inventario, aplicado_por, marcarInicial),
 
     cancelar: async (id_inventario: string) => {
         const inv = await InventarioRepository.getById(id_inventario);

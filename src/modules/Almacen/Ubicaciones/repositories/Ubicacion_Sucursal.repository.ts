@@ -97,6 +97,30 @@ export const Ubicacion_SucursalRepository = {
             );
         }
 
+        // Búsqueda libre: compara ignorando guiones/espacios contra la tarima
+        // o contra pasillo+anaquel+nivel+posición concatenados (ej. "C-3-2-4").
+        if (f?.q && String(f.q).trim()) {
+            const qLike = `%${String(f.q).trim().toUpperCase().replace(/[-\s]/g, '')}%`;
+            where[Op.and] = where[Op.and] || [];
+            where[Op.and].push({
+                [Op.or]: [
+                    Sequelize.where(
+                        Sequelize.fn('UPPER', Sequelize.fn('REPLACE', Sequelize.fn('COALESCE', Sequelize.col('tarima_ub'), ''), '-', '')),
+                        { [Op.like]: qLike }
+                    ),
+                    Sequelize.where(
+                        Sequelize.fn('UPPER', Sequelize.fn('CONCAT',
+                            Sequelize.fn('COALESCE', Sequelize.col('pasillo_ub'), ''),
+                            Sequelize.fn('COALESCE', Sequelize.col('anaquel_ub'), ''),
+                            Sequelize.fn('COALESCE', Sequelize.col('nivel_ub'), ''),
+                            Sequelize.fn('COALESCE', Sequelize.col('posicion_ub'), ''),
+                        )),
+                        { [Op.like]: qLike }
+                    ),
+                ],
+            });
+        }
+
         // include defaults opcional
         const include = f?.include_defaults
             ? [

@@ -8,6 +8,7 @@ import Articulo from "../../../Catalogos/Articulos/model/Articulo";
 import { Ubicacion_SucursalRepository } from "../../../Almacen/Ubicaciones/repositories/Ubicacion_Sucursal.repository";
 import { Detalle_Compra_SolicitadoRepository } from "../../../Compras/Ordenes-Compra/repositories/Detalle_Compra_Solicitado.repository";
 import Stock_Ubicacion_Lote from "../model/Stock_Ubicacion_Lote";
+import Movimiento_Articulo from "../../../Almacen/Movimientos/model/Movimiento_Articulo";
 
 
 export const Stock_Ubicacion_LoteService = {
@@ -147,6 +148,58 @@ export const Stock_Ubicacion_LoteService = {
             }
 
             return { ok: true, movido: cantidad };
+        });
+    },
+
+    // Ajuste directo de una fila de stock a la cantidad físicamente contada.
+    // Corrige stock_ubicacion_lote.cantidad y deja registro en movimiento_articulo (Kardex de ajustes).
+    ajustarCantidad: async (dto: {
+        id_empresa_sucursal: string;
+        id_stock_ubicacion_lote: string;
+        cantidad_real: number;
+        id_empleado: string;
+        notas?: string | null;
+    }) => {
+        const { id_empresa_sucursal, id_stock_ubicacion_lote, cantidad_real, id_empleado, notas } = dto;
+
+        if (!Number.isInteger(cantidad_real) || cantidad_real < 0)
+            throw new Error("La cantidad contada debe ser un entero mayor o igual a 0");
+
+        return await dbLocal.transaction(async (tx) => {
+            const fila = await Stock_Ubicacion_LoteRepository.findByIdForUpdate(
+                id_empresa_sucursal, id_stock_ubicacion_lote, tx
+            );
+            if (!fila) throw new Error("Registro de stock no encontrado");
+
+            if (cantidad_real < fila.cantidad_apartada) {
+                throw new Error(`No puedes bajar de ${fila.cantidad_apartada} pzas: hay pedidos que ya las tienen apartadas.`);
+            }
+
+            const diferencia = cantidad_real - fila.cantidad;
+            if (diferencia === 0) {
+                return { ok: true, sin_cambios: true, cantidad: fila.cantidad };
+            }
+
+            await fila.update({ cantidad: cantidad_real }, { transaction: tx });
+
+            await Movimiento_Articulo.create({
+                id_empresa: id_empresa_sucursal,
+                id_articulo: fila.id_articulo,
+                tipo_movimiento: diferencia > 0 ? 'AJUSTE_ENTRADA' : 'SALIDA_MERMA',
+                cantidad: Math.abs(diferencia),
+                fecha: new Date(),
+                id_lote: fila.id_lote,
+                notas: notas?.trim() || 'Ajuste de inventario por conteo físico en ubicación',
+                id_empleado,
+            } as any, { transaction: tx });
+
+            return {
+                ok: true,
+                sin_cambios: false,
+                cantidad_anterior: fila.cantidad - diferencia,
+                cantidad_nueva: cantidad_real,
+                diferencia,
+            };
         });
     },
 };
