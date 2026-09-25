@@ -80,7 +80,7 @@ export const FacturacionRepository = {
                 {
                     model:      Cliente_Almacen,
                     as:         'cliente',
-                    attributes: ['razon_social_cliente_alm', 'rfc_cliente_alm', 'nom_corto_cliente_alm'],
+                    attributes: ['razon_social_cliente_alm', 'rfc_cliente_alm', 'nom_corto_cliente_alm', 'id_empresa_sys_anterior'],
                 },
                 {
                     model:      Pedido_Almacen,
@@ -130,6 +130,7 @@ export const FacturacionRepository = {
                 r.setDataValue('tiene_remision' as any, conRemision.has(r.id_factura) as any);
                 r.setDataValue('es_publico_general' as any, detectarPublicoGeneral(c?.rfc_cliente_alm, c?.nom_corto_cliente_alm) as any);
                 r.setDataValue('forma_pago_recibo' as any, formaPagoPorFactura.get(r.id_factura) ?? null);
+                r.setDataValue('es_empresa_propia' as any, c?.id_empresa_sys_anterior != null as any);
             });
         }
 

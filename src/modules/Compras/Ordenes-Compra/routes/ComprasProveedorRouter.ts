@@ -22,6 +22,8 @@ router.get('/compraProveedorPorRecibir/:id_empresa_sucursal', CompraProveedorCon
 
 router.patch('/marcarRecibida/:id_comp', CompraProveedorController.marcarCompraProveedorComoRecibida)
 
+router.patch('/reabrirParaNuevaFactura/:id_comp', authMiddleware, CompraProveedorController.reabrirParaNuevaFactura)
+
 router.patch('/iniciarChecado/:id_comp', CompraProveedorController.iniciarChecado)
 
 router.patch('/iniciarAcomodo/:id_comp', CompraProveedorController.iniciarAcomodo)

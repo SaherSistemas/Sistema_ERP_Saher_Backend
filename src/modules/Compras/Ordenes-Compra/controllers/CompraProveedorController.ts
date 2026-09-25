@@ -159,6 +159,17 @@ export class CompraProveedorController {
         }
     }
 
+    static reabrirParaNuevaFactura = async (req: Request, res: Response) => {
+        try {
+            const { id_comp } = req.params;
+            const compraProveedor = await compraProveedorService.reabrirParaNuevaFactura(id_comp);
+            res.status(200).json({ mensaje: "Compra reabierta para agregar otra factura.", compraProveedor });
+        } catch (error: any) {
+            console.error(error);
+            res.status(400).json({ message: error?.message ?? "Error al reabrir la compra." });
+        }
+    }
+
     static iniciarChecado = async (req: Request, res: Response) => {
         try {
             const { id_comp } = req.params;

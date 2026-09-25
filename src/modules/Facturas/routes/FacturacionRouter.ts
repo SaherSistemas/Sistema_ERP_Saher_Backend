@@ -57,6 +57,9 @@ router.post('/:id_factura/deshacer', authMiddleware, FacturacionController.desha
 // POST /api/facturas/:id_factura/traspaso-pdf
 router.post('/:id_factura/traspaso-pdf', authMiddleware, FacturacionController.generarTraspasoPdf);
 
+// POST /api/facturas/:id_factura/traslado-pdf
+router.post('/:id_factura/traslado-pdf', authMiddleware, FacturacionController.generarTrasladoPdf);
+
 // PDF con detalle SAT por renglón (Clave SAT + Clave de Unidad SAT)
 // POST /api/facturas/:id_factura/pdf-sat
 router.post('/:id_factura/pdf-sat', authMiddleware, FacturacionController.generarPdfDetalleSAT);

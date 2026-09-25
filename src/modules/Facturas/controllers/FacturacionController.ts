@@ -80,6 +80,22 @@ export class FacturacionController {
         }
     };
 
+    // POST /api/facturas/:id_factura/traslado-pdf
+    // Genera el PDF del documento de traslado y lo regresa como PDF
+    static generarTrasladoPdf = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const id_empresa = req.user?.id_empresa;
+            const { buffer, nombre } = await FacturacionService.generarHojaTraslado(id_factura, id_empresa);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="${nombre}"`);
+            res.send(buffer);
+        } catch (error: any) {
+            console.error('[generarTrasladoPdf]', error);
+            res.status(400).json({ message: error?.message ?? 'No se pudo generar el documento de traslado.' });
+        }
+    };
+
     // POST /api/facturas/:id_factura/pdf-sat
     // PDF con detalle SAT por renglón (Clave SAT + Clave de Unidad SAT), para clientes que lo requieren
     static generarPdfDetalleSAT = async (req: AuthedRequest, res: Response) => {

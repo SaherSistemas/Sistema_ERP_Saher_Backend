@@ -410,6 +410,10 @@ export const compraProveedorService = {
         return await Compra_ProveedorRepository.marcarCompraProveedorComoRecibida(id_comp, id_empleado);
     },
 
+    reabrirParaNuevaFactura: async (id_comp: string) => {
+        return await Compra_ProveedorRepository.reabrirParaNuevaFactura(id_comp);
+    },
+
     marcarIniciarChecado: async (id_comp: string, id_empleado: string) => {
         return await Compra_ProveedorRepository.iniciarChequeoDeCompraProveedor(id_comp, id_empleado)
     },

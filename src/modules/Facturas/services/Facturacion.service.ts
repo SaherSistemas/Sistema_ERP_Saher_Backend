@@ -581,6 +581,73 @@ export const FacturacionService = {
                 console.error('[FACTURA_EMPRESA] Error al insertar en BD vieja:', errPoly);
             }
 
+            // Documentos extra de traslado/traspaso (solo PDF): la factura ya se
+            // timbró como Ingreso normal arriba (con su CxC, su stock descontado y
+            // su salida de Kardex ya registrados una sola vez) — esto NO crea otra
+            // Factura ni vuelve a tocar existencia/Kardex, solo genera los PDFs
+            // para que la sucursal reciba también su hoja de traslado/traspaso.
+            try {
+                const pdfTrasladoExtra = await generarTrasladoPDFBuffer({
+                    folio: primerFolio,
+                    fecha_emision: new Date().toLocaleString('es-MX'),
+                    cod_int_pedido: cab.cod_int_pedido_alm,
+                    nombre_agente: cab.nombre_agente ?? null,
+                    id_empresa_sys_anterior: cab.id_empresa_sys_anterior,
+                    nom_empre: cab.nom_empre,
+                    rfc_empre: cab.rfc_empre,
+                    nom_empre_receptor: cab.nom_empre_receptor ?? null,
+                    razon_social: cab.razon_social_cliente,
+                    rfc_receptor: cab.rfc_cliente,
+                    calle_receptor: cab.calle_cliente,
+                    colonia_receptor: cab.colonia_cliente,
+                    municipio_receptor: cab.municipio_cliente,
+                    estado_receptor: cab.estado_cliente,
+                    subtotal: registros[0].totales.subtotal,
+                    iva: registros[0].totales.iva,
+                    total: registros[0].totales.total,
+                    items: conceptos.map(c => ({
+                        descripcion: c.descripcion,
+                        cantidad: c.cantidad,
+                        precio_unitario: c.precio_unitario,
+                        subtotal_linea: c.subtotal_linea,
+                        tasa_iva: c.tasa_iva,
+                        cod_barras: c.cod_barras,
+                        unidad: c.desc_medida,
+                        lotes: c.lotes.map(l => ({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: l.cantidad })),
+                    })),
+                });
+                if (!fs.existsSync(RUTA_PDFS)) fs.mkdirSync(RUTA_PDFS, { recursive: true });
+                const traslado_pdf_url = require('path').join(RUTA_PDFS, `TRA_${primerFolio}_${cab.cod_int_pedido_alm}_traslado.pdf`);
+                fs.writeFileSync(traslado_pdf_url, pdfTrasladoExtra);
+
+                const pdfTraspasoExtra = await construirPdfTraspaso({ cab, conceptos, folio: primerFolio });
+                const traspaso_pdf_url = require('path').join(RUTA_PDFS, `TRA_${primerFolio}_${cab.cod_int_pedido_alm}_traspaso.pdf`);
+                fs.writeFileSync(traspaso_pdf_url, pdfTraspasoExtra);
+
+                // Para facturas de Ingreso (FAC) de empresa propia: se manda a imprimir
+                // el TRASLADO (no el traspaso, que aquí solo queda disponible para
+                // descargar a mano con el botón "TRASPASO").
+                try {
+                    const impresora = await Impresora.findOne({
+                        where: { tipo_impresora: 'LASER', activa: true },
+                        order: [['createdAt', 'ASC']],
+                    });
+                    await Trabajo_Impresion.create({
+                        cod_interno_pedido: cab.cod_int_pedido_alm,
+                        id_impresora: impresora?.id_impresora ?? null,
+                        tipo_documento: 'TRASLADO',
+                        referencia_codigo: `FAC-${cab.id_empresa_sys_anterior}-${primerFolio}`,
+                        payload: { tipo: 'pdf', ruta_archivo: traslado_pdf_url },
+                        estado: 'PENDIENTE',
+                        solicitado_por: id_empleado ?? null,
+                    });
+                } catch (errImp) {
+                    console.error('[FACTURA_EMPRESA] No se pudo encolar trabajo de impresión del traslado:', errImp);
+                }
+            } catch (errDocs) {
+                console.error('[FACTURA_EMPRESA] No se pudieron generar los PDF de traslado/traspaso:', errDocs);
+            }
+
             if (cab.id_empresa_sys_nuevo) {
                 try {
                     const lotesPorArticulo = await getLotesPorPedido(cab.id_pedido_alm);
@@ -1529,13 +1596,15 @@ export const FacturacionService = {
     generarHojaTraspaso: async (id_factura: string, id_empresa: string) => {
         const factura = await Facturas.findByPk(id_factura);
         if (!factura) throw new Error('Factura no encontrada');
-        if (factura.tipo_cfdi !== 'T') throw new Error('La hoja de traspaso solo aplica a traslados (tipo T).');
-        if (!factura.id_pedido_alm) throw new Error('El traslado no tiene un pedido asociado.');
+        if (!factura.id_pedido_alm) throw new Error('La factura no tiene un pedido asociado.');
 
         const [cab, conceptos] = await Promise.all([
             FacturacionRepository.getCabecera(factura.id_pedido_alm, id_empresa),
             FacturacionRepository.getConceptos(factura.id_pedido_alm),
         ]);
+        if (factura.tipo_cfdi !== 'T' && cab.id_empresa_sys_anterior == null) {
+            throw new Error('La hoja de traspaso solo aplica a traslados o a facturas de clientes empresa propia.');
+        }
         if (!conceptos.length) throw new Error('El pedido no tiene artículos chequeados para el traspaso.');
 
         const folio = parseInt(String(factura.folio_factura), 10) || 0;
@@ -1553,6 +1622,60 @@ export const FacturacionService = {
         }
 
         return { buffer, nombre: `Traspaso_${folio}.pdf` };
+    },
+
+    // Regenera el PDF del documento de traslado bajo demanda — para traslados
+    // (tipo T) o para facturas de Ingreso de clientes empresa propia.
+    generarHojaTraslado: async (id_factura: string, id_empresa: string) => {
+        const factura = await Facturas.findByPk(id_factura);
+        if (!factura) throw new Error('Factura no encontrada');
+        if (!factura.id_pedido_alm) throw new Error('La factura no tiene un pedido asociado.');
+
+        const [cab, conceptos] = await Promise.all([
+            FacturacionRepository.getCabecera(factura.id_pedido_alm, id_empresa),
+            FacturacionRepository.getConceptos(factura.id_pedido_alm),
+        ]);
+        if (factura.tipo_cfdi !== 'T' && cab.id_empresa_sys_anterior == null) {
+            throw new Error('El documento de traslado solo aplica a traslados o a facturas de clientes empresa propia.');
+        }
+        if (!conceptos.length) throw new Error('El pedido no tiene conceptos para el traslado.');
+
+        const totales = calcularTotales(conceptos);
+        const folio = parseInt(String(factura.folio_factura), 10) || 0;
+        const fechaBase = factura.fecha_emision ? new Date(factura.fecha_emision) : new Date();
+        const fechaStr = `${fechaBase.getDate().toString().padStart(2, '0')}/${(fechaBase.getMonth() + 1).toString().padStart(2, '0')}/${fechaBase.getFullYear()} ${fechaBase.getHours().toString().padStart(2, '0')}:${fechaBase.getMinutes().toString().padStart(2, '0')}`;
+
+        const buffer = await generarTrasladoPDFBuffer({
+            folio,
+            fecha_emision: fechaStr,
+            cod_int_pedido: cab.cod_int_pedido_alm,
+            nombre_agente: cab.nombre_agente ?? null,
+            id_empresa_sys_anterior: cab.id_empresa_sys_anterior!,
+            nom_empre: cab.nom_empre,
+            rfc_empre: cab.rfc_empre,
+            nom_empre_receptor: cab.nom_empre_receptor ?? null,
+            razon_social: cab.razon_social_cliente,
+            rfc_receptor: cab.rfc_cliente,
+            calle_receptor: cab.calle_cliente,
+            colonia_receptor: cab.colonia_cliente,
+            municipio_receptor: cab.municipio_cliente,
+            estado_receptor: cab.estado_cliente,
+            subtotal: totales.subtotal,
+            iva: totales.iva,
+            total: totales.total,
+            items: conceptos.map(c => ({
+                descripcion: c.descripcion,
+                cantidad: c.cantidad,
+                precio_unitario: c.precio_unitario,
+                subtotal_linea: c.subtotal_linea,
+                tasa_iva: c.tasa_iva,
+                cod_barras: c.cod_barras,
+                unidad: c.desc_medida,
+                lotes: c.lotes.map(l => ({ lote: l.lote, fecha_venci: l.fecha_venci, cantidad: l.cantidad })),
+            })),
+        });
+
+        return { buffer, nombre: `Traslado_${folio}.pdf` };
     },
 
     reintentarTimbrado: async (id_factura: string, id_empresa: string) => {

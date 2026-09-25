@@ -439,6 +439,25 @@ export const Compra_ProveedorRepository = {
     );
   },
 
+  // Reabre una compra_proveedor ya Completada (F) o Completada c/devolución (D)
+  // para poder registrarle otra factura que llegó del mismo proveedor por la
+  // misma orden. No toca ninguna factura/lote/stock ya registrado de la
+  // primera factura — solo regresa el estado a 'R' (Recibida) para que el
+  // flujo normal de "capturar factura + chequeo" quede disponible otra vez.
+  reabrirParaNuevaFactura: async (id_comp: string) => {
+    const compraProveedor = await Compra_Proveedor.findByPk(id_comp);
+    if (!compraProveedor) throw new Error('Compra del proveedor no encontrada');
+    if (!['F', 'D'].includes(compraProveedor.estado_comp)) {
+      throw new Error('Solo se puede reabrir una compra ya Completada.');
+    }
+    await compraProveedor.update({
+      estado_comp: 'R',
+      fin_de_compra_proveedor: null,
+      fin_de_registro_lotes: null,
+    });
+    return compraProveedor;
+  },
+
   comprasProveedorSinTerminar: async (id_compra_general: string, t?: { transaction?: Transaction }) => {
     const pendientes = await Compra_Proveedor.count({
       where: {
