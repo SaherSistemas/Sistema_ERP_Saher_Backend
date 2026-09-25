@@ -64,6 +64,16 @@ function _renderPaginaTraspaso(doc: InstanceType<typeof PDFDocument>, datos: Dat
     const hline = (y: number, x1 = MX, x2 = MX + CW, w = 0.4, c = LBORD) =>
         doc.moveTo(x1, y).lineTo(x2, y).lineWidth(w).stroke(c);
 
+    // pdfkit no siempre respeta lineBreak:false + ellipsis con anchos angostos
+    // (se ve texto partido en 2 líneas encimándose con el renglón de abajo).
+    // Se trunca el texto a mano, midiendo con la fuente ya puesta en el doc.
+    const truncar = (texto: string, maxWidth: number): string => {
+        if (doc.widthOfString(texto) <= maxWidth) return texto;
+        let t = texto;
+        while (t.length > 1 && doc.widthOfString(t + '…') > maxWidth) t = t.slice(0, -1);
+        return t + '…';
+    };
+
     let y = MY;
 
     // ── 1. Título ─────────────────────────────────────────────────────────────
@@ -144,46 +154,49 @@ function _renderPaginaTraspaso(doc: InstanceType<typeof PDFDocument>, datos: Dat
     y += 4;
 
     // ── 4. Tabla ──────────────────────────────────────────────────────────────
+    // Una fila por cada combinación artículo+lote (si un artículo no tiene
+    // lotes registrados, se le pone una sola fila con lote/caducidad en blanco).
+    // El tipo de reporte (Normales/Receta) ya se indica una sola vez en el
+    // encabezado de la página y en el pie, así que no se repite por renglón.
     const COLS = [
-        { label: 'Piezas',      w:  40, align: 'right'  as const },
-        { label: 'Lote',        w:  65, align: 'left'   as const },
-        { label: 'Caducidad',   w:  52, align: 'center' as const },
-        { label: 'Factura',     w:  80, align: 'left'   as const },
-        { label: 'Origen',      w: 118, align: 'left'   as const },
-        { label: 'Código',      w:  42, align: 'center' as const },
-        { label: 'C.Barras',    w:  72, align: 'left'   as const },
-        { label: 'Descripción', w:  59, align: 'left'   as const },
-        { label: 'Tipo',        w:  38, align: 'center' as const },
+        { label: 'Piezas',      w:  36, align: 'right'  as const },
+        { label: 'Código',      w:  40, align: 'center' as const },
+        { label: 'C.Barras',    w:  75, align: 'left'   as const },
+        { label: 'Descripción', w: 155, align: 'left'   as const },
+        { label: 'Lote',        w:  60, align: 'left'   as const },
+        { label: 'Caducidad',   w:  48, align: 'center' as const },
+        { label: 'Proveedor',   w:  90, align: 'left'   as const },
+        { label: 'Factura',     w:  64, align: 'left'   as const },
     ];
-    const TH         = 13;
-    const TR         = 12;
+    const TH = 16;
+    const TR = 15;
     const TIPO_LABEL = datos.tipo_reporte === 'Receta' ? 'Receta' : 'Otros';
 
-    // Header
-    doc.rect(MX, y, CW, TH).fill('#e5e7eb');
-    let cx = MX;
-    COLS.forEach(col => {
-        doc.font('Helvetica-Bold').fontSize(6.5).fillColor(NEGRO)
-           .text(col.label, cx + 2, y + 3, { width: col.w - 4, align: col.align, lineBreak: false });
-        cx += col.w;
-    });
-    y += TH;
-    hline(y);
-
-    const FOOTER_H = 35;
-    const MAX_Y    = PH - FOOTER_H;
+    const vlines = (yTop: number, yBottom: number) => {
+        let vx = MX;
+        COLS.forEach(col => {
+            doc.moveTo(vx, yTop).lineTo(vx, yBottom).lineWidth(0.4).stroke(LBORD);
+            vx += col.w;
+        });
+        doc.moveTo(vx, yTop).lineTo(vx, yBottom).lineWidth(0.4).stroke(LBORD);
+    };
 
     const renderTableHeader = () => {
         doc.rect(MX, y, CW, TH).fill('#e5e7eb');
         let hx = MX;
         COLS.forEach(col => {
-            doc.font('Helvetica-Bold').fontSize(6.5).fillColor(NEGRO)
-               .text(col.label, hx + 2, y + 3, { width: col.w - 4, align: col.align, lineBreak: false });
+            doc.font('Helvetica-Bold').fontSize(7).fillColor(NEGRO)
+               .text(col.label, hx + 3, y + 4, { width: col.w - 6, align: col.align, lineBreak: false });
             hx += col.w;
         });
         y += TH;
-        hline(y);
+        hline(y, MX, MX + CW, 0.8, '#9ca3af');
     };
+
+    renderTableHeader();
+
+    const FOOTER_H = 35;
+    const MAX_Y    = PH - FOOTER_H;
 
     const checkPageBreak = () => {
         if (y + TR > MAX_Y) {
@@ -195,46 +208,47 @@ function _renderPaginaTraspaso(doc: InstanceType<typeof PDFDocument>, datos: Dat
         }
     };
 
+    const renderFila = (vals: string[], bold0 = false) => {
+        checkPageBreak();
+        if (rowIdx % 2 === 0) doc.rect(MX, y, CW, TR).fill('#f9fafb');
+        let cx = MX;
+        vals.forEach((val, ci) => {
+            doc.font(bold0 && ci === 3 ? 'Helvetica-Bold' : 'Helvetica').fontSize(7).fillColor(NEGRO);
+            const disp = truncar(val, COLS[ci].w - 6);
+            doc.text(disp, cx + 3, y + 4, { width: COLS[ci].w - 6, align: COLS[ci].align, lineBreak: false });
+            cx += COLS[ci].w;
+        });
+        vlines(y, y + TR);
+        y += TR;
+        rowIdx++;
+    };
+
     // Filas
     let rowIdx = 0;
     datos.items.forEach(item => {
-        checkPageBreak();
-        if (rowIdx % 2 === 0) doc.rect(MX, y, CW, TR).fill('#f9fafb');
-        cx = MX;
-        ['', '', '', '', '', String(item.cod_int_artic), item.cod_barras, item.descripcion, TIPO_LABEL]
-        .forEach((val, ci) => {
-            doc.font(ci === 7 ? 'Helvetica-Bold' : 'Helvetica').fontSize(6.5).fillColor(NEGRO)
-               .text(val, cx + 2, y + 3,
-                     { width: COLS[ci].w - 4, align: COLS[ci].align, lineBreak: false, ellipsis: true });
-            cx += COLS[ci].w;
-        });
-        y += TR;
-        rowIdx++;
-
+        if (!item.lotes.length) {
+            renderFila([
+                item.cantidad.toFixed(0), String(item.cod_int_artic), item.cod_barras,
+                item.descripcion, '—', '—', '—', '—',
+            ], true);
+            return;
+        }
         item.lotes.forEach(lote => {
-            checkPageBreak();
-            if (rowIdx % 2 === 0) doc.rect(MX, y, CW, TR).fill('#f9fafb');
-            cx = MX;
-            [lote.cantidad.toFixed(4), lote.lote, lote.fecha_venci,
-             lote.folio_factura_proveedor ?? '', lote.nom_proveedor ?? '',
-             '', '', '', '']
-            .forEach((val, ci) => {
-                doc.font('Helvetica').fontSize(6.5).fillColor(ci === 0 ? NEGRO : GR)
-                   .text(val, cx + 2, y + 3,
-                         { width: COLS[ci].w - 4, align: COLS[ci].align, lineBreak: false, ellipsis: true });
-                cx += COLS[ci].w;
-            });
-            y += TR;
-            rowIdx++;
+            renderFila([
+                lote.cantidad.toFixed(0), String(item.cod_int_artic), item.cod_barras,
+                item.descripcion, lote.lote, lote.fecha_venci,
+                lote.nom_proveedor ?? '—', lote.folio_factura_proveedor ?? '—',
+            ], true);
         });
     });
 
     hline(y, MX, MX + CW, 0.8, '#9ca3af');
     y += 5;
 
-    const totalPiezas = datos.items.reduce((s, i) => s + i.lotes.reduce((a, l) => a + l.cantidad, 0), 0);
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor(NEGRO)
-       .text(`Total Piezas: ${totalPiezas.toFixed(4)}`, MX, y);
+    const totalPiezas = datos.items.reduce(
+        (s, i) => s + (i.lotes.length ? i.lotes.reduce((a, l) => a + l.cantidad, 0) : i.cantidad), 0);
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(NEGRO)
+       .text(`Total Piezas: ${totalPiezas.toFixed(0)}`, MX, y);
 
     // ── 5. Footer ─────────────────────────────────────────────────────────────
     const FY = PH - 30;

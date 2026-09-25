@@ -194,7 +194,7 @@ export function generarTxtIngresoPublicoGeneral(opts: {
         cve_sat: '01010101',
         sat_medida: 'ACT',
         desc_medida: 'Actividad',
-        cod_barras: '',
+        cod_barras: '.',
         cantidad: 1,
         descripcion: `PRODUCTOS O SERVICIOS GRAVADOS TASA ${Math.round(tasa * 100)}%`,
         precio_unitario: +datos.subtotal.toFixed(2),
