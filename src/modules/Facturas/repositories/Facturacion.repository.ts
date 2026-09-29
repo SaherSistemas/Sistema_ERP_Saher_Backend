@@ -40,8 +40,8 @@ export const FacturacionRepository = {
 
         if (filtros.fecha_inicio || filtros.fecha_fin) {
             where.fecha_emision = {};
-            if (filtros.fecha_inicio) where.fecha_emision[Op.gte] = new Date(filtros.fecha_inicio);
-            if (filtros.fecha_fin)    where.fecha_emision[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
+            if (filtros.fecha_inicio) where.fecha_emision[Op.gte] = filtros.fecha_inicio + ' 00:00:00';
+            if (filtros.fecha_fin)    where.fecha_emision[Op.lte] = filtros.fecha_fin + ' 23:59:59';
         } else if (!filtros.busqueda && !filtros.con_recibo) {
             // Sin filtros de fecha ni búsqueda → limitar al último mes para no escanear toda la tabla
             const hace30dias = new Date();

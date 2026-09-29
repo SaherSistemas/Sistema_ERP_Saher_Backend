@@ -31,12 +31,13 @@ export const Detalle_Factura_Compra_ProveedorService = {
             }
         }
 
-        // Actualizar precio/descuento/IVA si vienen en el payload
-        if (data.precio !== undefined || data.descuento_pct !== undefined || data.iva_pct !== undefined) {
+        // Actualizar precio/descuento/IVA/cantidad si vienen en el payload
+        if (data.precio !== undefined || data.descuento_pct !== undefined || data.iva_pct !== undefined || data.cantidad_articulo_facturada !== undefined) {
             const updateFields: Record<string, number> = {};
             if (data.precio !== undefined)        updateFields.precio_articulo_factura   = data.precio;
             if (data.descuento_pct !== undefined) updateFields.descuento_articulo_factura = data.descuento_pct;
             if (data.iva_pct !== undefined)       updateFields.iva_articulo_factura       = data.iva_pct;
+            if (data.cantidad_articulo_facturada !== undefined) updateFields.cantidad_articulo_facturada = data.cantidad_articulo_facturada;
             await Detalle_Factura_Compra_Proveedor.update(updateFields, {
                 where: { id_factura_proveedor_detalle: data.id_factura_proveedor_detalle },
             });

@@ -14,7 +14,8 @@ export class FacturacionController {
         try {
             const { id_factura } = req.params;
             const id_empresa = req.user?.id_empresa;
-            const resultado = await FacturacionService.reintentarTimbrado(id_factura, id_empresa);
+            const forzarNuevoFolio = req.body?.nuevo_folio === true;
+            const resultado = await FacturacionService.reintentarTimbrado(id_factura, id_empresa, forzarNuevoFolio);
             res.json(resultado);
         } catch (error: any) {
             console.error(error);

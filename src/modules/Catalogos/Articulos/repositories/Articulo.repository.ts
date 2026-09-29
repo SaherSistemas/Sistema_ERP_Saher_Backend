@@ -157,7 +157,7 @@ export const ArticuloRepository = {
         };
     },
 
-    getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string, q: string = '') => {
+    getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string, q: string = '', id_proveedor?: string) => {
         const offset = (page - 1) * limit;
 
         const parametro = await Parametros_Compra.findOne({
@@ -202,13 +202,25 @@ export const ArticuloRepository = {
         // aquí para comprar). Se conservan los que ya tienen pedido en la compra
         // abierta para que no "desaparezcan" si el listado del proveedor se
         // refrescó después de pedirlos.
+        // Si se filtra por un proveedor específico, solo entran los artículos que
+        // ESE proveedor trae en su listado — los que no tiene, ni se listan.
         const idEmpresaSql = String(id_empresasucursal).replace(/'/g, "''");
-        whereArticulo[Op.and] = [
-            literal(`(
-                trim("Articulo"."cod_barr_artic") IN (
+        const idProveedorSql = id_proveedor ? String(id_proveedor).replace(/'/g, "''") : null;
+        const condicionListado = idProveedorSql
+            ? `trim("Articulo"."cod_barr_artic") IN (
+                    SELECT trim(dlp.cod_barra_pro_detlist)
+                    FROM detalle_listado_proveedor dlp
+                    JOIN listados_proveedor lp ON lp.id_listprove = dlp.id_list_detlist
+                    WHERE dlp.exist_pro_detlist > 0
+                      AND lp.id_prove_listprove = '${idProveedorSql}'
+               )`
+            : `trim("Articulo"."cod_barr_artic") IN (
                     SELECT trim(dlp.cod_barra_pro_detlist) FROM detalle_listado_proveedor dlp
                     WHERE dlp.exist_pro_detlist > 0
-                )
+               )`;
+        whereArticulo[Op.and] = [
+            literal(`(
+                ${condicionListado}
                 OR "Articulo"."id_artic" IN (
                     SELECT dcs.idarticulo_detcompsol
                     FROM detalle_compra_solicitado dcs

@@ -314,16 +314,23 @@ export function iniciarXmlWatcher() {
     console.log(`[XmlWatcher] Vigilando: ${carpeta} (cada ${POLL_MS / 1000}s)`);
 
     let corriendo = false;
+    let ultimoErrorLoggeado = 0;
 
     setInterval(async () => {
         if (corriendo) return;
         corriendo = true;
         try {
-            const hace48h = Date.now() - 12 * 60 * 60 * 1000;
+            const hace48h = Date.now() - 48 * 60 * 60 * 1000;
             let todos: string[];
             try {
                 todos = await fs.readdir(carpeta);
-            } catch {
+            } catch (err: any) {
+                // Antes esto se tragaba en silencio: si el share de red se cae, el watcher
+                // deja de leer XMLs para siempre sin avisar nada. Se loguea cada 5 min.
+                if (Date.now() - ultimoErrorLoggeado > 5 * 60 * 1000) {
+                    ultimoErrorLoggeado = Date.now();
+                    console.error(`[XmlWatcher] No se pudo leer ${carpeta}: ${err?.message ?? err}`);
+                }
                 return;
             }
 

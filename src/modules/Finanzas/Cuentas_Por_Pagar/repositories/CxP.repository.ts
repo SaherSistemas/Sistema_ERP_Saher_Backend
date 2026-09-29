@@ -28,9 +28,11 @@ export const CxPRepository = {
             where.saldo_pendiente = { [Op.gt]: 0 };
         }
         if (filtros.fecha_inicio || filtros.fecha_fin) {
+            // fecha_vencimiento es DATEONLY: comparar contra el string plano, sin new Date()
+            // (ver Pago_CxC.repository.ts para el porqué).
             where.fecha_vencimiento = {};
-            if (filtros.fecha_inicio) where.fecha_vencimiento[Op.gte] = new Date(filtros.fecha_inicio);
-            if (filtros.fecha_fin) where.fecha_vencimiento[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
+            if (filtros.fecha_inicio) where.fecha_vencimiento[Op.gte] = filtros.fecha_inicio;
+            if (filtros.fecha_fin) where.fecha_vencimiento[Op.lte] = filtros.fecha_fin;
         }
 
         return await Cuenta_Por_Pagar.findAll({

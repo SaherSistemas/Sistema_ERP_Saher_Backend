@@ -16,17 +16,17 @@ import { Margen_Ganancia_ListaRepository } from '../../../Comercial/Precios/repo
 import { Margen_Especial_ArticuloRepository } from '../../../Comercial/Precios/repositories/Margen_Especial_Articulo.repository';
 
 async function _syncPrecioPolyDB(
-    cod_int_artic: number,
-    cod_int_lista_precio: number,
-    precio: number,
+  cod_int_artic: number,
+  cod_int_lista_precio: number,
+  precio: number,
 ): Promise<void> {
-    const [costoRow] = await dbPoly.query<{ almcosprn: number }>(
-        `SELECT almcosprn FROM almacenes1 WHERE artcdartn = :codArtic AND almcdalmn = 1 LIMIT 1`,
-        { type: QueryTypes.SELECT, replacements: { codArtic: cod_int_artic } }
-    );
-    const costo = Number((costoRow as any)?.almcosprn ?? 0);
-    const margen = precio > 0 ? ((precio - costo) / precio) * 100 : 0;
-    await dbPoly.query(`
+  const [costoRow] = await dbPoly.query<{ almcosprn: number }>(
+    `SELECT almcosprn FROM almacenes1 WHERE artcdartn = :codArtic AND almcdalmn = 1 LIMIT 1`,
+    { type: QueryTypes.SELECT, replacements: { codArtic: cod_int_artic } }
+  );
+  const costo = Number((costoRow as any)?.almcosprn ?? 0);
+  const margen = precio > 0 ? ((precio - costo) / precio) * 100 : 0;
+  await dbPoly.query(`
         INSERT INTO preciogpo (grpcdgrpn, artcdartn, grpprecin, grpcoston, grpmargen, grpstatuc, grpfechad, grppreofn, grpfecofD, grppzalmn, grpmulOfc)
         VALUES (:codGrupo, :codArtic, :precio, :costo, :margen, 'A', CURRENT_DATE, NULL, NULL, NULL, 'N')
         ON CONFLICT (grpcdgrpn, artcdartn)
@@ -37,9 +37,9 @@ async function _syncPrecioPolyDB(
             grpstatuc = 'A',
             grpfechad = CURRENT_DATE
     `, {
-        type: QueryTypes.INSERT,
-        replacements: { codGrupo: cod_int_lista_precio, codArtic: cod_int_artic, precio, costo, margen },
-    });
+    type: QueryTypes.INSERT,
+    replacements: { codGrupo: cod_int_lista_precio, codArtic: cod_int_artic, precio, costo, margen },
+  });
 }
 
 export class ArticuloController {
@@ -96,12 +96,14 @@ export class ArticuloController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
       const q = (req.query.q as string)?.trim() || '';
+      const id_proveedor = (req.query.id_proveedor as string)?.trim() || undefined;
 
       const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(
         page,
         limit,
         id_empresasucursal,
-        q
+        q,
+        id_proveedor
       );
       // console.log(TodosArticulosParaCompra)
       res.status(200).json(TodosArticulosParaCompra);
@@ -118,7 +120,7 @@ export class ArticuloController {
       const limit = parseInt(req.query.limit as string) || 20;
 
       const articulosNegados = await ArticuloService.getAllArticulosNegadosParaCompra(id_empresa_sucursal, page, limit);
-      console.log(articulosNegados)
+      //  console.log(articulosNegados)
       res.status(200).json(articulosNegados);
     } catch (error) {
       console.error(error);

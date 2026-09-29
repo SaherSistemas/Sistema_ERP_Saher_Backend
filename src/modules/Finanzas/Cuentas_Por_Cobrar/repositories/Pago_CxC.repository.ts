@@ -129,9 +129,12 @@ export const Pago_CxCRepository = {
 
         const where: any = { estatus_pago: 'APL' };
         if (filtros?.fecha_inicio || filtros?.fecha_fin) {
+            // fecha_pago es DATEONLY: se compara contra el string 'YYYY-MM-DD' tal cual, sin pasar
+            // por new Date() — un objeto Date reintroduce la zona horaria del proceso de Node
+            // (que en producción no necesariamente coincide con la de Sinaloa) y desfasaba el filtro.
             where.fecha_pago = {};
-            if (filtros.fecha_inicio) where.fecha_pago[Op.gte] = new Date(filtros.fecha_inicio);
-            if (filtros.fecha_fin)    where.fecha_pago[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
+            if (filtros.fecha_inicio) where.fecha_pago[Op.gte] = filtros.fecha_inicio;
+            if (filtros.fecha_fin)    where.fecha_pago[Op.lte] = filtros.fecha_fin;
         }
 
         return await Pago_CxC.findAll({
@@ -178,9 +181,10 @@ export const Pago_CxCRepository = {
 
         const where: any = {};
         if (filtros.fecha_inicio || filtros.fecha_fin) {
+            // Ver comentario en getPagosAplicados: fecha_pago es DATEONLY, se compara por string plano.
             where.fecha_pago = {};
-            if (filtros.fecha_inicio) where.fecha_pago[Op.gte] = new Date(filtros.fecha_inicio);
-            if (filtros.fecha_fin)    where.fecha_pago[Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
+            if (filtros.fecha_inicio) where.fecha_pago[Op.gte] = filtros.fecha_inicio;
+            if (filtros.fecha_fin)    where.fecha_pago[Op.lte] = filtros.fecha_fin;
         }
 
         return await Pago_CxC.findAll({

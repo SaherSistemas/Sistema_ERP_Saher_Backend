@@ -523,8 +523,8 @@ export const Kardex_Movimiento_ArticuloRepository = {
 
     if (fecha_inicio || fecha_fin) {
       where['fecha'] = {
-        ...(fecha_inicio ? { [Op.gte]: new Date(fecha_inicio) } : {}),
-        ...(fecha_fin ? { [Op.lte]: new Date(fecha_fin + 'T23:59:59') } : {}),
+        ...(fecha_inicio ? { [Op.gte]: fecha_inicio + ' 00:00:00' } : {}),
+        ...(fecha_fin ? { [Op.lte]: fecha_fin + ' 23:59:59' } : {}),
       };
     }
 

@@ -527,7 +527,7 @@ export const Compra_ProveedorRepository = {
         idcompr_detcompneg: id_compra_proveedor,
         idarticulo_detcompneg: p.id_artic,
         cantidad_negada: p.cantidad_pendiente,
-        motivo_negado: 'Pendiente en captura de compra proveedor',
+        motivo_negado: 'No llegó completo en la compra anterior',
         recuperado: false,
         fecha_negado: new Date(),
         fecha_limite_recuperacion: fechaLimite,

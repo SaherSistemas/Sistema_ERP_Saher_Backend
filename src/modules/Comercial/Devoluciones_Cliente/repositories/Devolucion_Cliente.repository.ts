@@ -159,8 +159,8 @@ export const DevolucionClienteRepository = {
         if (filtros?.id_agente) where['id_agente'] = filtros.id_agente;
         if (filtros?.fecha_inicio || filtros?.fecha_fin) {
             where['fecha_solicitud'] = {};
-            if (filtros.fecha_inicio) where['fecha_solicitud'][Op.gte] = new Date(filtros.fecha_inicio);
-            if (filtros.fecha_fin) where['fecha_solicitud'][Op.lte] = new Date(filtros.fecha_fin + 'T23:59:59');
+            if (filtros.fecha_inicio) where['fecha_solicitud'][Op.gte] = filtros.fecha_inicio + ' 00:00:00';
+            if (filtros.fecha_fin) where['fecha_solicitud'][Op.lte] = filtros.fecha_fin + ' 23:59:59';
         }
         return await Devolucion_Cliente.findAll({
             where,

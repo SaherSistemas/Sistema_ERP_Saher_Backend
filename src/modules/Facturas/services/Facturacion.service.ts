@@ -1678,11 +1678,21 @@ export const FacturacionService = {
         return { buffer, nombre: `Traslado_${folio}.pdf` };
     },
 
-    reintentarTimbrado: async (id_factura: string, id_empresa: string) => {
+    // Si forzarNuevoFolio=true, antes de regenerar el .txt se le asigna el siguiente folio
+    // disponible y se marca como 'REF' (Refoliada). Sirve para cuando el facturador ya
+    // registró el folio anterior (p.ej. se timbró, se canceló en el SAT y no acepta
+    // reusar el mismo folio): sin esto, reintentarTimbrado reintenta con el folio viejo.
+    reintentarTimbrado: async (id_factura: string, id_empresa: string, forzarNuevoFolio: boolean = false) => {
 
         const factura = await Facturas.findByPk(id_factura);
         if (!factura) throw new Error('Factura no encontrada');
         if (factura.estatus_factura === 'CAN') throw new Error('La factura está cancelada');
+
+        if (forzarNuevoFolio) {
+            if (factura.estatus_factura === 'TIM') throw new Error('La factura ya está timbrada, no se le puede cambiar el folio');
+            const nuevoFolio = await FacturacionRepository.getSiguienteFolio();
+            await factura.update({ folio_factura: String(nuevoFolio), estatus_factura: 'REF' });
+        }
 
         const empresa = await obtenerEmisor(id_empresa);
         if (!empresa) throw new Error('Empresa no encontrada');

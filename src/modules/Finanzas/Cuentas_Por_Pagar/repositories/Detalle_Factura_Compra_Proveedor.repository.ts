@@ -212,11 +212,28 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
     },
 
     eliminarDetalle: async (id_factura_proveedor_detalle: string) => {
-        // Borrar primero los registros hijos en detalle_compra_recibido
+        // Orden de borrado por las llaves foráneas encadenadas:
+        // lotes_recibidos_compra -> detalle_compra_recibido -> detalle_factura_compra_proveedor
+        // y, en paralelo, lote_factura_compra_proveedor -> detalle_factura_compra_proveedor.
+        // Antes solo se borraba detalle_compra_recibido y tronaba si ya tenía lotes_recibidos_compra.
+        await dbLocal.query(`
+            DELETE FROM lotes_recibidos_compra
+            WHERE id_detallecompr_recibido IN (
+                SELECT id_detcomprec FROM detalle_compra_recibido
+                WHERE id_detalle_factura_compra_proveedor = :id
+            )
+        `, { replacements: { id: id_factura_proveedor_detalle }, type: QueryTypes.DELETE });
+
         await dbLocal.query(
             'DELETE FROM detalle_compra_recibido WHERE id_detalle_factura_compra_proveedor = :id',
             { replacements: { id: id_factura_proveedor_detalle }, type: QueryTypes.DELETE }
         );
+
+        await dbLocal.query(
+            'DELETE FROM lote_factura_compra_proveedor WHERE id_det_factura_proveedor = :id',
+            { replacements: { id: id_factura_proveedor_detalle }, type: QueryTypes.DELETE }
+        );
+
         return await Detalle_Factura_Compra_Proveedor.destroy({
             where: { id_factura_proveedor_detalle }
         });
