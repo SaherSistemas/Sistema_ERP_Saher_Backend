@@ -177,31 +177,35 @@ export const Articulo_Ubicacion_DefaultRepository = {
         );
     },
 
-    // Ubicaciones "libres" para elegir como default: anaquel/estantería (no TARIMA, esas
-    // siempre admiten varios artículos) que hoy NO son default de ningún artículo. Se
-    // excluye la propia ubicación actual del artículo que se está reasignando, para que
-    // también pueda re-elegirla sin que cuente como "ocupada por sí mismo".
+    // Ubicaciones para elegir como default: anaqueles/estantería que hoy NO son default de
+    // ningún OTRO artículo, más TODAS las tarimas (una tarima física guarda varios productos,
+    // así que nunca se considera "ocupada"; un artículo puede tener a la vez un default de
+    // anaquel y uno de tarima). Se excluye la propia ubicación actual del artículo que se está
+    // reasignando, para que también pueda re-elegirla sin que cuente como "ocupada por sí mismo".
     getUbicacionesLibres: async (id_empresa_sucursal: string, id_articulo_excluir?: string) => {
         return await dbLocal.query<{
             id_ubicacion_sucursal: string;
             tipo_ubicacion: string;
+            tarima_ub: string | null;
             pasillo_ub: string | null;
             anaquel_ub: string | null;
             nivel_ub: string | null;
             posicion_ub: string | null;
         }>(
             `
-            SELECT us.id_ubicacion_sucursal, us.tipo_ubicacion, us.pasillo_ub, us.anaquel_ub, us.nivel_ub, us.posicion_ub
+            SELECT us.id_ubicacion_sucursal, us.tipo_ubicacion, us.tarima_ub, us.pasillo_ub, us.anaquel_ub, us.nivel_ub, us.posicion_ub
             FROM ubicacion_sucursal us
             WHERE us.id_empresa_sucursal = :id_empresa_sucursal
-              AND us.tipo_ubicacion <> 'TARIMA'
-              AND NOT EXISTS (
-                  SELECT 1 FROM articulo_ubicacion_default aud
-                  WHERE aud.id_ubicacion_default = us.id_ubicacion_sucursal
-                    AND aud.id_empresa_sucursal = us.id_empresa_sucursal
-                    AND (:id_articulo_excluir::uuid IS NULL OR aud.id_articulo <> :id_articulo_excluir)
+              AND (
+                  us.tipo_ubicacion = 'TARIMA'
+                  OR NOT EXISTS (
+                      SELECT 1 FROM articulo_ubicacion_default aud
+                      WHERE aud.id_ubicacion_default = us.id_ubicacion_sucursal
+                        AND aud.id_empresa_sucursal = us.id_empresa_sucursal
+                        AND (:id_articulo_excluir::uuid IS NULL OR aud.id_articulo <> :id_articulo_excluir)
+                  )
               )
-            ORDER BY us.pasillo_ub, us.anaquel_ub, us.nivel_ub, us.posicion_ub;
+            ORDER BY us.tipo_ubicacion, us.pasillo_ub, us.tarima_ub, us.anaquel_ub, us.nivel_ub, us.posicion_ub;
             `,
             { replacements: { id_empresa_sucursal, id_articulo_excluir: id_articulo_excluir ?? null }, type: QueryTypes.SELECT }
         );

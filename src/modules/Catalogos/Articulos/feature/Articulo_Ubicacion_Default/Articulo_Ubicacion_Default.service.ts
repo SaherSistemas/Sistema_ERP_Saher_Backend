@@ -30,25 +30,32 @@ export const Articulo_Ubicacion_DefaultServices = {
     },
     actualizarOCrearDefaultArticulOUbicacion: async (id_empresa_sucursal: string, id_articulo: string, id_ubicacion_sucursal: string) => {
         return await dbLocal.transaction(async (t) => {
+            const tipoDestino = await Articulo_Ubicacion_DefaultRepository.getTipoUbicacion(id_ubicacion_sucursal, t);
+            const destinoEsTarima = tipoDestino === 'TARIMA';
+
             // Una ubicación de anaquel/estantería solo puede ser default de UN artículo a la vez.
             // Una TARIMA sí puede tener varios artículos encima físicamente, así que ahí no se bloquea.
             const existenteEnDestino = await Articulo_Ubicacion_DefaultRepository.findByUbicacion(id_empresa_sucursal, id_ubicacion_sucursal, t);
-            if (existenteEnDestino && existenteEnDestino.id_articulo !== id_articulo) {
-                const tipoUbicacion = await Articulo_Ubicacion_DefaultRepository.getTipoUbicacion(id_ubicacion_sucursal, t);
-                if (tipoUbicacion !== 'TARIMA') {
-                    const otroArticulo = (existenteEnDestino as any).articulo;
-                    const nombre = otroArticulo ? `${otroArticulo.cod_int_artic} - ${otroArticulo.des_artic}` : 'otro artículo';
-                    throw new Error(`Esta ubicación ya es default de ${nombre}. Quítasela primero antes de asignarla aquí.`);
-                }
+            if (existenteEnDestino && existenteEnDestino.id_articulo !== id_articulo && !destinoEsTarima) {
+                const otroArticulo = (existenteEnDestino as any).articulo;
+                const nombre = otroArticulo ? `${otroArticulo.cod_int_artic} - ${otroArticulo.des_artic}` : 'otro artículo';
+                throw new Error(`Esta ubicación ya es default de ${nombre}. Quítasela primero antes de asignarla aquí.`);
             }
 
-            // Un artículo solo debe tener UNA ubicación default: si ya tenía otra (o, por datos
-            // viejos, varias), se MUEVE la primera al destino nuevo y se borran las demás, en vez
-            // de acumular una fila más (eso era el bug: nunca se actualizaba, solo se creaba).
+            // Un artículo puede tener HASTA 2 ubicaciones default a la vez: una de anaquel/estantería
+            // y una de tarima (son cosas distintas: el anaquel es su lugar fijo de picking, la tarima
+            // es donde tiene el bulto/reserva). Por eso el "mover" solo reemplaza la ubicación del
+            // MISMO tipo que el destino; la del otro tipo, si existe, se deja intacta.
             const propiasDelArticulo = await Articulo_Ubicacion_DefaultRepository.findAllByArticulo(id_empresa_sucursal, id_articulo, t);
-            const yaEstaEnDestino = propiasDelArticulo.find(p => p.id_ubicacion_default === id_ubicacion_sucursal);
+            const propiasConTipo = await Promise.all(propiasDelArticulo.map(async (p) => ({
+                fila: p,
+                esTarima: (await Articulo_Ubicacion_DefaultRepository.getTipoUbicacion(p.id_ubicacion_default, t)) === 'TARIMA',
+            })));
+            const mismoGrupo = propiasConTipo.filter(p => p.esTarima === destinoEsTarima).map(p => p.fila);
+
+            const yaEstaEnDestino = mismoGrupo.find(p => p.id_ubicacion_default === id_ubicacion_sucursal);
             if (yaEstaEnDestino) {
-                for (const extra of propiasDelArticulo) {
+                for (const extra of mismoGrupo) {
                     if (extra.id_articulo_ubicacion_default !== yaEstaEnDestino.id_articulo_ubicacion_default) {
                         await Articulo_Ubicacion_DefaultRepository.eliminar(extra.id_articulo_ubicacion_default, t);
                     }
@@ -56,8 +63,8 @@ export const Articulo_Ubicacion_DefaultServices = {
                 return yaEstaEnDestino;
             }
 
-            if (propiasDelArticulo.length > 0) {
-                const [primera, ...resto] = propiasDelArticulo;
+            if (mismoGrupo.length > 0) {
+                const [primera, ...resto] = mismoGrupo;
                 for (const extra of resto) {
                     await Articulo_Ubicacion_DefaultRepository.eliminar(extra.id_articulo_ubicacion_default, t);
                 }
@@ -151,7 +158,9 @@ export const Articulo_Ubicacion_DefaultServices = {
         const filas = await Articulo_Ubicacion_DefaultRepository.getUbicacionesLibres(id_empresa_sucursal, id_articulo_excluir);
         return filas.map(u => ({
             id_ubicacion_sucursal: u.id_ubicacion_sucursal,
-            etiqueta: `${u.pasillo_ub || '—'}-${u.anaquel_ub}-${u.nivel_ub}-${u.posicion_ub}`,
+            etiqueta: u.tipo_ubicacion === 'TARIMA'
+                ? `Tarima ${u.tarima_ub}`
+                : `${u.pasillo_ub || '—'}-${u.anaquel_ub}-${u.nivel_ub}-${u.posicion_ub}`,
         }));
     },
 
