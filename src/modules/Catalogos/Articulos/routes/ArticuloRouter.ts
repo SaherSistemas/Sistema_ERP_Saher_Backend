@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { ArticuloController } from '../controllers/ArticuloController';
 
 import articulo_Ubicacion_DefaultRouter from '../feature/Articulo_Ubicacion_Default/articulo_Ubicacion_DefaultRouter'
+import { Articulo_Ubicacion_DefaultController } from '../feature/Articulo_Ubicacion_Default/Articulo_Ubicacion_DefaultController';
 import { authMiddleware } from '../../../../middleware/auth';
 const router = Router();
 
@@ -14,6 +15,10 @@ router.get('/paginaDeArticulo/:id_artic', ArticuloController.getPaginaArticuloPa
 router.get('/paraCompra/:id_empresasucursal', ArticuloController.getAllParaCompra);
 router.get('/negados/:id_empresa_sucursal', ArticuloController.getAllArticulosNegadosParaCompra);
 router.get('/:id_artic/existencia', authMiddleware, ArticuloController.getExistencia);
+router.get('/ubicacion-default/conflictos', authMiddleware, Articulo_Ubicacion_DefaultController.getConflictos);
+router.get('/ubicacion-default/sin-asignar', authMiddleware, Articulo_Ubicacion_DefaultController.getSinUbicacionDefault);
+router.get('/ubicacion-default/libres', authMiddleware, Articulo_Ubicacion_DefaultController.getUbicacionesLibres);
+router.delete('/ubicacion-default/:id_articulo_ubicacion_default', authMiddleware, Articulo_Ubicacion_DefaultController.eliminarDefault);
 router.get('/:id_artic/panel-precios', authMiddleware, ArticuloController.getPanelPrecios);
 router.put('/:id_artic/precio', ArticuloController.upsertPrecio);
 router.patch('/:id_artic/colectivo', authMiddleware, ArticuloController.actualizarColectivo);

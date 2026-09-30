@@ -18,6 +18,7 @@ router.get('/', PresupuestoAgenteController.getAll);
 // ── Por agente
 router.get('/activo/:id_agente', PresupuestoAgenteController.getActivo);
 router.get('/historico/:id_agente', PresupuestoAgenteController.getHistorico);
+router.get('/detalle-vendido/:id_agente', PresupuestoAgenteController.getDetalleVendido);
 router.post('/cerrar/:id_agente', PresupuestoAgenteController.cerrarMes);
 
 // ── Por presupuesto

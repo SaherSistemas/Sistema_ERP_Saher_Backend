@@ -14,10 +14,11 @@ import Movimiento_Articulo from "../../../Almacen/Movimientos/model/Movimiento_A
 export const Stock_Ubicacion_LoteService = {
     obtenerExistencias: async (id_empresa: string, id_articulo?: string) => {
         const enTransito = await Detalle_Compra_SolicitadoRepository.getCantidadTransitoPorArticulo(id_articulo)
+        const enRecibo = await Detalle_Compra_SolicitadoRepository.getCantidadEnReciboPorArticulo(id_articulo)
         const existenciasEmpresa = await Stock_Ubicacion_LoteRepository.getExistencias(id_empresa, id_articulo);
         // console.log(existenciasEmpresa)
         //console.log(enTransito)
-        return { existenciasEmpresa, enTransito };
+        return { existenciasEmpresa, enTransito, enRecibo };
     },
     addStock: async (dto: IAddStockDTO) => {
         if (!dto.id_empresa_sucursal) throw new Error("id_empresa_sucursal requerido");

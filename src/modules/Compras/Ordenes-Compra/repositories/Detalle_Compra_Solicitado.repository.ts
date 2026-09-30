@@ -67,23 +67,56 @@ export const Detalle_Compra_SolicitadoRepository = {
   },
   getCantidadTransitoPorArticulo: async (id_artic: string) => {
     const rows = await dbLocal.query(`
-    SELECT 
+    SELECT
       c.id_comp,
       c.estado_comp,
       SUM(d.cantidad_detcompsol) AS total_transito,
-      p.nomcort_prove AS proveedor
+      p.nomcort_prove AS proveedor,
+      c.inicio_de_compra_proveedor AS fecha_pedido
     FROM detalle_compra_solicitado d
     INNER JOIN compra_proveedor c ON c.id_comp = d.idcompr_detcompsol
     INNER JOIN proveedor p ON p.id_prove = c.idprove_comp
     WHERE d.idarticulo_detcompsol = :id_artic
       AND c.estado_comp IN ('C', 'A', 'E', 'L', 'K')
-    GROUP BY c.id_comp, c.estado_comp, p.nomcort_prove
+    GROUP BY c.id_comp, c.estado_comp, p.nomcort_prove, c.inicio_de_compra_proveedor
   `, {
       replacements: { id_artic },
       type: QueryTypes.SELECT
     });
 
-    return rows as { id_comp: string; estado_comp: string; total_transito: number; proveedor: string }[];
+    return rows as { id_comp: string; estado_comp: string; total_transito: number; proveedor: string; fecha_pedido: string | null }[];
+  },
+
+  // Mercancía que YA llegó y se capturó en una factura de compra, pero cuyo
+  // renglón todavía no se marca como checado (chequeo físico pendiente o en
+  // curso) — checado vive por renglón en detalle_factura_compra_proveedor,
+  // así que una factura puede tener unos artículos ya checados y otros no.
+  getCantidadEnReciboPorArticulo: async (id_artic: string) => {
+    const rows = await dbLocal.query(`
+    SELECT
+      fcp.id_factura_proveedor,
+      fcp.folio_factura_proveedor,
+      fcp.fecha_emision,
+      fcp.estado_factura_proveedor,
+      SUM(dfcp.cantidad_articulo_facturada) AS total_en_recibo,
+      p.nomcort_prove AS proveedor
+    FROM detalle_factura_compra_proveedor dfcp
+    INNER JOIN factura_compra_proveedor fcp ON fcp.id_factura_proveedor = dfcp.id_factura_compra_proveedor
+    INNER JOIN compra_proveedor cp ON cp.id_comp = fcp.id_compra_prove_factura
+    INNER JOIN proveedor p ON p.id_prove = cp.idprove_comp
+    WHERE dfcp.id_artic = :id_artic
+      AND dfcp.checado IS NOT TRUE
+      AND fcp.estado_factura_proveedor NOT IN ('H', 'D')
+    GROUP BY fcp.id_factura_proveedor, fcp.folio_factura_proveedor, fcp.fecha_emision, fcp.estado_factura_proveedor, p.nomcort_prove
+  `, {
+      replacements: { id_artic },
+      type: QueryTypes.SELECT
+    });
+
+    return rows as {
+      id_factura_proveedor: string; folio_factura_proveedor: string; fecha_emision: string;
+      estado_factura_proveedor: string; total_en_recibo: number; proveedor: string;
+    }[];
   },
   addDetallesCompraSolicitado: async (data: ICreateOAcumularDetallesSolicitados) => {
     //console.log("DATAAA", data);

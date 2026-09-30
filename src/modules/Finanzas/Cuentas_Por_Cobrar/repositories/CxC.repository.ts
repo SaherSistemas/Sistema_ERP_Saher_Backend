@@ -52,7 +52,16 @@ export const CxCRepository = {
         }
 
         if (filtros?.cliente) {
-            conditions.push(`(LOWER(ca.razon_social_cliente_alm) LIKE :cliente OR LOWER(ca.nom_corto_cliente_alm) LIKE :cliente OR LOWER(ca.rfc_cliente_alm) LIKE :cliente)`);
+            // También busca por folio (factura o remisión) — antes solo comparaba contra el
+            // nombre/RFC del cliente, así que buscar por número de folio no encontraba nada
+            // aunque la cuenta sí existiera.
+            conditions.push(`(
+                LOWER(ca.razon_social_cliente_alm) LIKE :cliente
+                OR LOWER(ca.nom_corto_cliente_alm) LIKE :cliente
+                OR LOWER(ca.rfc_cliente_alm) LIKE :cliente
+                OR LOWER(f.folio_factura) LIKE :cliente
+                OR LOWER(r.folio_remision::text) LIKE :cliente
+            )`);
             replacements.cliente = `%${filtros.cliente.toLowerCase()}%`;
         }
 
@@ -105,6 +114,8 @@ export const CxCRepository = {
                 SELECT COUNT(*) AS total
                 FROM cuenta_por_cobrar cxc
                 JOIN  cliente_almacen   ca  ON ca.id_cliente_alm = cxc.id_cliente_alm
+                LEFT JOIN facturas      f   ON f.id_factura      = cxc.id_factura
+                LEFT JOIN remision      r   ON r.id_remision     = cxc.id_remision
                 LEFT JOIN agente_de_venta av ON av.id_agente     = ca.id_agente_cliente_alm
                 LEFT JOIN empleado      e   ON e.id_empleado     = av.id_empleado
                 WHERE 1=1 ${whereClause}
@@ -230,8 +241,13 @@ export const CxCRepository = {
         const cxc = await Cuenta_Por_Cobrar.findByPk(id_cxc, { transaction: t });
         if (!cxc) throw new Error('CxC no encontrada');
 
-        const nuevo_pagado = Number(cxc.monto_pagado) + monto_pago;
-        const nuevo_saldo = Number(cxc.monto_total) - nuevo_pagado;
+        // Redondeado a centavos antes de comparar: sumar floats de dinero en JS (ej. 818.86 + 500.00 +
+        // 168.59) puede dar un residuo de punto flotante como 1487.4499999999998 en vez de 1487.45 —
+        // eso hacía que "nuevo_saldo <= 0" fallara por una fracción de centavo aunque Postgres, al
+        // redondear la columna a 2 decimales, guardara saldo_pendiente como 0.00 (se veía pagada pero
+        // el estatus se quedaba en PAR para siempre).
+        const nuevo_pagado = Math.round((Number(cxc.monto_pagado) + monto_pago) * 100) / 100;
+        const nuevo_saldo = Math.round((Number(cxc.monto_total) - nuevo_pagado) * 100) / 100;
         const estatus_cxc =
             nuevo_saldo <= 0 ? 'PAG' :
                 nuevo_pagado > 0 ? 'PAR' : 'PEN';
@@ -249,8 +265,9 @@ export const CxCRepository = {
         const cxc = await Cuenta_Por_Cobrar.findByPk(id_cxc, { transaction: t, lock: t.LOCK.UPDATE });
         if (!cxc) throw new Error('CxC no encontrada');
 
-        const nuevo_pagado = Math.max(0, Number(cxc.monto_pagado) - monto_pago);
-        const nuevo_saldo = Number(cxc.monto_total) - nuevo_pagado;
+        // Ver comentario en aplicarPago: redondear a centavos antes de comparar contra 0.
+        const nuevo_pagado = Math.round(Math.max(0, Number(cxc.monto_pagado) - monto_pago) * 100) / 100;
+        const nuevo_saldo = Math.round((Number(cxc.monto_total) - nuevo_pagado) * 100) / 100;
         const vencida = !!cxc.fecha_vencimiento && new Date(cxc.fecha_vencimiento) < new Date();
         const estatus_cxc =
             nuevo_saldo <= 0 ? 'PAG' :

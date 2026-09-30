@@ -169,6 +169,12 @@ export const PresupuestoAgenteService = {
     PresupuestoAgenteRepository.getTablero(mes, anio),
 
   // ==========================================
+  // Detalle (facturas + remisiones) del vendido de un agente en un mes
+  // ==========================================
+  getDetalleVendido: async (id_agente: string, mes: number, anio: number) =>
+    PresupuestoAgenteRepository.getDetalleVendido(id_agente, mes, anio),
+
+  // ==========================================
   // MI HISTÓRICO — para el agente logueado
   // Resuelve id_agente del JWT y devuelve sus
   // presupuestos cerrados ordenados por fecha.

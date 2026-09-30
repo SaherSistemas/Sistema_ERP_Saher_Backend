@@ -141,6 +141,24 @@ export const PresupuestoAgenteController = {
     }
   },
 
+  // ── Detalle (facturas + remisiones) del vendido de un agente ─
+  // GET /presupuesto_agente/detalle-vendido/:id_agente?mes=5&anio=2026
+  getDetalleVendido: async (req: Request, res: Response) => {
+    try {
+      const { id_agente } = req.params;
+      const { mes, anio } = req.query as { mes?: string; anio?: string };
+      if (!mes || !anio) {
+        res.status(400).json({ message: 'mes y anio son requeridos' });
+        return;
+      }
+      const data = await PresupuestoAgenteService.getDetalleVendido(id_agente, Number(mes), Number(anio));
+      res.status(200).json(data);
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ message: 'Error al obtener el detalle del vendido' });
+    }
+  },
+
   // ── Tablero general con avance real ──────────────────────────
   // GET /presupuesto_agente/tablero?mes=5&anio=2026
   getTablero: async (req: Request, res: Response) => {

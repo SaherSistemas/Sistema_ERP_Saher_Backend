@@ -15,4 +15,5 @@ router.post('/seed-inventario', PermisoController.seedInventario)
 router.post('/seed-impresiones', PermisoController.seedImpresiones)
 router.post('/seed-retos-ventas', PermisoController.seedRetosVentas)
 router.post('/seed-gestion-pedidos', PermisoController.seedGestionPedidos)
+router.post('/seed-ubicacion-default', PermisoController.seedUbicacionDefault)
 export default router;

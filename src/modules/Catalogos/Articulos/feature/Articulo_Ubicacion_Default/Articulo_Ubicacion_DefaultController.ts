@@ -34,7 +34,58 @@ export const Articulo_Ubicacion_DefaultController = {
             res.status(200).json(data);
         } catch (error: any) {
             console.error(error);
+            // Ubicación ya tomada por otro artículo: es un error del usuario (400), no del servidor.
+            const yaOcupada = String(error?.message || "").includes("ya es default de");
+            res.status(yaOcupada ? 400 : 500).json({ message: error?.message || "Error" });
+        }
+    },
+    getConflictos: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa_sucursal = String(req.query.id_empresa_sucursal || req.user?.id_empresa || "");
+            if (!id_empresa_sucursal) { res.status(400).json({ message: "id_empresa_sucursal requerido" }); return; }
+
+            const data = await Articulo_Ubicacion_DefaultServices.getConflictos(id_empresa_sucursal);
+            res.status(200).json(data);
+        } catch (error: any) {
+            console.error(error);
             res.status(500).json({ message: error?.message || "Error" });
+        }
+    },
+    getUbicacionesLibres: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa_sucursal = String(req.query.id_empresa_sucursal || req.user?.id_empresa || "");
+            if (!id_empresa_sucursal) { res.status(400).json({ message: "id_empresa_sucursal requerido" }); return; }
+            const id_articulo_excluir = req.query.id_articulo_excluir ? String(req.query.id_articulo_excluir) : undefined;
+
+            const data = await Articulo_Ubicacion_DefaultServices.getUbicacionesLibres(id_empresa_sucursal, id_articulo_excluir);
+            res.status(200).json(data);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message || "Error" });
+        }
+    },
+    getSinUbicacionDefault: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa_sucursal = String(req.query.id_empresa_sucursal || req.user?.id_empresa || "");
+            if (!id_empresa_sucursal) { res.status(400).json({ message: "id_empresa_sucursal requerido" }); return; }
+
+            const data = await Articulo_Ubicacion_DefaultServices.getSinUbicacionDefault(id_empresa_sucursal);
+            res.status(200).json(data);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message || "Error" });
+        }
+    },
+    eliminarDefault: async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_articulo_ubicacion_default } = req.params;
+            if (!id_articulo_ubicacion_default) { res.status(400).json({ message: "id_articulo_ubicacion_default requerido" }); return; }
+
+            const data = await Articulo_Ubicacion_DefaultServices.eliminarDefault(id_articulo_ubicacion_default);
+            res.status(200).json(data);
+        } catch (error: any) {
+            console.error(error);
+            res.status(400).json({ message: error?.message || "Error" });
         }
     },
     getByIDArticuloConExistencia: async (req: AuthedRequest, res: Response) => {
