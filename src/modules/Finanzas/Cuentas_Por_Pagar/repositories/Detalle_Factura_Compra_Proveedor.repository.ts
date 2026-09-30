@@ -51,7 +51,13 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
         );
         return detalle;
     },
-    marcarDetalleFacturaCompraProveedorComoRecibido: async (id_factura_proveedor_detalle: string, t: Transaction) => {
+    marcarDetalleFacturaCompraProveedorComoRecibido: async (id_factura_proveedor_detalle: string, t: Transaction, marcarChecado: boolean = true) => {
+        // marcarChecado=false: viene de una edición administrativa (corregir precio/lotes de
+        // una factura ya capturada), no de la pantalla real de Chequeo — no se debe dar por
+        // verificado físicamente un renglón que nadie chequeó.
+        if (!marcarChecado) {
+            return await Detalle_Factura_Compra_Proveedor.findByPk(id_factura_proveedor_detalle);
+        }
         const [affectedRows, [detalle]] = await Detalle_Factura_Compra_Proveedor.update(
             {
                 checado: true,

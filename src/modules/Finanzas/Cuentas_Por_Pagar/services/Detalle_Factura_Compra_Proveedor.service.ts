@@ -47,16 +47,22 @@ export const Detalle_Factura_Compra_ProveedorService = {
             isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
         });
 
+        // Por default true (pantalla real de Chequeo); false cuando esta llamada viene de
+        // editar administrativamente una factura ya capturada (no es un chequeo físico).
+        const marcarChecado = data.marcar_checado !== false;
+
         try {
             // 1) Marcar detalle como recibido
             const detalle = await Detalle_Factura_Compra_ProveedorRepository.marcarDetalleFacturaCompraProveedorComoRecibido(
-                data.id_factura_proveedor_detalle, t
+                data.id_factura_proveedor_detalle, t, marcarChecado
             );
 
-            // 2) Actualizar estado factura → R (Recibida)
-            await Factura_Compra_ProveedorRepository.recibirFacturaCompraProveedor(
-                detalle.id_factura_compra_proveedor, t, usuario_empleado_chequeo
-            );
+            // 2) Actualizar estado factura → R (Recibida) — solo si sí se está chequeando de verdad
+            if (marcarChecado) {
+                await Factura_Compra_ProveedorRepository.recibirFacturaCompraProveedor(
+                    detalle.id_factura_compra_proveedor, t, usuario_empleado_chequeo
+                );
+            }
 
             // 3) Obtener id_artic
             let id_artic: string | null = detalle.id_artic ?? null;
@@ -97,8 +103,11 @@ export const Detalle_Factura_Compra_ProveedorService = {
                 }
             }
 
-            // 5) Registrar los lotes recibidos en inventario
-            await Detalle_Compra_RecibidosRepository.updateLoteDetalleComproRecibido(data, t);
+            // 5) Registrar los lotes recibidos en inventario — solo en chequeo real: si viene de
+            //    una edición administrativa no se debe dar por recibida mercancía que nadie chequeó.
+            if (marcarChecado) {
+                await Detalle_Compra_RecibidosRepository.updateLoteDetalleComproRecibido(data, t);
+            }
 
             // 6) Actualizar precios en ERP y PolyDB
             if (id_artic && data.id_empresa && modeloArticulo && grupoEmpresa) {

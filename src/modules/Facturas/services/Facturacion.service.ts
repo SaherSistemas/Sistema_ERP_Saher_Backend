@@ -818,6 +818,25 @@ export const FacturacionService = {
             return;
         }
 
+        // Un mismo artículo puede llegar repetido en `conceptos` (pedidos importados de
+        // PolyDB cuyos renglones duplicados nunca se fusionaron al importarlos). rme00101
+        // tiene PK (empresa, factura, articulo) — sin lote — así que insertarlo dos veces
+        // para la misma factura truena por llave duplicada. Se fusiona por cod_int_artic
+        // antes de insertar, sumando cantidad/importe y concatenando lotes (el agrupado por
+        // número de lote de más abajo ya colapsa lotes repetidos dentro del resultado).
+        const conceptosPorArticulo = new Map<number, ConceptoFacturacion>();
+        for (const c of conceptos) {
+            const existente = conceptosPorArticulo.get(c.cod_int_artic);
+            if (!existente) {
+                conceptosPorArticulo.set(c.cod_int_artic, { ...c, lotes: [...c.lotes] });
+                continue;
+            }
+            existente.cantidad = +(existente.cantidad + c.cantidad).toFixed(4);
+            existente.subtotal_linea = +(existente.subtotal_linea + c.subtotal_linea).toFixed(2);
+            existente.lotes = [...existente.lotes, ...c.lotes];
+        }
+        const conceptosFusionados = Array.from(conceptosPorArticulo.values());
+
         const tPoly = await dbPoly.transaction();
         try {
             await dbPoly.query(`
@@ -829,7 +848,7 @@ export const FacturacionService = {
                 transaction: tPoly,
             });
 
-            for (const c of conceptos) {
+            for (const c of conceptosFusionados) {
                 await dbPoly.query(`
                     INSERT INTO rme00101 (empcdempn, rmenufacc, prvcdprvn, artcdartn, rmecanfan, rmecanren, rmecanmen, rmepreunn, rmedescon, rmedesofn, rmepreofn, rmeprentn, rmeimplnn, rmeporivn, rmeimivln, rmeafemoc, rmedesesn)
                     VALUES (:empcdempn, :rmenufacc, 15, :artcdartn, :cantidad, :cantidad, 0, :precio, 0, 0, :precio, :precio, :subtotal, :poriva, :imiva, 'N', 0)

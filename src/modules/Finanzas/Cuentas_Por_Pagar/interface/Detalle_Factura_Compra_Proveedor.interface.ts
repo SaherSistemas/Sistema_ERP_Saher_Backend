@@ -100,6 +100,15 @@ export interface IModificarLotesDetalleFacturaDTO {
     descuento_pct?: number;
     iva_pct?: number;
     cantidad_articulo_facturada?: number;
+    /**
+     * false cuando este guardado viene de una EDICIÓN administrativa (corregir precio/
+     * cantidad/lotes de una factura ya capturada), no de la pantalla real de Chequeo.
+     * Por default es true (comportamiento de siempre, usado por ChequeoFactura) — con
+     * false se guardan los datos pero NO se marca el renglón como checado ni se arranca
+     * el cronómetro de chequeo de la factura, para no dar por verificado físicamente
+     * algo que nadie chequeó.
+     */
+    marcar_checado?: boolean;
 }
 
 export interface ILoteDetalleFacturaDTO {
