@@ -44,7 +44,7 @@ export const InventarioRepository = {
                 model: Detalle_Inventario,
                 include: [
                     { model: Articulo, attributes: ['id_artic', 'des_artic', 'cod_barr_artic', 'cod_int_artic'] },
-                    { model: Ubicacion_Sucursal, attributes: ['id_ubicacion_sucursal', 'pasillo_ub', 'anaquel_ub', 'nivel_ub', 'posicion_ub'] },
+                    { model: Ubicacion_Sucursal, attributes: ['id_ubicacion_sucursal', 'pasillo_ub', 'anaquel_ub', 'nivel_ub', 'posicion_ub', 'tarima_ub'] },
                     { model: LoteArticuloSucursal, attributes: ['id_lote_sucursal', 'numero_lote_sucursal', 'fecha_venci_lote_sucursal'] },
                 ],
             }],
@@ -74,6 +74,7 @@ export const InventarioRepository = {
         filtro: {
             tipo: TipoInventario;
             pasillo?: string;
+            tarima?: string;
             id_ubicacion_sucursal?: string;
             id_articulo?: string;
             id_articulos?: string[];
@@ -93,6 +94,10 @@ export const InventarioRepository = {
         if (filtro.tipo === 'PASILLO' && filtro.pasillo) {
             whereUbicacion.pasillo_ub = filtro.pasillo;
         }
+        if (filtro.tipo === 'TARIMA' && filtro.tarima) {
+            whereUbicacion.tipo_ubicacion = 'TARIMA';
+            whereUbicacion.tarima_ub = filtro.tarima;
+        }
         if (filtro.tipo === 'ARTICULO') {
             const ids = filtro.id_articulos?.length ? filtro.id_articulos
                       : filtro.id_articulo        ? [filtro.id_articulo]
@@ -105,7 +110,7 @@ export const InventarioRepository = {
             include: [
                 {
                     model: Ubicacion_Sucursal,
-                    required: filtro.tipo === 'PASILLO',
+                    required: filtro.tipo === 'PASILLO' || filtro.tipo === 'TARIMA',
                     where: Object.keys(whereUbicacion).length ? whereUbicacion : undefined,
                     attributes: ['id_ubicacion_sucursal'],
                 },

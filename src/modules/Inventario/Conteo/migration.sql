@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS public.inventario (
     id_inventario         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     id_empresa_sucursal   UUID NOT NULL REFERENCES empresa_sucursal(id_empre),
-    tipo_inventario       VARCHAR(20) NOT NULL CHECK (tipo_inventario IN ('GENERAL','PASILLO','UBICACION','ARTICULO')),
+    tipo_inventario       VARCHAR(20) NOT NULL CHECK (tipo_inventario IN ('GENERAL','PASILLO','TARIMA','UBICACION','ARTICULO')),
     status                VARCHAR(20) NOT NULL DEFAULT 'BORRADOR'
                               CHECK (status IN ('BORRADOR','EN_CONTEO','TERMINADO','APLICADO','CANCELADO')),
     filtro                JSONB,

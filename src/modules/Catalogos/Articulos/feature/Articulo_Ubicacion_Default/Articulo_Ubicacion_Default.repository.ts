@@ -30,13 +30,23 @@ export const Articulo_Ubicacion_DefaultRepository = {
     // solo puede ser default de un artículo a la vez). Antes comparaba contra columnas
     // que no existen en el modelo (id_ubicacion_sucursal en vez de id_ubicacion_default),
     // así que nunca encontraba nada y nunca se usó para bloquear el duplicado.
+    // Postgres no permite FOR UPDATE sobre el lado nulable de un LEFT OUTER JOIN, así que
+    // el lock se toma solo sobre esta tabla; el artículo (para el mensaje de error) se
+    // resuelve aparte, sin lock, solo si hace falta.
     findByUbicacion: async (id_empresa_sucursal: string, id_ubicacion_default: string, t?: Transaction) => {
-        return await Articulo_Ubicacion_Default.findOne({
+        const fila = await Articulo_Ubicacion_Default.findOne({
             where: { id_empresa_sucursal, id_ubicacion_default },
-            include: [{ model: Articulo, as: "articulo", attributes: ["id_artic", "des_artic", "cod_int_artic"] }],
             transaction: t,
             lock: t ? t.LOCK.UPDATE : undefined,
         });
+        if (!fila) return fila;
+
+        const articulo = await Articulo.findByPk(fila.id_articulo, {
+            attributes: ["id_artic", "des_artic", "cod_int_artic"],
+            transaction: t,
+        });
+        (fila as any).articulo = articulo;
+        return fila;
     },
 
     // Una TARIMA sí puede tener físicamente varios artículos encima; el bloqueo de

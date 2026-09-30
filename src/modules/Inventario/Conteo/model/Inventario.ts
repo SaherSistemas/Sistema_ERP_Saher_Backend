@@ -5,7 +5,7 @@ import {
 import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import Detalle_Inventario from './Detalle_Inventario';
 
-export type TipoInventario = 'GENERAL' | 'PASILLO' | 'UBICACION' | 'ARTICULO';
+export type TipoInventario = 'GENERAL' | 'PASILLO' | 'TARIMA' | 'UBICACION' | 'ARTICULO';
 export type StatusInventario = 'BORRADOR' | 'EN_CONTEO' | 'TERMINADO' | 'APLICADO' | 'CANCELADO';
 
 @Table({ tableName: 'inventario', timestamps: true })
