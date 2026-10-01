@@ -51,6 +51,18 @@ export const Articulo_Ubicacion_DefaultController = {
             res.status(500).json({ message: error?.message || "Error" });
         }
     },
+    getArticulosConExcesoUbicaciones: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa_sucursal = String(req.query.id_empresa_sucursal || req.user?.id_empresa || "");
+            if (!id_empresa_sucursal) { res.status(400).json({ message: "id_empresa_sucursal requerido" }); return; }
+
+            const data = await Articulo_Ubicacion_DefaultServices.getArticulosConExcesoUbicaciones(id_empresa_sucursal);
+            res.status(200).json(data);
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message || "Error" });
+        }
+    },
     getUbicacionesLibres: async (req: AuthedRequest, res: Response) => {
         try {
             const id_empresa_sucursal = String(req.query.id_empresa_sucursal || req.user?.id_empresa || "");

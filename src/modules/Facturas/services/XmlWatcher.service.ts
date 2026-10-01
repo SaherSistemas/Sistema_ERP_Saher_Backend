@@ -91,7 +91,18 @@ async function procesarXmlPago(xmlPath: string, xmlContent: string) {
     });
 
     if (!cfdis.length) {
-        console.log(`[XmlWatcher][Pago] No hay CFDIs PEN/ERR para UUIDs: ${uuidsRelacionados.join(', ')}`);
+        // No basta con "no hay PEN/ERR" para avisar — eso pasa todo el tiempo con XMLs de pago
+        // YA timbrados antes, porque PROCESADOS vive en memoria y se reinicia junto con el server:
+        // cada reinicio vuelve a examinar los XML de las últimas 48h, incluso los ya resueltos
+        // (siguen en la carpeta, siguen "recientes"), y como ya están en TIM nunca van a matchear
+        // PEN/ERR — eso es normal, no un problema. Solo vale la pena avisar si de verdad no existe
+        // NINGÚN registro para esos UUIDs (eso sí sería un caso sin resolver).
+        const existentes = await FacturaPagoCFDI.count({
+            where: dbLocal.where(dbLocal.fn('upper', dbLocal.col('uuid_relacionado')), { [Op.in]: uuidsRelacionados }),
+        });
+        if (existentes === 0) {
+            console.warn(`[XmlWatcher][Pago] Sin ningún registro para UUIDs (revisar): ${uuidsRelacionados.join(', ')}`);
+        }
         return;
     }
 

@@ -5,6 +5,7 @@ const router = Router()
 
 router.post('/', authMiddleware, CompraProveedorController.createCompraProveedor)
 router.get('/captura/:id_empresa', authMiddleware, CompraProveedorController.lineasEnCaptura) //LÍNEAS CAPTURADAS EN LA COMPRA ABIERTA (refresco entre capturistas)
+router.get('/captura/:id_empresa/total', authMiddleware, CompraProveedorController.totalEnCaptura) //TOTAL $ DE LA COMPRA ABIERTA (widget flotante)
 
 router.get('/compraProveedorPorGeneral/:id_compra_general', CompraProveedorController.comprasProveedorPorIDCompraGeneral) //TODAS LAS COMPRASPROVEEDOR POR UN ID COMPRA GENERAL
 router.get('/todasPorProveedor/:id_empresa', CompraProveedorController.getTodasOrdenesPorProveedor) //VISTA PLANA: TODAS LAS ÓRDENES DEL RANGO, AGRUPADAS POR PROVEEDOR

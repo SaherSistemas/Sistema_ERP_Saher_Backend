@@ -219,10 +219,27 @@ export const Factura_Compra_ProveedorService = {
                     });
                 }
             }
+            // Un mismo artículo puede venir en 2+ renglones de la factura (sin fusionar al
+            // capturarla) y, si además comparten número de lote, generan la MISMA llave
+            // (artículo, empresa, lote) dos veces dentro del mismo bulkUpsert — Postgres
+            // rechaza un ON CONFLICT DO UPDATE que toque la misma fila dos veces en una orden.
+            // Se fusiona por esa llave antes de mandarlo, sumando cantidad.
+            const lotesFusionados = new Map<string, ICreaterOrUdateLotesArticuloSucursal>();
+            for (const l of lotesArticuloSucursal) {
+                const key = `${l.id_artic}|${l.id_empre}|${l.numero_lote_sucursal}`;
+                const existente = lotesFusionados.get(key);
+                if (existente) {
+                    existente.cantidad_entrada_lote = Number(existente.cantidad_entrada_lote) + Number(l.cantidad_entrada_lote);
+                } else {
+                    lotesFusionados.set(key, { ...l });
+                }
+            }
+            const lotesArticuloSucursalFusionados = Array.from(lotesFusionados.values());
+
             let lotesUpserted = [];
 
-            if (lotesArticuloSucursal.length > 0) {
-                lotesUpserted = await LotesArticuloSucursalRepository.bulkUpsert(lotesArticuloSucursal, t, { actualizarPrecio: !esTraslado });
+            if (lotesArticuloSucursalFusionados.length > 0) {
+                lotesUpserted = await LotesArticuloSucursalRepository.bulkUpsert(lotesArticuloSucursalFusionados, t, { actualizarPrecio: !esTraslado });
             }
 
             const stockRows = lotesUpserted.map(l => ({

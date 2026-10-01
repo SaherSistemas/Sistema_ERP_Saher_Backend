@@ -413,7 +413,9 @@ export const Pedido_AlmacenRepository = {
     if (status) {
       where.status_pedido_alm = status;
     } else if (excluir_finalizados) {
-      where.status_pedido_alm = { [Op.notIn]: ['CH', 'EM', 'FA', 'EN', 'CN'] };
+      // PF (Vale Pendiente de Factura) faltaba aquí: es un vale ya entregado, igual de
+      // "terminado" para esta vista que EN — sin esto se quedaba colado en Gestión de Pedidos.
+      where.status_pedido_alm = { [Op.notIn]: ['CH', 'EM', 'FA', 'EN', 'CN', 'PF'] };
     }
     if (id_agente) {
       where.id_agente_pedido_alm = id_agente;

@@ -160,6 +160,43 @@ export const Articulo_Ubicacion_DefaultServices = {
         return Array.from(porUbicacion.values());
     },
 
+    // Artículos con más de 1 ubicación de anaquel/estantería como default — el máximo permitido
+    // es 1 anaquel + 1 tarima, así que esto siempre es una anomalía a corregir.
+    getArticulosConExcesoUbicaciones: async (id_empresa_sucursal: string) => {
+        const filas = await Articulo_Ubicacion_DefaultRepository.getArticulosConExcesoUbicaciones(id_empresa_sucursal);
+
+        const etiquetaUbicacion = (u: typeof filas[number]) =>
+            u.tipo_ubicacion === 'TARIMA'
+                ? `Tarima ${u.tarima_ub}`
+                : `${u.pasillo_ub || '—'}-${u.anaquel_ub}-${u.nivel_ub}-${u.posicion_ub}`;
+
+        const porArticulo = new Map<string, {
+            id_articulo: string;
+            cod_int_artic: number;
+            des_artic: string;
+            ubicaciones: { id_articulo_ubicacion_default: string; id_ubicacion_sucursal: string; tipo_ubicacion: string; etiqueta: string }[];
+        }>();
+
+        for (const f of filas) {
+            if (!porArticulo.has(f.id_articulo)) {
+                porArticulo.set(f.id_articulo, {
+                    id_articulo: f.id_articulo,
+                    cod_int_artic: f.cod_int_artic,
+                    des_artic: f.des_artic.trim(),
+                    ubicaciones: [],
+                });
+            }
+            porArticulo.get(f.id_articulo)!.ubicaciones.push({
+                id_articulo_ubicacion_default: f.id_articulo_ubicacion_default,
+                id_ubicacion_sucursal: f.id_ubicacion_sucursal,
+                tipo_ubicacion: f.tipo_ubicacion,
+                etiqueta: etiquetaUbicacion(f),
+            });
+        }
+
+        return Array.from(porArticulo.values());
+    },
+
     getUbicacionesLibres: async (id_empresa_sucursal: string, id_articulo_excluir?: string) => {
         const filas = await Articulo_Ubicacion_DefaultRepository.getUbicacionesLibres(id_empresa_sucursal, id_articulo_excluir);
         return filas.map(u => ({

@@ -18,6 +18,7 @@ router.get('/:id_artic/existencia', authMiddleware, ArticuloController.getExiste
 router.get('/ubicacion-default/conflictos', authMiddleware, Articulo_Ubicacion_DefaultController.getConflictos);
 router.get('/ubicacion-default/sin-asignar', authMiddleware, Articulo_Ubicacion_DefaultController.getSinUbicacionDefault);
 router.get('/ubicacion-default/libres', authMiddleware, Articulo_Ubicacion_DefaultController.getUbicacionesLibres);
+router.get('/ubicacion-default/exceso', authMiddleware, Articulo_Ubicacion_DefaultController.getArticulosConExcesoUbicaciones);
 router.delete('/ubicacion-default/:id_articulo_ubicacion_default', authMiddleware, Articulo_Ubicacion_DefaultController.eliminarDefault);
 router.get('/:id_artic/panel-precios', authMiddleware, ArticuloController.getPanelPrecios);
 router.put('/:id_artic/precio', ArticuloController.upsertPrecio);

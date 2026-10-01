@@ -157,7 +157,21 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
                 ? { id_detcompsol: linea.id_detcompsol }
                 : { id_artic: linea.id_artic, id_detcompsol: null })
         };
-        const existente = await Detalle_Factura_Compra_Proveedor.findOne({ where });
+        let existente = await Detalle_Factura_Compra_Proveedor.findOne({ where });
+
+        // Si es un renglón "extra" (sin id_detcompsol) y no hay match exacto, puede que el
+        // artículo YA esté en esta factura por OTRO renglón (ej. se escaneó/capturó dos veces,
+        // o venía ligado a su detcompsol original) — sin este checkeo se creaba un renglón
+        // duplicado del mismo artículo, y más adelante, al dar entrada a inventario, los dos
+        // renglones chocaban en el mismo upsert de lote si compartían número de lote. Aquí se
+        // acumula en el renglón que ya existía en vez de crear uno nuevo.
+        let acumulando = false;
+        if (!existente && !linea.id_detcompsol && linea.id_artic) {
+            existente = await Detalle_Factura_Compra_Proveedor.findOne({
+                where: { id_factura_compra_proveedor, id_artic: linea.id_artic },
+            });
+            acumulando = !!existente;
+        }
 
         // cantidad = 0 significa eliminar solamente, sin recrear.
         // Igual que eliminarDetalle: hay que borrar primero los hijos en
@@ -180,7 +194,14 @@ export const Detalle_Factura_Compra_ProveedorRepository = {
         // (detalle_compra_recibido.id_detalle_factura_compra_proveedor). Además,
         // recrear con un id nuevo huérfano esa referencia aunque no truene.
         let detalle: Detalle_Factura_Compra_Proveedor;
-        if (existente) {
+        if (existente && acumulando) {
+            // Acumular: se suma a lo que ya tenía y se conservan sus lotes previos —
+            // solo se agregan los nuevos, no se reemplaza el renglón completo.
+            await existente.update({
+                cantidad_articulo_facturada: Number(existente.cantidad_articulo_facturada) + Number(linea.cantidad_articulo_facturada),
+            });
+            detalle = existente;
+        } else if (existente) {
             await existente.update({
                 cantidad_articulo_facturada: linea.cantidad_articulo_facturada,
                 precio_articulo_factura: linea.precio_articulo_factura,

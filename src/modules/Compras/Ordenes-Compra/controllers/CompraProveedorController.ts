@@ -58,7 +58,14 @@ export class CompraProveedorController {
         } catch (error: any) {
             // Otra persona cambió este artículo mientras esta pantalla lo tenía abierto
             if (error?.code === 'CONFLICTO_CAPTURA') {
+                console.error(error);
                 res.status(409).json({ code: error.code, message: error.message, actual: error.actual, capturista: error.capturista })
+                return
+            }
+            // La pantalla tenía un id de artículo que ya no existe (lista vieja sin refrescar)
+            if (error?.code === 'ARTICULO_NO_ENCONTRADO') {
+                res.status(400).json({ code: error.code, message: error.message })
+                console.error(error);
                 return
             }
             console.error(error);
@@ -75,6 +82,18 @@ export class CompraProveedorController {
         } catch (error) {
             console.error('[lineasEnCaptura]', error)
             res.status(500).json({ message: 'No se pudieron consultar las capturas.' })
+        }
+    }
+    // Total $ de la compra en captura (widget flotante) — GET /compras_proveedor/captura/:id_empresa/total?tipo_compra=NORMAL
+    static totalEnCaptura = async (req: Request, res: Response) => {
+        try {
+            const { id_empresa } = req.params
+            const tipo_compra = String(req.query.tipo_compra ?? 'NORMAL')
+            const r = await Detalle_Compra_SolicitadoRepository.getTotalEnCaptura(id_empresa, tipo_compra)
+            res.status(200).json(r)
+        } catch (error) {
+            console.error('[totalEnCaptura]', error)
+            res.status(500).json({ message: 'No se pudo consultar el total de la compra.' })
         }
     }
     static comprasProveedorPorIDCompraGeneral = async (req: Request, res: Response) => {

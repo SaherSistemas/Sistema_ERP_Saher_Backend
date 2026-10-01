@@ -49,6 +49,17 @@ export const compraProveedorService = {
 
         //BUSCAR ARTICULO
         const articulo = await ArticuloRepository.getByIDFlexible(detalle.idarticulo_detcompsol)
+        if (!articulo) {
+            // La pantalla tenía en memoria un id de artículo que ya no existe (lista vieja sin
+            // refrescar, artículo eliminado/reemplazado, etc.) — antes esto tronaba como
+            // TypeError sin explicación ("Cannot read properties of null"). Se deja el valor
+            // recibido en el mensaje: está pasando en varios artículos distintos, así que hace
+            // falta ver exactamente qué está llegando para encontrar el origen real.
+            console.error('[createCompraProveedor] idarticulo_detcompsol no encontrado:', JSON.stringify(detalle));
+            const err: any = new Error(`Este artículo ya no existe o cambió (id recibido: ${JSON.stringify(detalle.idarticulo_detcompsol)}). Actualiza la pantalla e intenta de nuevo.`);
+            err.code = 'ARTICULO_NO_ENCONTRADO';
+            throw err;
+        }
         const uuidArticulo = articulo.id_artic;
 
         //BUSCAR O CREAR COMPRA GENERAL EN EL ESTAOD "C" — solo del mismo tipo que se está

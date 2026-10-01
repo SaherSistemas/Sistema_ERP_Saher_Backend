@@ -145,6 +145,56 @@ export const Articulo_Ubicacion_DefaultRepository = {
         );
     },
 
+    // Artículos con MÁS de 1 ubicación de anaquel/estantería como default (el máximo permitido
+    // es 1 anaquel + 1 tarima). No debería pasar tras el bloqueo de actualizarOCrearDefaultArticulOUbicacion,
+    // pero puede quedar de datos viejos o de una edición directa en BD. Se trae también su tarima
+    // (si tiene) para ver el cuadro completo del artículo, aunque esa no cuente como exceso.
+    getArticulosConExcesoUbicaciones: async (id_empresa_sucursal: string) => {
+        return await dbLocal.query<{
+            id_articulo: string;
+            cod_int_artic: number;
+            des_artic: string;
+            id_articulo_ubicacion_default: string;
+            id_ubicacion_sucursal: string;
+            tipo_ubicacion: string;
+            tarima_ub: string | null;
+            pasillo_ub: string | null;
+            anaquel_ub: string | null;
+            nivel_ub: string | null;
+            posicion_ub: string | null;
+        }>(
+            `
+            SELECT
+                aud.id_articulo,
+                a.cod_int_artic,
+                a.des_artic,
+                aud.id_articulo_ubicacion_default,
+                us.id_ubicacion_sucursal,
+                us.tipo_ubicacion,
+                us.tarima_ub,
+                us.pasillo_ub,
+                us.anaquel_ub,
+                us.nivel_ub,
+                us.posicion_ub
+            FROM articulo_ubicacion_default aud
+            JOIN ubicacion_sucursal us ON us.id_ubicacion_sucursal = aud.id_ubicacion_default
+            JOIN articulo a ON a.id_artic = aud.id_articulo
+            WHERE aud.id_empresa_sucursal = :id_empresa_sucursal
+              AND aud.id_articulo IN (
+                  SELECT aud2.id_articulo
+                  FROM articulo_ubicacion_default aud2
+                  JOIN ubicacion_sucursal us2 ON us2.id_ubicacion_sucursal = aud2.id_ubicacion_default
+                  WHERE aud2.id_empresa_sucursal = :id_empresa_sucursal
+                    AND us2.tipo_ubicacion <> 'TARIMA'
+                  GROUP BY aud2.id_articulo
+                  HAVING COUNT(*) > 1
+              )
+            ORDER BY a.cod_int_artic, us.tipo_ubicacion, us.pasillo_ub, us.anaquel_ub, us.nivel_ub, us.posicion_ub;
+            `,
+            { replacements: { id_empresa_sucursal }, type: QueryTypes.SELECT }
+        );
+    },
+
     // Artículos con existencia real en la sucursal pero SIN ninguna ubicación default
     // asignada. Se limita a los que tienen stock > 0 porque el catálogo completo tiene
     // miles de artículos sin movimiento; listar todo eso no sería accionable.

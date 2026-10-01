@@ -230,6 +230,30 @@ export const Detalle_Compra_SolicitadoRepository = {
     return { cantidadesPorArticulo, proveedoresPorArticulo };
   },
 
+  // Total en pesos de la compra que está en captura ahorita mismo (todos los proveedores de
+  // ese tipo de compra, en esta empresa) — para el widget flotante del total: como lee directo
+  // de la BD, si hay dos capturistas en la misma compra, los dos ven el total ya con lo del otro.
+  getTotalEnCaptura: async (id_empresa: string, tipo_compra: string) => {
+    const rows = await dbLocal.query<{ total: string; piezas: string; articulos: string }>(`
+      SELECT
+        COALESCE(SUM(d.cantidad_detcompsol * d.precio_detcompsol), 0) AS total,
+        COALESCE(SUM(d.cantidad_detcompsol), 0)                       AS piezas,
+        COUNT(DISTINCT d.idarticulo_detcompsol)                       AS articulos
+      FROM detalle_compra_solicitado d
+      JOIN compra_proveedor cp ON cp.id_comp = d.idcompr_detcompsol
+      JOIN compra_general cg ON cg.id_compra_general = cp.id_compra_general
+                            AND cg.estado_comp = 'C' AND cg.id_empresa_sucursal = :id_empresa
+                            AND cg.tipo_compra = :tipo_compra
+    `, { replacements: { id_empresa, tipo_compra }, type: QueryTypes.SELECT });
+
+    const r = rows[0];
+    return {
+      total: Number(r?.total ?? 0),
+      piezas: Number(r?.piezas ?? 0),
+      articulos: Number(r?.articulos ?? 0),
+    };
+  },
+
   // Último artículo que guardó este empleado en la compra en captura (para regresarlo ahí al reabrir).
   // Si nadie ha capturado con empleado registrado (compra anterior al cambio) devuelve undefined.
   getUltimoArticuloDeEmpleado: async (id_empresa: string, id_empleado?: string | null) => {

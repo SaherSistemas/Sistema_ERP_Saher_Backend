@@ -287,6 +287,11 @@ export const ArticuloRepository = {
                             model: Compra_General,
                             required: false,
                             where: { id_empresa_sucursal: id_empresa_sucursal },
+                        },
+                        {
+                            model: Proveedor,
+                            required: false,
+                            attributes: ['id_prove', 'nomcort_prove'],
                         }
                     ]
                 },
@@ -312,6 +317,17 @@ export const ArticuloRepository = {
             limit
         });
 
+        // Nombre del proveedor que negó originalmente (viene de la compra_proveedor ligada);
+        // null si es un renglón suelto sin compra asociada.
+        const rowsConProveedor = rows.map((r: any) => {
+            const plain = r.get({ plain: true });
+            return {
+                ...plain,
+                proveedor_negado: plain.compra?.proveedor?.nomcort_prove?.trim() ?? null,
+                agente_negado: null,
+            };
+        });
+
         // 2. Negados del agente (detalle_pedido_negado motivo=SIN_EXISTENCIA)
         //    agrupados por artículo — query SQL directa para evitar problemas de asociaciones
         const rowsNegadosAgente: any[] = await (Articulo as any).sequelize.query(`
@@ -324,10 +340,14 @@ export const ArticuloRepository = {
                 a.colectivo_artic,
                 SUM(dpn.cantidad_negada)              AS cantidad_negada,
                 MIN(dpn.fecha)                        AS fecha_negado,
-                MIN(dpn.fecha) + INTERVAL '7 days'   AS fecha_limite_recuperacion
+                MIN(dpn.fecha) + INTERVAL '7 days'   AS fecha_limite_recuperacion,
+                STRING_AGG(DISTINCT TRIM(CONCAT(e.nombre_empleado, ' ', e.ap_pat_empleado)), ', ') AS agentes_negado
             FROM detalle_pedido_negado dpn
             INNER JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpn.id_detalle_pedido_almacen
             INNER JOIN articulo a ON a.id_artic = dpa.id_articulo
+            LEFT JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
+            LEFT JOIN agente_de_venta av ON av.id_agente = pa.id_agente_pedido_alm
+            LEFT JOIN empleado e ON e.id_empleado = av.id_empleado
             WHERE dpn.motivo = 'SIN_EXISTENCIA'
               AND dpn.recuperado = false
               AND dpn.fecha + INTERVAL '7 days' >= NOW()
@@ -350,12 +370,17 @@ export const ArticuloRepository = {
             fecha_negado: r.fecha_negado,
             fecha_limite_recuperacion: r.fecha_limite_recuperacion,
             motivo_negado: 'Sin existencia',
+            // Este negado no viene de rechazarle a un proveedor una compra, sino de que un
+            // agente de ventas no tuvo existencia para surtir un pedido — no hay proveedor que negó.
+            proveedor_negado: null,
+            // Agente(s) de venta cuyo pedido se quedó sin surtir por falta de existencia.
+            agente_negado: r.agentes_negado ?? null,
             _fromAgent: true,
         }));
 
         return {
             total: count,
-            articulos: rows,
+            articulos: rowsConProveedor,
             page,
             totalPages: Math.ceil(count / limit),
             negadosAgente: negadosAgenteAgrupados,
