@@ -167,6 +167,16 @@ export const Stock_Ubicacion_LoteRepository = {
         });
         return rows.map(r => r.id_articulo);
     },
+
+    // Para saber si una ubicación está físicamente libre (sin piezas) aunque todavía figure
+    // como default de otro artículo — así se puede reasignar sin "quitarla primero" a mano.
+    getExistenciaTotalEnUbicacion: async (id_ubicacion_sucursal: string, tx?: Transaction) => {
+        const total = await Stock_Ubicacion_Lote.sum('cantidad', {
+            where: { id_ubicacion_sucursal },
+            transaction: tx,
+        });
+        return Number(total) || 0;
+    },
     findPendientesDeAcomodo: async (id_empresa_sucursal: string, cb?: string, tx?: Transaction) => {
         const whereStock: any = {
             id_empresa_sucursal,

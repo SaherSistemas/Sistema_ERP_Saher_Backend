@@ -37,9 +37,15 @@ export const Articulo_Ubicacion_DefaultServices = {
             // Una TARIMA sí puede tener varios artículos encima físicamente, así que ahí no se bloquea.
             const existenteEnDestino = await Articulo_Ubicacion_DefaultRepository.findByUbicacion(id_empresa_sucursal, id_ubicacion_sucursal, t);
             if (existenteEnDestino && existenteEnDestino.id_articulo !== id_articulo && !destinoEsTarima) {
-                const otroArticulo = (existenteEnDestino as any).articulo;
-                const nombre = otroArticulo ? `${otroArticulo.cod_int_artic} - ${otroArticulo.des_artic}` : 'otro artículo';
-                throw new Error(`Esta ubicación ya es default de ${nombre}. Quítasela primero antes de asignarla aquí.`);
+                const existenciaDestino = await Stock_Ubicacion_LoteRepository.getExistenciaTotalEnUbicacion(id_ubicacion_sucursal, t);
+                if (existenciaDestino > 0) {
+                    const otroArticulo = (existenteEnDestino as any).articulo;
+                    const nombre = otroArticulo ? `${otroArticulo.cod_int_artic} - ${otroArticulo.des_artic}` : 'otro artículo';
+                    throw new Error(`Esta ubicación ya es default de ${nombre} y todavía tiene existencia ahí. Quítasela primero antes de asignarla aquí.`);
+                }
+                // Sin existencia física ahí: se reasigna de una vez — al artículo anterior se le
+                // quita el default (queda sin ubicación) y se le asigna a este.
+                await Articulo_Ubicacion_DefaultRepository.eliminar(existenteEnDestino.id_articulo_ubicacion_default, t);
             }
 
             // Un artículo puede tener HASTA 2 ubicaciones default a la vez: una de anaquel/estantería
