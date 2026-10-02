@@ -5,6 +5,7 @@ import { TipoInventario, StatusInventario } from '../model/Inventario';
 import Stock_Ubicacion_Lote from '../../Stock/model/Stock_Ubicacion_Lote';
 import Lote_Articulo_Sucursal from '../../Lotes/model/Lote_Articulo_Sucursal';
 import { LotesArticuloSucursalRepository } from '../../Lotes/repository/Lote_ArticuloSucursal.repository';
+import { Articulo_Ubicacion_DefaultRepository } from '../../../Catalogos/Articulos/feature/Articulo_Ubicacion_Default/Articulo_Ubicacion_Default.repository';
 
 export const InventarioService = {
 
@@ -21,7 +22,7 @@ export const InventarioService = {
     crear: async (data: {
         id_empresa_sucursal: string;
         tipo_inventario: TipoInventario;
-        filtro?: { pasillo?: string; id_ubicacion_sucursal?: string; id_articulo?: string; id_articulos?: string[] };
+        filtro?: { pasillo?: string; id_ubicacion_sucursal?: string; ids_ubicaciones?: string[]; etiqueta?: string; id_articulo?: string; id_articulos?: string[] };
         creado_por?: string;
         notas?: string;
     }) => {
@@ -185,8 +186,60 @@ export const InventarioService = {
         return { ok: true };
     },
 
-    aplicar: (id_inventario: string, aplicado_por: string, marcarInicial: boolean = false) =>
-        InventarioRepository.aplicar(id_inventario, aplicado_por, marcarInicial),
+    aplicar: async (id_inventario: string, aplicado_por: string, marcarInicial: boolean = false) => {
+        // Renglones nuevos: artículo que se encontró físicamente en una ubicación donde el
+        // sistema no tenía nada (cant_sistema = 0). Se capturan ANTES de aplicar porque
+        // aplicar marca los renglones como ajustados.
+        const inv = await InventarioRepository.getById(id_inventario);
+        const nuevos = (inv?.detalles ?? []).filter(d =>
+            d.contado && d.ajustar && !d.ajustado
+            && Number(d.cant_sistema) === 0 && Number(d.cant_contada) > 0
+            && !!d.id_ubicacion_sucursal
+        );
+
+        const resultado = await InventarioRepository.aplicar(id_inventario, aplicado_por, marcarInicial);
+
+        // Ubicación default: solo si el artículo no tenía ya una del mismo tipo (anaquel/tarima)
+        // y, en anaquel, la ubicación no es default de otro artículo. No se mueve ni se quita
+        // ninguna default existente — eso se decide a mano.
+        const defaults_asignados: string[] = [];
+        const defaults_omitidos: { id_articulo: string; motivo: string }[] = [];
+        const vistos = new Set<string>();
+        for (const d of nuevos) {
+            const id_articulo = d.id_articulo;
+            const id_ubicacion = d.id_ubicacion_sucursal as string;
+            const clave = `${id_articulo}|${id_ubicacion}`;
+            if (vistos.has(clave)) continue;
+            vistos.add(clave);
+            try {
+                const id_empresa = inv!.id_empresa_sucursal;
+                const esTarima = (await Articulo_Ubicacion_DefaultRepository.getTipoUbicacion(id_ubicacion)) === 'TARIMA';
+                const propias = await Articulo_Ubicacion_DefaultRepository.findAllByArticulo(id_empresa, id_articulo);
+                let yaTieneDelMismoTipo = false;
+                for (const p of propias) {
+                    const pTarima = (await Articulo_Ubicacion_DefaultRepository.getTipoUbicacion(p.id_ubicacion_default)) === 'TARIMA';
+                    if (pTarima === esTarima) { yaTieneDelMismoTipo = true; break; }
+                }
+                if (yaTieneDelMismoTipo) {
+                    defaults_omitidos.push({ id_articulo, motivo: 'Ya tenía ubicación default de este tipo' });
+                    continue;
+                }
+                if (!esTarima) {
+                    const enDestino = await Articulo_Ubicacion_DefaultRepository.findByUbicacion(id_empresa, id_ubicacion);
+                    if (enDestino && enDestino.id_articulo !== id_articulo) {
+                        defaults_omitidos.push({ id_articulo, motivo: 'La ubicación ya es default de otro artículo' });
+                        continue;
+                    }
+                }
+                await Articulo_Ubicacion_DefaultRepository.create({ id_empresa_sucursal: id_empresa, id_articulo, id_ubicacion_default: id_ubicacion });
+                defaults_asignados.push(id_articulo);
+            } catch (e: any) {
+                defaults_omitidos.push({ id_articulo, motivo: e?.message ?? 'Error al asignar default' });
+            }
+        }
+
+        return { ...(resultado as any).toJSON(), defaults_asignados, defaults_omitidos };
+    },
 
     cancelar: async (id_inventario: string) => {
         const inv = await InventarioRepository.getById(id_inventario);

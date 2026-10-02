@@ -76,6 +76,7 @@ export const InventarioRepository = {
             pasillo?: string;
             tarima?: string;
             id_ubicacion_sucursal?: string;
+            ids_ubicaciones?: string[];
             id_articulo?: string;
             id_articulos?: string[];
         },
@@ -88,7 +89,9 @@ export const InventarioRepository = {
         const whereStock: any = { id_empresa_sucursal, cantidad: { [Op.gt]: 0 } };
         const whereUbicacion: any = {};
 
-        if (filtro.tipo === 'UBICACION' && filtro.id_ubicacion_sucursal) {
+        if (filtro.tipo === 'UBICACION' && filtro.ids_ubicaciones?.length) {
+            whereStock.id_ubicacion_sucursal = { [Op.in]: filtro.ids_ubicaciones };
+        } else if (filtro.tipo === 'UBICACION' && filtro.id_ubicacion_sucursal) {
             whereStock.id_ubicacion_sucursal = filtro.id_ubicacion_sucursal;
         }
         if (filtro.tipo === 'PASILLO' && filtro.pasillo) {
