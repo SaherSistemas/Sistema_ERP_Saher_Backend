@@ -31,6 +31,7 @@ export class Dash_CompraController {
             const { id_empresa } = req.params;
             // from/to en query; si no vienen, se ponen default (1er día del mes y hoy)
             const { from, to } = req.query as { from?: string; to?: string; };
+            const incluirDirectas = req.query.incluir_directas === 'true';
             //  console.log(estadoHijo, q)
             // Defaults (server timezone; si usas TZ, mejor con dayjs.tz/moment-timezone)
             const now = new Date();
@@ -51,7 +52,8 @@ export class Dash_CompraController {
             // !PUEDEN SER COMPRAS GENERALES O COMPRAS PROVEEDOR DEPENDE LOS FILTROS AHORITA LOS EXPLICO 
             const comprasGeneralesConFiltro = await CompraGeneralesService.getComprasGeneralesConFiltro(
                 id_empresa,
-                { start, end }
+                { start, end },
+                incluirDirectas
             );
             const comprasPendientes = await compraProveedorService.getComprasPendientes();
             // console.log(comprasGeneralesConFiltro);

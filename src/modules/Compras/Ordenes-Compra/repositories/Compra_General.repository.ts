@@ -71,13 +71,18 @@ export const CompraGeneralRepository = {
         return { total: count, compras: rows };
     },
 
-    findByEmpresaYFiltro: async (id_empresa: string, { start, end }: { start: Date; end: Date }) => {
+    // incluirDirectas=false (default) deja fuera las compras directas; ojo con las viejas sin
+    // tipo_compra (NULL), que "<> 'DIRECTA'" descartaría por sí solo — por eso el OR con IS NULL.
+    findByEmpresaYFiltro: async (id_empresa: string, { start, end }: { start: Date; end: Date }, incluirDirectas = false) => {
         return await Compra_General.findAll({
             where: {
                 id_empresa_sucursal: id_empresa,
                 fecha_inicio: {
                     [Op.between]: [start, end]
-                }
+                },
+                ...(incluirDirectas ? {} : {
+                    [Op.and]: [{ [Op.or]: [{ tipo_compra: null }, { tipo_compra: { [Op.ne]: 'DIRECTA' } }] }],
+                }),
             },
         })
     },

@@ -148,7 +148,12 @@ export const Factura_Compra_ProveedorService = {
                     const cantFaltante = Number(d?.resumen?.negado ?? 0);
                     if (cantFaltante <= 0) continue;
 
-                    const idArticulo = d.detalleCompraSolicitado?.idarticulo_detcompsol;
+                    // Mismo orden de prioridad que al dar entrada al inventario (más abajo): el artículo
+                    // real de la línea primero. Las líneas sin detcompsol (compras directas, renglones
+                    // "extra") no traen detalleCompraSolicitado, y antes se saltaban sin dejar faltante.
+                    const idArticulo = esTraslado
+                        ? (d.articulo?.id_artic ?? d.id_artic)
+                        : (d.id_artic ?? d.detalleCompraSolicitado?.idarticulo_detcompsol);
                     if (!idArticulo) continue;
 
                     const precioUnit = Number(d.precio_articulo_factura ?? 0);

@@ -1,6 +1,8 @@
 import fs from 'fs';
 import type { Request, Response } from 'express';
 import Cuenta_Por_Cobrar from '../model/Cuenta_Por_Cobrar.model';
+import Comentario_CxC from '../model/Comentario_CxC.model';
+import Empleado from '../../../RRHH/model/Empleado';
 import { RemisionService } from '../../Remisiones/services/Remision.service';
 import { FacturacionService } from '../../../Facturas/services/Facturacion.service';
 import { CxCService } from '../services/CxC.service';
@@ -406,6 +408,56 @@ export class CxCController {
             console.error(error);
             const status = /no encontrado/i.test(error.message) ? 404 : 500;
             res.status(status).json({ message: error.message ?? 'Error al generar el recibo PDF.' });
+        }
+    };
+
+    // ─── COMENTARIOS DE UNA CxC ───────────────────────────────────────────────
+    // GET  /api/cxc/comentarios/:id_cxc  → más recientes primero
+    // POST /api/cxc/comentarios/:id_cxc  body: { texto }
+    static getComentarios = async (req: Request, res: Response) => {
+        try {
+            const comentarios = await Comentario_CxC.findAll({
+                where: { id_cxc: req.params.id_cxc },
+                order: [['createdAt', 'DESC']],
+                attributes: ['id_comentario_cxc', 'nombre_autor', 'texto', 'createdAt'],
+            });
+            res.status(200).json({ comentarios });
+        } catch (error: any) {
+            console.error('[getComentarios]', error);
+            res.status(500).json({ message: error?.message ?? 'Error al obtener los comentarios.' });
+        }
+    };
+
+    static agregarComentario = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_cxc } = req.params;
+            const texto = String(req.body?.texto ?? '').trim();
+            if (!texto) { res.status(400).json({ message: 'Escribe el comentario.' }); return; }
+            if (texto.length > 1000) { res.status(400).json({ message: 'El comentario no puede pasar de 1000 caracteres.' }); return; }
+
+            const cxc = await Cuenta_Por_Cobrar.findByPk(id_cxc, { attributes: ['id_cxc'] });
+            if (!cxc) { res.status(404).json({ message: 'Cuenta por cobrar no encontrada.' }); return; }
+
+            const id_empleado = req.user?.id_referencia_persona ?? null;
+            const empleado = id_empleado
+                ? await Empleado.findByPk(id_empleado, { attributes: ['nombre_empleado', 'ap_pat_empleado'] })
+                : null;
+            const nombre_autor = empleado
+                ? `${empleado.nombre_empleado} ${empleado.ap_pat_empleado}`.trim()
+                : (req.user?.username ?? 'Usuario');
+
+            const comentario = await Comentario_CxC.create({ id_cxc, id_empleado, nombre_autor, texto });
+            res.status(201).json({
+                comentario: {
+                    id_comentario_cxc: comentario.id_comentario_cxc,
+                    nombre_autor: comentario.nombre_autor,
+                    texto: comentario.texto,
+                    createdAt: (comentario as any).createdAt,
+                },
+            });
+        } catch (error: any) {
+            console.error('[agregarComentario]', error);
+            res.status(500).json({ message: error?.message ?? 'Error al guardar el comentario.' });
         }
     };
 

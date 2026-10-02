@@ -25,25 +25,41 @@ export const NotasCreditoProveedorService = {
 
             const id_compra_proveedor = factura.id_compra_prove_factura;
 
-            // Si ya existe una NC auto-pendiente para esta factura, aplicarle los datos
-            // reales del SAT en lugar de crear un duplicado
-            const ncPendiente = await NotasCreditoProveedorRepository.tienePendiente(
-                data.id_factura_proveedor,
-                { transaction: t }
-            );
-            if (ncPendiente) {
-                await NotasCreditoProveedorRepository.aplicarNCFormal(
+            // Si esa misma nota (mismo folio) ya está registrada en la factura, NO se vuelve a crear:
+            // antes, si la factura seguía en pendientes, el usuario la subía otra vez y se
+            // acumulaban duplicados ("exceso registrado"). Solo se vuelve a revisar si ya cuadra.
+            const folioNuevo = String(data.folio_nc ?? '').trim().toLowerCase();
+            const existentes = folioNuevo
+                ? await NotasCreditoProveedorRepository.getNotasCreditoByFacturaProveedor(
                     data.id_factura_proveedor,
-                    {
-                        folio_nc: data.folio_nc,
-                        motivo_nc: data.motivo_nc,
-                        fecha_emision: data.fecha_emision,
-                        total_nc: Number(data.total_nc),
-                    },
+                    { transaction: t }
+                )
+                : [];
+            const yaRegistrada = existentes.some(
+                (n: any) => String(n.folio_nc ?? '').trim().toLowerCase() === folioNuevo
+            );
+
+            if (!yaRegistrada) {
+                // Si ya existe una NC auto-pendiente para esta factura, aplicarle los datos
+                // reales del SAT en lugar de crear un duplicado
+                const ncPendiente = await NotasCreditoProveedorRepository.tienePendiente(
+                    data.id_factura_proveedor,
                     { transaction: t }
                 );
-            } else {
-                await NotasCreditoProveedorRepository.create(data, { transaction: t });
+                if (ncPendiente) {
+                    await NotasCreditoProveedorRepository.aplicarNCFormal(
+                        data.id_factura_proveedor,
+                        {
+                            folio_nc: data.folio_nc,
+                            motivo_nc: data.motivo_nc,
+                            fecha_emision: data.fecha_emision,
+                            total_nc: Number(data.total_nc),
+                        },
+                        { transaction: t }
+                    );
+                } else {
+                    await NotasCreditoProveedorRepository.create(data, { transaction: t });
+                }
             }
 
             // Traer todas las NCs de esta factura para sumar

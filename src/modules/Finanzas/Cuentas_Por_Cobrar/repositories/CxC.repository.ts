@@ -43,9 +43,14 @@ export const CxCRepository = {
         const conditions: string[] = [];
         const replacements: Record<string, any> = { limit, offset };
 
-        // "Vencida" se filtra por fecha real, no por campo estatus_cxc
+        // "Vencida" se filtra por fecha real, no por campo estatus_cxc (que se queda en PEN/PAR al
+        // pasar la fecha). Igual que la pantalla: con saldo y vencimiento anterior a hoy es Vencida,
+        // y Pendiente/Parcial son solo las que todavía NO han vencido.
         if (filtros?.estatus === 'VEN') {
-            conditions.push(`cxc.saldo_pendiente > 0 AND cxc.fecha_vencimiento < NOW()`);
+            conditions.push(`cxc.saldo_pendiente > 0 AND cxc.fecha_vencimiento < CURRENT_DATE`);
+        } else if (filtros?.estatus === 'PEN' || filtros?.estatus === 'PAR') {
+            conditions.push(`cxc.estatus_cxc = :estatus AND NOT (cxc.saldo_pendiente > 0 AND cxc.fecha_vencimiento < CURRENT_DATE)`);
+            replacements.estatus = filtros.estatus;
         } else if (filtros?.estatus) {
             conditions.push(`cxc.estatus_cxc = :estatus`);
             replacements.estatus = filtros.estatus;
@@ -88,7 +93,7 @@ export const CxCRepository = {
                 folio_factura: string | null; total_factura: number | null;
                 folio_remision: string | null; id_cliente_alm: string;
                 razon_social_cliente_alm: string; nom_corto_cliente_alm: string;
-                rfc_cliente_alm: string | null; nombre_agente: string | null;
+                rfc_cliente_alm: string | null; nombre_agente: string | null; num_comentarios: number;
             }>(`
                 SELECT
                     cxc.id_cxc, cxc.estatus_cxc, cxc.monto_total, cxc.saldo_pendiente,
@@ -98,7 +103,8 @@ export const CxCRepository = {
                     r.folio_remision,
                     ca.id_cliente_alm, ca.razon_social_cliente_alm,
                     ca.nom_corto_cliente_alm, ca.rfc_cliente_alm,
-                    CONCAT(e.nombre_empleado, ' ', e.ap_pat_empleado) AS nombre_agente
+                    CONCAT(e.nombre_empleado, ' ', e.ap_pat_empleado) AS nombre_agente,
+                    (SELECT COUNT(*)::int FROM comentario_cxc cc WHERE cc.id_cxc = cxc.id_cxc) AS num_comentarios
                 FROM cuenta_por_cobrar cxc
                 JOIN  cliente_almacen   ca  ON ca.id_cliente_alm = cxc.id_cliente_alm
                 LEFT JOIN facturas      f   ON f.id_factura      = cxc.id_factura

@@ -5,7 +5,6 @@ import cors from 'cors';
 import { dbLocal, dbPoly, /*dbVieja/* dbRemota */ } from './config/db'; // Ambas conexiones
 import router from './routes';
 import { ConfiguracionService } from './modules/Configuracion/services/Configuracion.service';
-import fs from 'fs';
 import path from 'path';
 
 async function connectDatabases() {
@@ -50,5 +49,17 @@ app.use('/api/uploads/recepciones', express.static(
 ));
 app.use('/uploads/publicidad', express.static(
     path.join(__dirname, '../uploads/publicidad')
+));
+
+// Actualizaciones de la app de escritorio (electron-updater): aquí se copian el instalador .exe,
+// latest.yml y el .blockmap de cada versión. Se sirven por https://<dominio>/updates/
+app.use('/updates', express.static(
+    process.env.RUTA_UPDATES ?? path.join(__dirname, '../updates'),
+    {
+        setHeaders: (res, filePath) => {
+            // latest.yml dice cuál es la versión vigente: nunca debe quedar en caché
+            if (filePath.endsWith('.yml')) res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        },
+    }
 ));
 export default app;

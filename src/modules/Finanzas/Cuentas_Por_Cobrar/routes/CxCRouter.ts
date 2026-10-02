@@ -30,6 +30,12 @@ router.post('/recibos-seleccion', authMiddleware, CxCController.capturarRecibosS
 router.get('/antiguedad-saldos', CxCController.getAntiguedadSaldos);
 router.get('/antiguedad-saldos/:id_cliente_alm', CxCController.getAntiguedadByCliente);
 
+// ─── COMENTARIOS DE SEGUIMIENTO DE UNA CxC ───────────────────────────────────
+// GET  /api/cxc/comentarios/:id_cxc
+// POST /api/cxc/comentarios/:id_cxc   body: { texto }
+router.get('/comentarios/:id_cxc', authMiddleware, CxCController.getComentarios);
+router.post('/comentarios/:id_cxc', authMiddleware, CxCController.agregarComentario);
+
 // ─── PDF DE LA FACTURA/REMISIÓN DE UNA CxC ───────────────────────────────────
 // GET /api/cxc/documento-pdf/:id_cxc
 router.get('/documento-pdf/:id_cxc', authMiddleware, CxCController.getDocumentoPDF);

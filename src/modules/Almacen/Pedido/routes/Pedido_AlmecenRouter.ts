@@ -51,6 +51,9 @@ router.post('/detalle/:id_detalle_pedido_almacen/asignar-lote', Pedido_AlmacenCo
 router.patch('/lote/:id_detalle_pedido_almacen_lote/lote-factura', Pedido_AlmacenController.fijarLoteFactura);
 router.get('/:id_pedido_alm/cambios-precio-chequeo', Pedido_AlmacenController.getCambiosPrecioChequeo);
 router.patch('/:id_pedido_alm/cambiar-status', Pedido_AlmacenController.cambiarStatus);
+router.get('/:id_pedido_alm/analisis-credito', Pedido_AlmacenController.getAnalisisCredito);
+router.post('/:id_pedido_alm/autorizar-cotizacion', Pedido_AlmacenController.autorizarCotizacion);
+router.get('/cliente/:id_cliente_alm/historial-pagos', Pedido_AlmacenController.getHistorialPagosCliente);
 router.post('/:id_pedido_alm/entregar-vale', Pedido_AlmacenController.entregarVale);
 router.patch('/:id_pedido_alm/facturar-sin-surtido', Pedido_AlmacenController.facturarSinSurtido);
 router.patch('/:id/fecha-entrega', Pedido_AlmacenController.actualizarFechaEntrega);

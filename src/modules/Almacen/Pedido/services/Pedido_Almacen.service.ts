@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { fn, col, Op, QueryTypes, Transaction } from 'sequelize';
+import { fn, col, literal, Op, QueryTypes, Transaction } from 'sequelize';
 import fs from 'fs';
 import path from 'path';
 
@@ -789,11 +789,16 @@ export const Pedido_AlmacenService = {
 
     const limite = Number(cliente.limite_credito_cliente_alm ?? 0);
 
-    // 2. Verificar facturas vencidas (independiente del límite)
+    // 2. Verificar facturas vencidas (independiente del límite).
+    // OJO: el estatus 'VEN' no se asigna solo al pasar la fecha (las cuentas se quedan en PEN/PAR),
+    // así que se calcula por fecha. Hay un margen: se bloquea hasta el día 11 después del vencimiento.
+    const DIAS_VENCIDA_PARA_BLOQUEAR = 11;
     const facturasVencidas = await Cuenta_Por_Cobrar.count({
       where: {
         id_cliente_alm: pedido.id_cliente_pedido_alm,
-        estatus_cxc: 'VEN',
+        estatus_cxc: { [Op.in]: ['PEN', 'PAR', 'VEN'] },
+        saldo_pendiente: { [Op.gt]: 0 },
+        fecha_vencimiento: { [Op.lte]: literal(`CURRENT_DATE - ${DIAS_VENCIDA_PARA_BLOQUEAR}`) },
       },
     });
     const tiene_facturas_vencidas = facturasVencidas > 0;
@@ -870,6 +875,144 @@ export const Pedido_AlmacenService = {
     }
 
     return { excede, tiene_facturas_vencidas, limite, deuda_cxc, total_pedidos_activos, total_comprometido, id_pedido, bloqueado };
+  },
+
+  // Solo lectura: por qué un pedido está en Cotización y cómo está el cliente (para autorizarlo).
+  getAnalisisCredito: async (id_pedido: string) => {
+    const DIAS_BLOQUEO = 11; // mismo margen que verificarCredito
+
+    const [cab] = await dbLocal.query<any>(`
+      SELECT pa.id_pedido_alm, pa.cod_int_pedido_alm, pa.status_pedido_alm, pa.id_cliente_pedido_alm,
+             ca.razon_social_cliente_alm, ca.nom_corto_cliente_alm, ca.rfc_cliente_alm,
+             COALESCE(ca.limite_credito_cliente_alm, 0) AS limite,
+             COALESCE((SELECT SUM(d.precio_venta * d.cant_pedida)
+                       FROM detalle_pedido_almacen d WHERE d.id_pedido_almacen = pa.id_pedido_alm), 0) AS total_pedido
+      FROM pedido_almacen pa
+      JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+      WHERE pa.id_pedido_alm = :id_pedido
+    `, { replacements: { id_pedido }, type: QueryTypes.SELECT });
+    if (!cab) throw { status: 404, message: 'Pedido no encontrado.' };
+
+    const facturas = await dbLocal.query<any>(`
+      SELECT cxc.id_cxc,
+             COALESCE(f.folio_factura::text, r.folio_remision::text) AS folio,
+             TO_CHAR(cxc."createdAt"::date, 'YYYY-MM-DD')       AS fecha_emision,
+             TO_CHAR(cxc.fecha_vencimiento, 'YYYY-MM-DD')       AS fecha_vencimiento,
+             cxc.monto_total, cxc.monto_pagado, cxc.saldo_pendiente, cxc.estatus_cxc,
+             (CURRENT_DATE - cxc.fecha_vencimiento)::int        AS dias_vencida
+      FROM cuenta_por_cobrar cxc
+      LEFT JOIN facturas f ON f.id_factura  = cxc.id_factura
+      LEFT JOIN remision r ON r.id_remision = cxc.id_remision
+      WHERE cxc.id_cliente_alm = :cli
+        AND cxc.estatus_cxc IN ('PEN', 'PAR', 'VEN')
+        AND cxc.saldo_pendiente > 0
+      ORDER BY cxc.fecha_vencimiento ASC
+    `, { replacements: { cli: cab.id_cliente_pedido_alm }, type: QueryTypes.SELECT });
+
+    const [otros] = await dbLocal.query<any>(`
+      SELECT COALESCE(SUM(d.precio_venta * d.cant_pedida), 0) AS total
+      FROM detalle_pedido_almacen d
+      JOIN pedido_almacen p ON p.id_pedido_alm = d.id_pedido_almacen
+      WHERE p.id_cliente_pedido_alm = :cli
+        AND p.status_pedido_alm IN ('EC', 'CA')
+        AND p.id_pedido_alm <> :id_pedido
+    `, { replacements: { cli: cab.id_cliente_pedido_alm, id_pedido }, type: QueryTypes.SELECT });
+
+    const facturasNum = facturas.map((f: any) => ({
+      id_cxc: f.id_cxc,
+      folio: f.folio,
+      fecha_emision: f.fecha_emision,
+      fecha_vencimiento: f.fecha_vencimiento,
+      total: Number(f.monto_total),
+      pagado: Number(f.monto_pagado),
+      saldo: Number(f.saldo_pendiente),
+      dias_vencida: Number(f.dias_vencida),
+    }));
+
+    const limite = Number(cab.limite);
+    const total_pedido = Number(cab.total_pedido);
+    const total_pedidos_activos = Number(otros?.total ?? 0);
+    const saldo_total = facturasNum.reduce((s: number, f: any) => s + f.saldo, 0);
+    const saldo_vencido = facturasNum.filter((f: any) => f.dias_vencida > 0).reduce((s: number, f: any) => s + f.saldo, 0);
+    const facturas_bloqueantes = facturasNum.filter((f: any) => f.dias_vencida >= DIAS_BLOQUEO);
+    const total_comprometido = saldo_total + total_pedidos_activos + total_pedido;
+    const excede_limite = limite > 0 && total_comprometido > limite;
+
+    return {
+      pedido: {
+        id_pedido_alm: cab.id_pedido_alm,
+        cod_int_pedido_alm: cab.cod_int_pedido_alm,
+        status_pedido_alm: cab.status_pedido_alm,
+        total: total_pedido,
+      },
+      cliente: {
+        id_cliente_alm: cab.id_cliente_pedido_alm,
+        razon_social: cab.razon_social_cliente_alm,
+        nom_corto: cab.nom_corto_cliente_alm,
+        rfc: cab.rfc_cliente_alm,
+      },
+      resumen: {
+        limite,
+        saldo_total,
+        saldo_vencido,
+        total_pedidos_activos,
+        total_pedido,
+        total_comprometido,
+        excede_limite,
+        excedente: excede_limite ? total_comprometido - limite : 0,
+        dias_para_bloquear: DIAS_BLOQUEO,
+        facturas_bloqueantes: facturas_bloqueantes.length,
+        motivos: [
+          ...(excede_limite ? ['Excede el límite de crédito'] : []),
+          ...(facturas_bloqueantes.length ? [`Tiene ${facturas_bloqueantes.length} factura(s) con ${DIAS_BLOQUEO} días o más de vencida`] : []),
+        ],
+      },
+      facturas: facturasNum,
+    };
+  },
+
+  // Cuánto tarda el cliente en pagar las facturas que ya liquidó (más recientes primero).
+  getHistorialPagosCliente: async (id_cliente_alm: string) => {
+    const filas = await dbLocal.query<any>(`
+      SELECT cxc.id_cxc,
+             COALESCE(f.folio_factura::text, r.folio_remision::text) AS folio,
+             TO_CHAR(cxc."createdAt"::date, 'YYYY-MM-DD')   AS fecha_emision,
+             TO_CHAR(cxc.fecha_vencimiento, 'YYYY-MM-DD')   AS fecha_vencimiento,
+             TO_CHAR(MAX(p.fecha_pago), 'YYYY-MM-DD')       AS fecha_pago,
+             cxc.monto_total,
+             (MAX(p.fecha_pago) - cxc."createdAt"::date)::int AS dias_desde_emision,
+             (MAX(p.fecha_pago) - cxc.fecha_vencimiento)::int AS dias_vs_vencimiento
+      FROM cuenta_por_cobrar cxc
+      JOIN pago_cxc p ON p.id_cxc = cxc.id_cxc AND p.estatus_pago = 'APL'
+      LEFT JOIN facturas f ON f.id_factura  = cxc.id_factura
+      LEFT JOIN remision r ON r.id_remision = cxc.id_remision
+      WHERE cxc.id_cliente_alm = :id_cliente_alm AND cxc.estatus_cxc = 'PAG'
+      GROUP BY cxc.id_cxc, f.folio_factura, r.folio_remision, cxc."createdAt", cxc.fecha_vencimiento, cxc.monto_total
+      ORDER BY MAX(p.fecha_pago) DESC
+      LIMIT 60
+    `, { replacements: { id_cliente_alm }, type: QueryTypes.SELECT });
+
+    const pagos = filas.map((f: any) => ({
+      id_cxc: f.id_cxc,
+      folio: f.folio,
+      fecha_emision: f.fecha_emision,
+      fecha_vencimiento: f.fecha_vencimiento,
+      fecha_pago: f.fecha_pago,
+      total: Number(f.monto_total),
+      dias_desde_emision: Number(f.dias_desde_emision),
+      dias_vs_vencimiento: Number(f.dias_vs_vencimiento), // positivo = pagó tarde
+    }));
+    const n = pagos.length;
+    const prom = (xs: number[]) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : 0);
+    return {
+      pagos,
+      resumen: {
+        facturas_pagadas: n,
+        promedio_dias_pago: prom(pagos.map(p => p.dias_desde_emision)),
+        promedio_dias_retraso: prom(pagos.map(p => p.dias_vs_vencimiento)),
+        pagadas_con_retraso: pagos.filter(p => p.dias_vs_vencimiento > 0).length,
+      },
+    };
   },
 
 

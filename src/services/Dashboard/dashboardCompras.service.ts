@@ -8,7 +8,12 @@ import { Compra_ProveedorRepository } from '../../modules/Compras/Ordenes-Compra
 export const dashboardComprasService = {
     getAllCompraKPIS: async (empresaId: string, getAllCompraKPIS: ICompraKPISRequest) => {
         const { estadoHijo, from, q, to } = getAllCompraKPIS
+        const incluirDirectas = String((getAllCompraKPIS as any).incluir_directas) === 'true';
         const whereCG: WhereOptions = { id_empresa_sucursal: empresaId };
+        if (!incluirDirectas) {
+            // Las directas quedan fuera; las viejas sin tipo (NULL) se conservan
+            Object.assign(whereCG, { [Op.and]: [{ [Op.or]: [{ tipo_compra: null }, { tipo_compra: { [Op.ne]: 'DIRECTA' } }] }] });
+        }
         if (from || to) {
             const toDate = to ? new Date(to) : undefined;
             if (toDate) toDate.setDate(toDate.getDate() + 1);

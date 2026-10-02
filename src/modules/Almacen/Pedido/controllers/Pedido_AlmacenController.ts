@@ -7,6 +7,8 @@ import Pedido_Almacen from '../model/Pedido_Almacen';
 import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import { v4 as uuidv4 } from 'uuid';
 import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
+import Autorizacion_Credito from '../../../Facturas/model/Autorizacion_Credito.model';
+import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.repository';
 
 export class Pedido_AlmacenController {
   /*CHECARRR */
@@ -299,6 +301,80 @@ export class Pedido_AlmacenController {
     } catch (error: any) {
       console.error(error);
       res.status(500).json({ mensaje: error.message || 'Error al verificar crédito.' });
+    }
+  };
+
+  // GET /almacen/pedido/:id_pedido_alm/analisis-credito
+  static getAnalisisCredito = async (req: Request, res: Response) => {
+    try {
+      const data = await Pedido_AlmacenService.getAnalisisCredito(req.params.id_pedido_alm);
+      res.status(200).json(data);
+    } catch (error: any) {
+      console.error(error);
+      res.status(error?.status ?? 500).json({ message: error?.message ?? 'Error al analizar el crédito.' });
+    }
+  };
+
+  // GET /almacen/pedido/cliente/:id_cliente_alm/historial-pagos
+  static getHistorialPagosCliente = async (req: Request, res: Response) => {
+    try {
+      const data = await Pedido_AlmacenService.getHistorialPagosCliente(req.params.id_cliente_alm);
+      res.status(200).json(data);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ message: error?.message ?? 'Error al obtener el historial de pagos.' });
+    }
+  };
+
+  // POST /almacen/pedido/:id_pedido_alm/autorizar-cotizacion
+  // Un administrador libera un pedido que cayó a Cotización por crédito/facturas vencidas:
+  // pasa a Capturado (como si se hubiera finalizado la captura) y queda en la bitácora de créditos autorizados.
+  static autorizarCotizacion = async (req: AuthedRequest, res: Response) => {
+    try {
+      // Misma regla que usa la pantalla para mostrar acciones de administrador (prioridad del rol <= 2)
+      const prioridad = (req.user as any)?.prioridad;
+      if (prioridad == null || Number(prioridad) > 2) {
+        res.status(403).json({ message: 'Solo un administrador puede autorizar pedidos en cotización.' });
+        return;
+      }
+
+      const { id_pedido_alm } = req.params;
+      const analisis = await Pedido_AlmacenService.getAnalisisCredito(id_pedido_alm);
+      if (analisis.pedido.status_pedido_alm !== 'CO') {
+        res.status(409).json({ message: `El pedido ya no está en Cotización (status ${analisis.pedido.status_pedido_alm}).` });
+        return;
+      }
+
+      // La Entrega Máx. se calcula con las reglas del agente al autorizar; si no se puede,
+      // se avisa antes de dejar registrada la autorización.
+      const ped = await Pedido_Almacen.findByPk(id_pedido_alm, { attributes: ['id_agente_pedido_alm'] });
+      try {
+        await Pedido_AlmacenRepository.getFechaMaxEntrega(ped!.id_agente_pedido_alm);
+      } catch (e: any) {
+        res.status(409).json({ message: `No se pudo calcular la Entrega Máx.: ${e?.message ?? 'revisa las reglas de entrega del agente'}.` });
+        return;
+      }
+
+      await Autorizacion_Credito.create({
+        id_pedido_alm,
+        id_factura: null,
+        id_cxc: null,
+        id_cliente_alm: analisis.cliente.id_cliente_alm,
+        usuario_autoriza: req.user?.username ?? 'desconocido',
+        id_usuario_autoriza: req.user?.id_user ?? null,
+        id_empleado_solicita: null,
+        limite_credito: analisis.resumen.limite,
+        adeudo_previo: analisis.resumen.saldo_total,
+        monto_documento: analisis.resumen.total_pedido,
+        excedente: analisis.resumen.excedente,
+      });
+
+      const pedido = await Pedido_AlmacenService.finalizarCaptura(id_pedido_alm);
+      io.emit('pedido_nuevo_surtir', pedido);
+      res.status(200).json({ ok: true, pedido });
+    } catch (error: any) {
+      console.error(error);
+      res.status(error?.status ?? 500).json({ message: error?.message ?? 'Error al autorizar el pedido.' });
     }
   };
 

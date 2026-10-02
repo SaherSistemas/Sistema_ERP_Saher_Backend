@@ -12,8 +12,8 @@ export const CompraGeneralesService = {
         return await CompraGeneralRepository.getCompraEnCaptura(id_empresa)
     },
 
-    getComprasGeneralesConFiltro: async (id_empresa: string, rango: { start: Date; end: Date }) => {
-        const rows = await CompraGeneralRepository.findByEmpresaYFiltro(id_empresa, rango);
+    getComprasGeneralesConFiltro: async (id_empresa: string, rango: { start: Date; end: Date }, incluirDirectas = false) => {
+        const rows = await CompraGeneralRepository.findByEmpresaYFiltro(id_empresa, rango, incluirDirectas);
         const plain = rows.map((r: any) => typeof r.get === 'function' ? r.get({ plain: true }) : r);
         //console.log(plain)
         return plain.map(mapCompraGeneral);
