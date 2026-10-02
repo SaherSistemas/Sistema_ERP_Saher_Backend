@@ -47,6 +47,10 @@ export async function upsertCostoAlmacenPoly(
  * preciogpo: precio y costo por grupo de lista. Solo escribe si el precio o el costo cambiaron
  * (o la fila no existe). `soloActualizar` = no crea la fila si falta.
  */
+// DESACTIVADO: este sistema NO debe tocar preciogpo (precio por grupo) de PolyDB en ninguna lista.
+// Para volver a activar la escritura, cambiar a true.
+export const POLY_PRECIO_GRUPO_ACTIVO = false;
+
 export async function upsertPrecioGpoPoly(d: {
     codGrupo: number | string;
     codArtic: number;
@@ -55,6 +59,8 @@ export async function upsertPrecioGpoPoly(d: {
     margen: number;
     soloActualizar?: boolean;
 }): Promise<ResultadoPoly> {
+    if (!POLY_PRECIO_GRUPO_ACTIVO) return 'SIN_CAMBIO';
+
     const [actual] = await dbPoly.query<{ grpprecin: string | number | null; grpcoston: string | number | null }>(`
         SELECT grpprecin, grpcoston FROM preciogpo
         WHERE grpcdgrpn = :codGrupo AND artcdartn = :codArtic LIMIT 1

@@ -7,7 +7,7 @@ import { ArticuloService } from '../services/articulo.service';
 import Articulo from '../model/Articulo';
 import ListaPrecio from '../../../Comercial/Precios/model/Lista_Precio';
 import { dbPoly } from '../../../../config/db';
-import { upsertCostoAlmacenPoly, upsertPrecioGpoPoly } from '../../../../utils/polyCostos';
+import { upsertCostoAlmacenPoly, upsertPrecioGpoPoly, POLY_PRECIO_GRUPO_ACTIVO } from '../../../../utils/polyCostos';
 import { QueryTypes } from 'sequelize';
 import { LotesArticuloSucursalRepository } from '../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
@@ -20,6 +20,7 @@ async function _syncPrecioPolyDB(
   cod_int_lista_precio: number,
   precio: number,
 ): Promise<void> {
+  if (!POLY_PRECIO_GRUPO_ACTIVO) return;
   const [costoRow] = await dbPoly.query<{ almcosprn: number }>(
     `SELECT almcosprn FROM almacenes1 WHERE artcdartn = :codArtic AND almcdalmn = 1 LIMIT 1`,
     { type: QueryTypes.SELECT, replacements: { codArtic: cod_int_artic } }
