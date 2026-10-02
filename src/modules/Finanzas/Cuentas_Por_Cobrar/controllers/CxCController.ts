@@ -1,4 +1,8 @@
+import fs from 'fs';
 import type { Request, Response } from 'express';
+import Cuenta_Por_Cobrar from '../model/Cuenta_Por_Cobrar.model';
+import { RemisionService } from '../../Remisiones/services/Remision.service';
+import { FacturacionService } from '../../../Facturas/services/Facturacion.service';
 import { CxCService } from '../services/CxC.service';
 import { CxCRepository } from '../repositories/CxC.repository';
 import { Pago_CxCRepository } from '../repositories/Pago_CxC.repository';
@@ -402,6 +406,55 @@ export class CxCController {
             console.error(error);
             const status = /no encontrado/i.test(error.message) ? 404 : 500;
             res.status(status).json({ message: error.message ?? 'Error al generar el recibo PDF.' });
+        }
+    };
+
+    // ─── PDF DE LA FACTURA (o remisión) DE UNA CxC ────────────────────────────
+    // GET /api/cxc/documento-pdf/:id_cxc
+    static getDocumentoPDF = async (req: Request, res: Response) => {
+        try {
+            const { id_cxc } = req.params;
+            const cxc = await Cuenta_Por_Cobrar.findByPk(id_cxc, { attributes: ['id_cxc', 'id_factura', 'id_remision'] });
+            if (!cxc) { res.status(404).json({ message: 'Cuenta por cobrar no encontrada.' }); return; }
+
+            if (cxc.id_factura) {
+                const factura = await Facturas.findByPk(cxc.id_factura);
+                if (!factura) { res.status(404).json({ message: 'Factura no encontrada.' }); return; }
+                const nombre = `factura-${factura.folio_factura}.pdf`;
+
+                // 1) PDF ya generado al timbrar
+                if (factura.pdf_url && fs.existsSync(factura.pdf_url)) {
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.setHeader('Content-Disposition', `inline; filename="${nombre}"`);
+                    fs.createReadStream(factura.pdf_url).pipe(res);
+                    return;
+                }
+                // 2) Si no está en disco pero sí el XML timbrado, se regenera desde el XML
+                if (factura.xml_url && fs.existsSync(factura.xml_url)) {
+                    const { buffer } = await FacturacionService.generarPdfDetalleSAT(cxc.id_factura);
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.setHeader('Content-Disposition', `inline; filename="${nombre}"`);
+                    res.setHeader('Content-Length', buffer.length);
+                    res.send(buffer);
+                    return;
+                }
+                res.status(404).json({ message: 'Esta factura todavía no tiene PDF generado.' });
+                return;
+            }
+
+            if (cxc.id_remision) {
+                const buffer = await RemisionService.generarPdf(cxc.id_remision);
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="remision-${cxc.id_remision}.pdf"`);
+                res.setHeader('Content-Length', buffer.length);
+                res.send(buffer);
+                return;
+            }
+
+            res.status(404).json({ message: 'Esta cuenta no tiene factura ni remisión asociada.' });
+        } catch (error: any) {
+            console.error('[getDocumentoPDF]', error);
+            res.status(500).json({ message: error?.message ?? 'Error al obtener el PDF.' });
         }
     };
 

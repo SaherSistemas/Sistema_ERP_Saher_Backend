@@ -30,6 +30,10 @@ router.post('/recibos-seleccion', authMiddleware, CxCController.capturarRecibosS
 router.get('/antiguedad-saldos', CxCController.getAntiguedadSaldos);
 router.get('/antiguedad-saldos/:id_cliente_alm', CxCController.getAntiguedadByCliente);
 
+// ─── PDF DE LA FACTURA/REMISIÓN DE UNA CxC ───────────────────────────────────
+// GET /api/cxc/documento-pdf/:id_cxc
+router.get('/documento-pdf/:id_cxc', authMiddleware, CxCController.getDocumentoPDF);
+
 // ─── ESTADO DE CUENTA ────────────────────────────────────────────────────────
 // GET /api/cxc/estado-cuenta/:id_cliente_alm
 // Query params opcionales: ?fecha_inicio=YYYY-MM-DD&fecha_fin=YYYY-MM-DD
