@@ -378,6 +378,31 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // PATCH /almacen/pedido/:id_pedido_alm/aplicar-lista-precio  { id_lista_precio }
+  // Un administrador recalcula el precio de TODAS las líneas con otra lista, antes de facturar.
+  static aplicarListaPrecio = async (req: AuthedRequest, res: Response) => {
+    try {
+      const prioridad = (req.user as any)?.prioridad;
+      if (prioridad == null || Number(prioridad) > 2) {
+        res.status(403).json({ message: 'Solo un administrador puede cambiar los precios de un pedido.' });
+        return;
+      }
+      const { id_pedido_alm } = req.params;
+      const { id_lista_precio } = req.body ?? {};
+      if (!id_lista_precio) {
+        res.status(400).json({ message: 'Indica la lista de precios.' });
+        return;
+      }
+      const resultado = await Pedido_AlmacenService.aplicarListaPrecioPedido(
+        id_pedido_alm, String(id_lista_precio), req.user?.username ?? 'desconocido',
+      );
+      res.status(200).json(resultado);
+    } catch (error: any) {
+      console.error(error);
+      res.status(error?.status ?? 500).json({ message: error?.message ?? 'Error al aplicar la lista de precios.' });
+    }
+  };
+
   //FINALIZAR CAPUTRA
   static finalizarCaptura = async (req: Request, res: Response) => {
     try {

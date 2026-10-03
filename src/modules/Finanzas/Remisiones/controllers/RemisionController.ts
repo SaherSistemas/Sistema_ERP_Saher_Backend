@@ -37,6 +37,21 @@ export class RemisionController {
         }
     };
 
+    static vistaPreviaDesdePedido = async (req: Request, res: Response) => {
+        try {
+            const { id_pedido_alm } = req.params;
+            const pdf = await RemisionService.vistaPreviaDesdePedido(id_pedido_alm);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', 'inline; filename="remision-vista-previa.pdf"');
+            res.setHeader('Content-Length', pdf.length);
+            res.send(pdf);
+        } catch (error: any) {
+            console.error(error);
+            const status = /no encontrado|no tiene|ya fue facturado/i.test(error.message) ? 400 : 500;
+            res.status(status).json({ message: error.message ?? 'Error al generar la vista previa.' });
+        }
+    };
+
     static crearDesdePedido = async (req: Request, res: Response) => {
         try {
             const { id_pedido_alm } = req.params;
@@ -69,7 +84,17 @@ export class RemisionController {
     static getPDF = async (req: Request, res: Response) => {
         try {
             const { id_remision } = req.params;
-            const buffer = await RemisionService.generarPdf(id_remision);
+            const id_lista_precio = typeof req.query.id_lista_precio === 'string' && req.query.id_lista_precio
+                ? req.query.id_lista_precio : undefined;
+            if (id_lista_precio) {
+                // Ver una remisión con los precios de otra lista es solo para administradores (prioridad del rol <= 2)
+                const prioridad = (req as any).user?.prioridad;
+                if (prioridad == null || Number(prioridad) > 2) {
+                    res.status(403).json({ message: 'Solo un administrador puede ver la remisión con otra lista de precios.' });
+                    return;
+                }
+            }
+            const buffer = await RemisionService.generarPdf(id_remision, id_lista_precio);
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `inline; filename="remision-${id_remision}.pdf"`);
             res.setHeader('Content-Length', buffer.length);

@@ -25,6 +25,7 @@ import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import Cuenta_Por_Cobrar from '../../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
 import Usuario from '../../../Seguridad/model/Usuario';
 import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
+import ListaPrecio from '../../../Comercial/Precios/model/Lista_Precio';
 import { generarTraspasoCompletoPDFBuffer, TraspasoItem } from '../../../Facturas/helpers/traspaso.pdf';
 import { RUTA_PDFS } from '../../../Facturas/helpers/pdf.helper';
 import Impresora from '../../../Impresiones/model/Impresora';
@@ -1082,6 +1083,91 @@ export const Pedido_AlmacenService = {
       }
     }
     return resultado;
+  },
+
+  // Aplica una lista de precios a TODAS las líneas del pedido (solo antes de facturar).
+  // Solo cambia detalle_pedido_almacen.precio_venta: no toca lotes, surtido ni chequeo, y la remisión/CxC
+  // se crean después, al facturar, con estos precios. Las líneas de oferta conservan su precio promocional
+  // y las que no tienen precio en la lista quedan como estaban; ambas se reportan.
+  aplicarListaPrecioPedido: async (id_pedido_alm: string, id_lista_precio: string, usuario: string) => {
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, {
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm'],
+    }) as any;
+    if (!pedido) throw { status: 404, message: 'Pedido no encontrado.' };
+    if (pedido.fecha_facturado_pedido_alm || !['EC', 'CO', 'CA', 'SU', 'CH', 'EM'].includes(pedido.status_pedido_alm)) {
+      throw { status: 409, message: 'El precio solo se puede cambiar antes de facturar el pedido.' };
+    }
+
+    const lista = await ListaPrecio.findByPk(id_lista_precio, { attributes: ['id_lista_precio', 'nombre_lista_precio'] }) as any;
+    if (!lista) throw { status: 404, message: 'Lista de precios no encontrada.' };
+
+    const detalles = await Detalle_Pedido_Almacen.findAll({
+      where: { id_pedido_almacen: id_pedido_alm },
+      attributes: ['id_detalle_pedido_almacen', 'id_articulo', 'cant_pedida', 'precio_venta', 'es_oferta'],
+      include: [{ model: Articulo, as: 'articulo', attributes: ['id_artic', 'des_artic'], required: false }],
+    }) as any[];
+
+    const precios = await DetalleListaPrecio.findAll({
+      where: { id_lista_precio, id_artic: { [Op.in]: detalles.map(d => d.id_articulo) } },
+      attributes: ['id_artic', 'precios'],
+      raw: true,
+    }) as any[];
+    // Menos de 1 centavo se trata como "sin precio" (igual que el catálogo comercial)
+    const mapa = new Map<string, number>(
+      precios.filter(p => Number(p.precios) >= 0.01).map(p => [p.id_artic, Number(p.precios)] as [string, number]),
+    );
+
+    let totalAnterior = 0;
+    let totalNuevo = 0;
+    let actualizados = 0;
+    const sin_precio: string[] = [];
+    const ofertas_omitidas: string[] = [];
+    const cambios: { id: string; precio: number }[] = [];
+
+    for (const d of detalles) {
+      const cant = Number(d.cant_pedida);
+      const actual = Number(d.precio_venta);
+      const nombre = d.articulo?.des_artic ?? d.id_articulo;
+      totalAnterior += cant * actual;
+
+      let nuevo = actual;
+      if (d.es_oferta) {
+        ofertas_omitidas.push(nombre);
+      } else if (!mapa.has(d.id_articulo)) {
+        sin_precio.push(nombre);
+      } else {
+        nuevo = mapa.get(d.id_articulo)!;
+        if (nuevo !== actual) cambios.push({ id: d.id_detalle_pedido_almacen, precio: nuevo });
+      }
+      totalNuevo += cant * nuevo;
+    }
+
+    const t = await dbLocal.transaction();
+    try {
+      for (const c of cambios) {
+        await Detalle_Pedido_Almacen.update(
+          { precio_venta: c.precio },
+          { where: { id_detalle_pedido_almacen: c.id }, transaction: t },
+        );
+        actualizados++;
+      }
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    console.log(`[Pedido ${pedido.cod_int_pedido_alm}] ${usuario} aplicó la lista "${lista.nombre_lista_precio}": `
+      + `${actualizados} líneas, total ${totalAnterior.toFixed(2)} → ${totalNuevo.toFixed(2)}`);
+
+    return {
+      lista: lista.nombre_lista_precio as string,
+      actualizados,
+      sin_precio,
+      ofertas_omitidas,
+      total_anterior: +totalAnterior.toFixed(2),
+      total_nuevo: +totalNuevo.toFixed(2),
+    };
   },
 
   // Negar lo que se surtió pero no se pudo chequear (no estaba físicamente).

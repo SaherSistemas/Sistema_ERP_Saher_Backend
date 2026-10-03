@@ -5,6 +5,7 @@ import path from 'path';
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
 interface DetalleItem {
+    id_articulo?:         string;
     descripcion_articulo: string;
     cantidad:             number;
     precio_unitario:      number;
@@ -16,7 +17,9 @@ interface DetalleItem {
 }
 
 export interface DatosRemisionPDF {
-    folio_remision:    number;
+    folio_remision:    number | string;
+    // true = borrador para revisar antes de facturar: lleva marca de agua y no es un documento de cobro
+    vista_previa?:     boolean;
     fecha_emision:     string;   // DD/MM/YY
     dia_venc:          string;   // DD  — para el pagaré
     mes_venc:          string;   // MM
@@ -100,6 +103,21 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     doc.on('data',  (c: Buffer) => chunks.push(c));
     doc.on('end',   () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
+
+    // Marca de agua en cada página cuando es vista previa (se dibuja antes que el contenido)
+    const marcaAgua = () => {
+        if (!datos.vista_previa) return;
+        doc.save();
+        doc.rotate(-35, { origin: [306, 396] });
+        doc.fillColor('#dc2626').fillOpacity(0.13)
+           .font('Helvetica-Bold').fontSize(70)
+           .text('VISTA PREVIA', 0, 330, { width: 612, align: 'center', lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(18)
+           .text('NO ES UN DOCUMENTO DE COBRO', 0, 420, { width: 612, align: 'center', lineBreak: false });
+        doc.restore();
+    };
+    marcaAgua();
+    doc.on('pageAdded', marcaAgua);
 
     const PW  = 612;
     const MX  = 28;           // margen horizontal

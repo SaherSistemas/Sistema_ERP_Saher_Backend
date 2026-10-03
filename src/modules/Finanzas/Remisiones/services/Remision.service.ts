@@ -1,4 +1,6 @@
-import { Transaction } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
+import ListaPrecio from '../../../Comercial/Precios/model/Lista_Precio';
+import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
 import { dbLocal } from '../../../../config/db';
 import { ICreateRemision } from '../interface/Remision.interface';
 import { RemisionRepository } from '../repositories/Remision.repository';
@@ -24,9 +26,60 @@ export const RemisionService = {
         return remision;
     },
 
-    generarPdf: async (id_remision: string): Promise<Buffer> => {
+    // Con id_lista_precio, el PDF sale con los precios de esa lista (misma remisión, mismo formato).
+    // Es solo una vista: no cambia la remisión ni su CxC (sale con el folio de la remisión, sin marca de agua).
+    generarPdf: async (id_remision: string, id_lista_precio?: string): Promise<Buffer> => {
         const datos = await RemisionRepository.getDatosParaPDF(id_remision);
         if (!datos) throw new Error('Remisión no encontrada');
+        if (!id_lista_precio) return generarRemisionPDFBuffer(datos);
+
+        const lista = await ListaPrecio.findByPk(id_lista_precio, { attributes: ['id_lista_precio'] });
+        if (!lista) throw new Error('Lista de precios no encontrada');
+
+        const ids = datos.detalles.map(d => d.id_articulo).filter((x): x is string => !!x);
+        const filas = ids.length
+            ? await DetalleListaPrecio.findAll({
+                where: { id_lista_precio, id_artic: { [Op.in]: ids } },
+                attributes: ['id_artic', 'precios'],
+                raw: true,
+            }) as any[]
+            : [];
+        const mapa = new Map<string, number>(
+            filas.filter(f => Number(f.precios) >= 0.01).map(f => [f.id_artic, Number(f.precios)] as [string, number]),
+        );
+
+        const detalles = datos.detalles.map(d => {
+            const precio = d.id_articulo ? mapa.get(d.id_articulo) : undefined;
+            if (precio === undefined) return d; // sin precio en esa lista: queda el de la remisión
+            const subtotal = +(d.cantidad * precio).toFixed(2);
+            return { ...d, precio_unitario: precio, subtotal, importe_iva: +(subtotal * d.tasa_iva).toFixed(2) };
+        });
+        const subtotal_remision = +detalles.reduce((s, d) => s + d.subtotal, 0).toFixed(2);
+        const iva_remision      = +detalles.reduce((s, d) => s + d.importe_iva, 0).toFixed(2);
+
+        return generarRemisionPDFBuffer({
+            ...datos,
+            detalles,
+            subtotal_remision,
+            iva_remision,
+            total_remision: +(subtotal_remision + iva_remision).toFixed(2),
+        });
+    },
+
+    // PDF borrador de la remisión de un pedido ya checado y todavía sin facturar.
+    // No guarda nada: sin folio, sin remisión y sin CxC.
+    vistaPreviaDesdePedido: async (id_pedido_alm: string): Promise<Buffer> => {
+        const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, {
+            attributes: ['id_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm'],
+        });
+        if (!pedido) throw new Error('Pedido no encontrado');
+        if (pedido.status_pedido_alm === 'FA' || pedido.fecha_facturado_pedido_alm) {
+            throw new Error('Este pedido ya fue facturado: consulta su remisión real en el módulo de Remisiones.');
+        }
+
+        const datos = await RemisionRepository.getDatosVistaPreviaPedido(id_pedido_alm);
+        if (!datos) throw new Error('Pedido no encontrado');
+        if (!datos.detalles.length) throw new Error('El pedido aún no tiene piezas checadas.');
         return generarRemisionPDFBuffer(datos);
     },
 

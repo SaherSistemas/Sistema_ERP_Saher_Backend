@@ -147,6 +147,7 @@ export const RemisionRepository = {
                 COALESCE(
                     JSON_AGG(
                         JSON_BUILD_OBJECT(
+                            'id_articulo',          dr.id_articulo,
                             'descripcion_articulo', dr.descripcion_articulo,
                             'cantidad',             dr.cantidad,
                             'precio_unitario',      dr.precio_unitario,
@@ -189,6 +190,7 @@ export const RemisionRepository = {
         const r = rows[0];
         const detalles = (Array.isArray(r.detalles) ? r.detalles : JSON.parse(r.detalles as any))
             .map((d: any) => ({
+                id_articulo:          d.id_articulo ?? undefined,
                 descripcion_articulo: String(d.descripcion_articulo ?? ''),
                 cantidad:             Number(d.cantidad),
                 precio_unitario:      Number(d.precio_unitario),
@@ -314,6 +316,110 @@ export const RemisionRepository = {
             id_cliente_alm:     r.id_cliente_alm,
             id_agente:          r.id_agente,
             dias_credito:       Number(r.dias_credito),
+        };
+    },
+
+    // ─── Vista previa de remisión desde un pedido (SOLO LECTURA) ──────────────
+    // Arma los mismos datos que tendría la remisión al facturar: piezas CHEQUEADAS y el
+    // precio_venta actual del pedido. No inserta nada (ni remisión, ni folio, ni CxC).
+    getDatosVistaPreviaPedido: async (id_pedido_alm: string) => {
+        const cab = await dbLocal.query<any>(`
+            SELECT
+                TO_CHAR(CURRENT_DATE, 'DD/MM/YY')                                      AS fecha_emision,
+                COALESCE(ca.plazo_pago_cliente_alm, 0)                                 AS dias_credito,
+                TO_CHAR(CURRENT_DATE + COALESCE(ca.plazo_pago_cliente_alm, 0), 'DD')   AS dia_venc,
+                TO_CHAR(CURRENT_DATE + COALESCE(ca.plazo_pago_cliente_alm, 0), 'MM')   AS mes_venc,
+                TO_CHAR(CURRENT_DATE + COALESCE(ca.plazo_pago_cliente_alm, 0), 'YYYY') AS anio_venc,
+                ca.razon_social_cliente_alm,
+                ca.rfc_cliente_alm,
+                COALESCE(ca.calle_cliente_alm, '')                                     AS calle_receptor,
+                COALESCE(col.nom_colonia, col.cp_colonia, '')                          AS colonia_receptor,
+                COALESCE(col.cp_colonia, '')                                           AS cp_receptor,
+                COALESCE(ciu.nom_ciuda, '')                                            AS municipio_receptor,
+                COALESCE(est.nom_esta, '')                                             AS estado_receptor,
+                av.cod_identi_agente,
+                CONCAT(e.nombre_empleado, ' ', e.ap_pat_empleado)                      AS nombre_agente,
+                pa.cod_int_pedido_alm
+            FROM pedido_almacen pa
+            JOIN cliente_almacen ca   ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+            LEFT JOIN agente_de_venta av ON av.id_agente   = pa.id_agente_pedido_alm
+            LEFT JOIN empleado e         ON e.id_empleado  = av.id_empleado
+            LEFT JOIN colonia col        ON col.id_colonia = ca.id_colonia_cliente_alm
+            LEFT JOIN ciudad  ciu        ON ciu.id_ciuda   = col.id_ciuda_colonia
+            LEFT JOIN estado  est        ON est.id_esta    = ciu.id_esta_ciuda
+            WHERE pa.id_pedido_alm = :id_pedido_alm
+            LIMIT 1
+        `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT });
+        if (!cab.length) return null;
+
+        const lineas = await dbLocal.query<any>(`
+            SELECT
+                a.des_artic                                         AS descripcion_articulo,
+                COALESCE(a.cod_barr_artic, '')                      AS cod_barras,
+                SUM(dpac.cant_chequeada)                            AS cantidad,
+                dpa.precio_venta                                    AS precio_unitario,
+                COALESCE(CAST(ti.porcentaje_iva AS NUMERIC), 0)     AS tasa_iva,
+                COALESCE(um.descrip_medida, 'PZA')                  AS unidad
+            FROM detalle_pedido_almacen dpa
+            JOIN articulo a            ON a.id_artic   = dpa.id_articulo
+            LEFT JOIN tipo_iva ti      ON ti.id_iva    = a.tipo_de_iva
+            LEFT JOIN unidadmedida um  ON um.id_medida = a.unidmedi_artic
+            JOIN detalle_pedido_almacen_chequeo dpac
+                 ON dpac.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+                AND dpac.estado != 'CANCELADO'
+            WHERE dpa.id_pedido_almacen = :id_pedido_alm
+            GROUP BY dpa.id_detalle_pedido_almacen, a.des_artic, a.cod_barr_artic,
+                     dpa.precio_venta, ti.porcentaje_iva, um.descrip_medida
+            HAVING SUM(dpac.cant_chequeada) > 0
+            ORDER BY dpa.id_detalle_pedido_almacen
+        `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT });
+
+        const detalles = lineas.map((l: any) => {
+            const cantidad        = Number(l.cantidad);
+            const precio_unitario = Number(l.precio_unitario);
+            const tasa_iva        = Number(l.tasa_iva);
+            const subtotal        = +(cantidad * precio_unitario).toFixed(2);
+            return {
+                descripcion_articulo: String(l.descripcion_articulo ?? ''),
+                cantidad,
+                precio_unitario,
+                subtotal,
+                tasa_iva,
+                importe_iva:          +(subtotal * tasa_iva).toFixed(2),
+                cod_barras:           String(l.cod_barras ?? ''),
+                unidad:               String(l.unidad ?? 'PZA'),
+            };
+        });
+
+        const c = cab[0];
+        const subtotal_remision = +detalles.reduce((s: number, d: any) => s + d.subtotal, 0).toFixed(2);
+        const iva_remision      = +detalles.reduce((s: number, d: any) => s + d.importe_iva, 0).toFixed(2);
+
+        return {
+            folio_remision:       'VISTA PREVIA',
+            vista_previa:         true,
+            fecha_emision:        c.fecha_emision,
+            dia_venc:             c.dia_venc,
+            mes_venc:             c.mes_venc,
+            anio_venc:            c.anio_venc,
+            dias_credito:         Number(c.dias_credito),
+            subtotal_remision,
+            iva_remision,
+            total_remision:       +(subtotal_remision + iva_remision).toFixed(2),
+            estatus_remision:     'VISTA PREVIA',
+            notas:                null,
+            razon_social_cliente: c.razon_social_cliente_alm,
+            rfc_cliente:          c.rfc_cliente_alm ?? null,
+            calle_receptor:       c.calle_receptor ?? '',
+            colonia_receptor:     c.colonia_receptor ?? '',
+            cp_receptor:          c.cp_receptor ?? '',
+            municipio_receptor:   c.municipio_receptor ?? '',
+            estado_receptor:      c.estado_receptor ?? '',
+            cod_identi_agente:    c.cod_identi_agente ?? '',
+            nombre_agente:        c.nombre_agente ?? null,
+            cod_int_pedido:       c.cod_int_pedido_alm ?? null,
+            folio_factura:        null,
+            detalles,
         };
     },
 
