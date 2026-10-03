@@ -38,6 +38,78 @@ import { etiquetaUbicacion } from '../../Existencias/services/Existencias.servic
 import { FacturacionService } from '../../../Facturas/services/Facturacion.service';
 
 
+// ── Helper: compara el precio de cada línea del pedido contra una lista de precios ──
+// Solo lee. Estados: CAMBIA (precio distinto), IGUAL, OFERTA (conserva su precio promocional)
+// y SIN_PRECIO (el artículo no tiene precio en esa lista; queda como estaba).
+async function calcularCambiosListaPrecio(id_pedido_alm: string, id_lista_precio: string) {
+  const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, {
+    attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm'],
+  }) as any;
+  if (!pedido) throw { status: 404, message: 'Pedido no encontrado.' };
+  if (pedido.fecha_facturado_pedido_alm || !['EC', 'CO', 'CA', 'SU', 'CH', 'EM'].includes(pedido.status_pedido_alm)) {
+    throw { status: 409, message: 'El precio solo se puede cambiar antes de facturar el pedido.' };
+  }
+
+  const lista = await ListaPrecio.findByPk(id_lista_precio, { attributes: ['id_lista_precio', 'nombre_lista_precio'] }) as any;
+  if (!lista) throw { status: 404, message: 'Lista de precios no encontrada.' };
+
+  // toJSON(): la asociación "articulo" solo se lee bien desde el objeto plano (igual que getCambiosPrecioChequeo)
+  const detalles = (await Detalle_Pedido_Almacen.findAll({
+    where: { id_pedido_almacen: id_pedido_alm },
+    attributes: ['id_detalle_pedido_almacen', 'id_articulo', 'cant_pedida', 'precio_venta', 'es_oferta'],
+    include: [{ model: Articulo, as: 'articulo', attributes: ['id_artic', 'des_artic', 'cod_barr_artic'], required: false }],
+  }) as any[]).map(d => (d.toJSON ? d.toJSON() : d));
+
+  const precios = await DetalleListaPrecio.findAll({
+    where: { id_lista_precio, id_artic: { [Op.in]: detalles.map(d => d.id_articulo) } },
+    attributes: ['id_artic', 'precios'],
+    raw: true,
+  }) as any[];
+  // Menos de 1 centavo se trata como "sin precio" (igual que el catálogo comercial)
+  const mapa = new Map<string, number>(
+    precios.filter(p => Number(p.precios) >= 0.01).map(p => [p.id_artic, Number(p.precios)] as [string, number]),
+  );
+
+  const r2 = (n: number) => +n.toFixed(2);
+  let anterior = 0;
+  let nuevo = 0;
+  const lineas = detalles.map(d => {
+    const cantidad = Number(d.cant_pedida);
+    const precio_actual = Number(d.precio_venta);
+    let precio_nuevo = precio_actual;
+    let estado: 'CAMBIA' | 'IGUAL' | 'OFERTA' | 'SIN_PRECIO';
+    if (d.es_oferta) estado = 'OFERTA';
+    else if (!mapa.has(d.id_articulo)) estado = 'SIN_PRECIO';
+    else {
+      precio_nuevo = mapa.get(d.id_articulo)!;
+      estado = precio_nuevo !== precio_actual ? 'CAMBIA' : 'IGUAL';
+    }
+    const subtotal_actual = r2(cantidad * precio_actual);
+    const subtotal_nuevo = r2(cantidad * precio_nuevo);
+    anterior += subtotal_actual;
+    nuevo += subtotal_nuevo;
+    return {
+      id_detalle_pedido_almacen: d.id_detalle_pedido_almacen as string,
+      des_artic: (d.articulo?.des_artic ?? d.id_articulo) as string,
+      cod_barr_artic: (d.articulo?.cod_barr_artic ?? '') as string,
+      cantidad,
+      precio_actual,
+      precio_nuevo,
+      subtotal_actual,
+      subtotal_nuevo,
+      diferencia: r2(subtotal_nuevo - subtotal_actual),
+      estado,
+    };
+  });
+
+  return {
+    cod_pedido: pedido.cod_int_pedido_alm as string,
+    lista: lista.nombre_lista_precio as string,
+    lineas,
+    totales: { anterior: r2(anterior), nuevo: r2(nuevo), diferencia: r2(nuevo - anterior) },
+  };
+}
+
 // ── Helper: genera e imprime el traspaso de medicamentos ──
 export async function _generarTraspasoCheckeado(id_pedido_alm: string): Promise<void> {
   const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { raw: true }) as any;
@@ -1085,71 +1157,27 @@ export const Pedido_AlmacenService = {
     return resultado;
   },
 
+  // Muestra, línea por línea, cómo quedaría el pedido con una lista de precios SIN guardar nada.
+  previsualizarListaPrecioPedido: async (id_pedido_alm: string, id_lista_precio: string) => {
+    const r = await calcularCambiosListaPrecio(id_pedido_alm, id_lista_precio);
+    return { lista: r.lista, lineas: r.lineas, totales: r.totales };
+  },
+
   // Aplica una lista de precios a TODAS las líneas del pedido (solo antes de facturar).
   // Solo cambia detalle_pedido_almacen.precio_venta: no toca lotes, surtido ni chequeo, y la remisión/CxC
   // se crean después, al facturar, con estos precios. Las líneas de oferta conservan su precio promocional
   // y las que no tienen precio en la lista quedan como estaban; ambas se reportan.
   aplicarListaPrecioPedido: async (id_pedido_alm: string, id_lista_precio: string, usuario: string) => {
-    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, {
-      attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm'],
-    }) as any;
-    if (!pedido) throw { status: 404, message: 'Pedido no encontrado.' };
-    if (pedido.fecha_facturado_pedido_alm || !['EC', 'CO', 'CA', 'SU', 'CH', 'EM'].includes(pedido.status_pedido_alm)) {
-      throw { status: 409, message: 'El precio solo se puede cambiar antes de facturar el pedido.' };
-    }
-
-    const lista = await ListaPrecio.findByPk(id_lista_precio, { attributes: ['id_lista_precio', 'nombre_lista_precio'] }) as any;
-    if (!lista) throw { status: 404, message: 'Lista de precios no encontrada.' };
-
-    const detalles = await Detalle_Pedido_Almacen.findAll({
-      where: { id_pedido_almacen: id_pedido_alm },
-      attributes: ['id_detalle_pedido_almacen', 'id_articulo', 'cant_pedida', 'precio_venta', 'es_oferta'],
-      include: [{ model: Articulo, as: 'articulo', attributes: ['id_artic', 'des_artic'], required: false }],
-    }) as any[];
-
-    const precios = await DetalleListaPrecio.findAll({
-      where: { id_lista_precio, id_artic: { [Op.in]: detalles.map(d => d.id_articulo) } },
-      attributes: ['id_artic', 'precios'],
-      raw: true,
-    }) as any[];
-    // Menos de 1 centavo se trata como "sin precio" (igual que el catálogo comercial)
-    const mapa = new Map<string, number>(
-      precios.filter(p => Number(p.precios) >= 0.01).map(p => [p.id_artic, Number(p.precios)] as [string, number]),
-    );
-
-    let totalAnterior = 0;
-    let totalNuevo = 0;
-    let actualizados = 0;
-    const sin_precio: string[] = [];
-    const ofertas_omitidas: string[] = [];
-    const cambios: { id: string; precio: number }[] = [];
-
-    for (const d of detalles) {
-      const cant = Number(d.cant_pedida);
-      const actual = Number(d.precio_venta);
-      const nombre = d.articulo?.des_artic ?? d.id_articulo;
-      totalAnterior += cant * actual;
-
-      let nuevo = actual;
-      if (d.es_oferta) {
-        ofertas_omitidas.push(nombre);
-      } else if (!mapa.has(d.id_articulo)) {
-        sin_precio.push(nombre);
-      } else {
-        nuevo = mapa.get(d.id_articulo)!;
-        if (nuevo !== actual) cambios.push({ id: d.id_detalle_pedido_almacen, precio: nuevo });
-      }
-      totalNuevo += cant * nuevo;
-    }
+    const r = await calcularCambiosListaPrecio(id_pedido_alm, id_lista_precio);
+    const cambios = r.lineas.filter(l => l.estado === 'CAMBIA');
 
     const t = await dbLocal.transaction();
     try {
       for (const c of cambios) {
         await Detalle_Pedido_Almacen.update(
-          { precio_venta: c.precio },
-          { where: { id_detalle_pedido_almacen: c.id }, transaction: t },
+          { precio_venta: c.precio_nuevo },
+          { where: { id_detalle_pedido_almacen: c.id_detalle_pedido_almacen }, transaction: t },
         );
-        actualizados++;
       }
       await t.commit();
     } catch (err) {
@@ -1157,16 +1185,16 @@ export const Pedido_AlmacenService = {
       throw err;
     }
 
-    console.log(`[Pedido ${pedido.cod_int_pedido_alm}] ${usuario} aplicó la lista "${lista.nombre_lista_precio}": `
-      + `${actualizados} líneas, total ${totalAnterior.toFixed(2)} → ${totalNuevo.toFixed(2)}`);
+    console.log(`[Pedido ${r.cod_pedido}] ${usuario} aplicó la lista "${r.lista}": `
+      + `${cambios.length} líneas, total ${r.totales.anterior.toFixed(2)} → ${r.totales.nuevo.toFixed(2)}`);
 
     return {
-      lista: lista.nombre_lista_precio as string,
-      actualizados,
-      sin_precio,
-      ofertas_omitidas,
-      total_anterior: +totalAnterior.toFixed(2),
-      total_nuevo: +totalNuevo.toFixed(2),
+      lista: r.lista,
+      actualizados: cambios.length,
+      sin_precio: r.lineas.filter(l => l.estado === 'SIN_PRECIO').map(l => l.des_artic),
+      ofertas_omitidas: r.lineas.filter(l => l.estado === 'OFERTA').map(l => l.des_artic),
+      total_anterior: r.totales.anterior,
+      total_nuevo: r.totales.nuevo,
     };
   },
 

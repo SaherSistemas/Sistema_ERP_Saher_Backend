@@ -378,6 +378,28 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // GET /almacen/pedido/:id_pedido_alm/previsualizar-lista-precio?id_lista_precio=…
+  // Cómo quedaría cada línea con esa lista (precio actual, nuevo y diferencia). No guarda nada.
+  static previsualizarListaPrecio = async (req: AuthedRequest, res: Response) => {
+    try {
+      const prioridad = (req.user as any)?.prioridad;
+      if (prioridad == null || Number(prioridad) > 2) {
+        res.status(403).json({ message: 'Solo un administrador puede cambiar los precios de un pedido.' });
+        return;
+      }
+      const { id_pedido_alm } = req.params;
+      const id_lista_precio = String(req.query.id_lista_precio ?? '');
+      if (!id_lista_precio) {
+        res.status(400).json({ message: 'Indica la lista de precios.' });
+        return;
+      }
+      res.status(200).json(await Pedido_AlmacenService.previsualizarListaPrecioPedido(id_pedido_alm, id_lista_precio));
+    } catch (error: any) {
+      console.error(error);
+      res.status(error?.status ?? 500).json({ message: error?.message ?? 'Error al calcular la vista previa de precios.' });
+    }
+  };
+
   // PATCH /almacen/pedido/:id_pedido_alm/aplicar-lista-precio  { id_lista_precio }
   // Un administrador recalcula el precio de TODAS las líneas con otra lista, antes de facturar.
   static aplicarListaPrecio = async (req: AuthedRequest, res: Response) => {
