@@ -150,6 +150,8 @@ export class PermisoController {
                 { modulo_permiso: 'inventario', accion_permiso: 'movimientos_almacen' },
                 // Almacén → Existencias por Ubicación (buscar artículo, ver/ajustar/mover su stock)
                 { modulo_permiso: 'almacen', accion_permiso: 'existencias_ubicacion' },
+                // Almacén Administrador → Tablero de Almacén (existencia total y estado general, para encargados)
+                { modulo_permiso: 'almacen', accion_permiso: 'tablero_almacen' },
                 // Facturación → Créditos Autorizados (bitácora de límites de crédito autorizados)
                 { modulo_permiso: 'facturacion', accion_permiso: 'autorizaciones_credito' },
                 // Permiso visible en panel Web CRM para surtidores

@@ -3,22 +3,43 @@ import { dbLocal } from '../../../../config/db';
 import { ICreateKardex_Movimiento } from '../interface/Kardex_Movimientos_Articulo.interface';
 import { Kardex_Movimiento_ArticuloRepository, IFiltrosMovimientos } from '../repositories/Kardex_Movimiento_Articulo.repository';
 
-// Signo de cada tipo del kardex (TRASLADO y AJUSTE no mueven la existencia total)
-const SIGNO_KARDEX: Record<string, number> = { ENTRADA: 1, SURTIDO: 1, SALIDA: -1, VENTA: -1, TRASLADO: 0, AJUSTE: 0 };
-
 export const KardexService = {
 
-    // Kardex de UN artículo: movimientos en orden cronológico con entrada / salida / saldo corrido.
+    // Kardex de UN artículo: movimientos con entrada / salida / saldo corrido, PAGINADOS.
     // Junta el kardex (ventas, cancelaciones, devoluciones) con los movimientos manuales de almacén (ajustes, mermas).
     // El saldo se ancla a la existencia actual (stock_ubicacion_lote): el saldo final del último movimiento es lo que hay hoy.
-    getKardexArticulo: async (id_empresa: string, id_articulo: string, fecha_inicio?: string, fecha_fin?: string) => {
+    // Todo el cálculo (saldo corrido, totales del periodo) se hace en SQL; solo se traen y se completan (lote, cliente,
+    // proveedor, empleado) los renglones de la página pedida, así el historial puede crecer sin volver lenta la consulta.
+    getKardexArticulo: async (
+        id_empresa: string, id_articulo: string, fecha_inicio?: string, fecha_fin?: string,
+        opts: { page?: number; limit?: number; orden?: 'asc' | 'desc' } = {},
+    ) => {
+        const page = Math.max(1, Math.floor(opts.page ?? 1));
+        const limit = Math.min(200, Math.max(5, Math.floor(opts.limit ?? 50)));
+        const orden = opts.orden === 'asc' ? 'asc' : 'desc';
+
         const [art] = await dbLocal.query<any>(
             `SELECT id_artic, des_artic, cod_barr_artic, cod_int_artic FROM articulo WHERE id_artic = :id_articulo`,
             { replacements: { id_articulo }, type: QueryTypes.SELECT });
         if (!art) throw new Error('Artículo no encontrado.');
 
-        const rows = await dbLocal.query<any>(`
-            SELECT * FROM (
+        // Mismos límites del periodo que antes: inicio del día de "desde" y fin del día de "hasta" (hora del servidor)
+        const rep: Record<string, any> = { id_empresa, id_articulo };
+        if (fecha_inicio) rep.desde = new Date(fecha_inicio + 'T00:00:00').toISOString();
+        if (fecha_fin) rep.hasta = new Date(fecha_fin + 'T23:59:59').toISOString();
+        const enPeriodo = [fecha_inicio ? 'fecha >= :desde::timestamptz' : '', fecha_fin ? 'fecha <= :hasta::timestamptz' : '']
+            .filter(Boolean).join(' AND ') || 'TRUE';
+        const antesDelPeriodo = fecha_inicio ? 'fecha < :desde::timestamptz' : 'FALSE';
+        const hastaElCierre = fecha_fin ? 'fecha <= :hasta::timestamptz' : 'TRUE';
+
+        // Movimientos del artículo con su signo (+1 entra, -1 sale, 0 no mueve la existencia total: TRASLADO y AJUSTE)
+        const MOVS = `
+            SELECT x.*,
+                   CASE WHEN x.origen = 'M'
+                        THEN CASE WHEN x.tipo IN ('AJUSTE_ENTRADA', 'INICIAL') THEN 1 ELSE -1 END
+                        ELSE CASE x.tipo WHEN 'ENTRADA' THEN 1 WHEN 'SURTIDO' THEN 1 WHEN 'SALIDA' THEN -1 WHEN 'VENTA' THEN -1 ELSE 0 END
+                   END AS signo
+            FROM (
                 SELECT k.id_kardex_movimientos AS id, k.fecha, k.tipo_movimiento::text AS tipo, k.cantidad_movimiento AS cantidad,
                        k.documento_ref, k.notas, k.id_lote, k.id_pedido, k.id_empleado, 'K' AS origen
                 FROM kardex_movimientos_articulos k
@@ -29,8 +50,48 @@ export const KardexService = {
                 FROM movimiento_articulo m
                 WHERE m.id_empresa = :id_empresa AND m.id_articulo = :id_articulo
             ) x
-            ORDER BY x.fecha ASC, x.origen ASC
-        `, { replacements: { id_empresa, id_articulo }, type: QueryTypes.SELECT });
+        `;
+
+        const [{ existencia }] = await dbLocal.query<any>(
+            `SELECT COALESCE(SUM(cantidad), 0) AS existencia FROM stock_ubicacion_lote
+             WHERE id_empresa_sucursal = :id_empresa AND id_articulo = :id_articulo`,
+            { replacements: { id_empresa, id_articulo }, type: QueryTypes.SELECT });
+        const existencia_actual = Number(existencia) || 0;
+
+        // Totales (de todo el historial y del periodo) sin traer renglones
+        const [tot] = await dbLocal.query<any>(`
+            WITH mov AS (${MOVS})
+            SELECT COALESCE(SUM(signo * cantidad), 0)                                         AS neto_total,
+                   COUNT(*) FILTER (WHERE ${enPeriodo})                                       AS total_movs,
+                   COALESCE(SUM(cantidad) FILTER (WHERE signo > 0 AND ${enPeriodo}), 0)       AS entradas,
+                   COALESCE(SUM(cantidad) FILTER (WHERE signo < 0 AND ${enPeriodo}), 0)       AS salidas,
+                   COALESCE(SUM(signo * cantidad) FILTER (WHERE ${antesDelPeriodo}), 0)       AS neto_antes,
+                   COALESCE(SUM(signo * cantidad) FILTER (WHERE ${hastaElCierre}), 0)         AS neto_hasta
+            FROM mov
+        `, { replacements: rep, type: QueryTypes.SELECT });
+
+        const netoTotal = Number(tot?.neto_total) || 0;
+        const base = existencia_actual - netoTotal;                  // saldo antes del primer movimiento registrado
+        const totalMovs = Number(tot?.total_movs) || 0;
+        const saldo_inicial = base + (Number(tot?.neto_antes) || 0);
+        const saldo_final = totalMovs > 0 ? base + (Number(tot?.neto_hasta) || 0) : saldo_inicial;
+        const totalPaginas = Math.max(1, Math.ceil(totalMovs / limit));
+        const pagina = Math.min(page, totalPaginas);
+
+        // Solo la página pedida; el saldo corrido sale de la suma acumulada de todo el historial
+        const dir = orden === 'asc' ? 'ASC' : 'DESC';
+        const rows = totalMovs === 0 ? [] : await dbLocal.query<any>(`
+            WITH mov AS (${MOVS}),
+            acum AS (
+                SELECT mov.*,
+                       SUM(signo * cantidad) OVER (ORDER BY fecha ASC, origen ASC, id::text ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS acumulado
+                FROM mov
+            )
+            SELECT * FROM acum
+            WHERE ${enPeriodo}
+            ORDER BY fecha ${dir}, origen ${dir}, id::text ${dir}
+            LIMIT :limit OFFSET :offset
+        `, { replacements: { ...rep, limit, offset: (pagina - 1) * limit }, type: QueryTypes.SELECT });
 
         const lotesIds = Array.from(new Set(rows.map((r: any) => r.id_lote).filter(Boolean)));
         const empIds = Array.from(new Set(rows.map((r: any) => r.id_empleado).filter(Boolean)));
@@ -68,19 +129,17 @@ export const KardexService = {
             p.id_pedido_alm,
             (p.nom_corto_cliente_alm?.trim() || p.razon_social_cliente_alm?.trim() || null),
         ]));
-        const facturaProveedorMap = new Map(facturasProveedor.map((f: any) => [
-            f.id_factura_proveedor,
+        const facturaProveedorMap = new Map(facturasProveedor.map((fp: any) => [
+            fp.id_factura_proveedor,
             {
-                folio: f.folio_factura_proveedor ?? null,
-                proveedor: f.nomcort_prove?.trim() || null,
+                folio: fp.folio_factura_proveedor ?? null,
+                proveedor: fp.nomcort_prove?.trim() || null,
             },
         ]));
 
-        const movs = rows.map((r: any) => {
+        const movimientos = rows.map((r: any) => {
             const cant = Number(r.cantidad) || 0;
-            let signo: number;
-            if (r.origen === 'M') signo = (r.tipo === 'AJUSTE_ENTRADA' || r.tipo === 'INICIAL') ? 1 : -1;
-            else signo = SIGNO_KARDEX[r.tipo] ?? 0;
+            const signo = Number(r.signo) || 0;
             const fp = r.tipo === 'ENTRADA' && r.documento_ref ? facturaProveedorMap.get(r.documento_ref) : null;
             return {
                 id: r.id, fecha: r.fecha, tipo: r.tipo, origen: r.origen,
@@ -94,44 +153,25 @@ export const KardexService = {
                 entrada: signo > 0 ? cant : 0,
                 salida: signo < 0 ? cant : 0,
                 neutro: signo === 0 ? cant : 0,
+                saldo: base + (Number(r.acumulado) || 0),
             };
         });
-
-        const [{ existencia }] = await dbLocal.query<any>(
-            `SELECT COALESCE(SUM(cantidad), 0) AS existencia FROM stock_ubicacion_lote
-             WHERE id_empresa_sucursal = :id_empresa AND id_articulo = :id_articulo`,
-            { replacements: { id_empresa, id_articulo }, type: QueryTypes.SELECT });
-        const existencia_actual = Number(existencia) || 0;
-
-        // Saldo anclado a la existencia actual
-        const netoTotal = movs.reduce((s: number, m: any) => s + m.entrada - m.salida, 0);
-        let saldo = existencia_actual - netoTotal;   // saldo antes del primer movimiento registrado
-        const conSaldo = movs.map((m: any) => {
-            saldo += m.entrada - m.salida;
-            return { ...m, saldo };
-        });
-
-        const desde = fecha_inicio ? new Date(fecha_inicio + 'T00:00:00').getTime() : null;
-        const hasta = fecha_fin ? new Date(fecha_fin + 'T23:59:59').getTime() : null;
-        const enPeriodo = conSaldo.filter((m: any) => {
-            const t = new Date(m.fecha).getTime();
-            return (desde == null || t >= desde) && (hasta == null || t <= hasta);
-        });
-        const antesDelPeriodo = desde == null ? [] : conSaldo.filter((m: any) => new Date(m.fecha).getTime() < desde);
-        const saldo_inicial = antesDelPeriodo.length
-            ? antesDelPeriodo[antesDelPeriodo.length - 1].saldo
-            : (existencia_actual - netoTotal);
 
         return {
             articulo: { id_artic: art.id_artic, des_artic: art.des_artic, cod_barr_artic: art.cod_barr_artic, cod_int_artic: art.cod_int_artic },
             existencia_actual,
             saldo_inicial,
-            total_entradas: enPeriodo.reduce((s: number, m: any) => s + m.entrada, 0),
-            total_salidas: enPeriodo.reduce((s: number, m: any) => s + m.salida, 0),
-            saldo_final: enPeriodo.length ? enPeriodo[enPeriodo.length - 1].saldo : saldo_inicial,
+            total_entradas: Number(tot?.entradas) || 0,
+            total_salidas: Number(tot?.salidas) || 0,
+            saldo_final,
             // Piezas de la existencia actual que ningún movimiento explica (compras/migración/ajustes anteriores al kardex)
-            sin_movimiento_previo: existencia_actual - netoTotal,
-            movimientos: enPeriodo,
+            sin_movimiento_previo: base,
+            page: pagina,
+            limit,
+            orden,
+            total_movimientos: totalMovs,
+            total_paginas: totalPaginas,
+            movimientos,
         };
     },
 

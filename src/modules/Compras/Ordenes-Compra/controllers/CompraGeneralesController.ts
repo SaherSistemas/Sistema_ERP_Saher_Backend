@@ -41,8 +41,10 @@ export class ComprasGeneralesController {
             const { hayCapturasConEmpleado, ultimo } = await Detalle_Compra_SolicitadoRepository
                 .getUltimoArticuloDeEmpleado(id_empresa, req.user?.id_referencia_persona)
             const plano = compraEnCaptura.toJSON()
+            const modo_lista = await CompraGeneralesService.getModoLista(id_empresa, plano)
             res.status(200).json({
                 ...plano,
+                modo_lista,
                 ultimo_articulo_guardado_usuario: hayCapturasConEmpleado ? ultimo : (plano.ultimo_articulo_guardado ?? null),
             })
         } catch (error) {
@@ -51,6 +53,19 @@ export class ComprasGeneralesController {
         }
     }
 
+
+    // PUT /compras/modoLista/:id_empresa  { modo: 'DIAS_INVENTARIO', dias } — la compra especial usará esa lista
+    static setModoLista = async (req: Request, res: Response) => {
+        try {
+            const { id_empresa } = req.params;
+            const dias = Math.min(365, Math.max(7, Math.floor(Number(req.body?.dias) || 30)));
+            await CompraGeneralesService.setModoLista(id_empresa, String(req.body?.modo ?? ''), dias);
+            res.status(200).json({ ok: true });
+        } catch (error: any) {
+            if (!error?.status) console.error('[setModoLista]', error);
+            res.status(error?.status ?? 500).json({ message: error?.message ?? 'No se pudo guardar la lista de la compra.' });
+        }
+    }
 
     static reabrirCompra = async (req: Request, res: Response) => {
         try {

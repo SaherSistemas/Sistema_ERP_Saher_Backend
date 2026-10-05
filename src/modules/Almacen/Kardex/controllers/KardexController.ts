@@ -35,7 +35,10 @@ export const KardexController = {
             if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
             const fecha_inicio = String(req.query.fecha_inicio || '').trim() || undefined;
             const fecha_fin = String(req.query.fecha_fin || '').trim() || undefined;
-            const data = await KardexService.getKardexArticulo(id_empresa, req.params.id_articulo, fecha_inicio, fecha_fin);
+            const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+            const limit = Math.min(200, Math.max(5, Math.floor(Number(req.query.limit) || 50)));
+            const orden = req.query.orden === 'asc' ? 'asc' : 'desc';
+            const data = await KardexService.getKardexArticulo(id_empresa, req.params.id_articulo, fecha_inicio, fecha_fin, { page, limit, orden });
             res.status(200).json(data);
         } catch (e: any) {
             console.error('[KardexController.obtenerKardexArticulo]', e);

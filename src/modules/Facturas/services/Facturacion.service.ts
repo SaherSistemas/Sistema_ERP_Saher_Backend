@@ -1697,6 +1697,113 @@ export const FacturacionService = {
         return { buffer, nombre: `Traslado_${folio}.pdf` };
     },
 
+    // Vuelve a generar el .txt de un consolidado de vales (CFDI a Público en General) ya registrado: lee sus renglones
+    // de la propia factura y recupera los lotes de los vales que se facturaron junto con ella.
+    regenerarTxtConsolidadoVales: async (factura: Facturas, id_empresa: string) => {
+        const empresa = await EmpresaSucursal.findByPk(id_empresa);
+        if (!empresa) throw new Error('Empresa no encontrada');
+        const emisorData = await obtenerEmisor(id_empresa);
+        if (!emisorData) throw new Error('Empresa no encontrada');
+
+        const renglones = await dbLocal.query<any>(`
+            SELECT df.id_articulo, df.descripcion_articulo, df.cantidad_facturada, df.precio_artic, df.subtotal, df.tasa_iva,
+                   a.satclave_artic AS cve_sat, um.sat_medida, um.descrip_medida AS desc_medida,
+                   ti.impuesto_sat, ti.tipo_factor
+            FROM detalle_factura df
+            LEFT JOIN articulo     a  ON a.id_artic  = df.id_articulo
+            LEFT JOIN unidadmedida um ON um.id_medida = a.unidmedi_artic
+            LEFT JOIN tipo_iva     ti ON ti.id_iva    = a.tipo_de_iva
+            WHERE df.id_factura = :id_factura
+            ORDER BY df.descripcion_articulo, df.precio_artic
+        `, { replacements: { id_factura: factura.id_factura }, type: QueryTypes.SELECT }) as any[];
+        if (!renglones.length) throw new Error('La factura no tiene conceptos registrados');
+
+        // Vales que se facturaron con este consolidado: los que quedaron en FA al momento de generarlo
+        const creada = new Date((factura as any).createdAt ?? Date.now());
+        const vales = await dbLocal.query<any>(`
+            SELECT pa.id_pedido_alm, pa."createdAt"::date::text AS fecha
+            FROM pedido_almacen pa
+            WHERE pa.origen_pedido = 'VALE' AND pa.status_pedido_alm = 'FA'
+              AND (pa.id_pedido_alm = :primero
+                   OR pa.fecha_facturado_pedido_alm BETWEEN :desde AND :hasta)
+        `, {
+            replacements: {
+                primero: factura.id_pedido_alm ?? null,
+                desde: new Date(creada.getTime() - 60_000).toISOString(),
+                hasta: new Date(creada.getTime() + 10 * 60_000).toISOString(),
+            },
+            type: QueryTypes.SELECT,
+        }) as any[];
+
+        // Lotes por artículo + precio (igual que al consolidar)
+        const lotesPorConcepto = new Map<string, { lote: string; fecha_venci: string; cantidad: number }[]>();
+        if (vales.length) {
+            const filasLote = await dbLocal.query<any>(`
+                SELECT dpa.id_articulo, dpa.precio_venta,
+                       COALESCE(las.numero_lote_sucursal, dpal.lote_factura_numero) AS lote,
+                       COALESCE(las.fecha_venci_lote_sucursal::text, dpal.lote_factura_fecha::text) AS fecha_venci,
+                       dpac.cant_chequeada AS cant_lote
+                FROM detalle_pedido_almacen dpa
+                JOIN detalle_pedido_almacen_chequeo dpac ON dpac.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+                LEFT JOIN detalle_pedido_almacen_lote dpal ON dpal.id_detalle_pedido_almacen_lote = dpac.id_detalle_pedido_almacen_lote
+                LEFT JOIN lote_articulo_sucursal las ON las.id_lote_sucursal = dpal.id_lote_sucursal
+                WHERE dpa.id_pedido_almacen IN (:ids)
+            `, { replacements: { ids: vales.map(v => v.id_pedido_alm) }, type: QueryTypes.SELECT }) as any[];
+            for (const f of filasLote) {
+                if (!f.lote) continue;
+                const key = `${f.id_articulo}|${Number(f.precio_venta)}`;
+                const lista = lotesPorConcepto.get(key) ?? [];
+                const venci = f.fecha_venci ?? '';
+                const ya = lista.find(l => l.lote === f.lote && l.fecha_venci === venci);
+                if (ya) ya.cantidad += Number(f.cant_lote);
+                else lista.push({ lote: f.lote, fecha_venci: venci, cantidad: Number(f.cant_lote) });
+                lotesPorConcepto.set(key, lista);
+            }
+        }
+
+        const fechas = vales.map(v => String(v.fecha)).sort();
+        const periodo = fechas.length ? ` — ${fechas[0]} al ${fechas[fechas.length - 1]}` : '';
+        const folio = Number(factura.folio_factura);
+        const serie = (empresa as any).serie_facturacion_empre ?? 'FSH';
+
+        const { ruta } = generarTxtIngreso({
+            emisor: emisorData,
+            receptor: {
+                razon_social: 'PUBLICO EN GENERAL',
+                rfc: 'XAXX010101000',
+                domicilio_fiscal: (empresa as any).cp_empre ?? '80000',
+                regimen_fiscal: '616',
+                uso_cfdi: 'G01',
+            },
+            folio,
+            forma_pago: factura.id_forma_pago || '01',
+            metodo_pago: 'PUE',
+            conceptos: renglones.map(r => {
+                const precio = Number(r.precio_artic);
+                const c = {
+                    cantidad: Number(r.cantidad_facturada),
+                    precio_unitario: precio,
+                    subtotal_linea: Number(r.subtotal),
+                    tasa_iva: Number(r.tasa_iva),
+                    descripcion: String(r.descripcion_articulo ?? ''),
+                    lotes: (lotesPorConcepto.get(`${r.id_articulo}|${precio}`) ?? []).map(l => ({ ...l, folio_factura_proveedor: '', nom_proveedor: '' })),
+                };
+                return {
+                    cve_sat: r.cve_sat, sat_medida: r.sat_medida, desc_medida: r.desc_medida,
+                    cod_barras: '', cantidad: c.cantidad,
+                    descripcion: buildDescripcionConcepto(c as any),
+                    precio_unitario: precio, descuento: 0,
+                    subtotal_linea: c.subtotal_linea, tasa_iva: c.tasa_iva,
+                    impuesto_sat: r.impuesto_sat, tipo_factor: r.tipo_factor,
+                };
+            }),
+            leyenda: `Vales de medicamentos empleados${periodo}`,
+            nombreArchivo: `FactDig${serie}${folio}-Ingresos.txt`,
+        });
+
+        return { id_factura: factura.id_factura, folio, ruta_txt: ruta, flujo: 'PUBLICO_GENERAL' };
+    },
+
     // Si forzarNuevoFolio=true, antes de regenerar el .txt se le asigna el siguiente folio
     // disponible y se marca como 'REF' (Refoliada). Sirve para cuando el facturador ya
     // registró el folio anterior (p.ej. se timbró, se canceló en el SAT y no acepta
@@ -1718,6 +1825,12 @@ export const FacturacionService = {
 
         // ── Tipo I: Ingreso ───────────────────────────────────────────────────
         if (factura.tipo_cfdi === 'I') {
+            // Consolidado de vales: es un solo CFDI a Público en General que junta varios vales de empleados.
+            // No tiene cliente en el sistema, así que no se arma desde la cabecera de un pedido.
+            if (factura.origen_factura === 'VAL' && !factura.id_cliente_alm) {
+                return await FacturacionService.regenerarTxtConsolidadoVales(factura, id_empresa);
+            }
+
             if (!factura.id_pedido_alm) throw new Error('La factura no tiene pedido asociado');
 
             const [cab, conceptos] = await Promise.all([

@@ -9,6 +9,12 @@ import Movimiento_Articulo from '../../../Almacen/Movimientos/model/Movimiento_A
 import { dbLocal } from '../../../../config/db';
 import { Transaction } from 'sequelize';
 
+// Lo que debería haber físicamente en el anaquel en este momento: la existencia menos lo que el
+// surtidor ya sacó para pedidos (apartada) — esas piezas siguen en el stock hasta que se factura
+// el pedido, pero ya no están en la ubicación. Sin restarlas, contar durante el surtido descuadra.
+const esperadoEnAnaquel = (stock: { cantidad: any; cantidad_apartada?: any }): number =>
+    Math.max(0, (Number(stock.cantidad) || 0) - (Number(stock.cantidad_apartada) || 0));
+
 export const InventarioRepository = {
 
     // ── Lista paginada ────────────────────────────────────────────────────────
@@ -166,7 +172,7 @@ export const InventarioRepository = {
             id_articulo: dto.id_articulo,
             id_ubicacion_sucursal: dto.id_ubicacion_sucursal,
             id_lote: dto.id_lote,
-            cant_sistema: stockActual ? Number(stockActual.cantidad) : 0,
+            cant_sistema: stockActual ? esperadoEnAnaquel(stockActual) : 0,
             cant_contada: dto.cant_contada,
             contado: true,
             ajustar: true,
@@ -197,15 +203,27 @@ export const InventarioRepository = {
         comentario?: string;
         ajustar?: boolean;
     }) => {
-        await Detalle_Inventario.update(
-            {
-                cant_contada: data.cant_contada,
-                contado: true,
-                comentario: data.comentario ?? null,
-                ajustar: data.ajustar ?? true,
-            },
-            { where: { id_detalle_inventario } },
-        );
+        // Se vuelve a tomar lo que el sistema espera en ESTE momento (no la foto de cuando se generó
+        // el inventario), así se puede seguir surtiendo y facturando mientras se cuenta sin descuadrar.
+        const cambios: any = {
+            cant_contada: data.cant_contada,
+            contado: true,
+            comentario: data.comentario ?? null,
+            ajustar: data.ajustar ?? true,
+        };
+        const detalle = await Detalle_Inventario.findByPk(id_detalle_inventario);
+        const inv = detalle ? await Inventario.findByPk(detalle.id_inventario) : null;
+        if (detalle && inv && detalle.id_ubicacion_sucursal) {
+            const where: any = {
+                id_empresa_sucursal: inv.id_empresa_sucursal,
+                id_articulo: detalle.id_articulo,
+                id_ubicacion_sucursal: detalle.id_ubicacion_sucursal,
+            };
+            if (detalle.id_lote) where.id_lote = detalle.id_lote;
+            const stock = await Stock_Ubicacion_Lote.findOne({ where });
+            cambios.cant_sistema = stock ? esperadoEnAnaquel(stock) : 0;
+        }
+        await Detalle_Inventario.update(cambios, { where: { id_detalle_inventario } });
         return Detalle_Inventario.findByPk(id_detalle_inventario, {
             include: [
                 { model: Articulo, attributes: ['id_artic', 'des_artic', 'cod_barr_artic', 'cod_int_artic'] },

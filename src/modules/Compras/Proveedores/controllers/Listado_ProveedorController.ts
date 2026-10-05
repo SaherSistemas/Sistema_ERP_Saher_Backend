@@ -11,6 +11,18 @@ export class Listado_ProveedorController {
             res.status(500).json({ message: "Error al mostrar los listados" })
         }
     }
+    // POST /listadosproveedor/sin-disponibilidad  { codigos: string[] } → los que ningún proveedor tiene disponible
+    static getArticulosSinDisponibilidad = async (req: Request, res: Response) => {
+        try {
+            const codigos = Array.isArray(req.body?.codigos) ? req.body.codigos : [];
+            if (codigos.length > 5000) { res.status(400).json({ message: 'Demasiados artículos en una sola consulta.' }); return; }
+            res.status(200).json(await Listado_ProveedorService.getArticulosSinDisponibilidad(codigos));
+        } catch (error) {
+            console.error('[Listado_Proveedor.getArticulosSinDisponibilidad]', error);
+            res.status(500).json({ message: 'No se pudo revisar la disponibilidad con los proveedores.' });
+        }
+    }
+
     static getProductPorProveedorListado = async (req: Request, res: Response) => {
         try {
             const { cod_barra_pro_detlist } = req.params;

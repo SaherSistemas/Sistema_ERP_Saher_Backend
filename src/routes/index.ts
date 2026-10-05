@@ -26,6 +26,7 @@ import permisoRolRouter from '../modules/Seguridad/routes/Permiso_RolRouter';
 import permisoUsuarioRouter from '../modules/Seguridad/routes/Permiso_UsuarioRouter';
 
 import agenteRouter from '../modules/Comercial/Agente_Venta/routes/AgenteRouter';
+import agenteCaducidadRouter from '../modules/Comercial/Agente_Venta/routes/AgenteCaducidadRouter';
 import Presupuesto_AgenteRouter from '../modules/Comercial/Agente_Venta/routes/Presupuesto_AgenteRouter';
 import PrioridadAgenteRouter from '../modules/Comercial/Agente_Venta/routes/PrioridadAgenteReglasRouter';
 import ComisionReglaAgenteRouter from '../modules/Comercial/Agente_Venta/routes/Comision_Regla_AgenteRouter';
@@ -173,6 +174,7 @@ router.use('/rol', rolRouter);
 router.use('/usuario', usuarioRouter);
 
 router.use('/agente', agenteRouter);
+router.use('/agente-caducidad', agenteCaducidadRouter);
 router.use('/presupuesto_agente', Presupuesto_AgenteRouter);
 router.use('/prioridad_agente', PrioridadAgenteRouter);
 router.use('/comision-reglas', ComisionReglaAgenteRouter);

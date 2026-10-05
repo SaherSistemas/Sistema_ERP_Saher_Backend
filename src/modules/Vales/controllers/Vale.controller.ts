@@ -111,4 +111,15 @@ export class ValeController {
             res.status(400).json({ mensaje: err.message });
         }
     };
+
+    // POST /vales/calcular-total  { articulos: [{ id_articulo, cantidad, precio_unitario }] } → subtotal, IVA y total
+    static calcularTotal = async (req: Request, res: Response) => {
+        try {
+            const articulos = Array.isArray(req.body?.articulos) ? req.body.articulos : [];
+            res.status(200).json(await ValeService.calcularTotalVale(articulos));
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ mensaje: error?.message ?? 'Error al calcular el total del vale.' });
+        }
+    };
 }

@@ -9,6 +9,7 @@ import entregaClienteDirectoRouter from './Empaque/routes/entregaClienteDirectoR
 import kardexRouter from './Kardex/routes/KardexRouter'
 import movimientoRouter from './Movimientos/routes/Movimiento_ArticuloRouter'
 import existenciasRouter from './Existencias/routes/ExistenciasRouter'
+import tableroAlmacenRouter from './Tablero/routes/TableroAlmacenRouter'
 const router = Router()
 
 router.use('/entrega_cliente_directo', authMiddleware, entregaClienteDirectoRouter)
@@ -20,5 +21,6 @@ router.use('/empaque', authMiddleware, pedido_EmpaqueRouter)
 router.use('/kardex', authMiddleware, kardexRouter)
 router.use('/movimientos_articulo', authMiddleware, movimientoRouter)
 router.use('/existencias_ubicacion', authMiddleware, existenciasRouter)
+router.use('/tablero', authMiddleware, tableroAlmacenRouter)
 
 export default router

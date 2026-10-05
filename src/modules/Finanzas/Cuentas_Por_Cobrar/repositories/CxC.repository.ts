@@ -32,6 +32,7 @@ export const CxCRepository = {
         fecha_inicio?: string;
         fecha_fin?: string;
         cliente?: string;
+        id_cliente_alm?: string;
         agente?: string;
         page?: number;
         limit?: number;
@@ -68,6 +69,12 @@ export const CxCRepository = {
                 OR LOWER(r.folio_remision::text) LIKE :cliente
             )`);
             replacements.cliente = `%${filtros.cliente.toLowerCase()}%`;
+        }
+
+        // Cliente exacto (por id): lo usa la tarjeta del cliente, que no debe mezclar a otros con nombre o RFC parecido
+        if (filtros?.id_cliente_alm) {
+            conditions.push(`cxc.id_cliente_alm = :id_cliente_alm`);
+            replacements.id_cliente_alm = filtros.id_cliente_alm;
         }
 
         if (filtros?.agente) {

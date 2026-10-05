@@ -125,11 +125,16 @@ export const FacturacionRepository = {
                 if (r.descripcion_forma_de_pago) formaPagoPorFactura.set(r.id_factura, r.descripcion_forma_de_pago);
             });
 
+            // El consolidado de vales no tiene recibo de pago: se cobra en efectivo (forma de pago con la que se registra la factura)
+            const formaPagoVales = rows.some(r => r.origen_factura === 'VAL')
+                ? await FacturacionRepository.getDescripcionFormaPago('01')
+                : null;
+
             rows.forEach(r => {
                 const c: any = (r as any).cliente;
                 r.setDataValue('tiene_remision' as any, conRemision.has(r.id_factura) as any);
                 r.setDataValue('es_publico_general' as any, detectarPublicoGeneral(c?.rfc_cliente_alm, c?.nom_corto_cliente_alm) as any);
-                r.setDataValue('forma_pago_recibo' as any, formaPagoPorFactura.get(r.id_factura) ?? null);
+                r.setDataValue('forma_pago_recibo' as any, formaPagoPorFactura.get(r.id_factura) ?? (r.origen_factura === 'VAL' ? formaPagoVales : null));
                 r.setDataValue('es_empresa_propia' as any, c?.id_empresa_sys_anterior != null as any);
             });
         }
@@ -578,7 +583,8 @@ export const FacturacionRepository = {
             ORDER BY pc.fecha_pago DESC NULLS LAST
             LIMIT 1
         `, { replacements: { id_factura }, type: QueryTypes.SELECT });
-        f.forma_pago_recibo = formaPago?.descripcion_forma_de_pago ?? null;
+        f.forma_pago_recibo = formaPago?.descripcion_forma_de_pago
+            ?? (f.origen_factura === 'VAL' ? await FacturacionRepository.getDescripcionFormaPago(f.id_forma_pago || '01') : null);
 
         // Tipo P (complemento de pago) no tiene detalle_factura (no son "conceptos"
         // de venta) — en su lugar se arma la lista de facturas que cubrió este pago.
@@ -604,6 +610,15 @@ export const FacturacionRepository = {
         }
 
         return f;
+    },
+
+    // Descripción de una forma de pago del catálogo SAT por su clave (ej. '01' → Efectivo)
+    getDescripcionFormaPago: async (id_forma_pago: string): Promise<string | null> => {
+        const [row] = await dbLocal.query<{ descripcion_forma_de_pago: string }>(
+            `SELECT descripcion_forma_de_pago FROM cat_forma_de_pago WHERE id_forma_de_pago = :id LIMIT 1`,
+            { replacements: { id: id_forma_pago }, type: QueryTypes.SELECT },
+        );
+        return row?.descripcion_forma_de_pago ?? null;
     },
 
     // Forma de pago SAT real (código, ej. '01') con la que se liquidó el CxC de esta

@@ -22,6 +22,8 @@ import Detalle_Compra_Negados from '../../../Compras/Ordenes-Compra/model/Detall
 import { LotesArticuloSucursalRepository } from '../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository';
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
 import Proveedor from '../../../Compras/Proveedores/model/Proveedor';
+import { NegadosVigentesService } from '../../../Almacen/Tablero/services/NegadosVigentes.service';
+import { DiasInventarioService } from '../../../Almacen/Tablero/services/DiasInventario.service';
 
 
 export const ArticuloRepository = {
@@ -157,7 +159,9 @@ export const ArticuloRepository = {
         };
     },
 
-    getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string, q: string = '', id_proveedor?: string) => {
+    // diasInventario: la lista es SOLO la de agotados / críticos / bajos del Tablero de Almacén (ventana de ese número de días),
+    // sin importar si algún proveedor la trae o tiene existencia (para eso está el documento de "sin proveedor disponible").
+    getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string, q: string = '', id_proveedor?: string, diasInventario?: number) => {
         const offset = (page - 1) * limit;
 
         const parametro = await Parametros_Compra.findOne({
@@ -218,7 +222,11 @@ export const ArticuloRepository = {
                     SELECT trim(dlp.cod_barra_pro_detlist) FROM detalle_listado_proveedor dlp
                     WHERE dlp.exist_pro_detlist > 0
                )`;
-        whereArticulo[Op.and] = [
+        if (diasInventario) {
+            const idsLista = await DiasInventarioService.getIdsEnRiesgo(id_empresasucursal, diasInventario);
+            const excluidos = new Set<string>(idsArticulosExcluidos as string[]);
+            whereArticulo.id_artic = { [Op.in]: idsLista.filter(id => !excluidos.has(id)) };
+        } else whereArticulo[Op.and] = [
             literal(`(
                 ${condicionListado}
                 OR "Articulo"."id_artic" IN (
@@ -269,11 +277,20 @@ export const ArticuloRepository = {
         };
     },
 
-    getArticulosNegadosParaCompra: async (id_empresa_sucursal: string, page: number, limit: number) => {
+    // soloSinComprar: solo los negados de pedidos que todavía no se han comprado (ni en tránsito, ni en recibo, ni ya entraron),
+    // los mismos "Sin comprar" del Tablero de Almacén; no incluye los negados antiguos de proveedor.
+    getArticulosNegadosParaCompra: async (id_empresa_sucursal: string, page: number, limit: number, soloSinComprar = false) => {
         const offset = (page - 1) * limit;
 
+        // Lo que ya se va agregando a la compra en captura cuenta como "en tránsito", así que sale de esta lista solo
+        let idsSinComprar: Set<string> | null = null;
+        if (soloSinComprar) {
+            const { articulos } = await NegadosVigentesService.getLista(id_empresa_sucursal);
+            idsSinComprar = new Set(articulos.filter(a => a.estado === 'SIN_COMPRAR').map(a => a.id_artic));
+        }
+
         // 1. Negados del sistema antiguo (Detalle_Compra_Negados)
-        const { count, rows } = await Detalle_Compra_Negados.findAndCountAll({
+        const { count, rows } = soloSinComprar ? { count: 0, rows: [] as Detalle_Compra_Negados[] } : await Detalle_Compra_Negados.findAndCountAll({
             where: {
                 recuperado: false,
                 fecha_limite_recuperacion: { [Op.gte]: new Date() },
@@ -328,7 +345,8 @@ export const ArticuloRepository = {
             };
         });
 
-        // 2. Negados del agente (detalle_pedido_negado motivo=SIN_EXISTENCIA)
+        // 2. Negados de pedidos (detalle_pedido_negado, cualquier motivo: sin existencia al capturar, y los que
+        //    el surtidor/chequeador niega — no encontrado, insuficiente, dañado, caducado, diferencia de chequeo)
         //    agrupados por artículo — query SQL directa para evitar problemas de asociaciones
         const rowsNegadosAgente: any[] = await (Articulo as any).sequelize.query(`
             SELECT
@@ -341,21 +359,29 @@ export const ArticuloRepository = {
                 SUM(dpn.cantidad_negada)              AS cantidad_negada,
                 MIN(dpn.fecha)                        AS fecha_negado,
                 MIN(dpn.fecha) + INTERVAL '7 days'   AS fecha_limite_recuperacion,
-                STRING_AGG(DISTINCT TRIM(CONCAT(e.nombre_empleado, ' ', e.ap_pat_empleado)), ', ') AS agentes_negado
+                STRING_AGG(DISTINCT TRIM(CONCAT(e.nombre_empleado, ' ', e.ap_pat_empleado)), ', ') AS agentes_negado,
+                STRING_AGG(DISTINCT CASE dpn.motivo
+                    WHEN 'SIN_EXISTENCIA'     THEN 'Sin existencia'
+                    WHEN 'NO_ENCONTRADO'      THEN 'No encontrado en ubicación'
+                    WHEN 'INSUFICIENTE'       THEN 'Cantidad insuficiente en físico'
+                    WHEN 'DAÑADO'             THEN 'Artículo dañado'
+                    WHEN 'CADUCADO'           THEN 'Caducado / próximo a vencer'
+                    WHEN 'DIFERENCIA_CHEQUEO' THEN 'Diferencia en chequeo'
+                    WHEN 'NO_SURTIDO'         THEN 'No se surtió completo'
+                    ELSE dpn.motivo END, ', ') AS motivos_negado
             FROM detalle_pedido_negado dpn
             INNER JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpn.id_detalle_pedido_almacen
             INNER JOIN articulo a ON a.id_artic = dpa.id_articulo
             LEFT JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
             LEFT JOIN agente_de_venta av ON av.id_agente = pa.id_agente_pedido_alm
             LEFT JOIN empleado e ON e.id_empleado = av.id_empleado
-            WHERE dpn.motivo = 'SIN_EXISTENCIA'
-              AND dpn.recuperado = false
+            WHERE dpn.recuperado = false
               AND dpn.fecha + INTERVAL '7 days' >= NOW()
             GROUP BY a.id_artic, a.des_artic, a.des_gener_artic, a.cod_int_artic, a.cod_barr_artic, a.colectivo_artic
         `, { type: QueryTypes.SELECT });
 
         // Mismo shape que Detalle_Compra_Negados para que TablaProductos lo renderice igual
-        const negadosAgenteAgrupados = rowsNegadosAgente.map((r: any) => ({
+        const negadosAgenteAgrupados = rowsNegadosAgente.filter((r: any) => !idsSinComprar || idsSinComprar.has(r.id_artic)).map((r: any) => ({
             articulo: {
                 id_artic: r.id_artic,
                 des_artic: r.des_artic,
@@ -369,9 +395,9 @@ export const ArticuloRepository = {
             cantidad_negada: Number(r.cantidad_negada),
             fecha_negado: r.fecha_negado,
             fecha_limite_recuperacion: r.fecha_limite_recuperacion,
-            motivo_negado: 'Sin existencia',
-            // Este negado no viene de rechazarle a un proveedor una compra, sino de que un
-            // agente de ventas no tuvo existencia para surtir un pedido — no hay proveedor que negó.
+            motivo_negado: r.motivos_negado ?? 'Sin existencia',
+            // Este negado no viene de rechazarle a un proveedor una compra, sino de un pedido que no
+            // se pudo surtir completo (sin existencia, no encontrado, dañado...) — no hay proveedor que negó.
             proveedor_negado: null,
             // Agente(s) de venta cuyo pedido se quedó sin surtir por falta de existencia.
             agente_negado: r.agentes_negado ?? null,

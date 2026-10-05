@@ -13,6 +13,40 @@ export const Listado_ProveedorService = {
     getProductoPorProveedorEnListas: async (cod_barra_pro_detlist: string) => {
         return await Listado_ProveedorRepository.getProductoPorProveedorEnListas(cod_barra_pro_detlist)
     },
+    // De una lista de códigos de barras, devuelve los que NINGÚN proveedor tiene disponible:
+    //  · NO_LISTADO     → ningún proveedor lo trae en su listado.
+    //  · SIN_EXISTENCIA → lo traen, pero todos con existencia 0 (se devuelven los proveedores que lo listan).
+    // Los que algún proveedor sí tiene con existencia no se devuelven.
+    getArticulosSinDisponibilidad: async (codigos: string[]) => {
+        const limpios = Array.from(new Set(codigos.map(c => String(c ?? '').trim()).filter(Boolean)));
+        if (!limpios.length) return { revisados: 0, items: [] as { cod: string; estado: 'NO_LISTADO' | 'SIN_EXISTENCIA'; proveedores: string[] }[] };
+
+        const filas = await dbLocal.query<any>(`
+            SELECT trim(dlp.cod_barra_pro_detlist) AS cod,
+                   trim(p.nomcort_prove)            AS proveedor,
+                   COALESCE(dlp.exist_pro_detlist, 0) AS existencia
+            FROM detalle_listado_proveedor dlp
+            JOIN listados_proveedor lp ON lp.id_listprove = dlp.id_list_detlist
+            JOIN proveedor p           ON p.id_prove = lp.id_prove_listprove
+            WHERE trim(dlp.cod_barra_pro_detlist) IN (:codigos)
+        `, { replacements: { codigos: limpios }, type: QueryTypes.SELECT }) as any[];
+
+        const porCodigo = new Map<string, { conExistencia: boolean; proveedores: Set<string> }>();
+        for (const f of filas) {
+            const r = porCodigo.get(f.cod) ?? { conExistencia: false, proveedores: new Set<string>() };
+            if (Number(f.existencia) > 0) r.conExistencia = true;
+            if (f.proveedor) r.proveedores.add(f.proveedor);
+            porCodigo.set(f.cod, r);
+        }
+
+        const items: { cod: string; estado: 'NO_LISTADO' | 'SIN_EXISTENCIA'; proveedores: string[] }[] = [];
+        for (const cod of limpios) {
+            const r = porCodigo.get(cod);
+            if (!r) items.push({ cod, estado: 'NO_LISTADO', proveedores: [] });
+            else if (!r.conExistencia) items.push({ cod, estado: 'SIN_EXISTENCIA', proveedores: Array.from(r.proveedores).sort() });
+        }
+        return { revisados: limpios.length, items };
+    },
     buscarProductosEnTodosLosListados: async (terminoBusqueda: string) => {
         return await Listado_ProveedorRepository.getProductosPorFiltro(terminoBusqueda);
     },

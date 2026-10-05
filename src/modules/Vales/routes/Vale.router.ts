@@ -6,6 +6,9 @@ const router = Router();
 // POST   /vales                          → crear vale
 router.post('/', ValeController.crearVale);
 
+// POST   /vales/calcular-total             → subtotal + IVA + total de un vale (antes de crearlo)
+router.post('/calcular-total', ValeController.calcularTotal);
+
 // GET    /vales/periodo?fecha_inicio=&fecha_fin=&id_empresa=   → vales chequeados del período
 router.get('/periodo', ValeController.getValesPorPeriodo);
 

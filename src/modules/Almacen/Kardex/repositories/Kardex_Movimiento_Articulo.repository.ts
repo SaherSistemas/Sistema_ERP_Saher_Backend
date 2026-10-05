@@ -8,6 +8,7 @@ import { Grupo_EmpresaRepository } from '../../../../repository/Empresa_Sucursal
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
 import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { dbLocal, dbPoly } from '../../../../config/db';
+import { cantidadesPorLoteDelPedido } from '../../Pedido/helpers/cantidadesFacturables';
 
 type QuincenaPorTipo = {
   numero: number;
@@ -452,26 +453,10 @@ export const Kardex_Movimiento_ArticuloRepository = {
   }) => {
     const { id_pedido_alm, id_empresa, id_empleado, id_factura, cod_pedido, t } = opts;
 
-    // Obtener todos los lotes involucrados en el pedido
-    const lotes = await dbLocal.query<{
-      id_articulo: string;
-      id_lote_sucursal: string;
-      total_cantidad: string;  // raw SQL devuelve string
-    }>(`
-      SELECT
-        dpa.id_articulo,
-        dpal.id_lote_sucursal,
-        SUM(dpal.cantidad) AS total_cantidad
-      FROM detalle_pedido_almacen dpa
-      JOIN detalle_pedido_almacen_lote dpal
-        ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
-      WHERE dpa.id_pedido_almacen = :id_pedido_alm
-      GROUP BY dpa.id_articulo, dpal.id_lote_sucursal
-    `, {
-      replacements: { id_pedido_alm },
-      type: QueryTypes.SELECT,
-      transaction: t,
-    });
+    // Lotes del pedido con lo que de verdad se factura (lo chequeado), igual que el descuento de stock
+    const lotes = (await cantidadesPorLoteDelPedido(id_pedido_alm, t))
+      .filter(l => l.facturar > 0)
+      .map(l => ({ id_articulo: l.id_articulo, id_lote_sucursal: l.id_lote_sucursal, total_cantidad: String(l.facturar) }));
 
     if (!lotes.length) return;
 

@@ -98,13 +98,18 @@ export class ArticuloController {
       const limit = parseInt(req.query.limit as string) || 20;
       const q = (req.query.q as string)?.trim() || '';
       const id_proveedor = (req.query.id_proveedor as string)?.trim() || undefined;
+      // Compra especial hecha desde Días de inventario: la lista es siempre la de agotados / críticos / bajos de esa ventana
+      const diasInventario = Number(req.query.dias_inventario) > 0
+        ? Math.min(365, Math.max(7, Math.floor(Number(req.query.dias_inventario))))
+        : undefined;
 
       const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(
         page,
         limit,
         id_empresasucursal,
         q,
-        id_proveedor
+        id_proveedor,
+        diasInventario
       );
       // console.log(TodosArticulosParaCompra)
       res.status(200).json(TodosArticulosParaCompra);
@@ -120,7 +125,8 @@ export class ArticuloController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
 
-      const articulosNegados = await ArticuloService.getAllArticulosNegadosParaCompra(id_empresa_sucursal, page, limit);
+      const soloSinComprar = req.query.sin_comprar === '1';
+      const articulosNegados = await ArticuloService.getAllArticulosNegadosParaCompra(id_empresa_sucursal, page, limit, soloSinComprar);
       //  console.log(articulosNegados)
       res.status(200).json(articulosNegados);
     } catch (error) {

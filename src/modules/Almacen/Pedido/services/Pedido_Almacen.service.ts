@@ -110,6 +110,23 @@ async function calcularCambiosListaPrecio(id_pedido_alm: string, id_lista_precio
   };
 }
 
+// ── Regla de caducidad mínima del agente del pedido (0 = sin regla) ──
+// Algunos agentes solo reciben mercancía que caduque dentro de N meses o más (ej. 12). Se guarda en su propia
+// tabla (agente_regla_caducidad). Si la tabla aún no existe (servidor sin reiniciar tras actualizar), no se aplica regla.
+export async function mesesMinCaducidadDelPedido(id_pedido_alm: string): Promise<number> {
+  try {
+    const [r] = await dbLocal.query<{ meses: number | null }>(`
+      SELECT arc.meses_min_caducidad AS meses
+      FROM pedido_almacen pa
+      JOIN agente_regla_caducidad arc ON arc.id_agente = pa.id_agente_pedido_alm
+      WHERE pa.id_pedido_alm = :id_pedido_alm`,
+      { type: QueryTypes.SELECT, replacements: { id_pedido_alm } });
+    return Math.max(0, Number(r?.meses ?? 0) || 0);
+  } catch {
+    return 0;
+  }
+}
+
 // ── Helper: genera e imprime el traspaso de medicamentos ──
 export async function _generarTraspasoCheckeado(id_pedido_alm: string): Promise<void> {
   const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { raw: true }) as any;
@@ -621,6 +638,7 @@ export const Pedido_AlmacenService = {
         asignacion.detalle.id_articulo,
         id_empresa,
         asignacion.detalle.cant_pedida,
+        { mesesMinCaducidad: await mesesMinCaducidadDelPedido(id_pedido_alm) },
       );
 
     return { asignacion, planSurtidoFefo };
@@ -635,13 +653,15 @@ export const Pedido_AlmacenService = {
     // Obtener artículos del pedido con su cantidad
     const detalles = await Detalle_Pedido_AlmacenRepository.getDetallesConArticuloPorPedido(pedidoMasUrgente);
 
-    // Para cada artículo, obtener su primera ubicación FEFO
+    // Para cada artículo, obtener su primera ubicación FEFO (respetando la caducidad mínima del agente)
+    const mesesMinUrgente = await mesesMinCaducidadDelPedido(pedidoMasUrgente);
     const detallesConUbicacion = await Promise.all(
       detalles.map(async (d) => {
         const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
           d.id_articulo,
           id_empresa,
           d.cant_pedida,
+          { mesesMinCaducidad: mesesMinUrgente },
         );
         return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? null };
       })
@@ -1674,13 +1694,17 @@ export const Pedido_AlmacenService = {
       data.cabecera.status_pedido_alm = 'SU';
     }
 
+    // Regla del agente: solo lotes que caduquen dentro de N meses o más. Se informa en la cabecera de la hoja.
+    const mesesMin = await mesesMinCaducidadDelPedido(id_pedido_alm);
+    (data.cabecera as any).meses_min_caducidad = mesesMin;
+
     // Para ítems sin lotes asignados, calcular recomendación FEFO (igual que el móvil)
     const itemsConFefo = await Promise.all(
       data.items.map(async (item: any) => {
         if (item.lotes.length > 0) return item;
         try {
           const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
-            item.id_artic, id_empresa, Number(item.cant_pedida)
+            item.id_artic, id_empresa, Number(item.cant_pedida), { mesesMinCaducidad: mesesMin }
           );
           const lotesFefo = plan.detalles
             .filter((d: any) => d.lote)
@@ -1698,7 +1722,17 @@ export const Pedido_AlmacenService = {
               lote_factura_fecha: null,
               es_recomendado: true,
             }));
-          return { ...item, lotes: lotesFefo };
+          // Hay existencia pero ninguna con la caducidad que pide el agente → el surtidor NO debe surtirlo
+          const fuera = Number((plan as any).existencia_fuera_de_regla ?? 0);
+          const faltaPorCaducidad = mesesMin > 0 ? Math.min(Number(plan.faltante ?? 0), fuera) : 0;
+          return {
+            ...item,
+            lotes: lotesFefo,
+            sin_caducidad_para_agente: mesesMin > 0 && lotesFefo.length === 0 && fuera > 0,
+            falta_por_caducidad: faltaPorCaducidad,
+            // El mejor lote que hay pero que no cumple: con él se le consulta al agente
+            mejor_lote_fuera_de_regla: (plan as any).mejor_lote_fuera_de_regla ?? null,
+          };
         } catch {
           return item;
         }
@@ -1854,7 +1888,8 @@ export const Pedido_AlmacenService = {
     const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
       detalle.id_articulo,
       id_empresa,
-      9999
+      9999,
+      { mesesMinCaducidad: await mesesMinCaducidadDelPedido(id_pedido_alm) },
     );
 
     return plan.detalles
@@ -1902,9 +1937,10 @@ export const Pedido_AlmacenService = {
 
     const detalles = await Detalle_Pedido_AlmacenRepository.getDetallesConArticuloPorPedido(id_pedido_alm);
 
+    const mesesMinAsignar = await mesesMinCaducidadDelPedido(id_pedido_alm);
     const detallesConUbicacion = await Promise.all(
       detalles.map(async (d: any) => {
-        const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(d.id_articulo, id_empresa, d.cant_pedida);
+        const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(d.id_articulo, id_empresa, d.cant_pedida, { mesesMinCaducidad: mesesMinAsignar });
         return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? null };
       })
     );
@@ -2253,11 +2289,12 @@ export const Pedido_AlmacenService = {
     const idsLoteConChequeo = new Set(chequeosExistentes.map((r: any) => r.id_detalle_pedido_almacen_lote));
     const lotesSinChequeo = lotesExistentes.filter((r: any) => !idsLoteConChequeo.has(r.id_detalle_pedido_almacen_lote));
 
-    // Calcular plan FEFO por cada detalle pendiente
+    // Calcular plan FEFO por cada detalle pendiente (respetando la caducidad mínima del agente)
+    const mesesMinFacturar = await mesesMinCaducidadDelPedido(id_pedido_alm);
     const planes = await Promise.all(
       pendientes.map(async d => {
         const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
-          d.id_articulo, id_empresa, d.cant_pedida,
+          d.id_articulo, id_empresa, d.cant_pedida, { mesesMinCaducidad: mesesMinFacturar },
         );
         return { detalle: d, plan };
       })

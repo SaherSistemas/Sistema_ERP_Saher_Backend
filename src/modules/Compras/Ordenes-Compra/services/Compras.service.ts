@@ -2,6 +2,9 @@ import { CompraGeneralRepository } from "../repositories/Compra_General.reposito
 import { mapCompraGeneral } from "../mappers/compraGeneral.mapper";
 import { Compra_ProveedorRepository } from "../repositories/Compra_Proveedor.repository";
 import Compra_Proveedor from "../model/Compra_Proveedor";
+import Compra_Modo_Lista from "../model/Compra_Modo_Lista";
+
+const HORAS_CADUCA_MODO_SIN_COMPRA = 12;
 
 
 export const CompraGeneralesService = {
@@ -10,6 +13,36 @@ export const CompraGeneralesService = {
     },
     getEnCaptura: async (id_empresa: string) => {
         return await CompraGeneralRepository.getCompraEnCaptura(id_empresa)
+    },
+
+    // Lista que debe mostrar la compra ESPECIAL en captura (p. ej. la de Días de inventario), o null si no aplica.
+    getModoLista: async (id_empresa: string, compra: { id_compra_general: string; tipo_compra: string }) => {
+        if (compra.tipo_compra !== 'ESPECIAL') return null;
+        const fila = await Compra_Modo_Lista.findByPk(id_empresa);
+        if (!fila) return null;
+        if (!fila.id_compra_general) {
+            const horas = (Date.now() - new Date((fila as any).updatedAt).getTime()) / 3_600_000;
+            if (horas > HORAS_CADUCA_MODO_SIN_COMPRA) return null;
+            await fila.update({ id_compra_general: compra.id_compra_general });
+        } else if (fila.id_compra_general !== compra.id_compra_general) {
+            return null;   // era de otra compra que ya se finalizó
+        }
+        return { modo: fila.modo, dias: fila.dias };
+    },
+
+    // Deja registrado que la compra especial de esta empresa usa la lista de Días de inventario.
+    setModoLista: async (id_empresa: string, modo: string, dias: number) => {
+        if (modo !== 'DIAS_INVENTARIO') throw { status: 400, message: 'Modo de lista no válido.' };
+        const compra = await CompraGeneralRepository.getCompraEnCaptura(id_empresa);
+        if (compra && compra.tipo_compra !== 'ESPECIAL') {
+            throw { status: 409, message: 'Ya hay una compra ' + compra.tipo_compra + ' en captura. Termínala antes de iniciar una compra especial.' };
+        }
+        await Compra_Modo_Lista.upsert({
+            id_empresa_sucursal: id_empresa,
+            modo,
+            dias,
+            id_compra_general: compra?.id_compra_general ?? null,
+        } as any);
     },
 
     getComprasGeneralesConFiltro: async (id_empresa: string, rango: { start: Date; end: Date }, incluirDirectas = false) => {

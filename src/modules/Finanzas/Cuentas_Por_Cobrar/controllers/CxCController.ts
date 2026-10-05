@@ -95,8 +95,8 @@ export class CxCController {
 
     static getAll = async (req: Request, res: Response) => {
         try {
-            const { estatus, fecha_inicio, fecha_fin, cliente, agente, page, limit } = req.query as Record<string, string>;
-            const resultado = await CxCService.getAll({ estatus, fecha_inicio, fecha_fin, cliente, agente, page: Number(page ?? 1), limit: Number(limit ?? 50) });
+            const { estatus, fecha_inicio, fecha_fin, cliente, id_cliente_alm, agente, page, limit } = req.query as Record<string, string>;
+            const resultado = await CxCService.getAll({ estatus, fecha_inicio, fecha_fin, cliente, id_cliente_alm, agente, page: Number(page ?? 1), limit: Number(limit ?? 50) });
             res.status(200).json(resultado);
         } catch (error) {
             console.error(error);

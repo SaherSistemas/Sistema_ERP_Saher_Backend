@@ -27,18 +27,20 @@ export const ArticuloService = {
     );
   },
 
-  getAllPagProductosParaCompra: async (page: number = 1, limit: number, id_empresasucursal: string, q: string = '', id_proveedor?: string) => {
-    return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_empresasucursal, q, id_proveedor);
+  getAllPagProductosParaCompra: async (page: number = 1, limit: number, id_empresasucursal: string, q: string = '', id_proveedor?: string, diasInventario?: number) => {
+    return await ArticuloRepository.getAllPagProductosParaCompra(page, limit, id_empresasucursal, q, id_proveedor, diasInventario);
   },
   getAllArticulosNegadosParaCompra: async (
     id_empresa_sucursal: string,
     page: number = 1,
-    limit: number
+    limit: number,
+    soloSinComprar = false
   ) => {
     return await ArticuloRepository.getArticulosNegadosParaCompra(
       id_empresa_sucursal,
       page,
-      limit
+      limit,
+      soloSinComprar
     );
   },
   obtenerPaginaDeArticulo: async (id_artic: string, limit: number) => {

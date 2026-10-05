@@ -8,6 +8,8 @@ router.get('/:id_empresa', ComprasGeneralesController.getAll)                   
 
 router.get('/enCaptura/:id_empresa', authMiddleware, ComprasGeneralesController.getByEmpresaEnCaptura)           // Compras General en captura
 
+router.put('/modoLista/:id_empresa', authMiddleware, ComprasGeneralesController.setModoLista)                  // Compra especial: usar la lista de Días de inventario
+
 router.patch('/reabrir/:id_compra_general', ComprasGeneralesController.reabrirCompra)                //CONTINUAR UNA COMPRA CUYAS ÓRDENES AÚN NO SE ENVÍAN
 
 router.patch('/finalizar/:id_empresa_sucursal', ComprasGeneralesController.finalizarCapturaCompraGenYCompraProv)     //FINALIZAR COMPRA GENERAL

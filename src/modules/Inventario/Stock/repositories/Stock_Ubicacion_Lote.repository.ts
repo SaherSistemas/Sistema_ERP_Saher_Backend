@@ -8,6 +8,7 @@ import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import LoteArticuloSucursal from '../../Lotes/model/Lote_Articulo_Sucursal';
 import Ubicacion_Sucursal from '../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
+import { cantidadesPorLoteDelPedido } from '../../../Almacen/Pedido/helpers/cantidadesFacturables';
 
 export const Stock_Ubicacion_LoteRepository = {
 
@@ -337,19 +338,16 @@ export const Stock_Ubicacion_LoteRepository = {
     //   Primero se toma de las filas con apartada (de ahí salió físicamente al surtir) y, si no alcanza,
     //   de la existencia libre que quede.
     // ─────────────────────────────────────────────────────────────────────────
+    // Descuenta del stock lo que se FACTURA (lo chequeado), no todo lo surtido: una pieza surtida que no se
+    // chequeó no sale en la factura y por tanto no debe descontarse. Su apartado sí se libera (la pieza
+    // sigue/regresa a la ubicación). Ver cantidadesPorLoteDelPedido.
     descontarStockPorPedido: async (id_pedido_alm: string, t: Transaction) => {
-        const porLote = await dbLocal.query<{ id_lote_sucursal: string; total: string }>(`
-            SELECT dpal.id_lote_sucursal, SUM(dpal.cantidad) AS total
-            FROM detalle_pedido_almacen      dpa
-            JOIN detalle_pedido_almacen_lote dpal
-                ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
-            WHERE dpa.id_pedido_almacen = :id_pedido_alm
-            GROUP BY dpal.id_lote_sucursal
-        `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT, transaction: t });
+        const porLote = await cantidadesPorLoteDelPedido(id_pedido_alm, t);
 
-        for (const { id_lote_sucursal, total } of porLote) {
-            let restante = Number(total) || 0;
-            if (restante <= 0) continue;
+        for (const { id_lote_sucursal, surtido, facturar } of porLote) {
+            let restante = facturar;
+            const liberar = Math.max(0, surtido - facturar);
+            if (restante <= 0 && liberar <= 0) continue;
 
             const filas = await Stock_Ubicacion_Lote.findAll({
                 where: { id_lote: id_lote_sucursal },
@@ -384,14 +382,66 @@ export const Stock_Ubicacion_LoteRepository = {
                     restante -= tomar;
                 }
             }
+
+            // 3) Lo surtido que no se chequeó/facturó: se libera el apartado sin tocar la existencia
+            let porLiberar = liberar;
+            if (porLiberar > 0) {
+                console.log(`[Facturación] Pedido ${id_pedido_alm}: ${porLiberar} pz surtidas del lote ${id_lote_sucursal} no se chequearon; no se descuentan y se libera su apartado.`);
+                for (const f of [...filas].sort((a, b) => (Number(b.cantidad_apartada) || 0) - (Number(a.cantidad_apartada) || 0))) {
+                    if (porLiberar <= 0) break;
+                    const apartada = Number(f.cantidad_apartada) || 0;
+                    const quitar = Math.min(apartada, porLiberar);
+                    if (quitar <= 0) continue;
+                    await f.update({ cantidad_apartada: apartada - quitar }, { transaction: t });
+                    porLiberar -= quitar;
+                }
+            }
         }
     },
 
     getLotesMinimosConUbicaciones: async (
         id_articulo: string,
         id_empresa_sucursal: string,
-        cantidad_pedida: number
+        cantidad_pedida: number,
+        // Regla del agente: solo lotes que caduquen dentro de N meses o más (0 / sin valor = sin regla)
+        opciones?: { mesesMinCaducidad?: number }
     ) => {
+        const meses = Math.max(0, Math.floor(Number(opciones?.mesesMinCaducidad) || 0));
+        const reglaCaducidad = meses > 0
+            ? { fecha_venci_lote_sucursal: { [Op.gte]: literal(`(CURRENT_DATE + INTERVAL '${meses} months')`) } }
+            : undefined;
+        // Existencia que SÍ hay pero con una caducidad que el agente no acepta (para avisarlo en la hoja de surtido)
+        const existenciaFueraDeRegla = async (dentroDeRegla: number) => {
+            if (meses <= 0) return 0;
+            const [t] = await dbLocal.query<{ total: string }>(
+                `SELECT COALESCE(SUM(cantidad - COALESCE(cantidad_apartada, 0)), 0) AS total
+                 FROM stock_ubicacion_lote
+                 WHERE id_articulo = :id_articulo AND id_empresa_sucursal = :id_empresa_sucursal
+                   AND cantidad - COALESCE(cantidad_apartada, 0) > 0`,
+                { type: QueryTypes.SELECT, replacements: { id_articulo, id_empresa_sucursal } },
+            );
+            return Math.max(0, Number(t?.total ?? 0) - dentroDeRegla);
+        };
+        // El lote que MÁS tarda en vencer entre los que no cumplen la regla: es el que se le ofrece al agente
+        const mejorLoteFueraDeRegla = async () => {
+            if (meses <= 0) return null;
+            const [l] = await dbLocal.query<{ lote: string; fecha_venci: string; disponible: string }>(
+                `SELECT l.numero_lote_sucursal AS lote,
+                        l.fecha_venci_lote_sucursal::date::text AS fecha_venci,
+                        SUM(s.cantidad - COALESCE(s.cantidad_apartada, 0)) AS disponible
+                 FROM stock_ubicacion_lote s
+                 JOIN lote_articulo_sucursal l ON l.id_lote_sucursal = s.id_lote
+                 WHERE s.id_articulo = :id_articulo AND s.id_empresa_sucursal = :id_empresa_sucursal
+                   AND s.cantidad - COALESCE(s.cantidad_apartada, 0) > 0
+                   AND l.fecha_venci_lote_sucursal IS NOT NULL
+                   AND l.fecha_venci_lote_sucursal < (CURRENT_DATE + (:meses * INTERVAL '1 month'))
+                 GROUP BY l.id_lote_sucursal, l.numero_lote_sucursal, l.fecha_venci_lote_sucursal
+                 ORDER BY l.fecha_venci_lote_sucursal DESC
+                 LIMIT 1`,
+                { type: QueryTypes.SELECT, replacements: { id_articulo, id_empresa_sucursal, meses } },
+            );
+            return l ? { lote: l.lote, fecha_venci: l.fecha_venci, disponible: Number(l.disponible) } : null;
+        };
         const rows = await Stock_Ubicacion_Lote.findAll({
             where: {
                 id_articulo,
@@ -422,6 +472,7 @@ export const Stock_Ubicacion_LoteRepository = {
                     model: LoteArticuloSucursal,
                     as: 'lote',
                     required: true,
+                    where: reglaCaducidad,
                     attributes: [
                         'id_lote_sucursal',
                         'numero_lote_sucursal',
@@ -489,7 +540,10 @@ export const Stock_Ubicacion_LoteRepository = {
                 cantidad_asignada: 0,
                 faltante: cantidad_pedida,
                 se_completa: false,
-                detalles: []
+                detalles: [],
+                meses_min_caducidad: meses,
+                existencia_fuera_de_regla: await existenciaFueraDeRegla(0),
+                mejor_lote_fuera_de_regla: await mejorLoteFueraDeRegla(),
             };
         }
 
@@ -552,7 +606,10 @@ export const Stock_Ubicacion_LoteRepository = {
             cantidad_asignada,
             faltante: Math.max(0, restante),
             se_completa: restante <= 0,
-            detalles
+            detalles,
+            meses_min_caducidad: meses,
+            existencia_fuera_de_regla: await existenciaFueraDeRegla(cantidad_total_disponible),
+            mejor_lote_fuera_de_regla: await mejorLoteFueraDeRegla(),
         };
     },
 };

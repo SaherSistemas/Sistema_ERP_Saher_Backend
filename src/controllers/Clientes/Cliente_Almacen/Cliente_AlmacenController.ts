@@ -1,4 +1,7 @@
 import type { Request, Response } from 'express';
+import { QueryTypes } from 'sequelize';
+import { dbLocal } from '../../../config/db';
+import type { AuthedRequest } from '../../../middleware/auth';
 import { Cliente_AlmacenService } from '../../../services/Clientes/Cliente_Almacen/cliente_Almacen.service';
 
 export class Cliente_AlmacenController {
@@ -158,6 +161,66 @@ export class Cliente_AlmacenController {
       res.status(200).json({ ok: true, activo_cliente_alm: nuevoEstatus });
     } catch (error) {
       res.status(500).json({ mensaje: 'Error al cambiar estatus del cliente.' });
+    }
+  };
+
+  /**
+   * GET /cliente_almacen/saldos
+   * Lo que debe cada cliente (cuentas por cobrar pendientes, parciales o vencidas) y qué parte ya venció.
+   * Es la misma deuda que usa el sistema para validar el límite de crédito. Solo trae clientes con saldo.
+   */
+  static getSaldos = async (_req: Request, res: Response) => {
+    try {
+      const filas = await dbLocal.query<any>(`
+        SELECT cxc.id_cliente_alm,
+               COALESCE(SUM(cxc.saldo_pendiente), 0) AS saldo,
+               COALESCE(SUM(cxc.saldo_pendiente) FILTER (WHERE cxc.fecha_vencimiento < CURRENT_DATE), 0) AS vencido,
+               COUNT(*) AS cuentas
+        FROM cuenta_por_cobrar cxc
+        WHERE cxc.estatus_cxc IN ('PEN', 'PAR', 'VEN') AND cxc.saldo_pendiente > 0
+        GROUP BY cxc.id_cliente_alm
+      `, { type: QueryTypes.SELECT });
+      const saldos: Record<string, { saldo: number; vencido: number; cuentas: number }> = {};
+      for (const f of filas) {
+        saldos[f.id_cliente_alm] = { saldo: Number(f.saldo), vencido: Number(f.vencido), cuentas: Number(f.cuentas) };
+      }
+      res.status(200).json(saldos);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ mensaje: 'Error al obtener los saldos de los clientes.' });
+    }
+  };
+
+  /**
+   * PATCH /cliente_almacen/:id_cliente_alm/limite-credito   Body: { limite_credito: number }
+   * Solo administradores (prioridad <= 2). 0 = sin límite.
+   */
+  static actualizarLimiteCredito = async (req: AuthedRequest, res: Response) => {
+    try {
+      const prioridad = (req.user as any)?.prioridad;
+      if (prioridad == null || Number(prioridad) > 2) {
+        res.status(403).json({ mensaje: 'Solo un administrador puede cambiar el límite de crédito.' });
+        return;
+      }
+      const { id_cliente_alm } = req.params;
+      const limite = Number(req.body?.limite_credito);
+      if (!Number.isFinite(limite) || limite < 0 || limite > 9_999_999_999) {
+        res.status(400).json({ mensaje: 'El límite de crédito debe ser un número de 0 en adelante (0 = sin límite).' });
+        return;
+      }
+      const cliente = await Cliente_AlmacenService.getByIDFlexible(id_cliente_alm);
+      if (!cliente) {
+        res.status(404).json({ mensaje: 'Cliente no encontrado.' });
+        return;
+      }
+      const anterior = Number(cliente.limite_credito_cliente_alm ?? 0);
+      const nuevo = +limite.toFixed(2);
+      await Cliente_AlmacenService.update(cliente.id_cliente_alm, { limite_credito_cliente_alm: nuevo } as any);
+      console.log(`[Cliente ${cliente.nom_corto_cliente_alm}] ${req.user?.username ?? 'desconocido'} cambió el límite de crédito: ${anterior} -> ${nuevo}`);
+      res.status(200).json({ ok: true, limite_credito_cliente_alm: nuevo, anterior });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ mensaje: 'Error al cambiar el límite de crédito.' });
     }
   };
 }

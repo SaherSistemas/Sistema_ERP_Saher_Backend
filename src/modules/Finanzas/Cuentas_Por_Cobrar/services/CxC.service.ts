@@ -359,7 +359,7 @@ async function _generarTxtRecibo(cfdis: FacturaPagoCFDI[], id_empresa?: string):
 
 export const CxCService = {
 
-    getAll: async (filtros?: { estatus?: string; fecha_inicio?: string; fecha_fin?: string; cliente?: string; agente?: string; page?: number; limit?: number }) => CxCRepository.getAll(filtros),
+    getAll: async (filtros?: { estatus?: string; fecha_inicio?: string; fecha_fin?: string; cliente?: string; id_cliente_alm?: string; agente?: string; page?: number; limit?: number }) => CxCRepository.getAll(filtros),
 
     getClientesDeudores: async (id_empleado: string) => {
         const agente = await AgenteRepository.getByIdEmpleado(id_empleado);

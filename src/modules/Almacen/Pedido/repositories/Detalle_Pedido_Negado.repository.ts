@@ -39,7 +39,7 @@ export const Detalle_Pedido_NegadoRepository = {
 
         const [affected] = await Detalle_Pedido_Negado.update(
             { recuperado: true, fecha_recuperado: new Date() },
-            { where: { id_detalle_pedido_almacen: { [Op.in]: ids }, motivo: 'SIN_EXISTENCIA', recuperado: false } }
+            { where: { id_detalle_pedido_almacen: { [Op.in]: ids }, recuperado: false } }
         );
         return affected;
     },
