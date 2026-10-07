@@ -18,7 +18,7 @@ export const InventarioController = {
 
     getById: async (req: AuthedRequest, res: Response) => {
         try {
-            const data = await InventarioService.getById(req.params.id);
+            const data = await InventarioService.getByIdConApartadas(req.params.id);
             if (!data) { res.status(404).json({ mensaje: 'No encontrado' }); return; }
             res.json(data);
         } catch (e: any) {
@@ -66,6 +66,23 @@ export const InventarioController = {
             res.json(data);
         } catch (e: any) {
             res.status(500).json({ mensaje: e.message });
+        }
+    },
+
+    ajustarRenglon: async (req: AuthedRequest, res: Response) => {
+        try {
+            const data = await InventarioService.ajustarRenglon(req.params.id_detalle, !!req.body?.ajustar);
+            res.json(data);
+        } catch (e: any) {
+            res.status(400).json({ mensaje: e.message });
+        }
+    },
+
+    ignorarFaltantesApartados: async (req: AuthedRequest, res: Response) => {
+        try {
+            res.json(await InventarioService.ignorarFaltantesApartados(req.params.id));
+        } catch (e: any) {
+            res.status(400).json({ mensaje: e.message });
         }
     },
 

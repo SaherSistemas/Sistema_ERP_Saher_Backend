@@ -54,8 +54,20 @@ export const ArticuloRepository = {
     // y se guardó rellenado) — por eso se compara recortando ambos lados, no con igualdad exacta.
     getByCodigoBarras: async (cod_barr_artic: string) => {
         const buscado = String(cod_barr_artic ?? '').trim();
-        return await Articulo.findOne({
+        const exacto = await Articulo.findOne({
             where: Sequelize.where(Sequelize.fn('TRIM', Sequelize.col('cod_barr_artic')), buscado),
+        });
+        if (exacto) return exacto;
+
+        // Los lectores a veces agregan o quitan un 0 al inicio (UPC-A de 12 dígitos ↔ EAN-13 con 0): se vuelve a buscar
+        // ignorando los ceros a la izquierda, solo con códigos de longitud razonable para no confundir códigos cortos.
+        const sinCeros = buscado.replace(/^0+/, '');
+        if (!/^\d{6,}$/.test(sinCeros)) return null;
+        return await Articulo.findOne({
+            where: Sequelize.where(
+                Sequelize.fn('LTRIM', Sequelize.fn('TRIM', Sequelize.col('cod_barr_artic')), '0'),
+                sinCeros,
+            ),
         });
     },
     getByPK: async (id_artic: string, options?: { transaction?: Transaction }) => {

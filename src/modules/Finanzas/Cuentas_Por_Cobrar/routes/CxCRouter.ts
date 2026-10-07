@@ -16,6 +16,8 @@ router.get('/dashboard/cobros-diarios', CxCController.getCobrosDiarios);
 // POST /api/cxc/cliente/:id_cliente_alm/pago
 //   → registrar un recibo de pago con abonos a múltiples CxC del cliente
 router.get('/clientes-deudores', authMiddleware, CxCController.getClientesDeudores);
+// GET /api/cxc/mi-folio-recibo → si al agente se le asigna siempre el folio automático (no escribe el número a mano)
+router.get('/mi-folio-recibo', authMiddleware, CxCController.getMiFolioRecibo);
 router.post('/cliente/:id_cliente_alm/pago', CxCController.capturarPagoCliente);
 
 // ─── RECIBOS DESDE UNA SELECCIÓN DE CxC (pantalla del ERP) ───────────────────

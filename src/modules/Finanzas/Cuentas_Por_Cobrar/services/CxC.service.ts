@@ -18,6 +18,7 @@ import { FacturacionRepository } from '../../../Facturas/repositories/Facturacio
 import EmpresaSucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { generarReciboPDFBuffer } from '../helpers/recibo_cobranza.pdf';
 import { timbrarIngresoPublicoGeneral, generarFacturaAbonoPublicoGeneral, verificarAdmin } from '../../../Facturas/services/Facturacion.service';
+import Agente_Folio_Recibo from '../../../Comercial/Agente_Venta/model/Agente_Folio_Recibo';
 import { v4 as uuidv4 } from 'uuid';
 import Cat_Bancos from '../../../Catalogos/model/Cat_Bancos';
 
@@ -424,6 +425,14 @@ export const CxCService = {
     //  Registra un número de recibo físico con abonos a varias CxC del mismo
     //  cliente en una sola transacción. Cada abono queda en estatus CAP.
     // ─────────────────────────────────────────────────────────────────────────
+    // Si al agente se le asigna siempre el folio automáticamente (no puede escribir el número del recibo a mano)
+    getConfigFolioRecibo: async (id_empleado?: string) => {
+        const agente = id_empleado ? await AgenteRepository.getByIdEmpleado(id_empleado) : null;
+        if (!agente) return { folio_automatico: false, prefijo: null as string | null };
+        const fila = await Agente_Folio_Recibo.findByPk(agente.cod_identi_agente);
+        return { folio_automatico: !!fila, prefijo: agente.cod_identi_agente as string };
+    },
+
     capturarPagoCliente: async (data: ICapturarPagoCliente) => {
         if (!data.abonos || data.abonos.length === 0) {
             throw new Error('Debe incluir al menos un abono en el recibo');
@@ -433,11 +442,17 @@ export const CxCService = {
         const agente = await AgenteRepository.getByIdEmpleado(data.id_empleado_captura);
         if (!agente) throw new Error('El empleado capturista no tiene un agente de venta asociado');
 
+        // Agentes con folio automático (p. ej. los que usan la impresora de tickets): el folio lo asigna siempre el
+        // sistema; aunque llegara uno escrito a mano, se ignora.
+        const folioAutomatico = !!(await Agente_Folio_Recibo.findByPk(agente.cod_identi_agente));
+
         // Si el agente escribió el folio de un recibo físico, el prefijo lo pone el backend con las
         // iniciales YA resueltas arriba (nunca las que el navegador haya podido calcular/cargar).
-        const datosConFolio = data.numero_recibo_sufijo?.trim()
-            ? { ...data, numero_recibo_custom: `${agente.cod_identi_agente}_${data.numero_recibo_sufijo.trim()}` }
-            : data;
+        const datosConFolio = folioAutomatico
+            ? { ...data, numero_recibo_custom: undefined, numero_recibo_sufijo: undefined }
+            : data.numero_recibo_sufijo?.trim()
+                ? { ...data, numero_recibo_custom: `${agente.cod_identi_agente}_${data.numero_recibo_sufijo.trim()}` }
+                : data;
 
         // ── Transacción ───────────────────────────────────────────────────────────
         const t = await dbLocal.transaction({

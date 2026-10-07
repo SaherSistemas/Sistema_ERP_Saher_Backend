@@ -37,6 +37,15 @@ export class CxCController {
     //         referencia_pago?, id_empleado_captura, notas?,
     //         abonos: [{ id_cxc, monto_abono }] }
 
+    // GET /mi-folio-recibo → { folio_automatico, prefijo } del agente que está capturando
+    static getMiFolioRecibo = async (req: AuthedRequest, res: Response) => {
+        try {
+            res.json(await CxCService.getConfigFolioRecibo(req.user?.id_referencia_persona));
+        } catch (error: any) {
+            res.status(500).json({ message: error.message ?? 'Error al consultar el folio del recibo.' });
+        }
+    };
+
     static capturarPagoCliente = async (req: Request, res: Response) => {
         try {
             const { id_cliente_alm } = req.params;

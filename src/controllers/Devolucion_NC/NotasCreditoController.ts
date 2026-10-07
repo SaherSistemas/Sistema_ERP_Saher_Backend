@@ -40,8 +40,14 @@ export class NotasCreditoController {
             const { id_factura_proveedor, productos } = req.body;
             if (!id_factura_proveedor || !Array.isArray(productos) || productos.length === 0) {
                 res.status(400).json({ message: "id_factura_proveedor y productos son requeridos" });
+                return;
             }
-            const resultado = await NotasCreditoProveedorService.darEntradaInventario({ id_factura_proveedor, id_empresa: req.user?.id_empresa, productos });
+            const resultado = await NotasCreditoProveedorService.darEntradaInventario({
+                id_factura_proveedor,
+                id_empresa: req.user?.id_empresa,
+                id_empleado: req.user?.id_referencia_persona,
+                productos,
+            });
             res.status(200).json(resultado);
         } catch (error: any) {
             res.status(500).json({ message: error?.message ?? "Error al dar entrada al inventario", error });

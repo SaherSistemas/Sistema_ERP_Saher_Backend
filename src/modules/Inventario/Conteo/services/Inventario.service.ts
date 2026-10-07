@@ -3,9 +3,39 @@ import { dbLocal } from '../../../../config/db';
 import { InventarioRepository } from '../repositories/Inventario.repository';
 import { TipoInventario, StatusInventario } from '../model/Inventario';
 import Stock_Ubicacion_Lote from '../../Stock/model/Stock_Ubicacion_Lote';
+import Detalle_Inventario from '../model/Detalle_Inventario';
+import Inventario from '../model/Inventario';
 import Lote_Articulo_Sucursal from '../../Lotes/model/Lote_Articulo_Sucursal';
 import { LotesArticuloSucursalRepository } from '../../Lotes/repository/Lote_ArticuloSucursal.repository';
 import { Articulo_Ubicacion_DefaultRepository } from '../../../Catalogos/Articulos/feature/Articulo_Ubicacion_Default/Articulo_Ubicacion_Default.repository';
+
+// Piezas apartadas (ya surtidas para un pedido y fuera del anaquel) de la existencia que corresponde a cada renglón del conteo
+async function apartadasPorDetalle(id_empresa_sucursal: string, detalles: any[]): Promise<Map<string, number>> {
+    const mapa = new Map<string, number>();
+    const ids = Array.from(new Set(detalles.map(d => d.id_articulo)));
+    if (!ids.length) return mapa;
+    const stocks = await Stock_Ubicacion_Lote.findAll({
+        where: { id_empresa_sucursal, id_articulo: { [Op.in]: ids } },
+        attributes: ['id_articulo', 'id_ubicacion_sucursal', 'id_lote', 'cantidad_apartada'],
+        raw: true,
+    }) as any[];
+    for (const d of detalles) {
+        const ap = stocks
+            .filter(s => s.id_articulo === d.id_articulo
+                && (!d.id_ubicacion_sucursal || s.id_ubicacion_sucursal === d.id_ubicacion_sucursal)
+                && (!d.id_lote || s.id_lote === d.id_lote))
+            .reduce((a, s) => a + (Number(s.cantidad_apartada) || 0), 0);
+        mapa.set(d.id_detalle_inventario, ap);
+    }
+    return mapa;
+}
+
+// Un faltante contado se explica por lo apartado cuando las piezas que "faltan" son justo piezas ya surtidas para pedidos
+const explicadoPorApartado = (d: any, apartada: number): boolean => {
+    if (!d.contado || !d.ajustar || d.ajustado || d.cant_contada === null || d.cant_contada === undefined) return false;
+    const dif = Number(d.cant_contada) - Number(d.cant_sistema);
+    return dif < 0 && apartada >= -dif;
+};
 
 export const InventarioService = {
 
@@ -17,6 +47,45 @@ export const InventarioService = {
     }) => InventarioRepository.getLista(id_empresa_sucursal, params),
 
     getById: (id_inventario: string) => InventarioRepository.getById(id_inventario),
+
+    // El inventario con, por renglón, cuántas piezas hay apartadas ahora (para detectar faltantes que en realidad están surtidos)
+    getByIdConApartadas: async (id_inventario: string) => {
+        const inv = await InventarioRepository.getById(id_inventario);
+        if (!inv) return null;
+        const plano: any = inv.toJSON();
+        const detalles: any[] = plano.detalles ?? [];
+        const mapa = await apartadasPorDetalle(inv.id_empresa_sucursal, detalles);
+        plano.detalles = detalles.map(d => ({ ...d, apartada_actual: mapa.get(d.id_detalle_inventario) ?? 0 }));
+        return plano;
+    },
+
+    // Marca si un renglón se va a ajustar o no al aplicar el conteo (mientras se cuenta o ya terminado)
+    ajustarRenglon: async (id_detalle_inventario: string, ajustar: boolean) => {
+        const det = await Detalle_Inventario.findByPk(id_detalle_inventario);
+        if (!det) throw new Error('Renglón no encontrado');
+        const inv = await Inventario.findByPk(det.id_inventario);
+        if (!inv || !['EN_CONTEO', 'TERMINADO'].includes(inv.status)) {
+            throw new Error('Solo se puede cambiar mientras el inventario está en conteo o terminado');
+        }
+        if (det.ajustado) throw new Error('Este renglón ya fue ajustado');
+        await det.update({ ajustar });
+        return det;
+    },
+
+    // Deja sin ajustar los faltantes que coinciden con piezas apartadas (ya surtidas): si se aplicaran,
+    // se descontarían dos veces (al aplicar el conteo y otra al facturar el pedido).
+    ignorarFaltantesApartados: async (id_inventario: string) => {
+        const inv = await InventarioRepository.getById(id_inventario);
+        if (!inv) throw new Error('Inventario no encontrado');
+        if (inv.status !== 'TERMINADO') throw new Error('El inventario debe estar TERMINADO');
+        const detalles: any[] = (inv.detalles ?? []).map((d: any) => d.toJSON());
+        const mapa = await apartadasPorDetalle(inv.id_empresa_sucursal, detalles);
+        const ids = detalles.filter(d => explicadoPorApartado(d, mapa.get(d.id_detalle_inventario) ?? 0)).map(d => d.id_detalle_inventario);
+        if (ids.length) {
+            await Detalle_Inventario.update({ ajustar: false }, { where: { id_detalle_inventario: { [Op.in]: ids } } });
+        }
+        return { ok: true, renglones: ids.length };
+    },
 
     // Crea encabezado + genera renglones en una sola transacción
     crear: async (data: {

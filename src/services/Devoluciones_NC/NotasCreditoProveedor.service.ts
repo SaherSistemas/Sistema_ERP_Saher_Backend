@@ -12,6 +12,7 @@ import { Factura_Compra_ProveedorRepository } from "../../modules/Finanzas/Cuent
 import Factura_Compra_Proveedor from "../../modules/Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor";
 import Cuenta_Por_Pagar from "../../modules/Finanzas/Cuentas_Por_Pagar/model/Cuenta_Por_Pagar.model";
 import { dbLocal } from "../../config/db";
+import Kardex_Movimientos_Articulos from "../../modules/Almacen/Kardex/model/Kardex_Movimientos_Articulos";
 
 export const NotasCreditoProveedorService = {
     createNotaDeCredito: async (data: INotasCreditoProveedor) => {
@@ -141,7 +142,40 @@ export const NotasCreditoProveedorService = {
         }));
     },
 
+    // Si la factura tiene una NC pendiente pero NINGÚN renglón de faltante (el chequeo se finalizó sin dejarlos:
+    // p. ej. la línea no traía artículo ligado), los reconstruye con lo que se facturó y no se recibió, para poder
+    // darles entrada. Solo actúa cuando no existe ningún faltante de esa factura (en cualquier estado), así que
+    // no duplica nada ni revive faltantes ya recibidos o condonados.
+    regenerarFaltantesDeFactura: async (facturaId: string) => {
+        const notas = await NotasCreditoProveedorRepository.getNotasCreditoByFacturaProveedor(facturaId);
+        const ncPendiente = notas.find((n: any) => n.estado_nc === 'P');
+        if (!ncPendiente) return;
+
+        const yaHay = await Faltante_Factura_Proveedor.count({ where: { id_factura_proveedor: facturaId } });
+        if (yaHay > 0) return;
+
+        const completa = await Factura_Compra_ProveedorRepository.getFacturaCompleta(facturaId);
+        const filas = (completa?.detalles ?? [])
+            .filter((d: any) => Number(d.diferencia) > 0 && d.articulo?.id_artic)
+            .map((d: any) => {
+                const precioNeto = Number(d.precio ?? 0) * (1 - Number(d.descuento ?? 0) / 100);
+                const ivaUnit = precioNeto * (Number(d.iva ?? 0) / 100);
+                return {
+                    id_faltante: uuidv4(),
+                    id_nc: (ncPendiente as any).id_nc,
+                    id_factura_proveedor: facturaId,
+                    id_articulo: d.articulo.id_artic,
+                    cantidad_faltante: Number(d.diferencia),
+                    precio_unitario: Math.round(precioNeto * 100) / 100,
+                    iva_unitario: Math.round(ivaUnit * 100) / 100,
+                    estado: 'P',
+                };
+            });
+        if (filas.length) await Faltante_Factura_ProveedorRepository.bulkCreate(filas as any);
+    },
+
     getProductosPendientesByFactura: async (facturaId: string) => {
+        await NotasCreditoProveedorService.regenerarFaltantesDeFactura(facturaId);
         const faltantes = await Faltante_Factura_ProveedorRepository.getPendientesByFactura(facturaId);
 
         return faltantes.map((f: any) => ({
@@ -161,6 +195,7 @@ export const NotasCreditoProveedorService = {
     darEntradaInventario: async (data: {
         id_factura_proveedor: string;
         id_empresa: string;
+        id_empleado?: string;
         productos: Array<{
             id_faltante?: string;
             id_artic: string;
@@ -231,6 +266,22 @@ export const NotasCreditoProveedorService = {
                     },
                     t
                 );
+
+                // Kardex: la entrada queda registrada contra la factura del proveedor (igual que una recepción normal)
+                if (data.id_empleado) {
+                    await Kardex_Movimientos_Articulos.create({
+                        id_empresa: data.id_empresa,
+                        fecha: new Date(),
+                        id_articulo: prod.id_artic,
+                        id_lote: lote.id_lote_sucursal,
+                        tipo_movimiento: 'ENTRADA',
+                        categoria: 'Entrada_Salida',
+                        cantidad_movimiento: prod.cantidad,
+                        documento_ref: data.id_factura_proveedor,
+                        id_empleado: data.id_empleado,
+                        notas: 'Recepción de faltante de factura proveedor',
+                    } as any, { transaction: t });
+                }
 
                 // Actualizar o marcar faltante (parcial vs completo)
                 if (faltante) {

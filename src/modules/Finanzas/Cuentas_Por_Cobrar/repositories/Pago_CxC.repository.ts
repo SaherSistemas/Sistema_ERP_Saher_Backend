@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { QueryTypes, Transaction } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
 import Pago_CxC from '../model/Pago_CxC.model';
+import Agente_Folio_Recibo from '../../../Comercial/Agente_Venta/model/Agente_Folio_Recibo';
 import Cuenta_Por_Cobrar from '../model/Cuenta_Por_Cobrar.model';
 import Cat_Metodo_Pago from '../../../Catalogos/model/Cat_Metodo_Pago';
 import Cat_Forma_De_Pago from '../../../Catalogos/model/Cat_Forma_De_Pago';
@@ -350,7 +351,10 @@ export const Pago_CxCRepository = {
             type: QueryTypes.SELECT,
             transaction,
         });
-        return Number(rows[0]?.siguiente ?? 1);
+        const siguienteNormal = Number(rows[0]?.siguiente ?? 1);
+        // Folio mínimo configurado para este agente (p. ej. al empezar con la impresora de tickets): nunca se baja del último usado
+        const piso = await Agente_Folio_Recibo.findByPk(cod_identi_agente, { transaction });
+        return Math.max(siguienteNormal, Number(piso?.folio_minimo ?? 0));
     },
 
     // ─── DATOS PARA EL RECIBO DE COBRANZA PDF ────────────────────────────────────
