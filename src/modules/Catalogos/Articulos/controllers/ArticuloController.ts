@@ -164,7 +164,12 @@ export class ArticuloController {
       console.log(data);
       const newArticulo = await ArticuloService.createArticulo(data);
       res.status(201).json({ mensaje: 'Articulo creado correctamente.', articulo: newArticulo });
-    } catch (error) {
+    } catch (error: any) {
+      // Los errores de validación (código interno repetido o inválido) traen su estatus y mensaje
+      if (error?.status) {
+        res.status(error.status).json({ message: error.message });
+        return;
+      }
       console.error(error);
       res.status(500).json({ message: 'Error al crear el articulo.' });
     }

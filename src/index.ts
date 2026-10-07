@@ -3,6 +3,7 @@ import server_ws from './server_ws';
 import { iniciarXmlWatcher } from './modules/Facturas/services/XmlWatcher.service';
 import { iniciarSyncExistenciaPoly } from './modules/Inventario/Stock/services/SyncExistenciaPoly.service';
 import { iniciarVigenciaCotizaciones } from './modules/Almacen/Pedido/services/CotizacionesVigencia.service';
+import { iniciarVencimientoCompras } from './modules/Compras/Ordenes-Compra/services/ComprasVencimiento.service';
 
 const port = process.env.PORT || 4000;
 
@@ -19,5 +20,6 @@ server_ws.listen(port, () => {
   iniciarXmlWatcher();
   iniciarSyncExistenciaPoly();
   iniciarVigenciaCotizaciones();
+  iniciarVencimientoCompras();
 });
 

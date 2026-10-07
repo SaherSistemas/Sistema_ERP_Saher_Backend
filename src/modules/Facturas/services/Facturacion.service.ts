@@ -215,6 +215,12 @@ async function obtenerEmisor(id_empresa: string): Promise<EmisorTxt & {
     };
 }
 
+// Número del pedido de PolyDB a partir del folio con el que se importó (POLY-123 o POLY-ESPECIAL-123); null si no es de PolyDB
+const numeroPedidoPoly = (cod?: string | null): number | null => {
+    const m = /^POLY-(?:ESPECIAL-)?(\d+)$/i.exec(String(cod ?? '').trim());
+    return m ? Number(m[1]) : null;
+};
+
 export const FacturacionService = {
 
     // ── Genera .txt de Ingreso (timbrado manual con facturador externo) ───────
@@ -576,6 +582,7 @@ export const FacturacionService = {
                     plazo_pago: cab.plazo_pago_cliente,
                     total: registros[0].totales.total,
                     conceptos,
+                    cod_int_pedido_alm: cab.cod_int_pedido_alm,
                 });
             } catch (errPoly) {
                 console.error('[FACTURA_EMPRESA] Error al insertar en BD vieja:', errPoly);
@@ -786,9 +793,19 @@ export const FacturacionService = {
         };
     },
 
+    // Pedido de PolyDB ya recibido: pasa de C (capturado) a B (cancelado). Solo toca el que sigue en C.
+    _cerrarPedidoPoly: async (cod_int_pedido_alm?: string | null, transaction?: Transaction) => {
+        const num = numeroPedidoPoly(cod_int_pedido_alm);
+        if (num === null) return;
+        await dbPoly.query(
+            `UPDATE pedido SET pdistatuc = 'B' WHERE pdicdpdin = :num AND empcdempn = 20 AND pdistatuc = 'C'`,
+            { replacements: { num }, type: QueryTypes.UPDATE, transaction },
+        );
+    },
+
     // ── Helper compartido: insert en POS viejo (rme0010/rme00101/rme00102) ────
     _insertarEnPOSAntiguo: async ({
-        prefijo, id_empresa_sys_anterior, folio, plazo_pago, total, conceptos,
+        prefijo, id_empresa_sys_anterior, folio, plazo_pago, total, conceptos, cod_int_pedido_alm,
     }: {
         prefijo: 'TRA' | 'FAC';
         id_empresa_sys_anterior: number;
@@ -796,6 +813,7 @@ export const FacturacionService = {
         plazo_pago: number;
         total: number;
         conceptos: ConceptoFacturacion[];
+        cod_int_pedido_alm?: string | null;   // si es un pedido importado de PolyDB, pasa a B (cancelado) al insertar su recibo
     }) => {
         const parseFechaVenci = (f: string): string => {
             const [mes, anio] = f.split('/');
@@ -815,6 +833,7 @@ export const FacturacionService = {
         );
         if (existing) {
             console.log(`[POS_ANTIGUO] Ya existe ${rmenufacc} — omitiendo inserción duplicada`);
+            await FacturacionService._cerrarPedidoPoly(cod_int_pedido_alm);
             return;
         }
 
@@ -891,6 +910,9 @@ export const FacturacionService = {
                     });
                 }
             }
+
+            // El pedido de PolyDB del que viene esta mercancía ya se recibió: C (capturado) → B (cancelado)
+            await FacturacionService._cerrarPedidoPoly(cod_int_pedido_alm, tPoly);
 
             await tPoly.commit();
             console.log(`[POS_ANTIGUO] Insertado — ${rmenufacc}`);
@@ -976,6 +998,7 @@ export const FacturacionService = {
             plazo_pago: 0,
             total: Number(factura.total_factura),
             conceptos,
+            cod_int_pedido_alm: ped.cod_int_pedido_alm,
         });
 
         return { mensaje: `Factura TRA-${ped.id_empresa_sys_anterior}-${folioNum} insertada en PolyDB correctamente.` };
@@ -1089,6 +1112,7 @@ export const FacturacionService = {
             plazo_pago: cab.plazo_pago_cliente,
             total: totales.total,
             conceptos,
+            cod_int_pedido_alm: cab.cod_int_pedido_alm,
         });
 
         const pdfTraspasoBuffer = await construirPdfTraspaso({ cab, conceptos, folio });

@@ -55,6 +55,7 @@ import detalleCompraRecibidoRouter from '../modules/Compras/Ordenes-Compra/route
 import parametos_CompraRouter from '../modules/Compras/Ordenes-Compra/routes/parametros_CompraRouter';
 import comprasRouter from '../modules/Compras/Ordenes-Compra/routes/ComprasGeneralRouter';
 import comprasProveedorRouter from '../modules/Compras/Ordenes-Compra/routes/ComprasProveedorRouter';
+import comprasVencidasRouter from '../modules/Compras/Ordenes-Compra/routes/ComprasVencidasRouter';
 import detalle_CompraRouter from '../modules/Compras/Ordenes-Compra/routes/detalle_CompraRouter';
 import compraDirectaRouter from '../modules/Compras/CompraDirecta/route/CompraDirecta.route';
 
@@ -201,6 +202,7 @@ router.use('/parametros_compra', parametos_CompraRouter);
 
 router.use('/compras', comprasRouter);
 router.use('/compras_proveedor', comprasProveedorRouter);
+router.use('/compras_vencidas', comprasVencidasRouter);
 router.use('/compras/detalle_compra', detalle_CompraRouter);
 router.use('/compras/directa', compraDirectaRouter);
 

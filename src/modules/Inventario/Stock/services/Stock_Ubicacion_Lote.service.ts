@@ -1,5 +1,5 @@
 
-import { Transaction } from "sequelize";
+import { QueryTypes, Transaction } from "sequelize";
 import { dbLocal } from "../../../../config/db";
 import { Stock_Ubicacion_LoteRepository } from "../repositories/Stock_Ubicacion_Lote.repository";
 import { IAddStockDTO } from "../interface/Stock_Ubicacion_Lote.interface";
@@ -16,9 +16,84 @@ export const Stock_Ubicacion_LoteService = {
         const enTransito = await Detalle_Compra_SolicitadoRepository.getCantidadTransitoPorArticulo(id_articulo)
         const enRecibo = await Detalle_Compra_SolicitadoRepository.getCantidadEnReciboPorArticulo(id_articulo)
         const existenciasEmpresa = await Stock_Ubicacion_LoteRepository.getExistencias(id_empresa, id_articulo);
-        // console.log(existenciasEmpresa)
-        //console.log(enTransito)
-        return { existenciasEmpresa, enTransito, enRecibo };
+
+        // Piezas COMPROMETIDAS: ya prometidas en pedidos Capturados o Surtiendo que TODAVÍA no se han surtido (lo ya surtido está
+        // apartado y ya se resta de la existencia disponible). Están en el almacén pero ya tienen dueño.
+        let comprometidoPedidos = 0;
+        let pedidosComprometidos: { folio: string; cliente: string; status: string; pedidas: number; surtidas: number; pendiente: number }[] = [];
+        if (id_articulo) {
+            const filas = await dbLocal.query<any>(`
+                SELECT pa.cod_int_pedido_alm AS folio, pa.status_pedido_alm AS status,
+                       COALESCE(NULLIF(TRIM(ca.nom_corto_cliente_alm), ''), NULLIF(TRIM(ca.razon_social_cliente_alm), ''), 'Vale de empleado') AS cliente,
+                       dpa.cant_pedida AS pedidas,
+                       COALESCE(s.surtida, 0) AS surtidas,
+                       GREATEST(0, dpa.cant_pedida - COALESCE(s.surtida, 0) - COALESCE(n.negada, 0)) AS pendiente
+                FROM detalle_pedido_almacen dpa
+                JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
+                LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+                LEFT JOIN (SELECT id_detalle_pedido_almacen, SUM(cantidad) AS surtida
+                           FROM detalle_pedido_almacen_lote GROUP BY id_detalle_pedido_almacen) s
+                       ON s.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+                LEFT JOIN (SELECT id_detalle_pedido_almacen, SUM(cantidad_negada) AS negada
+                           FROM detalle_pedido_negado GROUP BY id_detalle_pedido_almacen) n
+                       ON n.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+                WHERE dpa.id_articulo = :id_articulo
+                  AND pa.status_pedido_alm IN ('CA', 'SU')
+                  AND pa.fecha_facturado_pedido_alm IS NULL
+                ORDER BY pa."createdAt" DESC
+            `, { replacements: { id_articulo }, type: QueryTypes.SELECT }) as any[];
+
+            pedidosComprometidos = filas
+                .map(f => ({
+                    folio: String(f.folio ?? ''),
+                    cliente: String(f.cliente ?? ''),
+                    status: String(f.status ?? ''),
+                    pedidas: Number(f.pedidas) || 0,
+                    surtidas: Number(f.surtidas) || 0,
+                    pendiente: Number(f.pendiente) || 0,
+                }))
+                .filter(f => f.pendiente > 0);
+            comprometidoPedidos = pedidosComprometidos.reduce((s, f) => s + f.pendiente, 0);
+        }
+
+        // Piezas APARTADAS (ya surtidas para un pedido que aún no se factura) y qué pedidos las tienen. Si lo apartado es más de
+        // lo que los pedidos respaldan, hay apartados "sueltos" (sin pedido) que conviene liberar.
+        let apartadaTotal = 0;
+        let pedidosConApartadas: { folio: string; cliente: string; status: string; surtidas: number }[] = [];
+        if (id_articulo) {
+            const idsEmpresa = String(id_empresa ?? '').split(',').map(x => x.trim()).filter(Boolean);
+            if (idsEmpresa.length) {
+                const [ap] = await dbLocal.query<any>(
+                    `SELECT COALESCE(SUM(cantidad_apartada), 0) AS apartada FROM stock_ubicacion_lote
+                     WHERE id_articulo = :id_articulo AND id_empresa_sucursal IN (:idsEmpresa)`,
+                    { replacements: { id_articulo, idsEmpresa }, type: QueryTypes.SELECT });
+                apartadaTotal = Number(ap?.apartada ?? 0);
+            }
+            const filasAp = await dbLocal.query<any>(`
+                SELECT pa.cod_int_pedido_alm AS folio, pa.status_pedido_alm AS status,
+                       COALESCE(NULLIF(TRIM(ca.nom_corto_cliente_alm), ''), NULLIF(TRIM(ca.razon_social_cliente_alm), ''), 'Vale de empleado') AS cliente,
+                       SUM(l.cantidad) AS surtidas
+                FROM detalle_pedido_almacen_lote l
+                JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = l.id_detalle_pedido_almacen
+                JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
+                LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+                WHERE dpa.id_articulo = :id_articulo
+                  AND pa.status_pedido_alm IN ('SU', 'CH', 'EM')
+                  AND pa.fecha_facturado_pedido_alm IS NULL
+                GROUP BY pa.cod_int_pedido_alm, pa.status_pedido_alm, ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm
+                HAVING SUM(l.cantidad) > 0
+                ORDER BY MAX(pa."createdAt") DESC
+            `, { replacements: { id_articulo }, type: QueryTypes.SELECT }) as any[];
+            pedidosConApartadas = filasAp.map(f => ({
+                folio: String(f.folio ?? ''), cliente: String(f.cliente ?? ''), status: String(f.status ?? ''), surtidas: Number(f.surtidas) || 0,
+            }));
+        }
+
+        return {
+            existenciasEmpresa, enTransito, enRecibo, comprometidoPedidos,
+            pedidosComprometidos: pedidosComprometidos.slice(0, 30),
+            apartadaTotal, pedidosConApartadas: pedidosConApartadas.slice(0, 30),
+        };
     },
     addStock: async (dto: IAddStockDTO) => {
         if (!dto.id_empresa_sucursal) throw new Error("id_empresa_sucursal requerido");

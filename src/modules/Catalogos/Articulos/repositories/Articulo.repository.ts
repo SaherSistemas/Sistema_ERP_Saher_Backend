@@ -445,16 +445,50 @@ export const ArticuloRepository = {
             order: [["cod_int_artic", "DESC"]]
         })
     },
+    // Código interno: si viene vacío se toma el máximo + 1; si viene un número se usa ese, y si ya lo tiene otro artículo
+    // se rechaza diciendo cuál es (409).
     createArticulo: async (data: ICreateOrUpdateArticulo) => {
+        const { cod_int_artic: codPedido, ...resto } = data;
         const nuevoUUID = uuidv4();
-        const UltimoId = await ArticuloRepository.ultimoId();
 
-        const nuevoID = UltimoId ? UltimoId.cod_int_artic + 1 : 1;
-        return await Articulo.create({
-            id_artic: nuevoUUID,
-            cod_int_artic: nuevoID,
-            ...data
-        })
+        let nuevoID: number;
+        const pidioCodigo = codPedido !== undefined && codPedido !== null && String(codPedido).trim() !== '';
+        if (pidioCodigo) {
+            const n = Number(codPedido);
+            // La columna es SMALLINT: hasta 32767
+            if (!Number.isInteger(n) || n < 1 || n > 32767) {
+                throw { status: 400, message: 'El código interno debe ser un número entero entre 1 y 32767.' };
+            }
+            const existente = await Articulo.findOne({
+                where: { cod_int_artic: n },
+                attributes: ['id_artic', 'cod_int_artic', 'des_artic', 'cod_barr_artic'],
+            });
+            if (existente) {
+                const barras = String(existente.cod_barr_artic ?? '').trim();
+                throw {
+                    status: 409,
+                    message: `El código interno ${n} ya lo tiene el artículo "${String(existente.des_artic ?? '').trim()}"${barras ? ` (código de barras ${barras})` : ''}.`,
+                };
+            }
+            nuevoID = n;
+        } else {
+            const UltimoId = await ArticuloRepository.ultimoId();
+            nuevoID = UltimoId ? UltimoId.cod_int_artic + 1 : 1;
+        }
+
+        try {
+            return await Articulo.create({
+                id_artic: nuevoUUID,
+                cod_int_artic: nuevoID,
+                ...resto
+            });
+        } catch (err: any) {
+            // Otro artículo tomó ese código justo en este momento
+            if (err?.name === 'SequelizeUniqueConstraintError') {
+                throw { status: 409, message: `El código interno ${nuevoID} acaba de ser tomado por otro artículo. Intenta de nuevo.` };
+            }
+            throw err;
+        }
     },
     updateArticulo: async (id: string, data: ICreateOrUpdateArticulo) => {
         const existe = await ArticuloRepository.getByIDFlexible(id);

@@ -342,14 +342,21 @@ export async function _generarTraspasoCheckeado(id_pedido_alm: string): Promise<
 
 const ID_ROL_SURTIDOR = 3; // Surtidor/Acomodador
 
+// ─── Pedidos ESPECIALES de PolyDB ────────────────────────────────────────────
+//  Un pedido de PolyDB con el campo pedido.pdifolpec VACÍO es un pedido especial; con algún valor es un pedido normal.
+const _folpecVacio = (v: unknown): boolean => v === null || v === undefined || String(v).trim() === '';
+
+// Folio con el que el pedido de PolyDB queda en este sistema
+const _folioPoly = (num: string | number, especial: boolean) => (especial ? `POLY-ESPECIAL-${num}` : `POLY-${num}`);
+
 // ─── Helper privado: preview de UN pedido PolyDB por su número ───────────────
 //  Aísla los items de ese pedido específico.
 //  Esto corrige el bug original donde previewPolyDB mezclaba artículos de TODOS
 //  los pedidos con pdistatuc='P' y solo marcaba como importado al pedido N.
 async function _previewPedidoPoly(pdicdpdin: string) {
   const [cabecera, rows] = await Promise.all([
-    dbPoly.query<{ clicdclic: string; pdicdpdin: string }>(`
-            SELECT clicdclic, pdicdpdin
+    dbPoly.query<{ clicdclic: string; pdicdpdin: string; pdifolpec: unknown }>(`
+            SELECT clicdclic, pdicdpdin, pdifolpec
             FROM pedido
             WHERE empcdempn = 20
               AND pdicdpdin = :pdicdpdin
@@ -368,6 +375,7 @@ async function _previewPedidoPoly(pdicdpdin: string) {
 
   if (!cabecera.length) return null;
 
+  const es_especial = _folpecVacio(cabecera[0].pdifolpec);
   const clicdclic = cabecera[0].clicdclic?.trim() ?? null;
 
   let cliente_nuevo: { id_cliente_alm: string; razon_social: string; nom_corto: string; id_agente_cliente_alm: string | null } | null = null;
@@ -418,6 +426,7 @@ async function _previewPedidoPoly(pdicdpdin: string) {
   return {
     clicdclic,
     pdicdpdin: cabecera[0].pdicdpdin?.trim() ?? pdicdpdin,
+    es_especial,
     cliente_nuevo,
     items,
     total: items.length,
@@ -2036,6 +2045,8 @@ export const Pedido_AlmacenService = {
         if (!preview) return null;
         return {
           pdicdpdin: Number(p.pdicdpdin),
+          es_especial: preview.es_especial,
+          folio_sistema: _folioPoly(p.pdicdpdin, preview.es_especial),
           clicdclic: preview.clicdclic,
           cliente_nuevo: preview.cliente_nuevo,
           id_agente_cliente_alm: preview.cliente_nuevo?.id_agente_cliente_alm ?? null,
@@ -2082,9 +2093,10 @@ export const Pedido_AlmacenService = {
     const t = await dbLocal.transaction();
     const tPoly = await dbPoly.transaction();
     //FALTA SACAR LA FECHA DE ENTREGA 
+    // Al importarlo, el pedido queda en PolyDB como C (capturado). Pasa a B (cancelado) hasta que se inserte su recibo de mercancía.
     const [rowsAffected] = await dbPoly.query(`
       UPDATE pedido
-      SET pdistatuc = 'B'
+      SET pdistatuc = 'C'
       WHERE pdicdpdin = :num_pedido
         AND empcdempn = 20
         AND pdistatuc = 'P'
@@ -2100,7 +2112,8 @@ export const Pedido_AlmacenService = {
     try {
       // Crear cabecera del pedido
       const pedido = await Pedido_AlmacenRepository.create({
-        cod_int_pedido_alm: `POLY-${num_pedido}`,
+        // Pedido especial (pdifolpec vacío en PolyDB) → POLY-ESPECIAL-folio; normal → POLY-folio
+        cod_int_pedido_alm: _folioPoly(num_pedido, preview.es_especial),
         status_pedido_alm: 'CA',
         tipo_pedido_alm: tipo_pedido || 'AUT',
         id_cliente_pedido_alm: id_cliente_alm,

@@ -17,6 +17,7 @@ export interface IArticulo {
     necesita_receta?: boolean
 }
 export interface ICreateOrUpdateArticulo {
+    cod_int_artic?: number | string | null;   // solo al crear: vacío = el siguiente disponible (máximo + 1)
     cod_barr_artic: string;
     des_artic: string;
     des_gener_artic: string;
