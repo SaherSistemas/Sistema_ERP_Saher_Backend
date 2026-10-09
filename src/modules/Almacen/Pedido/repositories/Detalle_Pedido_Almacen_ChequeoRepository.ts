@@ -240,7 +240,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                 include: [{
                     model: Articulo,
                     required: true,
-                    attributes: ['id_artic', 'cod_barr_artic'],
+                    attributes: ['id_artic', 'cod_barr_artic', 'des_artic'],
                     where: {
                         cod_barr_artic: {
                             [Op.iLike]: `%${cod_barras.trim()}%`
@@ -252,15 +252,29 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         });
         //    console.log("Filas encontradas para chequeo:", filas.length);
         //  console.log("Detalle pedido incluido en filas:", filas.map(f => f.detalle_pedido?.id_detalle_pedido_almacen));
-        if (!filas.length) throw new Error('Artículo no encontrado en el chequeo');
+        if (!filas.length) {
+            // El código escaneado no es de este pedido: se dice de qué artículo es (si existe en el catálogo)
+            const codigo = cod_barras.trim();
+            const escaneado = await Articulo.findOne({
+                where: { cod_barr_artic: codigo },
+                attributes: ['des_artic', 'cod_int_artic'],
+                raw: true,
+            }) as any;
+            if (escaneado?.des_artic) {
+                throw new Error(`Artículo no encontrado en el chequeo: "${String(escaneado.des_artic).trim()}" (código ${codigo}) no corresponde a este pedido`);
+            }
+            throw new Error(`Artículo no encontrado en el chequeo: el código ${codigo} no existe en el catálogo`);
+        }
 
         const cantSurtidaTotal = filas.reduce((s, f) => s + (Number(f.cant_surtida_lote) || 0), 0);
         const cantChecadaActual = filas.reduce((s, f) => s + (Number(f.cant_chequeada) || 0), 0);
         const cantPedida = (filas[0] as any).detalle_pedido?.cant_pedida ?? cantSurtidaTotal;
 
         if (cantChecadaActual + cantidad > cantSurtidaTotal) {
+            const art = (filas[0] as any).detalle_pedido?.articulo ?? (filas[0] as any).detalle_pedido?.Articulo;
+            const nombre = String(art?.des_artic ?? '').trim();
             throw new Error(
-                `Cantidad excede lo surtido. Surtido: ${cantSurtidaTotal}, Ya chequeado: ${cantChecadaActual}, Intentando agregar: ${cantidad}`
+                `Cantidad excede lo surtido${nombre ? ` de "${nombre}"` : ''}. Surtido: ${cantSurtidaTotal}, Ya chequeado: ${cantChecadaActual}, Intentando agregar: ${cantidad}`
             );
         }
 

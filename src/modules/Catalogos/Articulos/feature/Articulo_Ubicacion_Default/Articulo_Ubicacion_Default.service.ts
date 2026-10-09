@@ -213,6 +213,7 @@ export const Articulo_Ubicacion_DefaultServices = {
             id_articulo: f.id_articulo,
             cod_int_artic: f.cod_int_artic,
             des_artic: f.des_artic.trim(),
+            cod_barr_artic: String(f.cod_barr_artic ?? '').trim(),
             existencia_total: Number(f.existencia_total),
         }));
     },

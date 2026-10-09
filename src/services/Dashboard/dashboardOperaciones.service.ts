@@ -34,15 +34,15 @@ export const dashboardOperacionesService = {
             // ── Compras ───────────────────────────────────────────────────────────
             dbLocal.query<any>(`
                 SELECT
-                    COUNT(*) FILTER (WHERE cp.estado_comp = 'A')                         AS por_llegar,
-                    COALESCE(SUM(cp.total_comp_factura) FILTER (WHERE cp.estado_comp = 'A'), 0) AS monto_por_llegar,
+                    COUNT(*) FILTER (WHERE cp.estado_comp IN ('A', 'E'))                  AS por_llegar,
+                    COALESCE(SUM(cp.total_comp_factura) FILTER (WHERE cp.estado_comp IN ('A', 'E')), 0) AS monto_por_llegar,
                     COUNT(*) FILTER (WHERE cp.estado_comp = 'D')                         AS devoluciones,
                     COUNT(*) FILTER (WHERE cp.estado_comp = 'R'
                         AND cp.fin_de_compra_proveedor::date >= :inicio_mes)             AS recibidas_mes,
                     COALESCE(SUM(cp.total_comp_recibido) FILTER (WHERE cp.estado_comp = 'R'
                         AND cp.fin_de_compra_proveedor::date >= :inicio_mes), 0)         AS monto_recibido_mes,
                     COUNT(*) FILTER (WHERE cp.estado_comp = 'F')                         AS facturadas_pendientes,
-                    COUNT(DISTINCT cp.idprove_comp) FILTER (WHERE cp.estado_comp = 'A')  AS proveedores_pendientes
+                    COUNT(DISTINCT cp.idprove_comp) FILTER (WHERE cp.estado_comp IN ('A', 'E')) AS proveedores_pendientes
                 FROM compra_proveedor cp
             `, { replacements: { inicio_mes: inicioMesStr }, type: QueryTypes.SELECT }),
 

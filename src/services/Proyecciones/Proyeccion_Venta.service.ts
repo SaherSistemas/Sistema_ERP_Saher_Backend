@@ -1,5 +1,5 @@
 // src/services/Proyeccion_VentaService.ts
-import { Kardex_Movimiento_ArticuloRepository } from "../../modules/Almacen/Kardex/repositories/Kardex_Movimiento_Articulo.repository";
+import { Kardex_Movimiento_ArticuloRepository, getDiasConExistenciaAlmacen } from "../../modules/Almacen/Kardex/repositories/Kardex_Movimiento_Articulo.repository";
 import { polyfit, polyval } from "../../utils/polyfit";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -15,6 +15,9 @@ type Componentes = {
     ultimo_real: number;
     anio_pasado_periodo: { quincena: string; total: number; svm: number } | null;
     periodos_por_anio: number;
+    // Si el artículo se agotó pronto en el último periodo, lo vendido queda recortado por falta de existencia:
+    // la demanda del último periodo se escala por los días que sí hubo existencia.
+    ajuste_agotamiento?: { dias_con_existencia: number; ventana: number; factor: number; piezas_ajustadas: number } | null;
 };
 
 // ─── Holt Double Exponential Smoothing ───────────────────────────────────────
@@ -50,6 +53,12 @@ function holtProject(y: number[], h: number, alpha: number, beta: number): numbe
 // `holdout` periodos usando validación "walk-forward" (rolling 1-step-ahead).
 // Grilla: 9 × 7 = 63 combinaciones → rápido (<1 ms con arrays de ≤20 puntos).
 const ALPHAS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+// La proyección nunca baja de este porcentaje de lo que se vendió en el último periodo
+const PISO_RECENCIA = 0.65;
+// Ajuste por agotamiento: la venta del último periodo se escala por (ventana ÷ días con existencia), con tope de ×2 y
+// contando al menos 3 días con existencia (un artículo que duró un día no dispara la demanda).
+const FACTOR_MAX_AGOTAMIENTO = 2.0;
+const MIN_DIAS_CON_EXISTENCIA = 3;
 const BETAS = [0.0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4];
 
 function optimizeHolt(
@@ -87,6 +96,13 @@ function filterOutliersIQR(y: number[]): number[] {
     const hi = q3 + 1.5 * iqr;
     const clean = y.filter(v => v >= lo && v <= hi);
     return clean.length >= 2 ? clean : y;
+}
+
+// Igual que el filtro IQR, pero el periodo más reciente (último de la serie) nunca se descarta: es la señal más fresca
+// de demanda real, y en artículos de venta esporádica un pico reciente es justo lo que hay que reponer.
+function filterOutliersIQRConUltimo(y: number[]): number[] {
+    if (y.length < 2) return y;
+    return [...filterOutliersIQR(y.slice(0, -1)), y[y.length - 1]];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,13 +224,47 @@ export const Proyeccion_VentaService = {
         const ySVTk = recentIdxs.map(i => ySVT[i]);
         const ySTRk = recentIdxs.map(i => ySTR_dem[i]);
         const ySalK = recentIdxs.map(i => ySalidas[i]);
-        const lastActual = N > 0 ? yTotalModelo[N - 1] : 0;
+        // ── 6b. Ajuste por agotamiento ────────────────────────────────────────
+        // Si el artículo entró y se acabó pronto (p. ej. llegó el día 5 y el 7 ya no había), lo vendido en el periodo es
+        // lo que alcanzó a salir, no lo que se hubiera vendido con existencia todo el periodo. Se escala SOLO la parte de
+        // Almacén (SVT y traslados) del último periodo y solo para el modelo: el Historial sigue mostrando lo real.
+        const ultimoRealCrudo = N > 0 ? yTotalModelo[N - 1] : 0;
+        let ajusteAgotamiento: Componentes['ajuste_agotamiento'] = null;
+        if (N > 0) {
+            try {
+                const stk = await getDiasConExistenciaAlmacen(cod_int_artic, ventana_dias);
+                if (stk && stk.ventana > 0) {
+                    const dc = Math.max(stk.dias_con_existencia, MIN_DIAS_CON_EXISTENCIA);
+                    const factor = Math.min(FACTOR_MAX_AGOTAMIENTO, Math.max(1, stk.ventana / dc));
+                    if (factor > 1.05) {
+                        const ajSVT = Math.round(ySVT[N - 1] * (factor - 1));
+                        const ajSTR = Math.round(ySTR_dem[N - 1] * (factor - 1));
+                        const aj = ajSVT + ajSTR;
+                        if (aj > 0) {
+                            yTotK[kEff - 1] += aj;
+                            ySalK[kEff - 1] += aj;
+                            ySVTk[kEff - 1] += ajSVT;
+                            ySTRk[kEff - 1] += ajSTR;
+                            ajusteAgotamiento = {
+                                dias_con_existencia: Math.round(stk.dias_con_existencia * 10) / 10,
+                                ventana: Math.round(stk.ventana * 10) / 10,
+                                factor: Math.round(factor * 100) / 100,
+                                piezas_ajustadas: aj,
+                            };
+                        }
+                    }
+                }
+            } catch (e: any) {
+                console.error('[Proyeccion] No se pudo calcular el ajuste por agotamiento:', e?.message ?? e);
+            }
+        }
+        const lastActual = ultimoRealCrudo + (ajusteAgotamiento?.piezas_ajustadas ?? 0);
 
         // ── 7. Filtro IQR ─────────────────────────────────────────────────────
-        const yTotKc = filterOutliersIQR(yTotK);
-        const ySVMkc = filterOutliersIQR(ySVMk);
-        const ySTRkc = filterOutliersIQR(ySTRk);
-        const ySalKc = filterOutliersIQR(ySalK);
+        const yTotKc = filterOutliersIQRConUltimo(yTotK);
+        const ySVMkc = filterOutliersIQRConUltimo(ySVMk);
+        const ySTRkc = filterOutliersIQRConUltimo(ySTRk);
+        const ySalKc = filterOutliersIQRConUltimo(ySalK);
 
         // ── 8. Auto-tuning de Holt ────────────────────────────────────────────
         // El holdout usa los últimos ~25 % de la ventana K_TOP como test.
@@ -258,7 +308,7 @@ export const Proyeccion_VentaService = {
             alpha_opt: aOpt,
             beta_opt: bOpt,
             mae_holdout: isNaN(maeHolt) ? null : Math.round(maeHolt * 10) / 10,
-            ultimo_real: lastActual,
+            ultimo_real: ultimoRealCrudo,
             anio_pasado_periodo: null,
             periodos_por_anio: periodosPerAnio,
         };
@@ -313,11 +363,11 @@ export const Proyeccion_VentaService = {
 
             proj_total = Math.round(wT * trend_total + wS * seasonal_total);
 
-            // 9e. Ancla de recencia [×0.30, ×2.0] ────────────────────────────
+            // 9e. Ancla de recencia [×0.65, ×2.0] ────────────────────────────
             if (lastActual > 0) {
                 proj_total = Math.min(
                     Math.round(lastActual * 2.0),
-                    Math.max(Math.round(lastActual * 0.30), proj_total),
+                    Math.max(Math.round(lastActual * PISO_RECENCIA), proj_total),
                 );
             }
 
@@ -352,7 +402,7 @@ export const Proyeccion_VentaService = {
                 alpha_opt: aOpt,
                 beta_opt: bOpt,
                 mae_holdout: isNaN(maeHolt) ? null : Math.round(maeHolt * 10) / 10,
-                ultimo_real: lastActual,
+                ultimo_real: ultimoRealCrudo,
                 anio_pasado_periodo: {
                     quincena: sorted[lyIdx].quincena,
                     total: Math.round(lyTotal),
@@ -364,7 +414,7 @@ export const Proyeccion_VentaService = {
             // Sin año anterior: ancla de recencia + redistribución
             if (lastActual > 0) {
                 proj_total = Math.min(Math.round(lastActual * 2.0),
-                    Math.max(Math.round(lastActual * 0.30), proj_total));
+                    Math.max(Math.round(lastActual * PISO_RECENCIA), proj_total));
             }
             const STR_WINDOW = 5;
             const ratioWindow = Math.min(STR_WINDOW, kEff);
@@ -381,8 +431,10 @@ export const Proyeccion_VentaService = {
             componentes.alpha_opt = aOpt;
             componentes.beta_opt = bOpt;
             componentes.mae_holdout = isNaN(maeHolt) ? null : Math.round(maeHolt * 10) / 10;
-            componentes.ultimo_real = lastActual;
+            componentes.ultimo_real = ultimoRealCrudo;
         }
+
+        componentes.ajuste_agotamiento = ajusteAgotamiento;
 
         // ── 10. Detalle por periodo ───────────────────────────────────────────
         const detallePorPeriodo = sorted.map((p, i) => ({

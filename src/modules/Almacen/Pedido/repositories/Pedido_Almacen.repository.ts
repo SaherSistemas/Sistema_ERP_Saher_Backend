@@ -239,67 +239,45 @@ export const Pedido_AlmacenRepository = {
       order: [['createdAt', 'DESC']],
     });
   },
+  // Entrega máxima de un pedido según el horario del agente. Un día puede tener varios turnos (mañana y tarde): cada uno
+  // tiene su hora de recibo máx. y de entrega máx. El pedido cae en el primer turno de HOY cuyo recibo máx. todavía no
+  // pasó; si ya pasaron todos (o hoy no hay horario), va al primer turno del siguiente día con horario.
   getFechaMaxEntrega: async (id_agente: string): Promise<Date> => {
     const fechaPedido = new Date();
-    //console.log("FECHA PEDIDO:", fechaPedido)
-    const diaSemana = fechaPedido.getDay(); // 0=domingo.
-    //console.log("DIA SEMANA:", diaSemana)
+    const diaSemana = fechaPedido.getDay(); // 0=domingo
     const horaActual = fechaPedido.toTimeString().substring(0, 8); // HH:MM:SS
-    //console.log("HORA ACTUAL:", horaActual)
-    // 1. Buscar regla para HOY
-    const reglaHoy = await Prioridad_Agente_Reglas.findOne({
-      where: { id_agente, dia_semana: diaSemana, activa: true }
+
+    const conHora = (base: Date, hora: string) => {
+      const f = new Date(base);
+      const [hh, mm, ss] = String(hora).split(':').map(Number);
+      f.setHours(hh || 0, mm || 0, ss || 0, 0);
+      return f;
+    };
+
+    // 1. Turnos de HOY, del más temprano al más tarde
+    const reglasHoy = await Prioridad_Agente_Reglas.findAll({
+      where: { id_agente, dia_semana: diaSemana, activa: true },
+      order: [['hora_recibo_max', 'ASC']]
     });
-    //console.log("REGLA HOY:", reglaHoy)
-    if (reglaHoy) {
-      const horaReciboMax = reglaHoy.hora_recibo_max;
-      const horaEntregaMax = reglaHoy.hora_entrega_max;
+    const turnoHoy = reglasHoy.find(r => horaActual <= r.hora_recibo_max);
+    if (turnoHoy) return conHora(fechaPedido, turnoHoy.hora_entrega_max);
 
-      // 2. Comparar hora actual con hora_recibo_max
-      const pedidoEsAntesDeLimite = horaActual <= horaReciboMax;
-      if (pedidoEsAntesDeLimite) {
-        const fecha = new Date(fechaPedido);
-        const [hh, mm, ss] = horaEntregaMax.split(':').map(Number);
-        fecha.setHours(hh, mm, ss, 0);
-        return fecha;
-      }
-    }
-
-    // 3. No hay regla hoy o ya pasó el límite — buscar siguiente día válido
-    let diaSiguiente = (diaSemana + 1) % 7;
-
-    let reglaSiguiente = await Prioridad_Agente_Reglas.findOne({
-      where: { id_agente, dia_semana: diaSiguiente, activa: true }
+    // 2. No hay turno hoy o ya pasaron todos: primer turno del siguiente día con horario
+    const reglas = await Prioridad_Agente_Reglas.findAll({
+      where: { id_agente, activa: true },
+      order: [['dia_semana', 'ASC'], ['hora_recibo_max', 'ASC']]
     });
+    if (reglas.length === 0) throw new Error('El agente no tiene reglas activas');
+    const reglaSiguiente = reglas.find(r => r.dia_semana > diaSemana) || reglas[0];
 
-
-    // Si no hay regla para mañana, buscar la siguiente regla disponible
-    if (!reglaSiguiente) {
-      const reglas = await Prioridad_Agente_Reglas.findAll({
-        where: { id_agente, activa: true },
-        order: [['dia_semana', 'ASC']]
-      });
-
-      if (reglas.length === 0) throw new Error('El agente no tiene reglas activas');
-
-      reglaSiguiente = reglas.find(r => r.dia_semana > diaSemana) || reglas[0];
-    }
-
-    // 4. Armar la fecha del siguiente día válido a hora_entrega_max
-    const fechaEntrega = new Date(fechaPedido);
-
-    // calcular salto de días
+    // 3. Armar la fecha de ese día a la hora de entrega del turno
     const saltoDias =
       reglaSiguiente.dia_semana > diaSemana
         ? reglaSiguiente.dia_semana - diaSemana
         : 7 - diaSemana + reglaSiguiente.dia_semana;
-
+    const fechaEntrega = new Date(fechaPedido);
     fechaEntrega.setDate(fechaEntrega.getDate() + saltoDias);
-
-    const [hh2, mm2, ss2] = reglaSiguiente.hora_entrega_max.split(':').map(Number);
-    fechaEntrega.setHours(hh2, mm2, ss2, 0);
-
-    return fechaEntrega;
+    return conHora(fechaEntrega, reglaSiguiente.hora_entrega_max);
   },
   actualizarFinCapturado: async (id_pedido: string, transaction?: Transaction) => {
     const pedido = await Pedido_AlmacenRepository.getByID(id_pedido)
@@ -400,6 +378,7 @@ export const Pedido_AlmacenRepository = {
   }) => {
     const { fecha_inicio, fecha_fin, status, busqueda, page = 1, limit = 50, excluir_finalizados, id_agente } = params;
     const offset = (page - 1) * limit;
+    const porAtender = status === 'CA' || status === 'SU' || (!status && !!excluir_finalizados);
 
     const where: any = {};
     if (fecha_inicio && fecha_fin) {
@@ -427,6 +406,32 @@ export const Pedido_AlmacenRepository = {
         literal(`EXISTS (SELECT 1 FROM cliente_almacen ca WHERE ca.id_cliente_alm = "Pedido_Almacen".id_cliente_pedido_alm AND (ca.nom_corto_cliente_alm ILIKE '%${q}%' OR ca.razon_social_cliente_alm ILIKE '%${q}%'))`),
       ];
     }
+
+    // Cuántos pedidos tiene cada agente con los MISMOS filtros (fechas, estatus, búsqueda), sin contar el agente elegido,
+    // para que las tarjetas de los demás agentes sigan visibles. Solo salen los agentes que tienen pedidos.
+    const { id_agente_pedido_alm: _sinAgente, ...whereSinAgente } = where;
+    const porAgente = await Pedido_Almacen.findAll({
+      where: whereSinAgente,
+      attributes: ['id_agente_pedido_alm', [literal('COUNT(*)'), 'n']],
+      group: ['id_agente_pedido_alm'],
+      raw: true,
+    }) as any[];
+    const idsAgentes = porAgente.map(g => g.id_agente_pedido_alm).filter(Boolean);
+    const agentesInfo = idsAgentes.length
+      ? await Agente_de_Venta.findAll({
+          where: { id_agente: { [Op.in]: idsAgentes } },
+          attributes: ['id_agente', 'cod_identi_agente'],
+          include: [{ model: Empleado, as: 'empleado', attributes: ['nombre_empleado', 'ap_pat_empleado'] }],
+        })
+      : [];
+    const conteo_agentes = porAgente
+      .filter(g => g.id_agente_pedido_alm)
+      .map(g => {
+        const a: any = agentesInfo.find((x: any) => x.id_agente === g.id_agente_pedido_alm);
+        const nombre = a?.empleado ? `${a.empleado.nombre_empleado} ${a.empleado.ap_pat_empleado}`.trim() : (a?.cod_identi_agente ?? 'Agente');
+        return { id_agente: g.id_agente_pedido_alm as string, nombre, total: Number(g.n) || 0 };
+      })
+      .sort((x, y) => y.total - x.total || x.nombre.localeCompare(y.nombre));
 
     const { count, rows } = await Pedido_Almacen.findAndCountAll({
       where,
@@ -462,6 +467,9 @@ export const Pedido_AlmacenRepository = {
         },
       ],
       order: [
+        // Pedidos por atender (Capturado / Surtiendo): los de agente (AGE) siempre arriba, como en la cola de surtido.
+        // En el historial de otros estatus no se aplica.
+        ...(porAtender ? [[literal(`CASE WHEN "Pedido_Almacen".tipo_pedido_alm = 'AGE' THEN 0 ELSE 1 END`), 'ASC'] as any] : []),
         [literal(`CASE WHEN "Pedido_Almacen".fecha_max_entrega_alm IS NULL THEN 1 ELSE 0 END`), 'ASC'],
         ['fecha_max_entrega_alm', 'ASC'],
         ['createdAt', 'DESC'],
@@ -471,7 +479,7 @@ export const Pedido_AlmacenRepository = {
       distinct: true,
     });
 
-    return { total: count, pagina: page, porPagina: limit, data: rows };
+    return { total: count, pagina: page, porPagina: limit, data: rows, conteo_agentes };
   },
 
   // ══════════════════════════════════════════════════════════════════════════

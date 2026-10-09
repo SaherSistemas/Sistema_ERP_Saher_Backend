@@ -53,7 +53,11 @@ export const ArticuloRepository = {
     // (viene de la migración, la columna es varchar(15) pero el dato real trae menos dígitos
     // y se guardó rellenado) — por eso se compara recortando ambos lados, no con igualdad exacta.
     getByCodigoBarras: async (cod_barr_artic: string) => {
-        const buscado = String(cod_barr_artic ?? '').trim();
+        // Se quitan el identificador de simbología ("]E0"…) y los caracteres invisibles que algunos lectores agregan
+        const buscado = String(cod_barr_artic ?? '')
+            .replace(/^\][A-Za-z][0-9A-Za-z]/, '')
+            .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202f\u2060\ufeff]/g, '')
+            .trim();
         const exacto = await Articulo.findOne({
             where: Sequelize.where(Sequelize.fn('TRIM', Sequelize.col('cod_barr_artic')), buscado),
         });
@@ -504,6 +508,7 @@ export const ArticuloRepository = {
                         { des_artic: { [Op.iLike]: `%${p}%` } },
                         { cod_barr_artic: { [Op.iLike]: `%${p}%` } },
                         { des_gener_artic: { [Op.iLike]: `%${p}%` } },
+                        Sequelize.where(Sequelize.cast(Sequelize.col('Articulo.cod_int_artic'), 'TEXT'), { [Op.iLike]: `%${p}%` }),
                     ],
                 })),
             }
@@ -512,6 +517,7 @@ export const ArticuloRepository = {
                     { des_artic: { [Op.iLike]: `%${nombre}%` } },
                     { cod_barr_artic: { [Op.iLike]: `%${nombre}%` } },
                     { des_gener_artic: { [Op.iLike]: `%${nombre}%` } },
+                        Sequelize.where(Sequelize.cast(Sequelize.col('Articulo.cod_int_artic'), 'TEXT'), { [Op.iLike]: `%${nombre}%` }),
                 ],
             };
 
@@ -723,6 +729,7 @@ export const ArticuloRepository = {
                         { des_artic: { [Op.iLike]: `%${p}%` } },
                         { cod_barr_artic: { [Op.iLike]: `%${p}%` } },
                         { des_gener_artic: { [Op.iLike]: `%${p}%` } },
+                        Sequelize.where(Sequelize.cast(Sequelize.col('Articulo.cod_int_artic'), 'TEXT'), { [Op.iLike]: `%${p}%` }),
                     ],
                 })),
             }
@@ -731,6 +738,7 @@ export const ArticuloRepository = {
                     { des_artic: { [Op.iLike]: `%${nombre}%` } },
                     { cod_barr_artic: { [Op.iLike]: `%${nombre}%` } },
                     { des_gener_artic: { [Op.iLike]: `%${nombre}%` } },
+                        Sequelize.where(Sequelize.cast(Sequelize.col('Articulo.cod_int_artic'), 'TEXT'), { [Op.iLike]: `%${nombre}%` }),
                 ],
             };
         const offset = (page - 1) * limit;
@@ -768,7 +776,11 @@ export const ArticuloRepository = {
                 "Articulo.des_gener_artic",
                 "Articulo.tipo_de_iva",
             ],
-            order: [[literal(`"existencia_total"`), "DESC"]],
+            order: [
+                // Si lo escrito es un número, el artículo con ESE código interno va primero
+                ...(/^\d+$/.test(nombre.trim()) ? [[literal(`("Articulo"."cod_int_artic"::text = '${nombre.trim()}')`), "DESC"] as any] : []),
+                [literal(`"existencia_total"`), "DESC"],
+            ],
             limit,
             offset,
             subQuery: false,

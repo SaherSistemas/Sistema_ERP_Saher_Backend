@@ -23,8 +23,12 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 // ── Movimientos del sistema nuevo (facturas + detalle_factura) por artículo ────
 // Solo la sucursal "Almacén" (empcdempn=20 en el sistema anterior) ya opera en
-// el sistema nuevo. tipo_cfdi='I' (venta real) equivale a SVT; tipo_cfdi='T'
-// (traslado a mis empresas) equivale a STR.
+// el sistema nuevo. tipo_cfdi='T' (traslado a mis empresas) equivale a STR.
+// tipo_cfdi='I' (venta real, SVT) suma las dos clases de documento que son salida de mercancía:
+//   · Facturas de ingreso por pedido (PED) y las consolidadas de vales (VAL).
+//   · Remisiones SIN factura (Público General: no genera factura al vender). Las remisiones que cuelgan de una
+//     factura no se cuentan porque esa factura ya trae las mismas piezas.
+// Las facturas de abono (CXC) NO son salida —son el cobro de una remisión—, así que no entran. Lo cancelado no cuenta.
 async function getMovimientosNuevoSistemaPorFecha(
   cod_int_artic: string,
   tipo_cfdi: 'I' | 'T',
@@ -43,6 +47,34 @@ async function getMovimientosNuevoSistemaPorFecha(
   }) as any;
   if (!empresaAlmacen?.id_empre) return [];
 
+  if (tipo_cfdi === 'I') {
+    const ventas = await dbLocal.query<{ fecha: string; cantidad: string }>(`
+      SELECT fecha, SUM(cantidad) AS cantidad
+      FROM (
+        SELECT to_char(f.fecha_emision, 'YYYY-MM-DD') AS fecha, df.cantidad_facturada AS cantidad
+        FROM detalle_factura df
+        JOIN facturas f ON f.id_factura = df.id_factura
+        WHERE f.tipo_cfdi = 'I'
+          AND f.origen_factura IN ('PED', 'VAL')
+          AND f.estatus_factura != 'CAN'
+          AND f.id_empresa_facturas = :id_empresa
+          AND df.id_articulo = :id_articulo
+        UNION ALL
+        SELECT to_char(r.fecha_remision, 'YYYY-MM-DD') AS fecha, dr.cantidad AS cantidad
+        FROM detalle_remision dr
+        JOIN remision r ON r.id_remision = dr.id_remision
+        WHERE r.id_factura IS NULL
+          AND r.estatus_remision != 'CAN'
+          AND dr.id_articulo = :id_articulo
+      ) x
+      GROUP BY fecha
+    `, {
+      replacements: { id_empresa: empresaAlmacen.id_empre, id_articulo: articuloRow.id_artic },
+      type: QueryTypes.SELECT,
+    });
+    return ventas.map(r => ({ fecha: String(r.fecha), cantidad: Number(r.cantidad) || 0 }));
+  }
+
   const rows = await dbLocal.query<{ fecha: string; cantidad: string }>(`
     SELECT to_char(f.fecha_emision, 'YYYY-MM-DD') AS fecha,
            SUM(df.cantidad_facturada) AS cantidad
@@ -59,6 +91,82 @@ async function getMovimientosNuevoSistemaPorFecha(
   });
 
   return rows.map(r => ({ fecha: String(r.fecha), cantidad: Number(r.cantidad) || 0 }));
+}
+
+// Días de la ventana (los últimos `ventana_dias`, contando hoy) en los que Almacén tuvo existencia del artículo.
+// Se reconstruye con el saldo corrido del Kardex (entradas, salidas y ajustes), anclado a la existencia actual, igual
+// que el Kardex del artículo. Sirve para saber si lo vendido fue todo lo que se pudo vender o si el artículo se agotó
+// pronto (la venta quedó "recortada" por falta de existencia). null si no se puede calcular.
+export async function getDiasConExistenciaAlmacen(
+  cod_int_artic: string,
+  ventana_dias: number,
+): Promise<{ dias_con_existencia: number; ventana: number; existencia_actual: number } | null> {
+  const articuloRow = await Articulo.findOne({
+    where: { cod_int_artic: Number(cod_int_artic) },
+    attributes: ['id_artic'],
+    raw: true,
+  }) as any;
+  if (!articuloRow?.id_artic) return null;
+
+  const empresaAlmacen = await Empresa_Sucursal.findOne({
+    where: { id_empresa_sys_anterior: '20' },
+    attributes: ['id_empre'],
+    raw: true,
+  }) as any;
+  if (!empresaAlmacen?.id_empre) return null;
+
+  const rep = { emp: empresaAlmacen.id_empre, art: articuloRow.id_artic };
+
+  const [stock] = await dbLocal.query<{ existencia: string }>(
+    `SELECT COALESCE(SUM(cantidad), 0) AS existencia FROM stock_ubicacion_lote
+     WHERE id_empresa_sucursal = :emp AND id_articulo = :art`,
+    { replacements: rep, type: QueryTypes.SELECT });
+  const existenciaActual = Number(stock?.existencia) || 0;
+
+  // Movimientos con su efecto en la existencia total (TRASLADO y AJUSTE del kardex no la mueven)
+  const movs = await dbLocal.query<{ fecha: Date; delta: string }>(`
+    SELECT x.fecha, x.delta FROM (
+      SELECT k.fecha,
+             (CASE k.tipo_movimiento::text WHEN 'ENTRADA' THEN 1 WHEN 'SURTIDO' THEN 1 WHEN 'SALIDA' THEN -1 WHEN 'VENTA' THEN -1 ELSE 0 END)
+               * k.cantidad_movimiento AS delta
+      FROM kardex_movimientos_articulos k
+      WHERE k.id_empresa = :emp AND k.id_articulo = :art
+      UNION ALL
+      SELECT m.fecha,
+             (CASE WHEN m.tipo_movimiento::text IN ('AJUSTE_ENTRADA', 'INICIAL') THEN 1 ELSE -1 END) * m.cantidad AS delta
+      FROM movimiento_articulo m
+      WHERE m.id_empresa = :emp AND m.id_articulo = :art
+    ) x
+    WHERE x.delta <> 0
+    ORDER BY x.fecha ASC
+  `, { replacements: rep, type: QueryTypes.SELECT });
+
+  const lista = movs.map(m => ({ t: new Date(m.fecha).getTime(), delta: Number(m.delta) || 0 }));
+  const netoTotal = lista.reduce((s, m) => s + m.delta, 0);
+
+  const ahora = Date.now();
+  const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+  const win = Math.max(1, ventana_dias);
+  const desde = hoy0.getTime() - (win - 1) * 86_400_000;
+
+  let saldo = existenciaActual - netoTotal;   // saldo antes del primer movimiento registrado
+  for (const m of lista) if (m.t < desde) saldo += m.delta;
+
+  let cursor = desde;
+  let conExistencia = 0;
+  for (const m of lista) {
+    if (m.t < desde) continue;
+    if (saldo > 0) conExistencia += m.t - cursor;
+    cursor = m.t;
+    saldo += m.delta;
+  }
+  if (saldo > 0) conExistencia += ahora - cursor;
+
+  return {
+    dias_con_existencia: Math.max(0, conExistencia) / 86_400_000,
+    ventana: (ahora - desde) / 86_400_000,
+    existencia_actual: existenciaActual,
+  };
 }
 
 function sumarEnRangoQuincena(movs: Array<{ fecha: string; cantidad: number }>, quincena: string): number {
@@ -321,7 +429,7 @@ export const Kardex_Movimiento_ArticuloRepository = {
       total: Number(r.total) || 0,
     }));
 
-    // ── Ventas del sistema nuevo (facturas tipo 'I' = Ingreso) ──────────────
+    // ── Ventas del sistema nuevo (facturas de ingreso + remisiones sin factura) ──
     // Se suman al bucket SVT (Almacén) porque esas ventas no están en el
     // kardex viejo.
     if (opts?.articulo && periodos.length) {

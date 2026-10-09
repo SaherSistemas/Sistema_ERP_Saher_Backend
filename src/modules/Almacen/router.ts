@@ -10,6 +10,7 @@ import kardexRouter from './Kardex/routes/KardexRouter'
 import movimientoRouter from './Movimientos/routes/Movimiento_ArticuloRouter'
 import existenciasRouter from './Existencias/routes/ExistenciasRouter'
 import tableroAlmacenRouter from './Tablero/routes/TableroAlmacenRouter'
+import mercanciaNuevaRouter from './MercanciaNueva/routes/MercanciaNuevaRouter'
 const router = Router()
 
 router.use('/entrega_cliente_directo', authMiddleware, entregaClienteDirectoRouter)
@@ -22,5 +23,6 @@ router.use('/kardex', authMiddleware, kardexRouter)
 router.use('/movimientos_articulo', authMiddleware, movimientoRouter)
 router.use('/existencias_ubicacion', authMiddleware, existenciasRouter)
 router.use('/tablero', authMiddleware, tableroAlmacenRouter)
+router.use('/mercancia_nueva', authMiddleware, mercanciaNuevaRouter)
 
 export default router

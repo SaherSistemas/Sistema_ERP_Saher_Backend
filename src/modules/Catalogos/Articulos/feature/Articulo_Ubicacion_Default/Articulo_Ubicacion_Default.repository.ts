@@ -203,6 +203,7 @@ export const Articulo_Ubicacion_DefaultRepository = {
             id_articulo: string;
             cod_int_artic: number;
             des_artic: string;
+            cod_barr_artic: string | null;
             existencia_total: string;
         }>(
             `
@@ -210,6 +211,7 @@ export const Articulo_Ubicacion_DefaultRepository = {
                 a.id_artic AS id_articulo,
                 a.cod_int_artic,
                 a.des_artic,
+                a.cod_barr_artic,
                 SUM(sul.cantidad) AS existencia_total
             FROM stock_ubicacion_lote sul
             JOIN articulo a ON a.id_artic = sul.id_articulo
@@ -220,7 +222,7 @@ export const Articulo_Ubicacion_DefaultRepository = {
                   WHERE aud.id_articulo = sul.id_articulo
                     AND aud.id_empresa_sucursal = sul.id_empresa_sucursal
               )
-            GROUP BY a.id_artic, a.cod_int_artic, a.des_artic
+            GROUP BY a.id_artic, a.cod_int_artic, a.des_artic, a.cod_barr_artic
             ORDER BY existencia_total DESC;
             `,
             { replacements: { id_empresa_sucursal }, type: QueryTypes.SELECT }

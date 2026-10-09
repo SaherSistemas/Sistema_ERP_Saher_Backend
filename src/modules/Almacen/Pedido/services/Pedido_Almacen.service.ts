@@ -1651,6 +1651,46 @@ export const Pedido_AlmacenService = {
     return await Pedido_AlmacenRepository.getListaGestion(params);
   },
 
+  // Ordena la cola de surtido: a los pedidos Capturados (que aún no empiezan a surtirse) les pone una "Entrega máx."
+  // con 1 minuto de diferencia, en el orden recibido (el primero se surte antes). Almacén surte por esa fecha y hora
+  // (primero los de agente). Empieza desde la entrega máx. más temprana que ya tenían, para no mover los días de entrega.
+  ordenarPorHorario: async (ids: string[]) => {
+    const unicos = Array.from(new Set((ids ?? []).filter(i => typeof i === 'string' && i)));
+    if (unicos.length < 2) throw { status: 400, message: 'Elige al menos dos pedidos para ordenar.' };
+    if (unicos.length > 500) throw { status: 400, message: 'Máximo 500 pedidos a la vez.' };
+
+    const filas = await dbLocal.query<{ id_pedido_alm: string; fecha_max_entrega_alm: Date | null }>(`
+      SELECT id_pedido_alm, fecha_max_entrega_alm FROM pedido_almacen
+      WHERE id_pedido_alm IN (:ids) AND status_pedido_alm = 'CA' AND inicio_surtido IS NULL
+    `, { replacements: { ids: unicos }, type: QueryTypes.SELECT });
+
+    const validos = new Set(filas.map(f => f.id_pedido_alm));
+    const orden = unicos.filter(id => validos.has(id));
+    if (orden.length < 2) throw { status: 400, message: 'Solo se pueden ordenar pedidos Capturados que todavía no empiezan a surtirse.' };
+
+    const fechas = filas.map(f => (f.fecha_max_entrega_alm ? new Date(f.fecha_max_entrega_alm).getTime() : NaN)).filter(n => Number.isFinite(n));
+    const base = Math.floor((fechas.length ? Math.min(...fechas) : Date.now()) / 60_000) * 60_000;
+
+    const t = await dbLocal.transaction();
+    try {
+      for (let i = 0; i < orden.length; i++) {
+        await dbLocal.query(
+          `UPDATE pedido_almacen SET fecha_max_entrega_alm = :f WHERE id_pedido_alm = :id AND status_pedido_alm = 'CA' AND inicio_surtido IS NULL`,
+          { replacements: { f: new Date(base + i * 60_000), id: orden[i] }, type: QueryTypes.UPDATE, transaction: t });
+      }
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+    return {
+      ordenados: orden.length,
+      omitidos: unicos.length - orden.length,
+      desde: new Date(base).toISOString(),
+      hasta: new Date(base + (orden.length - 1) * 60_000).toISOString(),
+    };
+  },
+
   getResumenPorStatus: async (fecha_inicio: string, fecha_fin: string) => {
     return await Pedido_AlmacenRepository.getResumenPorStatus(fecha_inicio, fecha_fin);
   },

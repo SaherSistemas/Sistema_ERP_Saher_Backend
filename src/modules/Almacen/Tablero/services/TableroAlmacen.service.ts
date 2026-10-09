@@ -14,7 +14,7 @@ export const TableroAlmacenService = {
         const una = async (sql: string): Promise<any> => (await lista(sql))[0] ?? {};
 
         const [
-            stock, valor, catalogo, caducidad, proximosCaducar, topArticulos, porStatus, facturadosHoy, vencidos, negados,
+            stock, valor, catalogo, caducidad, proximosCaducar, topArticulos, porStatus, facturadosHoy, vencidos, negados, ventas30,
         ] = await Promise.all([
             una(`
                 SELECT COALESCE(SUM(s.cantidad), 0)                                         AS existencia,
@@ -94,12 +94,23 @@ export const TableroAlmacenService = {
                 JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = n.id_detalle_pedido_almacen
                 WHERE n.recuperado = false AND n.fecha + INTERVAL '7 days' >= NOW()
             `),
+            // Piezas que salieron por venta en el último mes (Kardex), menos las devoluciones de clientes que regresaron al almacén
+            una(`
+                SELECT COALESCE(SUM(CASE WHEN tipo_movimiento = 'VENTA' THEN cantidad_movimiento ELSE 0 END), 0)
+                     - COALESCE(SUM(CASE WHEN tipo_movimiento = 'ENTRADA' THEN cantidad_movimiento ELSE 0 END), 0) AS vendidas
+                FROM kardex_movimientos_articulos
+                WHERE id_empresa = :emp AND fecha >= NOW() - INTERVAL '30 days'
+                  AND (tipo_movimiento = 'VENTA' OR (tipo_movimiento = 'ENTRADA' AND notas ILIKE 'Devolución recibida%'))
+            `),
         ]);
 
         const existencia = num(stock?.existencia);
         const apartada = num(stock?.apartada);
         const conExistencia = num(stock?.articulos_con_existencia);
         const totalCatalogo = num(catalogo?.total);
+        // Días de inventario = existencia ÷ piezas vendidas en el mes × 30
+        const vendidas30 = Math.max(0, num(ventas30?.vendidas));
+        const diasInventario = vendidas30 > 0 ? Math.round((existencia / vendidas30) * 30) : null;
         const statusPedidos = Object.fromEntries((porStatus as any[]).map(r => [r.status, num(r.total)]));
 
         return {
@@ -134,6 +145,7 @@ export const TableroAlmacenService = {
                 con_entrega_vencida: num(vencidos?.total),
             },
             negados_vigentes: { articulos: num(negados?.articulos), piezas: num(negados?.piezas) },
+            dias_inventario: { dias: diasInventario, vendidas_30d: vendidas30, pz_dia: +(vendidas30 / 30).toFixed(1) },
             proximos_a_caducar: (proximosCaducar as any[]).map(r => ({
                 cod_int_artic: r.cod_int_artic, des_artic: r.des_artic, lote: r.lote,
                 caducidad: r.caducidad, cantidad: num(r.cantidad),

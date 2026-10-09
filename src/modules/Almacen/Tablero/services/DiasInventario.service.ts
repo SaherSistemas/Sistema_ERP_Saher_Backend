@@ -5,6 +5,13 @@ const num = (v: unknown) => Number(v ?? 0) || 0;
 
 export type Semaforo = 'AGOTADO' | 'CRITICO' | 'BAJO' | 'NORMAL' | 'ALTO';
 export type Confianza = 'alta' | 'media' | 'baja';
+// Dónde va la compra de ese artículo (mismos criterios que Negados vigentes / Compras):
+//  · En recibo    → ya llegó y está capturado en una factura de proveedor, falta checarla.
+//  · En tránsito  → orden de compra en tránsito (estados C, A, E, L, K), con el proveedor.
+//  · Sin comprar  → nada de lo anterior.
+export type EstadoCompra = 'EN_RECIBO' | 'EN_CAMINO' | 'SIN_COMPRAR';
+// Filtro de la lista: sin = ni tránsito ni recibo · camino = tiene algo en tránsito · recibo = tiene algo en recibo
+export type FiltroCompra = 'sin' | 'camino' | 'recibo';
 
 // Días de inventario por artículo: cuántos días alcanza lo que hay disponible al ritmo real de salida.
 //
@@ -20,7 +27,7 @@ export type Confianza = 'alta' | 'media' | 'baja';
 //  · Los agotados solo se listan si su demanda es constante (confianza alta/media).
 export const DiasInventarioService = {
 
-    getLista: async (id_empresa: string, dias: number, limite: number, page = 1) => {
+    getLista: async (id_empresa: string, dias: number, limite: number, page = 1, conCompra = true, filtroCompra?: FiltroCompra) => {
         const filas = await dbLocal.query<any>(`
             WITH base AS (
                 SELECT GREATEST(7, LEAST(:dias, COALESCE(CEIL(EXTRACT(EPOCH FROM (NOW() - MIN(fecha))) / 86400), :dias)))::int AS ventana_global
@@ -103,7 +110,58 @@ export const DiasInventarioService = {
             .sort((a, b) =>
                 (a.dias_inventario ?? 0) - (b.dias_inventario ?? 0) || b.pz_dia - a.pz_dia);
 
-        const totalPaginas = Math.max(1, Math.ceil(criticos.length / limite));
+        // Tránsito y recibo de TODA la lista: sirve para filtrar por "sin comprar" y para los conteos de cada filtro
+        const ids = conCompra ? criticos.map(a => a.id_artic) : [];
+        const [camino, recibo] = ids.length
+            ? await Promise.all([
+                dbLocal.query<any>(`
+                    SELECT d.idarticulo_detcompsol AS id_articulo, SUM(d.cantidad_detcompsol) AS cant,
+                           STRING_AGG(DISTINCT regexp_replace(TRIM(pr.nomcort_prove), '[,\\s]+$', ''), ', ') AS proveedores
+                    FROM detalle_compra_solicitado d
+                    JOIN compra_proveedor c ON c.id_comp = d.idcompr_detcompsol
+                    LEFT JOIN proveedor pr ON pr.id_prove = c.idprove_comp
+                    WHERE c.estado_comp IN ('C', 'A', 'E', 'L', 'K') AND d.idarticulo_detcompsol IN (:ids)
+                    GROUP BY d.idarticulo_detcompsol
+                `, { replacements: { ids }, type: QueryTypes.SELECT }) as Promise<any[]>,
+                dbLocal.query<any>(`
+                    SELECT dfcp.id_artic AS id_articulo, SUM(dfcp.cantidad_articulo_facturada) AS cant
+                    FROM detalle_factura_compra_proveedor dfcp
+                    JOIN factura_compra_proveedor fcp ON fcp.id_factura_proveedor = dfcp.id_factura_compra_proveedor
+                    WHERE dfcp.checado IS NOT TRUE AND fcp.estado_factura_proveedor NOT IN ('H', 'D')
+                      AND dfcp.id_artic IN (:ids)
+                    GROUP BY dfcp.id_artic
+                `, { replacements: { ids }, type: QueryTypes.SELECT }) as Promise<any[]>,
+            ])
+            : [[], []];
+        const caminoPorArt = new Map<string, any>(camino.map(r => [String(r.id_articulo), r]));
+        const reciboPorArt = new Map<string, any>(recibo.map(r => [String(r.id_articulo), r]));
+
+        const conCompraInfo = criticos.map(a => {
+            const enCamino = num(caminoPorArt.get(a.id_artic)?.cant);
+            const enRecibo = num(reciboPorArt.get(a.id_artic)?.cant);
+            const compra: EstadoCompra = enRecibo > 0 ? 'EN_RECIBO' : enCamino > 0 ? 'EN_CAMINO' : 'SIN_COMPRAR';
+            return {
+                ...a,
+                en_recibo: enRecibo,
+                en_camino: enCamino,
+                en_camino_proveedores: String(caminoPorArt.get(a.id_artic)?.proveedores ?? ''),
+                compra,
+            };
+        });
+
+        const resumenCompra = {
+            sin_comprar: conCompraInfo.filter(a => a.en_recibo === 0 && a.en_camino === 0).length,
+            en_camino: conCompraInfo.filter(a => a.en_camino > 0).length,
+            en_recibo: conCompraInfo.filter(a => a.en_recibo > 0).length,
+        };
+
+        // Filtro: sin compra (ni tránsito ni recibo), con algo en tránsito o con algo en recibo
+        const lista = filtroCompra === 'sin' ? conCompraInfo.filter(a => a.en_recibo === 0 && a.en_camino === 0)
+            : filtroCompra === 'camino' ? conCompraInfo.filter(a => a.en_camino > 0)
+                : filtroCompra === 'recibo' ? conCompraInfo.filter(a => a.en_recibo > 0)
+                    : conCompraInfo;
+
+        const totalPaginas = Math.max(1, Math.ceil(lista.length / limite));
         const paginaActual = Math.min(Math.max(1, page), totalPaginas);
 
         return {
@@ -114,8 +172,10 @@ export const DiasInventarioService = {
                 criticos: criticos.filter(a => a.semaforo === 'CRITICO').length,
                 bajos: criticos.filter(a => a.semaforo === 'BAJO').length,
             },
-            articulos: criticos.slice((paginaActual - 1) * limite, paginaActual * limite),
-            total_listados: criticos.length,
+            resumen_compra: resumenCompra,
+            filtro_compra: filtroCompra ?? null,
+            articulos: lista.slice((paginaActual - 1) * limite, paginaActual * limite),
+            total_listados: lista.length,
             page: paginaActual,
             limite,
             total_paginas: totalPaginas,
@@ -126,7 +186,7 @@ export const DiasInventarioService = {
     // Ids de TODOS los artículos de la lista (agotados con demanda constante, críticos y bajos) para la ventana de `dias`.
     // Es la lista que usa la compra especial hecha desde el Tablero de Almacén.
     getIdsEnRiesgo: async (id_empresa: string, dias: number): Promise<string[]> => {
-        const { articulos } = await DiasInventarioService.getLista(id_empresa, dias, 1_000_000, 1);
+        const { articulos } = await DiasInventarioService.getLista(id_empresa, dias, 1_000_000, 1, false);
         return articulos.map(a => a.id_artic);
     },
 };

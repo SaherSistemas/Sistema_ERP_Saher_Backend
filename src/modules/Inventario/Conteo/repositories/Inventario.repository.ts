@@ -15,6 +15,60 @@ import { Transaction } from 'sequelize';
 const esperadoEnAnaquel = (stock: { cantidad: any; cantidad_apartada?: any }): number =>
     Math.max(0, (Number(stock.cantidad) || 0) - (Number(stock.cantidad_apartada) || 0));
 
+// Filas de stock (existencia > 0) que corresponden al filtro de un inventario: la misma consulta sirve para generar
+// los renglones al crearlo y para agregarle después lo que se asignó a esa ubicación mientras se contaba.
+type FiltroStock = {
+    tipo: TipoInventario;
+    pasillo?: string;
+    tarima?: string;
+    id_ubicacion_sucursal?: string;
+    ids_ubicaciones?: string[];
+    id_articulo?: string;
+    id_articulos?: string[];
+};
+async function stockDelFiltro(id_empresa_sucursal: string, filtro: FiltroStock, tx?: Transaction): Promise<any[]> {
+        // Construir where para stock — solo renglones con existencia > 0: si el
+        // sistema ya sabe que ahí hay 0, no tiene caso pedirle al surtidor que lo
+        // confirme (si encuentra algo que el sistema no esperaba, se agrega con
+        // "Agregar artículo no listado / otro lote").
+        const whereStock: any = { id_empresa_sucursal, cantidad: { [Op.gt]: 0 } };
+        const whereUbicacion: any = {};
+
+        if (filtro.tipo === 'UBICACION' && filtro.ids_ubicaciones?.length) {
+            whereStock.id_ubicacion_sucursal = { [Op.in]: filtro.ids_ubicaciones };
+        } else if (filtro.tipo === 'UBICACION' && filtro.id_ubicacion_sucursal) {
+            whereStock.id_ubicacion_sucursal = filtro.id_ubicacion_sucursal;
+        }
+        if (filtro.tipo === 'PASILLO' && filtro.pasillo) {
+            whereUbicacion.pasillo_ub = filtro.pasillo;
+        }
+        if (filtro.tipo === 'TARIMA' && filtro.tarima) {
+            whereUbicacion.tipo_ubicacion = 'TARIMA';
+            whereUbicacion.tarima_ub = filtro.tarima;
+        }
+        if (filtro.tipo === 'ARTICULO') {
+            const ids = filtro.id_articulos?.length ? filtro.id_articulos
+                      : filtro.id_articulo        ? [filtro.id_articulo]
+                      : null;
+            if (ids) whereStock.id_articulo = { [Op.in]: ids };
+        }
+
+        const rows = await Stock_Ubicacion_Lote.findAll({
+            where: whereStock,
+            include: [
+                {
+                    model: Ubicacion_Sucursal,
+                    required: filtro.tipo === 'PASILLO' || filtro.tipo === 'TARIMA',
+                    where: Object.keys(whereUbicacion).length ? whereUbicacion : undefined,
+                    attributes: ['id_ubicacion_sucursal'],
+                },
+            ],
+            attributes: ['id_articulo', 'id_ubicacion_sucursal', 'id_lote', 'cantidad'],
+            transaction: tx,
+        }) as any[];
+    return rows;
+}
+
 export const InventarioRepository = {
 
     // ── Lista paginada ────────────────────────────────────────────────────────
@@ -73,6 +127,64 @@ export const InventarioRepository = {
             notas: data.notas ?? null,
         }, { transaction: tx }),
 
+    // Agrega al inventario EN CONTEO lo que se asignó a esas ubicaciones después de crearlo (stock con existencia que
+    // no tiene renglón todavía). Los renglones ya existentes no se tocan. Devuelve cuántos agregó.
+    // Corre dentro de una transacción con candado por inventario: si la pantalla pide el inventario dos veces al mismo
+    // tiempo, la segunda espera a la primera y ya no agrega lo mismo otra vez. También limpia renglones repetidos que
+    // todavía no se cuentan ni se ajustan (queda uno por artículo + ubicación + lote).
+    sincronizarNuevos: async (id_inventario: string): Promise<number> => {
+        return dbLocal.transaction(async (tx) => {
+            await dbLocal.query('SELECT pg_advisory_xact_lock(hashtext(:id))', { replacements: { id: id_inventario }, transaction: tx });
+
+            const inv = await Inventario.findByPk(id_inventario, { transaction: tx });
+            if (!inv || inv.status !== 'EN_CONTEO') return 0;
+
+            // Renglones repetidos sin contar ni ajustar: se queda uno (de preferencia el que ya se contó, si lo hay)
+            await dbLocal.query(`
+                DELETE FROM detalle_inventario d USING (
+                    SELECT id_detalle_inventario,
+                           ROW_NUMBER() OVER (PARTITION BY id_articulo, id_ubicacion_sucursal, id_lote
+                                              ORDER BY contado DESC, ajustado DESC, "createdAt" ASC) AS rn
+                    FROM detalle_inventario WHERE id_inventario = :id
+                ) x
+                WHERE d.id_detalle_inventario = x.id_detalle_inventario AND x.rn > 1
+                  AND d.contado = FALSE AND d.ajustado = FALSE
+            `, { replacements: { id: id_inventario }, transaction: tx });
+
+            const rows = await stockDelFiltro(inv.id_empresa_sucursal, { tipo: inv.tipo_inventario, ...((inv.filtro as any) ?? {}) }, tx);
+            if (!rows.length) return 0;
+
+            const existentes = await Detalle_Inventario.findAll({
+                where: { id_inventario },
+                attributes: ['id_articulo', 'id_ubicacion_sucursal', 'id_lote'],
+                raw: true,
+                transaction: tx,
+            }) as any[];
+            const clave = (a: any, u: any, l: any) => `${a}|${u ?? ''}|${l ?? ''}`;
+            const vistos = new Set(existentes.map(d => clave(d.id_articulo, d.id_ubicacion_sucursal, d.id_lote)));
+
+            const nuevos: any[] = [];
+            for (const r of rows) {
+                const k = clave(r.id_articulo, r.id_ubicacion_sucursal, r.id_lote);
+                if (vistos.has(k)) continue;
+                vistos.add(k);   // si el stock trae la misma combinación dos veces, solo un renglón
+                nuevos.push({
+                    id_inventario,
+                    id_articulo: r.id_articulo,
+                    id_ubicacion_sucursal: r.id_ubicacion_sucursal ?? null,
+                    id_lote: r.id_lote ?? null,
+                    cant_sistema: Number(r.cantidad) || 0,
+                    cant_contada: null,
+                    contado: false,
+                    ajustar: true,
+                    ajustado: false,
+                });
+            }
+            if (nuevos.length) await Detalle_Inventario.bulkCreate(nuevos, { transaction: tx });
+            return nuevos.length;
+        });
+    },
+
     // ── Generar renglones desde stock actual ──────────────────────────────────
     generarDetalles: async (
         id_inventario: string,
@@ -88,45 +200,7 @@ export const InventarioRepository = {
         },
         tx: Transaction,
     ) => {
-        // Construir where para stock — solo renglones con existencia > 0: si el
-        // sistema ya sabe que ahí hay 0, no tiene caso pedirle al surtidor que lo
-        // confirme (si encuentra algo que el sistema no esperaba, se agrega con
-        // "Agregar artículo no listado / otro lote").
-        const whereStock: any = { id_empresa_sucursal, cantidad: { [Op.gt]: 0 } };
-        const whereUbicacion: any = {};
-
-        if (filtro.tipo === 'UBICACION' && filtro.ids_ubicaciones?.length) {
-            whereStock.id_ubicacion_sucursal = { [Op.in]: filtro.ids_ubicaciones };
-        } else if (filtro.tipo === 'UBICACION' && filtro.id_ubicacion_sucursal) {
-            whereStock.id_ubicacion_sucursal = filtro.id_ubicacion_sucursal;
-        }
-        if (filtro.tipo === 'PASILLO' && filtro.pasillo) {
-            whereUbicacion.pasillo_ub = filtro.pasillo;
-        }
-        if (filtro.tipo === 'TARIMA' && filtro.tarima) {
-            whereUbicacion.tipo_ubicacion = 'TARIMA';
-            whereUbicacion.tarima_ub = filtro.tarima;
-        }
-        if (filtro.tipo === 'ARTICULO') {
-            const ids = filtro.id_articulos?.length ? filtro.id_articulos
-                      : filtro.id_articulo        ? [filtro.id_articulo]
-                      : null;
-            if (ids) whereStock.id_articulo = { [Op.in]: ids };
-        }
-
-        const rows = await Stock_Ubicacion_Lote.findAll({
-            where: whereStock,
-            include: [
-                {
-                    model: Ubicacion_Sucursal,
-                    required: filtro.tipo === 'PASILLO' || filtro.tipo === 'TARIMA',
-                    where: Object.keys(whereUbicacion).length ? whereUbicacion : undefined,
-                    attributes: ['id_ubicacion_sucursal'],
-                },
-            ],
-            attributes: ['id_articulo', 'id_ubicacion_sucursal', 'id_lote', 'cantidad'],
-            transaction: tx,
-        }) as any[];
+        const rows = await stockDelFiltro(id_empresa_sucursal, filtro, tx);
 
         console.log(rows)
         if (!rows.length) return [];
@@ -197,6 +271,28 @@ export const InventarioRepository = {
     buscarDetalleExistente: async (id_inventario: string, id_articulo: string, id_lote: string | null, id_ubicacion_sucursal: string | null) =>
         Detalle_Inventario.findOne({ where: { id_inventario, id_articulo, id_lote, id_ubicacion_sucursal } }),
 
+    // Lo que el sistema espera AHORA en el anaquel (existencia menos apartada) de cada renglón con ubicación.
+    // La columna "Sistema" del conteo se guarda como foto al contar, pero la existencia sigue cambiando (se saca de una
+    // tarima, se surte, se factura…): al VER o APLICAR el conteo se usa este valor en vivo, para no ajustar dos veces.
+    sistemaActual: async (id_empresa_sucursal: string, detalles: any[]): Promise<Map<string, number>> => {
+        const mapa = new Map<string, number>();
+        const conUbicacion = detalles.filter(d => d.id_ubicacion_sucursal);
+        if (!conUbicacion.length) return mapa;
+        const ids = Array.from(new Set(conUbicacion.map(d => d.id_articulo)));
+        const stocks = await Stock_Ubicacion_Lote.findAll({
+            where: { id_empresa_sucursal, id_articulo: { [Op.in]: ids } },
+            attributes: ['id_articulo', 'id_ubicacion_sucursal', 'id_lote', 'cantidad', 'cantidad_apartada'],
+            raw: true,
+        }) as any[];
+        for (const d of conUbicacion) {
+            const filas = stocks.filter(s => s.id_articulo === d.id_articulo
+                && s.id_ubicacion_sucursal === d.id_ubicacion_sucursal
+                && (!d.id_lote || s.id_lote === d.id_lote));
+            mapa.set(d.id_detalle_inventario, filas.reduce((a, s) => a + esperadoEnAnaquel(s), 0));
+        }
+        return mapa;
+    },
+
     // ── Actualizar conteo de un renglón ───────────────────────────────────────
     actualizarConteo: async (id_detalle_inventario: string, data: {
         cant_contada: number;
@@ -247,7 +343,12 @@ export const InventarioRepository = {
     // viejo del Kardex, este quede como el arranque). Si viene false, se
     // registra el ajuste normal (AJUSTE_ENTRADA/SALIDA_MERMA) solo por la
     // diferencia, como cualquier otra corrección.
-    aplicar: async (id_inventario: string, aplicado_por: string, marcarInicial: boolean = false) => {
+    //
+    // base: contra qué se compara lo contado cuando el stock cambió DESPUÉS de contar (se surtió, se vendió, se acomodó o
+    // se movió mercancía): 'CONTEO' = lo que el sistema tenía al contar (la diferencia que se vio al contar) y 'AHORA' =
+    // lo que tiene en este momento. Si hay renglones que cambiaron y no se indica, no se aplica nada y se devuelve la lista
+    // para que se decida (error con requiere_decision).
+    aplicar: async (id_inventario: string, aplicado_por: string, marcarInicial: boolean = false, base?: 'AHORA' | 'CONTEO') => {
         return dbLocal.transaction(async (tx) => {
             const inv = await Inventario.findByPk(id_inventario, { transaction: tx });
             if (!inv) throw new Error('Inventario no encontrado');
@@ -259,14 +360,57 @@ export const InventarioRepository = {
                 lock: tx.LOCK.UPDATE,
             });
 
+            // Lo que el sistema tiene AHORA en cada renglón con ubicación, y cuáles cambiaron desde que se contaron
+            const ahoraPorDetalle = new Map<string, number>();
             for (const d of detalles) {
-                const diferencia = Number(d.cant_contada) - Number(d.cant_sistema);
-                if (diferencia === 0 && !marcarInicial) { await d.update({ ajustado: true }, { transaction: tx }); continue; }
+                if (!d.id_ubicacion_sucursal) continue;
+                const w: any = { id_empresa_sucursal: inv.id_empresa_sucursal, id_articulo: d.id_articulo, id_ubicacion_sucursal: d.id_ubicacion_sucursal };
+                if (d.id_lote) w.id_lote = d.id_lote;
+                const filasStock = await Stock_Ubicacion_Lote.findAll({ where: w, transaction: tx });
+                ahoraPorDetalle.set(d.id_detalle_inventario, filasStock.reduce((a, s) => a + esperadoEnAnaquel(s), 0));
+            }
+            const cambiados = detalles.filter(d => ahoraPorDetalle.has(d.id_detalle_inventario)
+                && Math.abs((ahoraPorDetalle.get(d.id_detalle_inventario) as number) - Number(d.cant_sistema)) > 0.0001);
 
+            if (cambiados.length && !base) {
+                const arts = await Articulo.findAll({ where: { id_artic: { [Op.in]: Array.from(new Set(cambiados.map(d => d.id_articulo))) } }, attributes: ['id_artic', 'des_artic'], raw: true }) as any[];
+                const lotesIds = Array.from(new Set(cambiados.map(d => d.id_lote).filter(Boolean))) as string[];
+                const lotes = lotesIds.length
+                    ? await LoteArticuloSucursal.findAll({ where: { id_lote_sucursal: { [Op.in]: lotesIds } }, attributes: ['id_lote_sucursal', 'numero_lote_sucursal'], raw: true }) as any[]
+                    : [];
+                const ubicIds = Array.from(new Set(cambiados.map(d => d.id_ubicacion_sucursal).filter(Boolean))) as string[];
+                const ubics = ubicIds.length
+                    ? await Ubicacion_Sucursal.findAll({ where: { id_ubicacion_sucursal: { [Op.in]: ubicIds } }, attributes: ['id_ubicacion_sucursal', 'pasillo_ub', 'anaquel_ub', 'nivel_ub', 'posicion_ub', 'tarima_ub'], raw: true }) as any[]
+                    : [];
+                const etiquetaUbic = (u: any) => !u ? '' : (u.tarima_ub ? `Tarima ${String(u.tarima_ub).trim()}`
+                    : [u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub].map((p: any) => (p == null ? '' : String(p).trim())).filter(Boolean).join('-'));
+                const err: any = new Error('Hay renglones cuyo stock cambió desde que se contaron.');
+                err.requiere_decision = true;
+                err.cambiados = cambiados.map(d => ({
+                    articulo: String(arts.find(a => a.id_artic === d.id_articulo)?.des_artic ?? '').trim(),
+                    lote: String(lotes.find(l => l.id_lote_sucursal === d.id_lote)?.numero_lote_sucursal ?? '').trim(),
+                    ubicacion: etiquetaUbic(ubics.find(u => u.id_ubicacion_sucursal === d.id_ubicacion_sucursal)),
+                    contado: Number(d.cant_contada),
+                    sistema_al_contar: Number(d.cant_sistema),
+                    sistema_ahora: ahoraPorDetalle.get(d.id_detalle_inventario) as number,
+                }));
+                throw err;
+            }
+
+            for (const d of detalles) {
                 // Ajustar la fila de stock correspondiente (misma ubicacion + lote)
                 const where: any = { id_empresa_sucursal: inv.id_empresa_sucursal, id_articulo: d.id_articulo };
                 if (d.id_ubicacion_sucursal) where.id_ubicacion_sucursal = d.id_ubicacion_sucursal;
                 if (d.id_lote) where.id_lote = d.id_lote;
+
+                // Contra qué se compara lo contado: lo que había al contar ('CONTEO') o lo que hay ahora ('AHORA').
+                // Si el stock no cambió desde que se contó, son lo mismo.
+                let sistema = Number(d.cant_sistema);
+                if (base !== 'CONTEO' && ahoraPorDetalle.has(d.id_detalle_inventario)) {
+                    sistema = ahoraPorDetalle.get(d.id_detalle_inventario) as number;
+                }
+                const diferencia = Number(d.cant_contada) - sistema;
+                if (diferencia === 0 && !marcarInicial) { await d.update({ ajustado: true, cant_sistema: sistema }, { transaction: tx }); continue; }
 
                 if (diferencia !== 0) {
                     const stock = await Stock_Ubicacion_Lote.findOne({ where, transaction: tx, lock: tx.LOCK.UPDATE });
@@ -313,7 +457,7 @@ export const InventarioRepository = {
                     } as any, { transaction: tx });
                 }
 
-                await d.update({ ajustado: true }, { transaction: tx });
+                await d.update({ ajustado: true, cant_sistema: sistema }, { transaction: tx });
             }
 
             await inv.update({

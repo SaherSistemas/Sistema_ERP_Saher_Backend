@@ -157,6 +157,13 @@ export const CompraGeneralRepository = {
                 estado_comp: 'A',
                 tipo_compra,
                 fecha_fin_captura: { [Op.gte]: inicioDia },
+                // Solo si NINGUNA de sus órdenes se ha enviado: si ya se mandó alguna al proveedor, esa compra no se reabre
+                // y lo nuevo se captura como una compra aparte.
+                [Op.and]: [Sequelize.literal(`NOT EXISTS (
+                    SELECT 1 FROM compra_proveedor cp
+                    WHERE cp.id_compra_general = "Compra_General".id_compra_general
+                      AND (cp.fecha_enviada_proveedor IS NOT NULL OR cp.estado_comp <> 'A')
+                )`)],
             },
             order: [['fecha_fin_captura', 'DESC']],
         });
@@ -187,10 +194,12 @@ export const CompraGeneralRepository = {
 
 
         for (const compprov of comprasProveedor) {
-            await compprov.update({
-                estado_comp: 'A',
-                id_empleado_compra: empleado.id_empleado,
-            });
+            // Una orden que ya se envió al proveedor (tiene fecha de envío o ya no está en captura) conserva su estatus:
+            // antes se regresaba a "Capturada" aunque el PDF ya se hubiera generado y marcado como enviada.
+            const yaEnviadaOAvanzada = !!compprov.fecha_enviada_proveedor || compprov.estado_comp !== 'C';
+            await compprov.update(yaEnviadaOAvanzada
+                ? { id_empleado_compra: empleado.id_empleado }
+                : { estado_comp: 'A', id_empleado_compra: empleado.id_empleado });
         }
 
         await compra.update({

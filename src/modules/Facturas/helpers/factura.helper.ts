@@ -22,16 +22,16 @@ export function detectarPublicoGeneral(rfc: string | null | undefined, nomCorto:
     return false;
 }
 
-export function buildDescripcionConcepto(c: ConceptoFacturacion): string {
+export function buildDescripcionConcepto(c: ConceptoFacturacion, separador: string = ' | '): string {
     let desc = c.descripcion.trim();
     if (c.lotes?.length) {
         const lotesStr = c.lotes
             .map(l => `L:${l.lote} CAD:${l.fecha_venci} PZAS:${l.cantidad}`)
             .join(' / ');
-        desc += ` | ${lotesStr}`;
+        desc += `${separador}${lotesStr}`;
     }
     const importe_iva = +(c.subtotal_linea * c.tasa_iva).toFixed(2);
-    if (c.tasa_iva > 0) desc += ` | IVA:$${fmt2(importe_iva)}`;
+    if (c.tasa_iva > 0) desc += `${separador}IVA:$${fmt2(importe_iva)}`;
     return desc;
 }
 

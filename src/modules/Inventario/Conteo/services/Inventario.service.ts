@@ -50,12 +50,25 @@ export const InventarioService = {
 
     // El inventario con, por renglón, cuántas piezas hay apartadas ahora (para detectar faltantes que en realidad están surtidos)
     getByIdConApartadas: async (id_inventario: string) => {
+        // Si mientras se contaba se asignó mercancía a esas ubicaciones, se agrega como renglones nuevos por contar
+        try { await InventarioRepository.sincronizarNuevos(id_inventario); }
+        catch (e: any) { console.error('[Inventario] No se pudieron sincronizar renglones nuevos:', e?.message ?? e); }
         const inv = await InventarioRepository.getById(id_inventario);
         if (!inv) return null;
         const plano: any = inv.toJSON();
         const detalles: any[] = plano.detalles ?? [];
         const mapa = await apartadasPorDetalle(inv.id_empresa_sucursal, detalles);
-        plano.detalles = detalles.map(d => ({ ...d, apartada_actual: mapa.get(d.id_detalle_inventario) ?? 0 }));
+        // "Sistema" en vivo: lo que hay AHORA en esa ubicación, no la foto de cuando se contó (los renglones ya ajustados no cambian)
+        const vivo = await InventarioRepository.sistemaActual(inv.id_empresa_sucursal, detalles.filter(d => !d.ajustado));
+        plano.detalles = detalles.map(d => {
+            const actual = vivo.get(d.id_detalle_inventario);
+            return {
+                ...d,
+                cant_sistema_original: d.cant_sistema,
+                ...(actual !== undefined ? { cant_sistema: actual } : {}),
+                apartada_actual: mapa.get(d.id_detalle_inventario) ?? 0,
+            };
+        });
         return plano;
     },
 
@@ -79,6 +92,11 @@ export const InventarioService = {
         if (!inv) throw new Error('Inventario no encontrado');
         if (inv.status !== 'TERMINADO') throw new Error('El inventario debe estar TERMINADO');
         const detalles: any[] = (inv.detalles ?? []).map((d: any) => d.toJSON());
+        const vivo = await InventarioRepository.sistemaActual(inv.id_empresa_sucursal, detalles.filter(d => !d.ajustado));
+        for (const d of detalles) {
+            const actual = vivo.get(d.id_detalle_inventario);
+            if (actual !== undefined) d.cant_sistema = actual;
+        }
         const mapa = await apartadasPorDetalle(inv.id_empresa_sucursal, detalles);
         const ids = detalles.filter(d => explicadoPorApartado(d, mapa.get(d.id_detalle_inventario) ?? 0)).map(d => d.id_detalle_inventario);
         if (ids.length) {
@@ -189,16 +207,42 @@ export const InventarioService = {
         let id_lote: string | null = dto.id_lote ?? null;
         if (!id_lote && dto.numero_lote_nuevo?.trim()) {
             if (!dto.fecha_vencimiento_nueva) throw new Error('Fecha de caducidad requerida para un lote nuevo.');
-            const lote = await LotesArticuloSucursalRepository.updateOrCreateLoteSucursal({
-                id_artic: dto.id_articulo,
-                id_empre: inv.id_empresa_sucursal,
-                numero_lote_sucursal: dto.numero_lote_nuevo.trim(),
-                fecha_venci_lote_sucursal: new Date(dto.fecha_vencimiento_nueva) as any,
-                cantidad_entrada_lote: 0,
-                precio_costo_lote_sucursal: 0,
-                estado_lote_sucursal: 'A',
-            } as any);
-            id_lote = lote.id_lote_sucursal;
+            const numeroLote = dto.numero_lote_nuevo.trim();
+            const loteExistente = await Lote_Articulo_Sucursal.findOne({
+                where: { id_artic: dto.id_articulo, id_empre: inv.id_empresa_sucursal, numero_lote_sucursal: numeroLote },
+            });
+
+            if (loteExistente) {
+                // Ese lote ya existe: se usa tal cual. Antes se "actualizaba" con costo 0 y le borraba el costo
+                // al lote (el valor del inventario salía en $0). Solo se corrige la caducidad si cambió.
+                id_lote = loteExistente.id_lote_sucursal;
+                const nueva = new Date(dto.fecha_vencimiento_nueva);
+                const actual = loteExistente.fecha_venci_lote_sucursal ? new Date(loteExistente.fecha_venci_lote_sucursal as any) : null;
+                const mismoDia = actual && !isNaN(actual.getTime()) && !isNaN(nueva.getTime())
+                    && actual.toISOString().slice(0, 10) === nueva.toISOString().slice(0, 10);
+                if (!mismoDia) await loteExistente.update({ fecha_venci_lote_sucursal: nueva as any });
+            } else {
+                // Lote nuevo: hereda el último costo conocido del artículo (su lote más reciente con costo), no 0
+                const ultimoConCosto = await Lote_Articulo_Sucursal.findOne({
+                    where: {
+                        id_artic: dto.id_articulo,
+                        id_empre: inv.id_empresa_sucursal,
+                        precio_costo_lote_sucursal: { [Op.gt]: 0 },
+                    },
+                    order: [['createdAt', 'DESC']],
+                    attributes: ['precio_costo_lote_sucursal'],
+                });
+                const lote = await LotesArticuloSucursalRepository.updateOrCreateLoteSucursal({
+                    id_artic: dto.id_articulo,
+                    id_empre: inv.id_empresa_sucursal,
+                    numero_lote_sucursal: numeroLote,
+                    fecha_venci_lote_sucursal: new Date(dto.fecha_vencimiento_nueva) as any,
+                    cantidad_entrada_lote: 0,
+                    precio_costo_lote_sucursal: Number(ultimoConCosto?.precio_costo_lote_sucursal) || 0,
+                    estado_lote_sucursal: 'A',
+                } as any);
+                id_lote = lote.id_lote_sucursal;
+            }
         } else if (id_lote) {
             const loteExistente = await Lote_Articulo_Sucursal.findOne({
                 where: { id_lote_sucursal: id_lote, id_artic: dto.id_articulo, id_empre: inv.id_empresa_sucursal },
@@ -255,7 +299,7 @@ export const InventarioService = {
         return { ok: true };
     },
 
-    aplicar: async (id_inventario: string, aplicado_por: string, marcarInicial: boolean = false) => {
+    aplicar: async (id_inventario: string, aplicado_por: string, marcarInicial: boolean = false, base?: 'AHORA' | 'CONTEO') => {
         // Renglones nuevos: artículo que se encontró físicamente en una ubicación donde el
         // sistema no tenía nada (cant_sistema = 0). Se capturan ANTES de aplicar porque
         // aplicar marca los renglones como ajustados.
@@ -266,7 +310,7 @@ export const InventarioService = {
             && !!d.id_ubicacion_sucursal
         );
 
-        const resultado = await InventarioRepository.aplicar(id_inventario, aplicado_por, marcarInicial);
+        const resultado = await InventarioRepository.aplicar(id_inventario, aplicado_por, marcarInicial, base);
 
         // Ubicación default: solo si el artículo no tenía ya una del mismo tipo (anaquel/tarima)
         // y, en anaquel, la ubicación no es default de otro artículo. No se mueve ni se quita

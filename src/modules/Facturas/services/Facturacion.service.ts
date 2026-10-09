@@ -1815,7 +1815,7 @@ export const FacturacionService = {
                 return {
                     cve_sat: r.cve_sat, sat_medida: r.sat_medida, desc_medida: r.desc_medida,
                     cod_barras: '', cantidad: c.cantidad,
-                    descripcion: buildDescripcionConcepto(c as any),
+                    descripcion: buildDescripcionConcepto(c as any, ' '),   // vales: sin barras "|"
                     precio_unitario: precio, descuento: 0,
                     subtotal_linea: c.subtotal_linea, tasa_iva: c.tasa_iva,
                     impuesto_sat: r.impuesto_sat, tipo_factor: r.tipo_factor,
@@ -2175,7 +2175,7 @@ export const FacturacionService = {
                     conceptos: conceptos.map(c => ({
                         cve_sat: c.cve_sat, sat_medida: c.sat_medida, desc_medida: c.desc_medida,
                         cod_barras: c.cod_barras, cantidad: c.cantidad,
-                        descripcion: buildDescripcionConcepto(c),
+                        descripcion: buildDescripcionConcepto(c, ' '),   // vales: sin barras "|"
                         precio_unitario: c.precio_unitario, descuento: c.descuento,
                         subtotal_linea: c.subtotal_linea, tasa_iva: c.tasa_iva,
                         impuesto_sat: c.impuesto_sat, tipo_factor: c.tipo_factor,

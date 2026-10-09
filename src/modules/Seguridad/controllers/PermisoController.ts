@@ -157,6 +157,10 @@ export class PermisoController {
                 // Permiso visible en panel Web CRM para surtidores
                 { modulo_permiso: 'web_crm', accion_permiso: 'inventario_conteo' },
                 { modulo_permiso: 'web_crm', accion_permiso: 'ajuste_inventario' },
+                // Web CRM → Mover de Tarima (mandar lo de una tarima a la ubicación de cada artículo)
+                { modulo_permiso: 'web_crm', accion_permiso: 'mover_tarima' },
+                // Web CRM → Mercancía Nueva (lo que ya se chequeó en recibo; para vendedora de mostrador)
+                { modulo_permiso: 'web_crm', accion_permiso: 'mercancia_nueva' },
             ];
 
             const existentes = await PermisoService.getAll();

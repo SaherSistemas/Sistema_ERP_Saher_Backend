@@ -157,9 +157,15 @@ export const InventarioController = {
     aplicar: async (req: AuthedRequest, res: Response) => {
         try {
             const marcarInicial = req.body?.marcar_inicial === true;
-            const data = await InventarioService.aplicar(req.params.id, req.user.id_referencia_persona, marcarInicial);
+            const base = req.body?.base === 'AHORA' || req.body?.base === 'CONTEO' ? (req.body.base as 'AHORA' | 'CONTEO') : undefined;
+            const data = await InventarioService.aplicar(req.params.id, req.user.id_referencia_persona, marcarInicial, base);
             res.json(data);
         } catch (e: any) {
+            // Hay renglones cuyo stock cambió desde que se contaron: no se aplicó nada, se pide decidir contra qué comparar
+            if (e?.requiere_decision) {
+                res.status(409).json({ requiere_decision: true, mensaje: e.message, cambiados: e.cambiados });
+                return;
+            }
             res.status(400).json({ mensaje: e.message });
         }
     },

@@ -600,6 +600,16 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // POST /pedido/ordenar-por-horario  { ids: [...] } — Entrega máx. con 1 minuto de diferencia en el orden dado
+  static ordenarPorHorario = async (req: Request, res: Response) => {
+    try {
+      const { ids } = req.body as { ids?: string[] };
+      res.json(await Pedido_AlmacenService.ordenarPorHorario(ids ?? []));
+    } catch (error: any) {
+      res.status(error?.status ?? 500).json({ message: error?.message ?? 'Error al ordenar los pedidos.' });
+    }
+  };
+
   // GET /pedido/historial?fecha=YYYY-MM-DD
   static getHistorialPorFecha = async (req: Request, res: Response) => {
     try {
