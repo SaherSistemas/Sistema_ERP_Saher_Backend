@@ -1227,6 +1227,42 @@ export const Pedido_AlmacenService = {
     };
   },
 
+  // Cambia el precio de UN artículo (renglón) del pedido, solo antes de facturar. Igual que el cambio por lista, solo toca
+  // detalle_pedido_almacen.precio_venta: la remisión/CxC se crean al facturar con este precio.
+  cambiarPrecioDetallePedido: async (id_pedido_alm: string, id_detalle_pedido_almacen: string, precio: number, usuario: string) => {
+    if (!Number.isFinite(precio) || precio < 0) throw { status: 400, message: 'Indica un precio válido (0 o mayor).' };
+
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, {
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm'],
+    }) as any;
+    if (!pedido) throw { status: 404, message: 'Pedido no encontrado.' };
+    if (pedido.fecha_facturado_pedido_alm || !['EC', 'CO', 'CA', 'SU', 'CH', 'EM'].includes(pedido.status_pedido_alm)) {
+      throw { status: 409, message: 'El precio solo se puede cambiar antes de facturar el pedido.' };
+    }
+
+    const det = await Detalle_Pedido_Almacen.findOne({
+      where: { id_detalle_pedido_almacen, id_pedido_almacen: id_pedido_alm },
+      attributes: ['id_detalle_pedido_almacen', 'id_articulo', 'cant_pedida', 'precio_venta'],
+      include: [{ model: Articulo, as: 'articulo', attributes: ['des_artic'], required: false }],
+    }) as any;
+    if (!det) throw { status: 404, message: 'El artículo no pertenece a este pedido.' };
+
+    const anterior = Number(det.precio_venta) || 0;
+    const nuevo = +Number(precio).toFixed(2);
+    await Detalle_Pedido_Almacen.update({ precio_venta: nuevo }, { where: { id_detalle_pedido_almacen } });
+
+    const nombre = String((det.toJSON ? det.toJSON() : det).articulo?.des_artic ?? '').trim();
+    console.log(`[Pedido ${pedido.cod_int_pedido_alm}] ${usuario} cambió el precio de "${nombre}": ${anterior.toFixed(2)} → ${nuevo.toFixed(2)}`);
+
+    return {
+      id_detalle_pedido_almacen,
+      des_artic: nombre,
+      cantidad: Number(det.cant_pedida) || 0,
+      precio_anterior: anterior,
+      precio_nuevo: nuevo,
+    };
+  },
+
   // Negar lo que se surtió pero no se pudo chequear (no estaba físicamente).
   // Esto NO debe facturarse ni descontarse como si se hubiera vendido: hay que
   // reducir el lote-detalle reservado y liberar su apartada de inmediato, o al
@@ -2160,6 +2196,7 @@ export const Pedido_AlmacenService = {
         id_agente_pedido_alm: id_agente_alm,
         fecha_max_entrega_alm: fecha_max_entrega_alm,
       }, { transaction: t });
+      await Pedido_AlmacenRepository.registrarCaptura(pedido.id_pedido_alm, t);
 
       // Crear detalles
       await Detalle_Pedido_AlmacenRepository.bulkCreateDetalles(
@@ -2249,6 +2286,8 @@ export const Pedido_AlmacenService = {
         updatePayload.fin_surtido = null;
       }
       await (pedido as any).update(updatePayload);
+      // Regresarlo a Capturado cuenta como una nueva captura
+      if (nuevo_status === 'CA') await Pedido_AlmacenRepository.registrarCaptura(id_pedido_alm);
       return { ok: true, status_anterior, nuevo_status, limpieza: 'lotes+asignaciones+chequeos', piezas_liberadas };
     }
 

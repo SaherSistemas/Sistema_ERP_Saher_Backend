@@ -6,6 +6,10 @@ const router = Router();
 // Lista e inventario individual
 router.get('/',          InventarioController.getLista);
 router.get('/:id',       InventarioController.getById);
+router.get('/:id/cuenta', InventarioController.cuenta);
+
+// Detalle consolidado (faltantes, sobrantes y costo) de varios inventarios seleccionados
+router.post('/resumen', InventarioController.resumen);
 
 // Crear (genera renglones automáticamente)
 router.post('/',        InventarioController.crear);
@@ -27,5 +31,6 @@ router.patch('/:id/terminar',         InventarioController.terminar);
 router.patch('/:id/terminar-forzado', InventarioController.terminarForzado);
 router.patch('/:id/aplicar',          InventarioController.aplicar);
 router.patch('/:id/cancelar',         InventarioController.cancelar);
+router.patch('/:id/dar-de-baja',      InventarioController.darDeBaja);
 
 export default router;

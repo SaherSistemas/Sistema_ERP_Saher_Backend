@@ -27,6 +27,13 @@ router.patch('/lote/:id_lote', ExistenciasController.editarLote)
 //   body: { id_lote_destino } | { numero_lote, fecha_vencimiento } → toda la existencia de la fila pasa a ese lote
 router.post('/:id_stock_ubicacion_lote/cambiar-lote', ExistenciasController.cambiarLote)
 
+// GET   /api/almacen/existencias_ubicacion/mapa-pasillo/pasillos  (antes de '/:id_articulo')
+router.get('/mapa-pasillo/pasillos', ExistenciasController.getPasillos)
+
+// GET   /api/almacen/existencias_ubicacion/mapa-pasillo?pasillo=A
+//   → todas las ubicaciones del pasillo por anaquel, nivel y posición, con su artículo default y existencia
+router.get('/mapa-pasillo', ExistenciasController.getMapaPasillo)
+
 // GET   /api/almacen/existencias_ubicacion/apartadas-sin-pedido  (antes de '/:id_articulo')
 router.get('/apartadas-sin-pedido', ExistenciasController.getApartadasSinPedido)
 

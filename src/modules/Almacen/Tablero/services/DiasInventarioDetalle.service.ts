@@ -6,14 +6,18 @@ const num = (v: unknown) => Number(v ?? 0) || 0;
 export type RangoDias = 'sin_venta' | 'hasta_15' | 'de_16_a_45' | 'de_46_a_90' | 'de_91_a_180' | 'mas_180';
 export const RANGOS_DIAS: RangoDias[] = ['sin_venta', 'hasta_15', 'de_16_a_45', 'de_46_a_90', 'de_91_a_180', 'mas_180'];
 
+// Filtro por compra: sin = ni tránsito ni recibo · camino = tiene algo en tránsito · recibo = tiene algo en recibo
+export type FiltroCompraDetalle = 'sin' | 'camino' | 'recibo';
+export const FILTROS_COMPRA_DETALLE: FiltroCompraDetalle[] = ['sin', 'camino', 'recibo'];
+
 // Detalle de la tarjeta "Días de inventario" del Tablero.
 // Por artículo: días = existencia ÷ piezas vendidas en los últimos 30 días × 30.
 // Venta = salidas por venta del Kardex de la empresa menos las devoluciones de clientes que regresaron al almacén.
 // Solo entran los artículos con existencia; los que no se vendieron en el mes quedan en "sin venta" (sin días).
 export const DiasInventarioDetalleService = {
 
-    getDetalle: async (id_empresa: string, opts: { rango: RangoDias | null; q: string; page: number; limite: number }) => {
-        const { rango, q, page, limite } = opts;
+    getDetalle: async (id_empresa: string, opts: { rango: RangoDias | null; q: string; page: number; limite: number; compra?: FiltroCompraDetalle | null }) => {
+        const { rango, q, page, limite, compra } = opts;
         const busqueda = q.trim();
         const rep: Record<string, any> = { emp: id_empresa, limite, offset: (page - 1) * limite };
         let filtroBusqueda = '';
@@ -23,6 +27,10 @@ export const DiasInventarioDetalleService = {
             if (/^\d+$/.test(busqueda)) rep.cod = Number(busqueda);
         }
         if (rango) rep.rango = rango;
+        const filtroCompra =
+            compra === 'sin' ? 'AND en_camino = 0 AND en_recibo = 0'
+                : compra === 'camino' ? 'AND en_camino > 0'
+                    : compra === 'recibo' ? 'AND en_recibo > 0' : '';
 
         const base = `
             WITH stock AS (
@@ -43,14 +51,36 @@ export const DiasInventarioDetalleService = {
                   AND (tipo_movimiento = 'VENTA' OR (tipo_movimiento = 'ENTRADA' AND notas ILIKE 'Devolución recibida%'))
                 GROUP BY id_articulo
             ),
+            -- Dónde va la compra: tránsito (orden de compra C, A, E, L, K) y recibo (factura de proveedor sin checar)
+            camino AS (
+                SELECT d.idarticulo_detcompsol AS id_articulo, SUM(d.cantidad_detcompsol) AS cant,
+                       STRING_AGG(DISTINCT regexp_replace(TRIM(pr.nomcort_prove), '[,\\s]+$', ''), ', ') AS proveedores
+                FROM detalle_compra_solicitado d
+                JOIN compra_proveedor c ON c.id_comp = d.idcompr_detcompsol
+                LEFT JOIN proveedor pr ON pr.id_prove = c.idprove_comp
+                WHERE c.estado_comp IN ('C', 'A', 'E', 'L', 'K')
+                GROUP BY d.idarticulo_detcompsol
+            ),
+            recibo AS (
+                SELECT dfcp.id_artic AS id_articulo, SUM(dfcp.cantidad_articulo_facturada) AS cant
+                FROM detalle_factura_compra_proveedor dfcp
+                JOIN factura_compra_proveedor fcp ON fcp.id_factura_proveedor = dfcp.id_factura_compra_proveedor
+                WHERE dfcp.checado IS NOT TRUE AND fcp.estado_factura_proveedor NOT IN ('H', 'D')
+                GROUP BY dfcp.id_artic
+            ),
             art AS (
-                SELECT a.cod_int_artic, a.des_artic, COALESCE(a.cod_barr_artic, '') AS cod_barr_artic,
+                SELECT a.id_artic, a.cod_int_artic, a.des_artic, COALESCE(a.cod_barr_artic, '') AS cod_barr_artic,
                        st.existencia, st.apartada, st.valor,
                        GREATEST(COALESCE(v.vendidas, 0), 0) AS vendidas,
-                       CASE WHEN COALESCE(v.vendidas, 0) > 0 THEN st.existencia / v.vendidas * 30 END AS dias
+                       CASE WHEN COALESCE(v.vendidas, 0) > 0 THEN st.existencia / v.vendidas * 30 END AS dias,
+                       COALESCE(cm.cant, 0) AS en_camino,
+                       COALESCE(rc.cant, 0) AS en_recibo,
+                       cm.proveedores AS en_camino_proveedores
                 FROM stock st
                 JOIN articulo a ON a.id_artic = st.id_articulo
                 LEFT JOIN ventas v ON v.id_articulo = st.id_articulo
+                LEFT JOIN camino cm ON cm.id_articulo = st.id_articulo
+                LEFT JOIN recibo rc ON rc.id_articulo = st.id_articulo
             ),
             clas AS (
                 SELECT *,
@@ -63,7 +93,7 @@ export const DiasInventarioDetalleService = {
                 FROM art
             )`;
 
-        const [resumenRangos, [globales], filas, [conteo]] = await Promise.all([
+        const [resumenRangos, [globales], filas, [conteo], [conteoCompra]] = await Promise.all([
             dbLocal.query<any>(`${base}
                 SELECT rango, COUNT(*) AS articulos, SUM(existencia) AS piezas, SUM(valor) AS valor
                 FROM clas GROUP BY rango`, { replacements: rep, type: QueryTypes.SELECT }) as Promise<any[]>,
@@ -75,13 +105,21 @@ export const DiasInventarioDetalleService = {
                        (SELECT COALESCE(SUM(GREATEST(vendidas, 0)), 0) FROM ventas) AS vendidas`,
                 { replacements: rep, type: QueryTypes.SELECT }) as Promise<any[]>,
             dbLocal.query<any>(`${base}
-                SELECT cod_int_artic, des_artic, cod_barr_artic, existencia, apartada, valor, vendidas, dias, rango
+                SELECT id_artic, cod_int_artic, des_artic, cod_barr_artic, existencia, apartada, valor, vendidas, dias, rango,
+                       en_camino, en_recibo, en_camino_proveedores
                 FROM clas
-                WHERE TRUE ${rango ? 'AND rango = :rango' : ''} ${filtroBusqueda}
+                WHERE TRUE ${rango ? 'AND rango = :rango' : ''} ${filtroBusqueda} ${filtroCompra}
                 ORDER BY dias DESC NULLS FIRST, existencia DESC, des_artic ASC
                 LIMIT :limite OFFSET :offset`, { replacements: rep, type: QueryTypes.SELECT }) as Promise<any[]>,
             dbLocal.query<any>(`${base}
                 SELECT COUNT(*) AS total FROM clas
+                WHERE TRUE ${rango ? 'AND rango = :rango' : ''} ${filtroBusqueda} ${filtroCompra}`, { replacements: rep, type: QueryTypes.SELECT }) as Promise<any[]>,
+            // Cuántos hay de cada tipo de compra con el rango y la búsqueda actuales (sin contar el filtro de compra)
+            dbLocal.query<any>(`${base}
+                SELECT COUNT(*) FILTER (WHERE en_camino = 0 AND en_recibo = 0) AS sin,
+                       COUNT(*) FILTER (WHERE en_camino > 0) AS camino,
+                       COUNT(*) FILTER (WHERE en_recibo > 0) AS recibo
+                FROM clas
                 WHERE TRUE ${rango ? 'AND rango = :rango' : ''} ${filtroBusqueda}`, { replacements: rep, type: QueryTypes.SELECT }) as Promise<any[]>,
         ]);
 
@@ -105,6 +143,11 @@ export const DiasInventarioDetalleService = {
                 piezas: num(porRango[r]?.piezas),
                 valor: +num(porRango[r]?.valor).toFixed(2),
             })),
+            conteo_compra: {
+                sin: num(conteoCompra?.sin),
+                camino: num(conteoCompra?.camino),
+                recibo: num(conteoCompra?.recibo),
+            },
             page,
             limite,
             total_articulos: total,
@@ -120,6 +163,9 @@ export const DiasInventarioDetalleService = {
                 dias: r.dias === null || r.dias === undefined ? null : Math.round(num(r.dias)),
                 valor: +num(r.valor).toFixed(2),
                 rango: r.rango as RangoDias,
+                en_recibo: num(r.en_recibo),
+                en_camino: num(r.en_camino),
+                en_camino_proveedores: String(r.en_camino_proveedores ?? ''),
             })),
             generado: new Date().toISOString(),
         };

@@ -30,6 +30,13 @@ class Pedido_Almacen extends Model {
   @Column(DataType.DATE)
   declare fecha_facturado_pedido_alm: Date | null;
 
+  // Cuándo pasó el pedido a estatus CAPTURADO (hora de "emitido"). createdAt es cuándo se empezó a armar y
+  // no se puede reescribir. Null en pedidos anteriores a este campo: se usa createdAt.
+  // Requiere: ALTER TABLE pedido_almacen ADD COLUMN fecha_capturado_alm timestamptz;
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare fecha_capturado_alm: Date | null;
+
   @ForeignKey(() => Cat_Status_Pedido_Almacen)
   @Index
   @Column(DataType.CHAR(2))

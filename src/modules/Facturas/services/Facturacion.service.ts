@@ -1404,9 +1404,19 @@ export const FacturacionService = {
     //  · el PEDIDO queda CANCELADO (CN)
     //  Si la factura ya estaba timbrada, la cancelación ante el SAT se hace aparte en el facturador.
     // Si el pedido se partió en varias facturas, se procesan todas.
+    //
+    //  reabrir_para_refacturar (cambio de cliente / error del agente): en la MISMA transacción
+    //  · lo que regresa a "sin ubicación" queda APARTADO para este pedido (nadie más lo toma)
+    //  · el pedido vuelve a EMPACADO, sin fecha de facturado, y si viene id_cliente_nuevo cambia de cliente
+    //  Después se factura con el botón normal y descuenta justo esa mercancía sin ubicación.
     deshacerFacturacion: async (
         id_factura: string, id_empresa: string,
-        opts: { liberar_stock?: boolean; usuario_admin?: string; password_admin?: string; id_empleado?: string } = {},
+        opts: {
+            liberar_stock?: boolean; usuario_admin?: string; password_admin?: string; id_empleado?: string;
+            reabrir_para_refacturar?: boolean; id_cliente_nuevo?: string;
+            // Con reabrir_para_refacturar: precios corregidos por artículo (se aplican al pedido en la misma transacción)
+            precios?: { id_articulo: string; precio: number }[];
+        } = {},
     ) => {
         // Acción destructiva: la autoriza un administrador
         if (!opts.usuario_admin || !opts.password_admin) {
@@ -1452,10 +1462,33 @@ export const FacturacionService = {
             throw new Error('La cuenta por cobrar ya tiene pagos o recibos capturados. Cancela primero esos pagos para poder deshacer la facturación.');
         }
 
-        const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm'] });
+        const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, { attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm', 'id_cliente_pedido_alm'] });
         if (!pedido) throw new Error('Pedido no encontrado.');
         if (cancelar && !pedido.fecha_facturado_pedido_alm) {
             throw new Error('El pedido no aparece como facturado: no hay mercancía descontada que regresar.');
+        }
+
+        // Cambio de cliente para refacturar (el cliente es opcional: en Público General el cliente real
+        // se elige al volver a facturar, así que solo se reabre el pedido)
+        const reabrir = opts.reabrir_para_refacturar === true;
+
+        // Precios corregidos (solo cuando se reabre el pedido para refacturar)
+        const preciosCorregidos = reabrir && Array.isArray(opts.precios)
+            ? opts.precios.map(p => ({ id_articulo: String(p?.id_articulo ?? ''), precio: Number(p?.precio) }))
+            : [];
+        for (const p of preciosCorregidos) {
+            if (!p.id_articulo || !Number.isFinite(p.precio) || p.precio < 0) {
+                throw new Error('Hay un precio corregido que no es válido (debe ser 0 o mayor).');
+            }
+        }
+        let preciosActualizados = 0;
+        let clienteNuevo: Cliente_Almacen | null = null;
+        if (reabrir && opts.id_cliente_nuevo) {
+            clienteNuevo = await Cliente_Almacen.findByPk(opts.id_cliente_nuevo);
+            if (!clienteNuevo) throw new Error('El cliente nuevo no existe.');
+            if (clienteNuevo.id_cliente_alm === pedido.id_cliente_pedido_alm) {
+                throw new Error('El cliente nuevo es el mismo que ya tiene el pedido.');
+            }
         }
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
@@ -1480,17 +1513,23 @@ export const FacturacionService = {
                 if (cant <= 0) continue;
 
                 if (cancelar) {
-                    // Factura timbrada cancelada: todo entra libre a "sin ubicación", listo para acomodar
+                    // Factura timbrada cancelada: todo entra libre a "sin ubicación", listo para acomodar.
+                    // Si se reabre para refacturar, queda APARTADO para este pedido (nadie más lo toma y la
+                    // nueva factura descuenta justo esa mercancía).
+                    const apartarParaRefacturar = reabrir ? cant : 0;
                     const pendiente = await Stock_Ubicacion_Lote.findOne({
                         where: { id_empresa_sucursal: id_empresa, id_articulo: l.id_articulo, id_lote: l.id_lote_sucursal, id_ubicacion_sucursal: null as any },
                         transaction: t, lock: t.LOCK.UPDATE,
                     });
                     if (pendiente) {
-                        await pendiente.update({ cantidad: (Number(pendiente.cantidad) || 0) + cant }, { transaction: t });
+                        await pendiente.update({
+                            cantidad: (Number(pendiente.cantidad) || 0) + cant,
+                            cantidad_apartada: (Number(pendiente.cantidad_apartada) || 0) + apartarParaRefacturar,
+                        }, { transaction: t });
                     } else {
                         await Stock_Ubicacion_Lote.create({
                             id_empresa_sucursal: id_empresa, id_articulo: l.id_articulo, id_lote: l.id_lote_sucursal,
-                            id_ubicacion_sucursal: null, cantidad: cant, cantidad_apartada: 0,
+                            id_ubicacion_sucursal: null, cantidad: cant, cantidad_apartada: apartarParaRefacturar,
                         } as any, { transaction: t });
                     }
                     piezas += cant;
@@ -1539,7 +1578,9 @@ export const FacturacionService = {
                         id_pedido: id_pedido_alm,
                         documento_ref: base.id_factura,
                         id_empleado: opts.id_empleado ?? null,
-                        notas: `Cancelación de factura ${folios.join(', ')} - Pedido ${pedido.cod_int_pedido_alm} (sin ubicación, por acomodar)`,
+                        notas: reabrir
+                            ? `Cancelación de factura ${folios.join(', ')} - Pedido ${pedido.cod_int_pedido_alm} (cambio de cliente: sin ubicación, apartado para refacturar)`
+                            : `Cancelación de factura ${folios.join(', ')} - Pedido ${pedido.cod_int_pedido_alm} (sin ubicación, por acomodar)`,
                     } as any)),
                     { transaction: t },
                 );
@@ -1589,7 +1630,28 @@ export const FacturacionService = {
             }
 
             // 4) Pedido
-            if (cancelar) {
+            if (reabrir && preciosCorregidos.length) {
+                // Los precios del pedido son los que se vuelven a facturar
+                for (const p of preciosCorregidos) {
+                    await dbLocal.query(
+                        `UPDATE detalle_pedido_almacen SET precio_venta = :precio
+                         WHERE id_pedido_almacen = :id_pedido_alm AND id_articulo = :id_articulo`,
+                        { replacements: { precio: +p.precio.toFixed(2), id_pedido_alm, id_articulo: p.id_articulo }, transaction: t },
+                    );
+                    preciosActualizados += 1;
+                }
+            }
+
+            if (reabrir) {
+                // Cambio de cliente: vuelve a EMPACADO, sin fecha de facturado, para facturarse de nuevo
+                await Pedido_Almacen.update(
+                    {
+                        status_pedido_alm: 'EM',
+                        fecha_facturado_pedido_alm: null as any,
+                        ...(clienteNuevo ? { id_cliente_pedido_alm: clienteNuevo.id_cliente_alm } : {}),
+                    },
+                    { where: { id_pedido_alm }, transaction: t });
+            } else if (cancelar) {
                 // Factura timbrada cancelada → el pedido queda CANCELADO (CN). Se conserva su fecha de facturado
                 // para que no se pueda volver a facturar por error.
                 await Cat_Status_Pedido_Almacen.findOrCreate({
@@ -1627,10 +1689,13 @@ export const FacturacionService = {
             folios,
             piezas_regresadas: piezas,
             piezas_sin_ubicar: sinUbicar,
-            stock_apartado: cancelar ? false : !opts.liberar_stock,
+            stock_apartado: reabrir ? true : (cancelar ? false : !opts.liberar_stock),
             txt_eliminados: txtEliminados,
             modo: 'CANCELADA' as const,
             sat_pendiente: conTimbrada,
+            reabierto: reabrir,
+            cliente_nuevo: clienteNuevo ? clienteNuevo.razon_social_cliente_alm : null,
+            precios_actualizados: preciosActualizados,
         };
     },
 
@@ -1931,9 +1996,16 @@ export const FacturacionService = {
 
             const series = derivarSeries(empresa.serie_ingreso);
             const folio = Number(factura.folio_factura);
+            const esPG = detectarPublicoGeneral(datos.rfc_cliente, datos.nom_corto_cliente);
             const { ruta } = generarTxtEgreso({
                 emisor: empresa,
-                receptor: {
+                receptor: esPG ? {
+                    razon_social: 'VENTA AL PUBLICO EN GENERAL',
+                    rfc: RFC_PUBLICO_GENERAL,
+                    domicilio_fiscal: empresa.lugar_expedicion,
+                    regimen_fiscal: '616',
+                    uso_cfdi: 'S01',
+                } : {
                     razon_social: datos.razon_social_cliente,
                     rfc: datos.rfc_cliente,
                     domicilio_fiscal: datos.domicilio_fiscal,

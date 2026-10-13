@@ -10,6 +10,13 @@ router.use(authMiddleware);
 // Buscar facturas del agente (para el selector del form)
 router.get('/buscar-facturas', DevolucionClienteController.buscarFacturas);
 
+// ── Admin: crear desde el ERP + inventario virtual de agentes ──
+router.get('/admin/buscar-facturas', DevolucionClienteController.buscarFacturasAdmin);
+router.get('/admin/factura/:id_factura', DevolucionClienteController.getFacturaAdmin);
+router.post('/admin', DevolucionClienteController.crearAdmin);
+router.get('/inventario-virtual', DevolucionClienteController.inventarioVirtual);
+router.post('/inventario-virtual/recibir', DevolucionClienteController.recibirInventarioVirtual);
+
 // Mis solicitudes de devolución
 router.get('/mis-devoluciones', DevolucionClienteController.misDevoluciones);
 

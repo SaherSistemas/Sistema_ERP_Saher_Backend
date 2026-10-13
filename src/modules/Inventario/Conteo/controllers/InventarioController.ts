@@ -26,6 +26,17 @@ export const InventarioController = {
         }
     },
 
+    // GET /inventario/conteo/:id/cuenta — cuenta por artículo con tarima y demás ubicaciones (diferencia real)
+    cuenta: async (req: AuthedRequest, res: Response) => {
+        try {
+            const data = await InventarioService.cuentaPorArticulo(req.params.id);
+            if (!data) { res.status(404).json({ mensaje: 'No encontrado' }); return; }
+            res.json(data);
+        } catch (e: any) {
+            res.status(500).json({ mensaje: e.message });
+        }
+    },
+
     crear: async (req: AuthedRequest, res: Response) => {
         try {
             const { tipo_inventario, filtro, notas } = req.body;
@@ -166,6 +177,30 @@ export const InventarioController = {
                 res.status(409).json({ requiere_decision: true, mensaje: e.message, cambiados: e.cambiados });
                 return;
             }
+            res.status(400).json({ mensaje: e.message });
+        }
+    },
+
+    // POST /inventario/conteo/resumen  { ids: string[] } — detalle consolidado de los inventarios seleccionados
+    resumen: async (req: AuthedRequest, res: Response) => {
+        try {
+            const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).map(String) : [];
+            if (!ids.length) { res.status(400).json({ mensaje: 'Selecciona al menos un inventario' }); return; }
+            const data = await InventarioService.resumenSeleccion(ids, req.user.id_empresa);
+            res.json(data);
+        } catch (e: any) {
+            res.status(500).json({ mensaje: e.message });
+        }
+    },
+
+    // PATCH /inventario/conteo/:id/dar-de-baja  { ids?: string[] }
+    // Deja en 0 los renglones que quedaron sin contar (solo los que se manden, si se manda la lista)
+    darDeBaja: async (req: AuthedRequest, res: Response) => {
+        try {
+            const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).map(String) : undefined;
+            const data = await InventarioService.darDeBajaSinContar(req.params.id, req.user.id_referencia_persona, ids);
+            res.json(data);
+        } catch (e: any) {
             res.status(400).json({ mensaje: e.message });
         }
     },

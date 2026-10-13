@@ -88,6 +88,7 @@ export interface DatosFacturaParaTimbrar {
     razon_social_cliente:    string;
     rfc_cliente:             string;
     regimen_fiscal_cliente:  string;
+    nom_corto_cliente?:      string | null;
     domicilio_fiscal:        string;
     detalles:                DetalleParaEgreso[];
 }

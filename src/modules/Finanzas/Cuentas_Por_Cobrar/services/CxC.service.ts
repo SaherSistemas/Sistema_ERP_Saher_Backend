@@ -54,12 +54,14 @@ async function _getEmisor(id_empresa?: string): Promise<EmisorTxt & { num_cuenta
 //  transacción recibida. Cada abono queda en estatus CAP (pendiente de aplicar).
 //  `prefijo` arma el folio {prefijo}_{consecutivo} cuando no se manda uno propio.
 // ─────────────────────────────────────────────────────────────────────────────
-// Clave para juntar cuentas en un mismo recibo: el RFC. Los RFC genéricos (público en general / extranjero) y los
-// clientes sin RFC no identifican a un cliente concreto, así que esos se agrupan por cliente.
+// Clave para juntar cuentas en un mismo recibo: el RFC. Los RFC genéricos (público en general / extranjero), los
+// clientes sin RFC y los RFC que no tienen formato de RFC ("NA", "SIN RFC", ceros…) no identifican a un cliente
+// concreto, así que esos se agrupan por cliente: antes dos clientes con el mismo RFC "basura" caían en un solo recibo.
 const RFC_GENERICOS = new Set(['XAXX010101000', 'XEXX010101000']);
+const RFC_VALIDO = /^[A-ZÑ&]{3,4}d{6}[A-Z0-9]{3}$/;
 export function claveReciboCliente(rfc: string | null | undefined, id_cliente_alm: string): string {
     const r = (rfc ?? '').trim().toUpperCase();
-    return r && !RFC_GENERICOS.has(r) ? `RFC:${r}` : `CLI:${id_cliente_alm}`;
+    return r && !RFC_GENERICOS.has(r) && RFC_VALIDO.test(r) ? `RFC:${r}` : `CLI:${id_cliente_alm}`;
 }
 
 // `mismoRfc`: el recibo junta cuentas de varios clientes con el mismo RFC (ya validado por quien llama)
@@ -73,6 +75,36 @@ async function _capturarReciboEnTx(data: ICapturarPagoCliente, prefijo: string, 
     const numero_recibo = data.numero_recibo_custom?.trim()
         ? data.numero_recibo_custom.trim()
         : `${prefijo}_${String(consecutivo).padStart(4, '0')}`;
+
+    // Un recibo es de UN solo cliente (o de varias cuentas con el mismo RFC). Si el folio lo escribió el agente
+    // y ya existe con pagos de otro cliente, se rechaza: antes se juntaban en el mismo recibo clientes distintos.
+    if (data.numero_recibo_custom?.trim()) {
+        const existentes = await dbLocal.query<any>(`
+            SELECT DISTINCT cxc.id_cliente_alm, ca.rfc_cliente_alm AS rfc,
+                   COALESCE(ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm) AS nombre
+            FROM pago_cxc p
+            JOIN cuenta_por_cobrar cxc ON cxc.id_cxc = p.id_cxc
+            JOIN cliente_almacen ca ON ca.id_cliente_alm = cxc.id_cliente_alm
+            WHERE p.numero_recibo = :n
+        `, { replacements: { n: numero_recibo }, type: QueryTypes.SELECT, transaction: t }) as any[];
+
+        if (existentes.length) {
+            const clavesExistentes = new Set(existentes.map(e => claveReciboCliente(e.rfc, e.id_cliente_alm)));
+            const nuevos = await dbLocal.query<any>(`
+                SELECT DISTINCT cxc.id_cliente_alm, ca.rfc_cliente_alm AS rfc
+                FROM cuenta_por_cobrar cxc
+                JOIN cliente_almacen ca ON ca.id_cliente_alm = cxc.id_cliente_alm
+                WHERE cxc.id_cxc IN (:ids)
+            `, { replacements: { ids: data.abonos.map(a => a.id_cxc) }, type: QueryTypes.SELECT, transaction: t }) as any[];
+            const otroCliente = nuevos.some(n => !clavesExistentes.has(claveReciboCliente(n.rfc, n.id_cliente_alm)));
+            if (otroCliente) {
+                throw new Error(
+                    `El folio de recibo ${numero_recibo} ya se usó con otro cliente (${existentes.map(e => e.nombre).join(', ')}). ` +
+                    `Cada recibo es de un solo cliente: usa otro número de recibo.`
+                );
+            }
+        }
+    }
 
     const pagosCreados = [];
 
@@ -1060,6 +1092,34 @@ export const CxCService = {
                     `El monto ($${campos.monto_pago.toFixed(2)}) excede el saldo disponible ($${saldoDispEditar.toFixed(2)})` +
                     (capOtros > 0 ? ` — otros pagos en revisión: $${capOtros.toFixed(2)}` : '')
                 );
+        }
+
+        // Cambiar el número de recibo: el recibo es de UN solo cliente. Antes se podía escribir el número de cualquier
+        // otro recibo y el documento se pegaba a él aunque fuera de otro cliente (así se juntaban clientes distintos).
+        const numeroNuevo = typeof campos.numero_recibo === 'string' ? campos.numero_recibo.trim() : undefined;
+        const cambiaNumero = !!numeroNuevo && numeroNuevo !== pago.numero_recibo;
+        if (cambiaNumero) {
+            const [miCliente] = await dbLocal.query<any>(`
+                SELECT cxc.id_cliente_alm, ca.rfc_cliente_alm AS rfc
+                FROM cuenta_por_cobrar cxc JOIN cliente_almacen ca ON ca.id_cliente_alm = cxc.id_cliente_alm
+                WHERE cxc.id_cxc = :id
+            `, { replacements: { id: pago.id_cxc }, type: QueryTypes.SELECT }) as any[];
+            const ya = await dbLocal.query<any>(`
+                SELECT DISTINCT cxc.id_cliente_alm, ca.rfc_cliente_alm AS rfc,
+                       COALESCE(ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm) AS nombre
+                FROM pago_cxc p
+                JOIN cuenta_por_cobrar cxc ON cxc.id_cxc = p.id_cxc
+                JOIN cliente_almacen ca ON ca.id_cliente_alm = cxc.id_cliente_alm
+                WHERE p.numero_recibo = :n
+            `, { replacements: { n: numeroNuevo }, type: QueryTypes.SELECT }) as any[];
+            const miClave = claveReciboCliente(miCliente?.rfc, miCliente?.id_cliente_alm);
+            const ajenos = ya.filter(r => claveReciboCliente(r.rfc, r.id_cliente_alm) !== miClave);
+            if (ajenos.length) {
+                throw new Error(
+                    `El recibo ${numeroNuevo} ya pertenece a otro cliente (${ajenos.map(r => r.nombre).join(', ')}). ` +
+                    `Cada recibo es de un solo cliente: usa otro número.`
+                );
+            }
         }
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });

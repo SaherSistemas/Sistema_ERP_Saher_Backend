@@ -29,12 +29,26 @@ const fechaValeSql = (alias: string) => `(${alias}."createdAt" AT TIME ZONE '${T
 // límite y para el descuento de nómina. El IVA se redondea por renglón, igual que en la factura.
 const lineaConIvaSql = (dpa: string, ti: string) =>
     `ROUND(${dpa}.precio_venta * ${dpa}.cant_pedida, 2) + ROUND(${dpa}.precio_venta * ${dpa}.cant_pedida * COALESCE(CAST(${ti}.porcentaje_iva AS NUMERIC), 0), 2)`;
+// Mientras el vale se surte/chequea (CA, SU, CH) cuenta lo PEDIDO; ya chequeado (EM, EN) cuenta solo lo que SÍ se
+// chequeó: si algo no había y no se entregó, no se le cobra al empleado (igual que la factura consolidada de vales).
 const totalValeSql = (alias: string) =>
-    `(SELECT COALESCE(SUM(${lineaConIvaSql('dv', 'tv')}), 0)
-        FROM detalle_pedido_almacen dv
-        JOIN articulo av ON av.id_artic = dv.id_articulo
-        LEFT JOIN tipo_iva tv ON tv.id_iva = av.tipo_de_iva
-       WHERE dv.id_pedido_almacen = ${alias}.id_pedido_alm)`;
+    `(CASE WHEN ${alias}.status_pedido_alm IN ('EM', 'EN') THEN
+        (SELECT COALESCE(SUM(
+                    ROUND(c.cant_chequeada * dv.precio_venta, 2)
+                    + ROUND(c.cant_chequeada * dv.precio_venta * COALESCE(CAST(tv.porcentaje_iva AS NUMERIC), 0), 2)
+                ), 0)
+            FROM detalle_pedido_almacen dv
+            JOIN detalle_pedido_almacen_chequeo c ON c.id_detalle_pedido_almacen = dv.id_detalle_pedido_almacen
+            JOIN articulo av ON av.id_artic = dv.id_articulo
+            LEFT JOIN tipo_iva tv ON tv.id_iva = av.tipo_de_iva
+           WHERE dv.id_pedido_almacen = ${alias}.id_pedido_alm)
+      ELSE
+        (SELECT COALESCE(SUM(${lineaConIvaSql('dv', 'tv')}), 0)
+            FROM detalle_pedido_almacen dv
+            JOIN articulo av ON av.id_artic = dv.id_articulo
+            LEFT JOIN tipo_iva tv ON tv.id_iva = av.tipo_de_iva
+           WHERE dv.id_pedido_almacen = ${alias}.id_pedido_alm)
+      END)`;
 // Cuentan para el límite de la quincena todos los vales que llegaron a existir, estén cobrados o no
 const STATUS_NO_CUENTAN = `('EC', 'CO', 'NE', 'CN')`;
 const fmtFechaCorta = (iso: string) => { const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
@@ -172,6 +186,7 @@ export const ValeService = {
                 origen_pedido: 'VALE',
                 id_empleado_vale: dto.id_empleado,
             }, { transaction: t });
+            await Pedido_AlmacenRepository.registrarCaptura(pedido.id_pedido_alm, t);
 
             for (const art of dto.articulos) {
                 await Detalle_Pedido_AlmacenRepository.addOrAccumulate({
@@ -345,7 +360,10 @@ export const ValeService = {
                 ${totalValeSql('pa')} AS total,
                 dpa.id_detalle_pedido_almacen AS id_detalle,
                 a.des_artic                   AS descripcion,
-                dpa.cant_pedida,
+                CASE WHEN pa.status_pedido_alm IN ('EM', 'EN') THEN
+                    COALESCE((SELECT SUM(c.cant_chequeada) FROM detalle_pedido_almacen_chequeo c
+                               WHERE c.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen), 0)
+                ELSE dpa.cant_pedida END AS cant_pedida,
                 dpa.precio_venta,
                 COALESCE(CAST(ti.porcentaje_iva AS NUMERIC), 0) AS tasa_iva,
                 ${fechaDescuentoSql(fechaValeSql('pa'))}::text AS fecha_descuento
@@ -355,7 +373,8 @@ export const ValeService = {
             LEFT JOIN tipo_iva ti            ON ti.id_iva = a.tipo_de_iva
             WHERE pa.id_empleado_vale = :id_empleado
               AND pa.origen_pedido    = 'VALE'
-              AND pa.status_pedido_alm != 'FA'
+              -- Cancelados y negados no son vales activos: no se cobran, no deben salir con importe
+              AND pa.status_pedido_alm NOT IN ('FA', 'CN', 'NE')
               ${fecha_inicio ? `AND pa."createdAt"::date >= :fecha_inicio` : ''}
               ${fecha_fin    ? `AND pa."createdAt"::date <= :fecha_fin`    : ''}
             ORDER BY pa."createdAt" DESC, a.des_artic ASC

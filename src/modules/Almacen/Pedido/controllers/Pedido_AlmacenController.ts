@@ -425,6 +425,27 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // PATCH /almacen/pedido/:id_pedido_alm/detalle/:id_detalle/precio  { precio_venta }
+  // Un administrador cambia el precio de UN artículo del pedido, antes de facturar.
+  static cambiarPrecioDetalle = async (req: AuthedRequest, res: Response) => {
+    try {
+      const prioridad = (req.user as any)?.prioridad;
+      if (prioridad == null || Number(prioridad) > 2) {
+        res.status(403).json({ message: 'Solo un administrador puede cambiar los precios de un pedido.' });
+        return;
+      }
+      const { id_pedido_alm, id_detalle } = req.params;
+      const precio = Number(req.body?.precio_venta);
+      const resultado = await Pedido_AlmacenService.cambiarPrecioDetallePedido(
+        id_pedido_alm, id_detalle, precio, req.user?.username ?? 'desconocido',
+      );
+      res.status(200).json(resultado);
+    } catch (error: any) {
+      console.error(error);
+      res.status(error?.status ?? 500).json({ message: error?.message ?? 'Error al cambiar el precio.' });
+    }
+  };
+
   //FINALIZAR CAPUTRA
   static finalizarCaptura = async (req: Request, res: Response) => {
     try {

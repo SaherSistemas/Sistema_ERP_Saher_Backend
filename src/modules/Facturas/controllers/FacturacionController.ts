@@ -53,10 +53,13 @@ export class FacturacionController {
     static deshacerFacturacion = async (req: AuthedRequest, res: Response) => {
         try {
             const { id_factura } = req.params;
-            const { liberar_stock, usuario_admin, password_admin } = req.body ?? {};
+            const { liberar_stock, usuario_admin, password_admin, reabrir_para_refacturar, id_cliente_nuevo, precios } = req.body ?? {};
             const r = await FacturacionService.deshacerFacturacion(id_factura, req.user?.id_empresa as string, {
                 liberar_stock: !!liberar_stock, usuario_admin, password_admin,
                 id_empleado: req.user?.id_referencia_persona,
+                reabrir_para_refacturar: reabrir_para_refacturar === true,
+                id_cliente_nuevo: id_cliente_nuevo || undefined,
+                precios: Array.isArray(precios) ? precios : undefined,
             });
             res.json(r);
         } catch (error: any) {

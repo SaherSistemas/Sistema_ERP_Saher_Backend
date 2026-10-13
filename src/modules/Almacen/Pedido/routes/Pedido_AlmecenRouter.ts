@@ -56,6 +56,7 @@ router.get('/:id_pedido_alm/analisis-credito', Pedido_AlmacenController.getAnali
 router.post('/:id_pedido_alm/autorizar-cotizacion', Pedido_AlmacenController.autorizarCotizacion);
 router.get('/:id_pedido_alm/previsualizar-lista-precio', Pedido_AlmacenController.previsualizarListaPrecio);
 router.patch('/:id_pedido_alm/aplicar-lista-precio', Pedido_AlmacenController.aplicarListaPrecio);
+router.patch('/:id_pedido_alm/detalle/:id_detalle/precio', Pedido_AlmacenController.cambiarPrecioDetalle);
 router.get('/cliente/:id_cliente_alm/historial-pagos', Pedido_AlmacenController.getHistorialPagosCliente);
 router.post('/:id_pedido_alm/entregar-vale', Pedido_AlmacenController.entregarVale);
 router.patch('/:id_pedido_alm/facturar-sin-surtido', Pedido_AlmacenController.facturarSinSurtido);

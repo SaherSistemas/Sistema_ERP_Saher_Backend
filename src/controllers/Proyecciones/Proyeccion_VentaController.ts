@@ -1,7 +1,23 @@
 import type { Request, Response } from "express";
 import { Proyeccion_VentaService } from "../../services/Proyecciones/Proyeccion_Venta.service";
+import { Proyeccion_FarmaciasService } from "../../services/Proyecciones/Proyeccion_Farmacias.service";
 
 export class Proyeccion_VentaController {
+    // POST /proyeccion/venta/farmacias/:cod_int_artic   body: { periodos: ["YYYY-MM-DD a YYYY-MM-DD", ...] }
+    // Qué farmacia vendió cuánto de ese artículo en cada periodo del historial
+    static getVentasPorFarmacia = async (req: Request, res: Response) => {
+        try {
+            const { cod_int_artic } = req.params;
+            const periodos = Array.isArray(req.body?.periodos) ? req.body.periodos.map(String) : [];
+            res.status(200).json({
+                periodos: await Proyeccion_FarmaciasService.getSvmPorFarmacia(cod_int_artic, periodos),
+            });
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message ?? "Error al obtener las ventas por farmacia." });
+        }
+    };
+
     static getProyeccionVenta = async (req: Request, res: Response) => {
         try {
             const { id_artic, ventana_dias } = req.params;

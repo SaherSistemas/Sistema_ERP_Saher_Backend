@@ -415,6 +415,7 @@ export const FacturacionRepository = {
             razon_social_cliente:   string;
             rfc_cliente:            string;
             regimen_fiscal_cliente: string;
+            nom_corto_cliente:      string | null;
             domicilio_fiscal:       string;
             detalles:               string;
         }>(`
@@ -432,6 +433,7 @@ export const FacturacionRepository = {
                 ca.razon_social_cliente_alm AS razon_social_cliente,
                 ca.rfc_cliente_alm          AS rfc_cliente,
                 ca.id_regimen_fiscal_cliente_alm AS regimen_fiscal_cliente,
+                ca.nom_corto_cliente_alm    AS nom_corto_cliente,
                 co.cp_colonia               AS domicilio_fiscal,
                 JSON_AGG(
                     JSON_BUILD_OBJECT(
@@ -448,13 +450,13 @@ export const FacturacionRepository = {
                 ) AS detalles
             FROM facturas f
             JOIN cliente_almacen ca ON ca.id_cliente_alm = f.id_cliente_alm
-            JOIN colonia         co ON co.id_colonia     = ca.id_colonia_cliente_alm
+            LEFT JOIN colonia    co ON co.id_colonia     = ca.id_colonia_cliente_alm
             LEFT JOIN detalle_factura df ON df.id_factura  = f.id_factura
             LEFT JOIN articulo        a  ON a.id_artic     = df.id_articulo
             LEFT JOIN unidadmedida    um ON um.id_medida   = a.unidmedi_artic
             WHERE f.id_factura = :id_factura
             GROUP BY f.id_factura, ca.razon_social_cliente_alm, ca.rfc_cliente_alm,
-                     ca.id_regimen_fiscal_cliente_alm, co.cp_colonia
+                     ca.id_regimen_fiscal_cliente_alm, ca.nom_corto_cliente_alm, co.cp_colonia
         `, {
             replacements: { id_factura },
             type: QueryTypes.SELECT,
@@ -548,7 +550,7 @@ export const FacturacionRepository = {
             include: [
                 {
                     model: Detalle_Factura,
-                    attributes: ['id_detalle_fact', 'descripcion_articulo', 'cantidad_facturada', 'precio_artic', 'subtotal', 'tasa_iva', 'importe_iva'],
+                    attributes: ['id_detalle_fact', 'id_articulo', 'descripcion_articulo', 'cantidad_facturada', 'precio_artic', 'subtotal', 'tasa_iva', 'importe_iva'],
                 },
                 {
                     model: Cliente_Almacen,

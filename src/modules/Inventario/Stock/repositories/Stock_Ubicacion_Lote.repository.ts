@@ -1,3 +1,4 @@
+import { ordenarLotes } from '../../../../utils/ordenLotes';
 
 import { v4 as uuidv4 } from 'uuid';
 import { col, fn, literal, Op, QueryTypes, Sequelize, Transaction } from 'sequelize';
@@ -372,8 +373,13 @@ export const Stock_Ubicacion_LoteRepository = {
 
             // 2) Si sobra (facturación directa u otro desfase sin apartado que lo respalde), de la
             //    existencia libre que quede, empezando por la fila con más
+            //    Primero lo que está SIN UBICACIÓN: es la mercancía que regresó al cancelar una factura y se vuelve a
+            //    facturar. Antes se descontaba de la fila con más existencia (otra ubicación) y lo devuelto se quedaba
+            //    "sin ubicación" de más.
             if (restante > 0) {
-                for (const f of [...filas].sort((a, b) => (Number(b.cantidad) || 0) - (Number(a.cantidad) || 0))) {
+                for (const f of [...filas].sort((a, b) =>
+                    (a.id_ubicacion_sucursal ? 1 : 0) - (b.id_ubicacion_sucursal ? 1 : 0)
+                    || (Number(b.cantidad) || 0) - (Number(a.cantidad) || 0))) {
                     if (restante <= 0) break;
                     const cant = Number(f.cantidad) || 0;
                     const tomar = Math.min(cant, restante);
@@ -442,7 +448,7 @@ export const Stock_Ubicacion_LoteRepository = {
             );
             return l ? { lote: l.lote, fecha_venci: l.fecha_venci, disponible: Number(l.disponible) } : null;
         };
-        const rows = await Stock_Ubicacion_Lote.findAll({
+        const rowsBase = await Stock_Ubicacion_Lote.findAll({
             where: {
                 id_articulo,
                 id_empresa_sucursal,
@@ -477,6 +483,7 @@ export const Stock_Ubicacion_LoteRepository = {
                         'id_lote_sucursal',
                         'numero_lote_sucursal',
                         'fecha_venci_lote_sucursal',
+                        'createdAt', // fecha de entrada del lote: desempata lotes con la misma caducidad
                         'migracion' //SE AGREGO PARA SABER SI EL LOTE FUE MIGRADO O ES NUEVO, YA QUE LOS MIGRADOS SE USARAN PRIMERO
                     ]
                 },
@@ -527,6 +534,22 @@ export const Stock_Ubicacion_LoteRepository = {
                 ['id_stock_ubicacion_lote', 'ASC']
             ],
         });
+        // Orden final de los lotes: migrados primero y, dentro de cada grupo, caducidad (por día) → número de lote en orden
+        // natural (misma forma) → fecha de entrada. Las filas del mismo lote conservan el orden por ubicación de arriba.
+        const infoLote = (r: any) => ({
+            numero: r.lote?.numero_lote_sucursal,
+            caducidad: r.lote?.fecha_venci_lote_sucursal,
+            entrada: r.lote?.createdAt,
+        });
+        // Lo que quedó SIN UBICACIÓN va primero (p. ej. la mercancía que regresó al cancelar una factura y se va a volver a
+        // facturar): ya está a la mano y no hay que ir a buscarla a un anaquel. Después, el orden de siempre.
+        const sinUbicacion = rowsBase.filter((r: any) => !r.id_ubicacion_sucursal);
+        const conUbicacion = rowsBase.filter((r: any) => !!r.id_ubicacion_sucursal);
+        const rows = [
+            ...ordenarLotes(sinUbicacion, infoLote),
+            ...ordenarLotes(conUbicacion.filter((r: any) => r.lote?.migracion), infoLote),
+            ...ordenarLotes(conUbicacion.filter((r: any) => !r.lote?.migracion), infoLote),
+        ];
         /* console.log("ROWS DISPONIBLES PARA ARTÍCULO", id_articulo, ":", rows.map(r => ({
              id_stock_ubicacion_lote: r.id_stock_ubicacion_lote,
              cantidad: r.cantidad

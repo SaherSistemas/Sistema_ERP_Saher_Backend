@@ -1,4 +1,4 @@
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
 import { InventarioRepository } from '../repositories/Inventario.repository';
 import { TipoInventario, StatusInventario } from '../model/Inventario';
@@ -71,6 +71,308 @@ export const InventarioService = {
         });
         return plano;
     },
+
+    // Cuenta por artículo de lo que se ha inventariado: junta lo contado en este inventario con lo que el sistema
+    // tiene del mismo artículo FUERA de él (tarima y otras ubicaciones), para sacar la diferencia real.
+    //  · sistema_total   = lo que debería haber en todo el almacén (existencia menos lo apartado/surtido).
+    //  · contado         = lo contado en este inventario; por_contar = lo que aún falta de contar (en sistema).
+    //  · en_tarima/otras = lo que el sistema tiene en ubicaciones que NO están en este inventario.
+    //  · diferencia_real = contado menos lo que el sistema tenía de eso mismo (lo no contado y lo de fuera no se toca).
+    cuentaPorArticulo: async (id_inventario: string) => {
+        const inv = await InventarioRepository.getById(id_inventario);
+        if (!inv) return null;
+        const detalles: any[] = (inv.detalles ?? []).map((d: any) => (d.toJSON ? d.toJSON() : d));
+        const vivo = await InventarioRepository.sistemaActual(inv.id_empresa_sucursal, detalles.filter(d => !d.ajustado));
+        for (const d of detalles) {
+            const actual = vivo.get(d.id_detalle_inventario);
+            if (actual !== undefined) d.cant_sistema = actual;
+        }
+
+        // Ubicaciones que forman parte de este inventario
+        const f: any = inv.filtro ?? {};
+        const idsAlcance = new Set<string>();
+        (Array.isArray(f.ids_ubicaciones) ? f.ids_ubicaciones : []).forEach((i: string) => idsAlcance.add(String(i)));
+        if (f.id_ubicacion_sucursal) idsAlcance.add(String(f.id_ubicacion_sucursal));
+        detalles.forEach(d => { if (d.id_ubicacion_sucursal) idsAlcance.add(String(d.id_ubicacion_sucursal)); });
+        const norm = (v: unknown) => String(v ?? '').trim().toUpperCase();
+
+        const idsArticulos = Array.from(new Set(detalles.map(d => String(d.id_articulo))));
+        const stock = idsArticulos.length
+            ? await dbLocal.query<any>(`
+                SELECT s.id_articulo, s.id_ubicacion_sucursal, s.cantidad, COALESCE(s.cantidad_apartada, 0) AS apartada,
+                       u.tipo_ubicacion, u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub, u.tarima_ub
+                FROM stock_ubicacion_lote s
+                LEFT JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = s.id_ubicacion_sucursal
+                WHERE s.id_empresa_sucursal = :emp AND s.id_articulo IN (:ids) AND s.cantidad > 0
+            `, { replacements: { emp: inv.id_empresa_sucursal, ids: idsArticulos }, type: QueryTypes.SELECT }) as any[]
+            : [];
+
+        const dentro = (r: any): boolean => {
+            if (idsAlcance.has(String(r.id_ubicacion_sucursal))) return true;
+            if (inv.tipo_inventario === 'GENERAL' || inv.tipo_inventario === 'ARTICULO') return true;
+            if (inv.tipo_inventario === 'PASILLO' && f.pasillo) return r.tipo_ubicacion !== 'TARIMA' && norm(r.pasillo_ub) === norm(f.pasillo);
+            if (inv.tipo_inventario === 'TARIMA' && f.tarima) return r.tipo_ubicacion === 'TARIMA' && norm(r.tarima_ub) === norm(f.tarima);
+            return false;
+        };
+        const etiqueta = (r: any) => r.tipo_ubicacion === 'TARIMA'
+            ? `Tarima ${String(r.tarima_ub ?? '').trim()}`
+            : r.id_ubicacion_sucursal
+                ? [r.pasillo_ub, r.anaquel_ub, r.nivel_ub, r.posicion_ub].map((p: any) => String(p ?? '').trim()).filter(Boolean).join('-')
+                : 'Sin ubicación';
+        const esperado = (r: any) => Math.max(0, (Number(r.cantidad) || 0) - (Number(r.apartada) || 0));
+
+        const articulos = idsArticulos.map(id => {
+            const ren = detalles.filter(d => String(d.id_articulo) === id);
+            const contados = ren.filter(d => d.contado && d.cant_contada !== null && d.cant_contada !== undefined);
+            const sinContar = ren.filter(d => !contados.includes(d));
+            const sum = (l: any[], campo: string) => l.reduce((a, d) => a + (Number(d[campo]) || 0), 0);
+
+            const sistemaContados = sum(contados, 'cant_sistema');
+            const contado = sum(contados, 'cant_contada');
+            const porContar = sum(sinContar, 'cant_sistema');
+
+            const fuera = stock.filter(r => String(r.id_articulo) === id && !dentro(r));
+            const agrupar = (lista: any[]) => {
+                const m = new Map<string, number>();
+                lista.forEach(r => m.set(etiqueta(r), (m.get(etiqueta(r)) ?? 0) + esperado(r)));
+                return Array.from(m.entries()).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1]);
+            };
+            const tarimas = agrupar(fuera.filter(r => r.tipo_ubicacion === 'TARIMA'));
+            const otras = agrupar(fuera.filter(r => r.tipo_ubicacion !== 'TARIMA'));
+            const enTarima = tarimas.reduce((a, [, c]) => a + c, 0);
+            const enOtras = otras.reduce((a, [, c]) => a + c, 0);
+            const art = ren[0]?.articulo ?? {};
+
+            return {
+                id_articulo: id,
+                cod_int_artic: art.cod_int_artic ?? null,
+                des_artic: String(art.des_artic ?? '').trim(),
+                cod_barr_artic: String(art.cod_barr_artic ?? '').trim(),
+                // Ubicaciones de los renglones de este inventario (donde se contó / se espera)
+                ubicaciones: (() => {
+                    const labels = Array.from(new Set(ren.map(d => d.ubicacion
+                        ? etiqueta({ ...d.ubicacion, id_ubicacion_sucursal: d.id_ubicacion_sucursal, tipo_ubicacion: d.ubicacion.tarima_ub ? 'TARIMA' : 'ESTANTERIA' })
+                        : 'Sin ubicación')));
+                    return labels.slice(0, 6).join(', ') + (labels.length > 6 ? '…' : '');
+                })(),
+                renglones: ren.length,
+                renglones_sin_contar: sinContar.length,
+                sistema_contados: sistemaContados,
+                contado,
+                por_contar: porContar,
+                en_tarima: enTarima,
+                tarimas: tarimas.map(([e, c]) => `${e} (${c})`).join(', '),
+                en_otras: enOtras,
+                otras: otras.slice(0, 4).map(([e, c]) => `${e} (${c})`).join(', ') + (otras.length > 4 ? '…' : ''),
+                sistema_total: sistemaContados + porContar + enTarima + enOtras,
+                renglones_contados: contados.length,
+                // Contra TODOS los renglones del artículo en este inventario (contados y por contar): lo que el sistema
+                // esperaba en otro lote/ubicación sin contar y apareció contado en otro renglón cuenta como cuadrado.
+                // Un artículo sin ningún renglón contado todavía no tiene diferencia.
+                diferencia_real: contados.length ? contado - sistemaContados - porContar : 0,
+                // Solo lo contado contra lo que el sistema tenía en esos mismos renglones
+                diferencia_contados: contado - sistemaContados,
+            };
+        });
+
+        const suma = (campo: 'sistema_total' | 'contado' | 'sistema_contados' | 'por_contar' | 'en_tarima' | 'en_otras') =>
+            articulos.reduce((a, x) => a + x[campo], 0);
+        return {
+            id_inventario,
+            tipo_inventario: inv.tipo_inventario,
+            status: inv.status,
+            notas: inv.notas ?? null,
+            articulos,
+            totales: {
+                sistema_total: suma('sistema_total'),
+                sistema_contados: suma('sistema_contados'),
+                contado: suma('contado'),
+                por_contar: suma('por_contar'),
+                en_tarima: suma('en_tarima'),
+                en_otras: suma('en_otras'),
+                faltante_real: articulos.filter(a => a.diferencia_real < 0).reduce((s, a) => s - a.diferencia_real, 0),
+                sobrante_real: articulos.filter(a => a.diferencia_real > 0).reduce((s, a) => s + a.diferencia_real, 0),
+            },
+            generado: new Date().toISOString(),
+        };
+    },
+
+    // Resumen consolidado de varios inventarios (los seleccionados en la lista): qué faltó, qué sobró y cuánto
+    // vale en costo. El costo sale del lote de cada renglón; si el lote no tiene costo se usa el último costo
+    // conocido del artículo y, si tampoco hay, se marca "sin costo".
+    resumenSeleccion: async (ids: string[], id_empresa: string) => {
+        const unicos = Array.from(new Set(ids.map(String))).slice(0, 80);
+        const invs: any[] = [];
+        for (const id of unicos) {
+            const inv = await InventarioRepository.getById(id);
+            if (inv && String(inv.id_empresa_sucursal) === String(id_empresa)) invs.push(inv);
+        }
+
+        // Renglones de todos los inventarios, con el sistema en vivo de los que aún no se ajustan
+        const renglones: { id_inventario: string; d: any }[] = [];
+        for (const inv of invs) {
+            const detalles: any[] = (inv.detalles ?? []).map((d: any) => (d.toJSON ? d.toJSON() : d));
+            const vivo = await InventarioRepository.sistemaActual(inv.id_empresa_sucursal, detalles.filter(d => !d.ajustado));
+            for (const d of detalles) {
+                const actual = vivo.get(d.id_detalle_inventario);
+                if (actual !== undefined) d.cant_sistema = actual;
+                renglones.push({ id_inventario: inv.id_inventario, d });
+            }
+        }
+
+        // Costos: del lote del renglón y, si no tiene, el último costo > 0 del artículo en la empresa
+        const loteIds = Array.from(new Set(renglones.map(r => r.d.id_lote).filter(Boolean).map(String)));
+        const lotes = loteIds.length
+            ? await Lote_Articulo_Sucursal.findAll({
+                where: { id_lote_sucursal: { [Op.in]: loteIds } },
+                attributes: ['id_lote_sucursal', 'precio_costo_lote_sucursal'],
+                raw: true,
+            }) as any[]
+            : [];
+        const costoLote = new Map<string, number>(lotes.map(l => [String(l.id_lote_sucursal), Number(l.precio_costo_lote_sucursal) || 0]));
+
+        const idsArt = Array.from(new Set(renglones.map(r => String(r.d.id_articulo))));
+        const ultimos = idsArt.length
+            ? await dbLocal.query<any>(`
+                SELECT DISTINCT ON (id_artic) id_artic, precio_costo_lote_sucursal AS costo
+                FROM lote_articulo_sucursal
+                WHERE id_empre = :emp AND id_artic IN (:ids) AND precio_costo_lote_sucursal > 0
+                ORDER BY id_artic, "createdAt" DESC
+            `, { replacements: { emp: id_empresa, ids: idsArt }, type: QueryTypes.SELECT }) as any[]
+            : [];
+        const ultimoCosto = new Map<string, number>(ultimos.map(u => [String(u.id_artic), Number(u.costo) || 0]));
+
+        type Acum = {
+            id_articulo: string; cod_int_artic: number | null; des_artic: string; cod_barr_artic: string;
+            inventarios: Set<string>; pos: number; neg: number; valor_pos: number; valor_neg: number; sin_costo: boolean;
+            ubicaciones: Set<string>;
+        };
+        const arts = new Map<string, Acum>();
+        const porInv = new Map<string, {
+            renglones: number; contados: number; sin_contar: number; pz_sin_contar: number;
+            faltante_pz: number; sobrante_pz: number; faltante_valor: number; sobrante_valor: number;
+        }>();
+        invs.forEach(i => porInv.set(String(i.id_inventario), {
+            renglones: 0, contados: 0, sin_contar: 0, pz_sin_contar: 0, faltante_pz: 0, sobrante_pz: 0, faltante_valor: 0, sobrante_valor: 0,
+        }));
+
+        const etiquetaUb = (u: any) => !u ? '' : (u.tarima_ub ? `Tarima ${String(u.tarima_ub).trim()}`
+            : [u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub].map((p: any) => String(p ?? '').trim()).filter(Boolean).join('-'));
+
+        for (const { id_inventario, d } of renglones) {
+            const resInv = porInv.get(String(id_inventario))!;
+            resInv.renglones += 1;
+            const contado = d.contado && d.cant_contada !== null && d.cant_contada !== undefined;
+            if (!contado) {
+                resInv.sin_contar += 1;
+                resInv.pz_sin_contar += Number(d.cant_sistema) || 0;
+                continue;
+            }
+            resInv.contados += 1;
+
+            const dif = Number(d.cant_contada) - Number(d.cant_sistema);
+            if (dif === 0) continue;
+
+            const idArt = String(d.id_articulo);
+            const costoDelLote = d.id_lote ? (costoLote.get(String(d.id_lote)) ?? 0) : 0;
+            const costo = costoDelLote > 0 ? costoDelLote : (ultimoCosto.get(idArt) ?? 0);
+
+            if (!arts.has(idArt)) {
+                arts.set(idArt, {
+                    id_articulo: idArt,
+                    cod_int_artic: d.articulo?.cod_int_artic ?? null,
+                    des_artic: String(d.articulo?.des_artic ?? '').trim(),
+                    cod_barr_artic: String(d.articulo?.cod_barr_artic ?? '').trim(),
+                    inventarios: new Set(), pos: 0, neg: 0, valor_pos: 0, valor_neg: 0, sin_costo: false, ubicaciones: new Set(),
+                });
+            }
+            const a = arts.get(idArt)!;
+            a.inventarios.add(String(id_inventario));
+            const ub = etiquetaUb(d.ubicacion);
+            if (ub) a.ubicaciones.add(ub);
+            if (costo <= 0) a.sin_costo = true;
+
+            if (dif > 0) { a.pos += dif; a.valor_pos += dif * costo; resInv.sobrante_pz += dif; resInv.sobrante_valor += dif * costo; }
+            else { a.neg += -dif; a.valor_neg += -dif * costo; resInv.faltante_pz += -dif; resInv.faltante_valor += -dif * costo; }
+        }
+
+        const r2 = (v: number) => Math.round(v * 100) / 100;
+        const articulos = Array.from(arts.values()).map(a => {
+            const bruto = a.pos + a.neg;
+            const costoProm = bruto > 0 ? (a.valor_pos + a.valor_neg) / bruto : 0;
+            const neto = a.pos - a.neg;
+            return {
+                id_articulo: a.id_articulo,
+                cod_int_artic: a.cod_int_artic,
+                des_artic: a.des_artic,
+                cod_barr_artic: a.cod_barr_artic,
+                ubicaciones: Array.from(a.ubicaciones).slice(0, 6).join(', ') + (a.ubicaciones.size > 6 ? '…' : ''),
+                inventarios: a.inventarios.size,
+                sobrante_pz: a.pos,                         // lo que apareció de más (por renglón)
+                faltante_pz: a.neg,                         // lo que faltó (por renglón)
+                neto_pz: neto,                              // positivo = sobrante real, negativo = faltante real
+                entre_lotes_pz: Math.min(a.pos, a.neg),     // salió de un lote y entró a otro: no es faltante ni sobrante
+                costo_promedio: r2(costoProm),
+                valor_sobrante: r2(a.valor_pos),
+                valor_faltante: r2(a.valor_neg),
+                valor_neto: r2(neto * costoProm),           // diferencia real a costo
+                sin_costo: a.sin_costo,
+            };
+        });
+
+        const sum = (l: any[], campo: string) => l.reduce((s, x) => s + (Number(x[campo]) || 0), 0);
+        const faltantes = articulos.filter(a => a.neto_pz < 0);
+        const sobrantes = articulos.filter(a => a.neto_pz > 0);
+        const inventarios = invs.map(inv => {
+            const r = porInv.get(String(inv.id_inventario))!;
+            return {
+                id_inventario: inv.id_inventario,
+                tipo_inventario: inv.tipo_inventario,
+                status: inv.status,
+                notas: inv.notas ?? null,
+                createdAt: inv.createdAt,
+                fecha_aplicacion: inv.fecha_aplicacion ?? null,
+                renglones: r.renglones,
+                contados: r.contados,
+                sin_contar: r.sin_contar,
+                pz_sin_contar: r.pz_sin_contar,
+                faltante_pz: r.faltante_pz,
+                sobrante_pz: r.sobrante_pz,
+                faltante_valor: r2(r.faltante_valor),
+                sobrante_valor: r2(r.sobrante_valor),
+            };
+        });
+
+        return {
+            inventarios,
+            articulos,
+            totales: {
+                inventarios: inventarios.length,
+                renglones: sum(inventarios, 'renglones'),
+                contados: sum(inventarios, 'contados'),
+                sin_contar: sum(inventarios, 'sin_contar'),
+                pz_sin_contar: sum(inventarios, 'pz_sin_contar'),
+                // Bruto: lo que se movió renglón por renglón (lo que queda en el Kardex como entrada/merma por ajuste)
+                faltante_bruto_pz: sum(articulos, 'faltante_pz'),
+                sobrante_bruto_pz: sum(articulos, 'sobrante_pz'),
+                faltante_bruto_valor: r2(sum(articulos, 'valor_faltante')),
+                sobrante_bruto_valor: r2(sum(articulos, 'valor_sobrante')),
+                // Real: por artículo, después de compensar lo que solo cambió de lote o ubicación
+                articulos_con_diferencia: articulos.length,
+                faltante_real_pz: faltantes.reduce((s, a) => s - a.neto_pz, 0),
+                sobrante_real_pz: sobrantes.reduce((s, a) => s + a.neto_pz, 0),
+                faltante_real_valor: r2(faltantes.reduce((s, a) => s - a.valor_neto, 0)),
+                sobrante_real_valor: r2(sobrantes.reduce((s, a) => s + a.valor_neto, 0)),
+                entre_lotes_pz: sum(articulos, 'entre_lotes_pz'),
+                articulos_sin_costo: articulos.filter(a => a.sin_costo).length,
+            },
+            generado: new Date().toISOString(),
+        };
+    },
+
+    // Da de baja los renglones sin contar que siguen vivos en el sistema (ver el repositorio)
+    darDeBajaSinContar: (id_inventario: string, aplicado_por: string, ids?: string[]) =>
+        InventarioRepository.darDeBajaSinContar(id_inventario, aplicado_por, ids),
 
     // Marca si un renglón se va a ajustar o no al aplicar el conteo (mientras se cuenta o ya terminado)
     ajustarRenglon: async (id_detalle_inventario: string, ajustar: boolean) => {

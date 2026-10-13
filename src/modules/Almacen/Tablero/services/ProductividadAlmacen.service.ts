@@ -10,6 +10,9 @@ import { dbLocal } from '../../../../config/db';
 
 const MAX_SEG = 6 * 3600;
 const MIN_SEG = 5;
+export const MAX_SEG_PROCESO = MAX_SEG;
+
+export type UnidadProceso = 'renglón' | 'bulto' | 'artículo' | 'pieza';
 
 interface FilaEmpleado {
     id_empleado: string;
@@ -24,14 +27,14 @@ export interface ProcesoResumen {
     pedidos: number;
     promedio_seg: number;
     descartados: number;
-    unidad: 'renglón' | 'bulto';
+    unidad: UnidadProceso;
     empleados: FilaEmpleado[];
 }
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
 
 // `trabajos` debe devolver: id_pedido, id_empleado, ini, fin, volumen — una fila por (pedido, empleado)
-async function resumir(trabajos: string, desde: string, hasta: string, unidad: 'renglón' | 'bulto'): Promise<ProcesoResumen> {
+export async function resumir(trabajos: string, desde: string, hasta: string, unidad: UnidadProceso): Promise<ProcesoResumen> {
     const base = `
         WITH t AS (${trabajos}),
         d AS (SELECT t.*, EXTRACT(EPOCH FROM (t.fin - t.ini)) AS seg FROM t WHERE t.fin IS NOT NULL AND t.ini IS NOT NULL)

@@ -10,7 +10,14 @@ export interface IEmpresaSucursal {
     correo_empre: string;
     tele_empre: string;
     status_empre: boolean;
-    es_empresa_principal: boolean
+    es_empresa_principal: boolean;
+    nom_empre_facturacion?: string | null;
+    regimen_fiscal_empre?: string | null;      // ej. '601'
+    serie_facturacion_empre?: string | null;   // ej. 'FSH'
+    leyenda_factura_empre?: string | null;
+    id_empresa_sys_anterior?: string | null;   // código en el sistema anterior
+    num_cuenta_banco?: string | null;
+    id_banco_empresa?: string | null;
 }
 export interface ICrearEmpresaSucursal {
     nom_empre: string;
@@ -24,7 +31,14 @@ export interface ICrearEmpresaSucursal {
     tele_empre: string;
     status_empre: boolean;
 
-    es_empresa_principal: boolean
+    es_empresa_principal: boolean;
+    nom_empre_facturacion?: string | null;
+    regimen_fiscal_empre?: string | null;      // ej. '601'
+    serie_facturacion_empre?: string | null;   // ej. 'FSH'
+    leyenda_factura_empre?: string | null;
+    id_empresa_sys_anterior?: string | null;   // código en el sistema anterior
+    num_cuenta_banco?: string | null;
+    id_banco_empresa?: string | null;
 }
 export interface IUpdateEmpresaSucursal {
     id_caja?: string;
@@ -39,5 +53,12 @@ export interface IUpdateEmpresaSucursal {
     tele_empre?: string;
     status_empre?: boolean
 
-    es_empresa_principal: boolean
+    es_empresa_principal?: boolean;
+    nom_empre_facturacion?: string | null;
+    regimen_fiscal_empre?: string | null;      // ej. '601'
+    serie_facturacion_empre?: string | null;   // ej. 'FSH'
+    leyenda_factura_empre?: string | null;
+    id_empresa_sys_anterior?: string | null;   // código en el sistema anterior
+    num_cuenta_banco?: string | null;
+    id_banco_empresa?: string | null;
 }

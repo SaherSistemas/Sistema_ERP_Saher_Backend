@@ -469,4 +469,69 @@ export const InventarioRepository = {
             return inv;
         });
     },
+
+    // Da de baja (deja en 0) los renglones que quedaron SIN CONTAR y siguen vivos en el sistema: por cada uno baja lo que
+    // el sistema espera en el anaquel (existencia menos apartada) y deja una SALIDA_MERMA en el Kardex de ajustes.
+    // Solo toca los renglones con ubicación y lote concretos, los que no estén ya ajustados y, si se mandan, los de `ids`.
+    // Sirve con el inventario TERMINADO o ya APLICADO (en TERMINADO el aplicar normal los ignora porque no se contaron).
+    darDeBajaSinContar: async (id_inventario: string, aplicado_por: string, ids?: string[]) => {
+        return dbLocal.transaction(async (tx) => {
+            const inv = await Inventario.findByPk(id_inventario, { transaction: tx });
+            if (!inv) throw new Error('Inventario no encontrado');
+            if (!['TERMINADO', 'APLICADO'].includes(inv.status)) {
+                throw new Error('Solo se puede dar de baja con el inventario TERMINADO o APLICADO');
+            }
+
+            const where: any = { id_inventario, contado: false, ajustado: false };
+            if (ids && ids.length) where.id_detalle_inventario = { [Op.in]: ids };
+            const detalles = await Detalle_Inventario.findAll({ where, transaction: tx, lock: tx.LOCK.UPDATE });
+
+            let renglones = 0;
+            let piezas = 0;
+            let omitidos = 0;
+
+            for (const d of detalles) {
+                if (!d.id_ubicacion_sucursal || !d.id_lote) { omitidos++; continue; }
+
+                const stock = await Stock_Ubicacion_Lote.findOne({
+                    where: {
+                        id_empresa_sucursal: inv.id_empresa_sucursal,
+                        id_articulo: d.id_articulo,
+                        id_ubicacion_sucursal: d.id_ubicacion_sucursal,
+                        id_lote: d.id_lote,
+                    },
+                    transaction: tx,
+                    lock: tx.LOCK.UPDATE,
+                });
+                const esperado = stock ? esperadoEnAnaquel(stock) : 0;
+
+                if (stock && esperado > 0) {
+                    await stock.update({ cantidad: Math.max(0, Number(stock.cantidad) - esperado) }, { transaction: tx });
+                    await Movimiento_Articulo.create({
+                        id_empresa: inv.id_empresa_sucursal,
+                        id_articulo: d.id_articulo,
+                        tipo_movimiento: 'SALIDA_MERMA',
+                        cantidad: esperado,
+                        fecha: new Date(),
+                        id_lote: d.id_lote,
+                        notas: 'Baja por conteo de inventario (renglón sin contar)',
+                        id_empleado: aplicado_por,
+                    } as any, { transaction: tx });
+                    piezas += esperado;
+                }
+
+                await d.update({
+                    contado: true,
+                    cant_contada: 0,
+                    cant_sistema: esperado,
+                    ajustar: true,
+                    ajustado: true,
+                    comentario: d.comentario ?? 'Dado de baja: no se encontró al contar',
+                }, { transaction: tx });
+                renglones++;
+            }
+
+            return { renglones, piezas, omitidos };
+        });
+    },
 };

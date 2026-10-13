@@ -17,6 +17,7 @@ import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacio
 import Kardex_Movimientos_Articulos from '../../../Almacen/Kardex/model/Kardex_Movimientos_Articulos';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
 import { timbraDevolucionEgreso } from '../helpers/Devolucion_Egreso.helper';
+import Agente_Inventario_Virtual from '../model/Agente_Inventario_Virtual.model';
 
 export const DevolucionClienteRepository = {
 
@@ -190,6 +191,7 @@ export const DevolucionClienteRepository = {
         id_empleado_aprueba: string,
         recibio_mercancia: boolean,
         id_empresa?: string,
+        opciones?: { descontar_cxc?: boolean },
     ) => {
 
         // ── 1. Cargar devolución ──────────────────────────────────────────
@@ -235,10 +237,14 @@ export const DevolucionClienteRepository = {
         }
 
         // ── 4. Timbrar CFDI-E ─────────────────────────────────────────────
+        // Factura VIEJA (migrada o de Público General): no tiene detalle de artículos, así que el
+        // CFDI-E se arma solo por el monto devuelto, repartido en sus tasas de IVA.
+        const esFacturaVieja = (await Detalle_Factura.count({ where: { id_factura: dev.id_factura } })) === 0;
         const egreso = await timbraDevolucionEgreso({
             id_factura: dev.id_factura,
             detalles: dev.detalles,
             id_empresa,
+            solo_total: esFacturaVieja ? monto_devolucion : undefined,
         });
 
         // ── 5. Efectos financieros + stock (dentro de 1 transacción) ─────
@@ -254,7 +260,9 @@ export const DevolucionClienteRepository = {
             let id_cxc_afectada: string | null = null;
 
             // ── 5A. Efecto financiero ────────────────────────────────────
-            if (cxc && cxc.estatus_cxc !== 'PAG') {
+            // En facturas viejas, por defecto SIEMPRE nota de crédito (solo descuenta la CxC si se pidió)
+            const aplicarCxc = !esFacturaVieja || opciones?.descontar_cxc === true;
+            if (aplicarCxc && cxc && cxc.estatus_cxc !== 'PAG') {
                 const nuevo_saldo = Math.max(0, Number(cxc.saldo_pendiente) - monto_devolucion);
                 const nuevo_total = Math.max(0, Number(cxc.monto_total) - monto_devolucion);
                 const nuevo_pagado = Number(cxc.monto_pagado);
@@ -286,7 +294,9 @@ export const DevolucionClienteRepository = {
                 resultado_aprobacion = 'DESCUENTO_CXC';
                 id_cxc_afectada = cxc.id_cxc;
             } else {
-                const concepto = `Devolución aprobada · Factura: ${folio_factura}`;
+                const concepto = esFacturaVieja
+                    ? `Devolución de factura anterior (solo total) · Factura: ${folio_factura}`
+                    : `Devolución aprobada · Factura: ${folio_factura}`;
                 const id_cliente_alm = facturaIncludes?.id_cliente_alm
                     ?? await getClienteFromFactura(dev.id_factura, t);
 
@@ -304,17 +314,33 @@ export const DevolucionClienteRepository = {
                 resultado_aprobacion = 'NOTA_CREDITO';
             }
 
-            // ── 5B. Entrada de mercancía (si se recibió físicamente) ─────
-            if (recibio_mercancia && id_pedido_alm) {
-                await registrarEntradaMercancia({
-                    detalles: dev.detalles,
-                    id_pedido_alm,
-                    id_devolucion_cliente: dev.id_devolucion_cliente,
-                    id_empleado_aprueba,
-                    folio_factura,
-                    id_empresa: id_empresa ?? '',
-                    t,
-                });
+            // ── 5B. Mercancía ─────────────────────────────────────────────
+            //   · Recibida en almacén  → stock SIN UBICACIÓN (+ Kardex)
+            //   · NO recibida          → inventario virtual del agente (no es stock disponible)
+            //   · Factura vieja        → no hay artículos, solo el total
+            let inventario_virtual = false;
+            if (!esFacturaVieja) {
+                if (recibio_mercancia && id_pedido_alm) {
+                    await registrarEntradaMercancia({
+                        detalles: dev.detalles,
+                        id_pedido_alm,
+                        id_devolucion_cliente: dev.id_devolucion_cliente,
+                        id_empleado_aprueba,
+                        folio_factura,
+                        id_empresa: id_empresa ?? '',
+                        t,
+                    });
+                } else if (!recibio_mercancia) {
+                    inventario_virtual = (await registrarInventarioVirtual({
+                        detalles: dev.detalles,
+                        id_pedido_alm,
+                        id_devolucion_cliente: dev.id_devolucion_cliente,
+                        id_agente: dev.id_agente,
+                        folio_factura,
+                        id_empresa: id_empresa ?? '',
+                        t,
+                    })) > 0;
+                }
             }
 
             // ── 5C. Actualizar devolución ────────────────────────────────
@@ -329,7 +355,7 @@ export const DevolucionClienteRepository = {
             }, { transaction: t });
 
             await t.commit();
-            return { dev, resultado_aprobacion, monto_devolucion, egreso, recibio_mercancia };
+            return { dev, resultado_aprobacion, monto_devolucion, egreso, recibio_mercancia, es_factura_vieja: esFacturaVieja, inventario_virtual };
 
         } catch (err) {
             await t.rollback();
@@ -379,6 +405,156 @@ export const DevolucionClienteRepository = {
         return mapa;
     },
 
+    // ── ADMIN: buscar facturas por folio o cliente (sin restringir al agente) ──
+    //    n_detalles = 0 → factura vieja (migrada): solo se puede hacer nota de crédito por el total.
+    buscarFacturasAdmin: async (busqueda: string) => {
+        return await dbLocal.query<any>(`
+            SELECT f.id_factura, f.folio_factura, f.fecha_emision, f.total_factura, f.estatus_factura,
+                   c.razon_social_cliente_alm AS cliente,
+                   ag.id_agente,
+                   TRIM(CONCAT_WS(' ', e.nombre_empleado, e.ap_pat_empleado, e.ap_mat_empleado)) AS agente,
+                   (SELECT COUNT(*) FROM detalle_factura d WHERE d.id_factura = f.id_factura)::int AS n_detalles
+            FROM facturas f
+            LEFT JOIN cliente_almacen c ON c.id_cliente_alm = f.id_cliente_alm
+            LEFT JOIN pedido_almacen p ON p.id_pedido_alm = f.id_pedido_alm
+            LEFT JOIN agente_de_venta ag ON ag.id_agente = COALESCE(p.id_agente_pedido_alm, c.id_agente_cliente_alm)
+            LEFT JOIN empleado e ON e.id_empleado = ag.id_empleado
+            WHERE f.tipo_cfdi = 'I'
+              AND f.estatus_factura <> 'CAN'
+              AND (f.folio_factura ILIKE :q OR c.razon_social_cliente_alm ILIKE :q)
+            ORDER BY f.fecha_emision DESC
+            LIMIT 25
+        `, { replacements: { q: `%${busqueda}%` }, type: QueryTypes.SELECT });
+    },
+
+    // ── ADMIN: cabecera de la factura + agente a quien se le carga la devolución ──
+    getCabeceraFacturaAdmin: async (id_factura: string) => {
+        const filas = await dbLocal.query<any>(`
+            SELECT f.id_factura, f.folio_factura, f.fecha_emision, f.total_factura, f.estatus_factura, f.id_pedido_alm,
+                   c.razon_social_cliente_alm AS cliente,
+                   ag.id_agente,
+                   TRIM(CONCAT_WS(' ', e.nombre_empleado, e.ap_pat_empleado, e.ap_mat_empleado)) AS agente
+            FROM facturas f
+            LEFT JOIN cliente_almacen c ON c.id_cliente_alm = f.id_cliente_alm
+            LEFT JOIN pedido_almacen p ON p.id_pedido_alm = f.id_pedido_alm
+            LEFT JOIN agente_de_venta ag ON ag.id_agente = COALESCE(p.id_agente_pedido_alm, c.id_agente_cliente_alm)
+            LEFT JOIN empleado e ON e.id_empleado = ag.id_empleado
+            WHERE f.id_factura = :id AND f.tipo_cfdi = 'I'
+        `, { replacements: { id: id_factura }, type: QueryTypes.SELECT });
+        return filas[0] ?? null;
+    },
+
+    // ── Total ya comprometido en devoluciones PENDIENTE/APROBADA de una factura ──
+    getMontoYaDevuelto: async (id_factura: string): Promise<number> => {
+        const filas = await dbLocal.query<{ total: string }>(`
+            SELECT COALESCE(SUM(dd.subtotal_devolucion), 0) AS total
+            FROM devolucion_cliente dc
+            JOIN devolucion_cliente_detalle dd ON dd.id_devolucion_cliente = dc.id_devolucion_cliente
+            WHERE dc.id_factura = :id AND dc.estatus IN ('PENDIENTE', 'APROBADA')
+        `, { replacements: { id: id_factura }, type: QueryTypes.SELECT });
+        return Number(filas[0]?.total ?? 0);
+    },
+
+    // ── Inventario virtual de agentes ──────────────────────────────────
+    getInventarioVirtual: async (id_empresa: string, filtros: { id_agente?: string; estatus?: string }) => {
+        return await dbLocal.query<any>(`
+            SELECT v.id_inventario_virtual, v.id_agente, v.id_devolucion_cliente, v.id_articulo, v.id_lote,
+                   v.descripcion_articulo, v.cantidad, v.folio_factura, v.estatus,
+                   v."createdAt" AS fecha, v.fecha_recibido,
+                   a.cod_int_artic, a.cod_barr_artic,
+                   l.numero_lote_sucursal, l.fecha_venci_lote_sucursal,
+                   TRIM(CONCAT_WS(' ', e.nombre_empleado, e.ap_pat_empleado, e.ap_mat_empleado)) AS agente
+            FROM agente_inventario_virtual v
+            LEFT JOIN articulo a ON a.id_artic = v.id_articulo
+            LEFT JOIN lote_articulo_sucursal l ON l.id_lote_sucursal = v.id_lote
+            LEFT JOIN agente_de_venta ag ON ag.id_agente = v.id_agente
+            LEFT JOIN empleado e ON e.id_empleado = ag.id_empleado
+            WHERE v.id_empresa = :emp
+              AND v.estatus = :estatus
+              ${filtros.id_agente ? 'AND v.id_agente = :id_agente' : ''}
+            ORDER BY agente ASC, v."createdAt" DESC
+        `, {
+            replacements: { emp: id_empresa, estatus: filtros.estatus || 'EN_AGENTE', id_agente: filtros.id_agente ?? null },
+            type: QueryTypes.SELECT,
+        });
+    },
+
+    // Pasa mercancía del inventario del agente al almacén: stock SIN UBICACIÓN + Kardex ENTRADA.
+    // Cada renglón va en su propia transacción: si uno falla, los demás sí se reciben.
+    recibirInventarioVirtual: async (ids: string[], id_empresa: string, id_empleado: string) => {
+        const recibidos: { id: string; descripcion: string; cantidad: number }[] = [];
+        const errores: { id: string; descripcion: string; mensaje: string }[] = [];
+
+        for (const id of ids) {
+            const t = await dbLocal.transaction();
+            let descripcion = id;
+            try {
+                const fila = await Agente_Inventario_Virtual.findOne({
+                    where: { id_inventario_virtual: id, id_empresa },
+                    transaction: t,
+                    lock: t.LOCK.UPDATE,
+                });
+                if (!fila) throw new Error('Renglón no encontrado.');
+                descripcion = fila.descripcion_articulo;
+                if (fila.estatus !== 'EN_AGENTE') throw new Error('Ya fue recibido en almacén.');
+                if (!fila.id_articulo || !fila.id_lote) {
+                    throw new Error('No tiene lote asociado; no se puede dar entrada al stock sin lote.');
+                }
+
+                const cantidad = Number(fila.cantidad);
+                const [stockRow] = await Stock_Ubicacion_Lote.findOrCreate({
+                    where: {
+                        id_lote: fila.id_lote,
+                        id_articulo: fila.id_articulo,
+                        id_empresa_sucursal: id_empresa,
+                        id_ubicacion_sucursal: null,
+                    },
+                    defaults: {
+                        id_stock_ubicacion_lote: uuidv4(),
+                        id_lote: fila.id_lote,
+                        id_articulo: fila.id_articulo,
+                        id_empresa_sucursal: id_empresa,
+                        id_ubicacion_sucursal: null,
+                        cantidad: 0,
+                        cantidad_apartada: 0,
+                    },
+                    transaction: t,
+                });
+                await stockRow.update({ cantidad: Number(stockRow.cantidad) + cantidad }, { transaction: t });
+
+                await Kardex_Movimientos_Articulos.create({
+                    id_kardex_movimientos: uuidv4(),
+                    id_empresa,
+                    fecha: new Date(),
+                    id_articulo: fila.id_articulo,
+                    id_lote: fila.id_lote,
+                    tipo_movimiento: 'ENTRADA',
+                    categoria: 'Entrada_Salida',
+                    id_origen_ubicacion: null,
+                    id_destino_ubicacion: null,
+                    cantidad_movimiento: cantidad,
+                    documento_ref: fila.id_devolucion_cliente,
+                    id_pedido: null,
+                    id_empleado,
+                    // Mismo formato que la devolución recibida directo: el tablero de acomodo lo reconoce como "Devolución"
+                    notas: `Devolución recibida · Sin ubicar · Factura ${fila.folio_factura ?? ''}`.trim(),
+                }, { transaction: t });
+
+                await fila.update(
+                    { estatus: 'RECIBIDO', fecha_recibido: new Date(), id_empleado_recibe: id_empleado },
+                    { transaction: t },
+                );
+
+                await t.commit();
+                recibidos.push({ id, descripcion, cantidad });
+            } catch (err: any) {
+                await t.rollback();
+                errores.push({ id, descripcion, mensaje: err?.message ?? 'Error desconocido' });
+            }
+        }
+        return { recibidos, errores };
+    },
+
     // ── Buscar facturas del agente por folio (para el buscador) ──
     buscarFacturasAgente: async (id_agente: string, busqueda: string) => {
         const { Op } = await import('sequelize');
@@ -414,6 +590,63 @@ async function getClienteFromFactura(id_factura: string, t: any): Promise<string
     return factura.id_cliente_alm;
 }
 
+// Lote con el que salió cada artículo en el pedido original (el de mayor cantidad).
+async function lotesOriginalesDelPedido(id_pedido_alm: string, idsArticulos: string[], t: Transaction) {
+    const mapa = new Map<string, string>();
+    if (!idsArticulos.length) return mapa;
+    const filas = await dbLocal.query<{ id_articulo: string; id_lote_sucursal: string }>(`
+        SELECT dpa.id_articulo, dpal.id_lote_sucursal
+        FROM detalle_pedido_almacen      dpa
+        JOIN detalle_pedido_almacen_lote dpal
+            ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+        WHERE dpa.id_pedido_almacen = :id_pedido_alm
+          AND dpa.id_articulo IN (:ids)
+        GROUP BY dpa.id_articulo, dpal.id_lote_sucursal
+        ORDER BY SUM(dpal.cantidad) DESC
+    `, {
+        replacements: { id_pedido_alm, ids: idsArticulos },
+        type: QueryTypes.SELECT,
+        transaction: t,
+    });
+    for (const f of filas) if (!mapa.has(f.id_articulo)) mapa.set(f.id_articulo, f.id_lote_sucursal);
+    return mapa;
+}
+
+// Mercancía devuelta que NO llegó al almacén: queda en el inventario virtual del agente.
+// Devuelve cuántos renglones se registraron.
+async function registrarInventarioVirtual(params: {
+    detalles: import('../model/Devolucion_Cliente_Detalle.model').default[];
+    id_pedido_alm: string | null;
+    id_devolucion_cliente: string;
+    id_agente: string;
+    folio_factura: string;
+    id_empresa: string;
+    t: Transaction;
+}): Promise<number> {
+    const { detalles, id_pedido_alm, id_devolucion_cliente, id_agente, folio_factura, id_empresa, t } = params;
+    const conArticulo = detalles.filter(d => d.id_articulo && Number(d.cantidad_devolucion) > 0);
+    if (!conArticulo.length) return 0;
+
+    const loteMap = id_pedido_alm
+        ? await lotesOriginalesDelPedido(id_pedido_alm, conArticulo.map(d => d.id_articulo!), t)
+        : new Map<string, string>();
+
+    await Agente_Inventario_Virtual.bulkCreate(conArticulo.map(d => ({
+        id_inventario_virtual: uuidv4(),
+        id_empresa,
+        id_agente,
+        id_devolucion_cliente,
+        id_articulo: d.id_articulo!,
+        id_lote: loteMap.get(d.id_articulo!) ?? null,
+        descripcion_articulo: d.descripcion_articulo,
+        cantidad: Number(d.cantidad_devolucion),
+        folio_factura,
+        estatus: 'EN_AGENTE',
+    })), { transaction: t });
+
+    return conArticulo.length;
+}
+
 // Registra la entrada física de mercancía devuelta reutilizando el lote original.
 //
 // Flujo por cada artículo devuelto:
@@ -439,37 +672,12 @@ async function registrarEntradaMercancia(params: {
     const detallesConArticulo = detalles.filter(d => d.id_articulo);
     if (!detallesConArticulo.length) return;
 
-    // Obtener los lotes originales del pedido para cada artículo devuelto
-    const articulosIds = detallesConArticulo.map(d => `'${d.id_articulo}'`).join(', ');
-    const lotesOriginales = await dbLocal.query<{
-        id_articulo: string;
-        id_lote_sucursal: string;
-        cantidad_total: string;
-    }>(`
-        SELECT
-            dpa.id_articulo,
-            dpal.id_lote_sucursal,
-            SUM(dpal.cantidad) AS cantidad_total
-        FROM detalle_pedido_almacen      dpa
-        JOIN detalle_pedido_almacen_lote dpal
-            ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
-        WHERE dpa.id_pedido_almacen = :id_pedido_alm
-          AND dpa.id_articulo IN (${articulosIds})
-        GROUP BY dpa.id_articulo, dpal.id_lote_sucursal
-        ORDER BY SUM(dpal.cantidad) DESC
-    `, {
-        replacements: { id_pedido_alm },
-        type: QueryTypes.SELECT,
-        transaction: t,
-    });
-
-    // Mapa: id_articulo → id_lote_sucursal (primer lote = el de mayor cantidad)
-    const loteMap = new Map<string, string>();
-    for (const row of lotesOriginales) {
-        if (!loteMap.has(row.id_articulo)) {
-            loteMap.set(row.id_articulo, row.id_lote_sucursal);
-        }
-    }
+    // Mapa: id_articulo → id_lote_sucursal (el lote que más salió en el pedido original)
+    const loteMap = await lotesOriginalesDelPedido(
+        id_pedido_alm,
+        detallesConArticulo.map(d => d.id_articulo!),
+        t,
+    );
 
     const now = new Date();
 

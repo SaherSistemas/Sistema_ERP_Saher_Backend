@@ -1,3 +1,4 @@
+import { ordenarLotes } from '../../../../utils/ordenLotes';
 import {
   ILotesArticuloSucursal,
   ICreaterOrUdateLotesArticuloSucursal
@@ -53,10 +54,18 @@ export const LotesArticuloSucursalService = {
     if (opts?.ordenar === 'fifo') order = [['createdAt', 'ASC']];
     if (opts?.ordenar === 'recientes') order = [['createdAt', 'DESC']];
 
-    const lotes = await LotesArticuloSucursalRepository.listByEmpresaArticulo(id_empre, id_artic, {
+    const lotesBase = await LotesArticuloSucursalRepository.listByEmpresaArticulo(id_empre, id_artic, {
       where,
       order
     });
+    // Por default (sin pedir fifo / recientes) se ordena con la regla compartida: caducidad → número de lote → entrada
+    const lotes = opts?.ordenar
+      ? lotesBase
+      : ordenarLotes(lotesBase, l => ({
+        numero: l.numero_lote_sucursal,
+        caducidad: l.fecha_venci_lote_sucursal as any,
+        entrada: (l as any).createdAt,
+      }));
 
     if (!lotes.length) return [];
 

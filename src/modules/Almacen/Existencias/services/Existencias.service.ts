@@ -1,3 +1,4 @@
+import { ordenarLotes } from '../../../../utils/ordenLotes';
 import { Op, QueryTypes, Transaction } from 'sequelize'
 import { dbLocal } from '../../../../config/db'
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote'
@@ -42,7 +43,7 @@ export const ExistenciasService = {
 
     // Todas las filas de stock_ubicacion_lote del artículo en la empresa: dónde está y de qué lote.
     getPorArticulo: async (id_empresa: string, id_articulo: string) => {
-        const rows = await dbLocal.query<any>(`
+        const rowsBase = await dbLocal.query<any>(`
             SELECT
                 s.id_stock_ubicacion_lote,
                 s.id_ubicacion_sucursal,
@@ -51,6 +52,7 @@ export const ExistenciasService = {
                 COALESCE(s.cantidad_apartada, 0) AS cantidad_apartada,
                 l.numero_lote_sucursal,
                 l.fecha_venci_lote_sucursal,
+                l."createdAt" AS lote_creado,
                 l.precio_costo_lote_sucursal,
                 u.tipo_ubicacion, u.tarima_ub, u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub
             FROM stock_ubicacion_lote s
@@ -62,6 +64,14 @@ export const ExistenciasService = {
                      u.pasillo_ub ASC NULLS LAST, NULLIF(regexp_replace(u.anaquel_ub, '[^0-9]', '', 'g'), '')::int NULLS LAST, u.anaquel_ub NULLS LAST,
                      NULLIF(regexp_replace(u.nivel_ub, '[^0-9]', '', 'g'), '')::int NULLS LAST, u.nivel_ub NULLS LAST, NULLIF(regexp_replace(u.posicion_ub, '[^0-9]', '', 'g'), '')::int NULLS LAST, u.posicion_ub NULLS LAST
         `, { replacements: { id_empresa, id_articulo }, type: QueryTypes.SELECT })
+
+        // Mismo orden que usa el surtido: caducidad (por día) → número de lote natural → fecha de entrada.
+        // Las filas de un mismo lote conservan el orden por ubicación de la consulta.
+        const rows = ordenarLotes(rowsBase, (r: any) => ({
+            numero: r.numero_lote_sucursal,
+            caducidad: r.fecha_venci_lote_sucursal,
+            entrada: r.lote_creado,
+        }))
 
         // Pedidos que tienen piezas de cada lote y todavía no descuentan stock (antes de facturar/entregar)
         const pedidosRows = await dbLocal.query<any>(`

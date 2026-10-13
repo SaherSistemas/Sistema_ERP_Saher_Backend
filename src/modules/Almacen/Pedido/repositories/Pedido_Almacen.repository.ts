@@ -279,9 +279,18 @@ export const Pedido_AlmacenRepository = {
     fechaEntrega.setDate(fechaEntrega.getDate() + saltoDias);
     return conHora(fechaEntrega, reglaSiguiente.hora_entrega_max);
   },
+  // Deja anotado cuándo el pedido pasó a Capturado (si ya había fecha, la reemplaza: se volvió a capturar)
+  registrarCaptura: async (id_pedido_alm: string, transaction?: Transaction) => {
+    await Pedido_Almacen.update(
+      { fecha_capturado_alm: new Date() },
+      { where: { id_pedido_alm }, transaction },
+    );
+  },
+
   actualizarFinCapturado: async (id_pedido: string, transaction?: Transaction) => {
     const pedido = await Pedido_AlmacenRepository.getByID(id_pedido)
     if (!pedido) return null
+    await Pedido_AlmacenRepository.registrarCaptura(id_pedido, transaction)
 
 
     //OBTENER FECHA MAXIMA DE ENTRAGA ALMACEN 
@@ -376,7 +385,16 @@ export const Pedido_AlmacenRepository = {
     excluir_finalizados?: boolean;
     id_agente?: string;
   }) => {
-    const { fecha_inicio, fecha_fin, status, busqueda, page = 1, limit = 50, excluir_finalizados, id_agente } = params;
+    const { page = 1, limit = 50 } = params;
+    // Con un término de búsqueda (folio o cliente) se busca en TODA la tabla: se ignoran fechas, estatus, la vista de
+    // "solo Capturado y Surtiendo" y el agente elegido.
+    const busqueda = (params.busqueda ?? '').trim();
+    const modoBusqueda = busqueda.length > 0;
+    const fecha_inicio = modoBusqueda ? undefined : params.fecha_inicio;
+    const fecha_fin = modoBusqueda ? undefined : params.fecha_fin;
+    const status = modoBusqueda ? undefined : params.status;
+    const excluir_finalizados = modoBusqueda ? undefined : params.excluir_finalizados;
+    const id_agente = modoBusqueda ? undefined : params.id_agente;
     const offset = (page - 1) * limit;
     const porAtender = status === 'CA' || status === 'SU' || (!status && !!excluir_finalizados);
 
@@ -439,6 +457,8 @@ export const Pedido_AlmacenRepository = {
         'id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'tipo_pedido_alm',
         'origen_pedido', 'createdAt', 'inicio_surtido', 'fecha_max_entrega_alm', 'fecha_entrega_al_cliente',
         'fecha_facturado_pedido_alm',
+        // Cuándo pasó a Capturado (null en pedidos anteriores a este campo: ahí se usa createdAt)
+        ['fecha_capturado_alm', 'fecha_capturado'],
       ],
       include: [
         {
@@ -466,14 +486,17 @@ export const Pedido_AlmacenRepository = {
           include: [{ model: Articulo, attributes: ['id_artic', 'cod_int_artic', 'des_artic', 'cod_barr_artic'] }],
         },
       ],
-      order: [
-        // Pedidos por atender (Capturado / Surtiendo): los de agente (AGE) siempre arriba, como en la cola de surtido.
-        // En el historial de otros estatus no se aplica.
-        ...(porAtender ? [[literal(`CASE WHEN "Pedido_Almacen".tipo_pedido_alm = 'AGE' THEN 0 ELSE 1 END`), 'ASC'] as any] : []),
-        [literal(`CASE WHEN "Pedido_Almacen".fecha_max_entrega_alm IS NULL THEN 1 ELSE 0 END`), 'ASC'],
-        ['fecha_max_entrega_alm', 'ASC'],
-        ['createdAt', 'DESC'],
-      ],
+      order: (modoBusqueda
+        // Búsqueda: lo más reciente primero
+        ? [['createdAt', 'DESC']]
+        : [
+          // Pedidos por atender (Capturado / Surtiendo): los de agente (AGE) siempre arriba, como en la cola de surtido.
+          // En el historial de otros estatus no se aplica.
+          ...(porAtender ? [[literal(`CASE WHEN "Pedido_Almacen".tipo_pedido_alm = 'AGE' THEN 0 ELSE 1 END`), 'ASC'] as any] : []),
+          [literal(`CASE WHEN "Pedido_Almacen".fecha_max_entrega_alm IS NULL THEN 1 ELSE 0 END`), 'ASC'],
+          ['fecha_max_entrega_alm', 'ASC'],
+          ['createdAt', 'DESC'],
+        ]) as any,
       limit,
       offset,
       distinct: true,

@@ -1,3 +1,4 @@
+import { ordenarLotes } from '../../../../utils/ordenLotes';
 import { v4 as uuidv4 } from 'uuid';
 import { Op, Sequelize, Transaction, FindOptions, fn, col, literal, QueryTypes } from 'sequelize';
 import Lote_Articulo_Sucursal from '../model/Lote_Articulo_Sucursal';
@@ -329,16 +330,22 @@ export const LotesArticuloSucursalRepository = {
 
     const id_artic = articulo.id_artic;
 
-    return Lote_Articulo_Sucursal.findAll({
+    const lotes = await Lote_Articulo_Sucursal.findAll({
       where: {
         id_empre,
         id_artic,
         cantidad_entrada_lote: { [Op.gt]: 0 }
       },
-      attributes: ['id_lote_sucursal', 'fecha_venci_lote_sucursal', 'numero_lote_sucursal', 'cantidad_entrada_lote'],
+      attributes: ['id_lote_sucursal', 'fecha_venci_lote_sucursal', 'numero_lote_sucursal', 'cantidad_entrada_lote', 'createdAt'],
       order: [['fecha_venci_lote_sucursal', 'ASC']],
-      limit: 1
     });
+
+    // El primero según la regla compartida de lotes (caducidad → número de lote → fecha de entrada)
+    return ordenarLotes(lotes, l => ({
+      numero: l.numero_lote_sucursal,
+      caducidad: l.fecha_venci_lote_sucursal as any,
+      entrada: (l as any).createdAt,
+    })).slice(0, 1);
   },
 
   findByPkInEmpresaArticulo: async (

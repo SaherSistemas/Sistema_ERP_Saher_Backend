@@ -319,7 +319,8 @@ export function generarTxtEgreso(opts: {
     L.push(`RFC2: ${receptor.rfc}`);
     L.push(`DOMICILIOFISCAL: ${receptor.domicilio_fiscal}`);
     L.push(`REGIMENFISCAL2: ${receptor.regimen_fiscal ?? '616'}`);
-    L.push(`USOCFDI: G02`);
+    // Con RFC genérico (Público General) el SAT solo acepta S01; con cliente real, G02 (devoluciones)
+    L.push(`USOCFDI: ${receptor.rfc === RFC_PUBLICO_GENERAL_TXT ? 'S01' : 'G02'}`);
     L.push('[/DATOS_RECEPTOR]', '');
 
     L.push('[DATOS_CFD]');

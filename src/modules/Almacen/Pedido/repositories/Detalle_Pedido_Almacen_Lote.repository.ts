@@ -52,7 +52,11 @@ export const Detalle_Pedido_Almacen_LoteRepository = {
                 include: [{ model: Ubicacion_Sucursal, as: 'ubicacion', required: false, attributes: ['tipo_ubicacion'] }],
                 transaction,
             });
-            return !!s?.id_ubicacion_sucursal && (s as any).ubicacion?.tipo_ubicacion !== 'TARIMA';
+            if (!s) return false;
+            // El plan eligió mercancía SIN UBICACIÓN (p. ej. lo que regresó de una factura cancelada): se aparta tal cual,
+            // sin irse a la estantería del mismo lote, porque es justo lo que ya está a la mano.
+            if (!s.id_ubicacion_sucursal) return true;
+            return (s as any).ubicacion?.tipo_ubicacion !== 'TARIMA';
         };
         const marcados = await Promise.all(lotes.map(async (item) => ({ item, est: await esEstanteria(item) })));
         const ordenados = [...marcados.filter(m => m.est), ...marcados.filter(m => !m.est)];

@@ -1,6 +1,7 @@
 import { Response } from 'express'
 import { AuthedRequest } from '../../../../middleware/auth'
 import { ExistenciasService } from '../services/Existencias.service'
+import { MapaPasilloService } from '../services/MapaPasillo.service'
 
 const ctx = (req: AuthedRequest) => ({
     id_empresa: String(req.user?.id_empresa || '').trim(),
@@ -8,6 +9,30 @@ const ctx = (req: AuthedRequest) => ({
 })
 
 export const ExistenciasController = {
+
+    // GET /almacen/existencias_ubicacion/mapa-pasillo/pasillos
+    getPasillos: async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_empresa } = ctx(req)
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return }
+            res.status(200).json(await MapaPasilloService.getPasillos(id_empresa))
+        } catch (e: any) {
+            console.error('[Existencias.getPasillos]', e)
+            res.status(500).json({ message: e.message ?? 'Error al consultar los pasillos.' })
+        }
+    },
+
+    // GET /almacen/existencias_ubicacion/mapa-pasillo?pasillo=A
+    getMapaPasillo: async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_empresa } = ctx(req)
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return }
+            res.status(200).json(await MapaPasilloService.getMapa(id_empresa, String(req.query.pasillo ?? '')))
+        } catch (e: any) {
+            console.error('[Existencias.getMapaPasillo]', e)
+            res.status(400).json({ message: e.message ?? 'Error al consultar el pasillo.' })
+        }
+    },
 
     getPorArticulo: async (req: AuthedRequest, res: Response) => {
         try {
