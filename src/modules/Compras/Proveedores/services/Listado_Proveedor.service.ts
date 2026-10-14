@@ -57,7 +57,8 @@ export const Listado_ProveedorService = {
             columna_Descripcion,
             columna_Existencia,
             columna_Precio,
-            columna_FilaInicio
+            columna_FilaInicio,
+            columna_CodInternoProv   // opcional: código del artículo en el sistema del proveedor
         } = body;
 
         if (!columna_codBarras || !columna_Descripcion || !columna_Existencia || !columna_Precio || !id_proveedor) {
@@ -80,6 +81,9 @@ export const Listado_ProveedorService = {
             descrip_pro_detlis: String(row[columna_Descripcion] || '').trim(),
             exist_pro_detlist: Number(row[columna_Existencia]) || 0,
             preio_pro_detlist: parseFloat(row[columna_Precio]) || 0.0,
+            cod_interno_articulo_prove_detlist: columna_CodInternoProv
+                ? (String(row[String(columna_CodInternoProv).trim().toUpperCase()] ?? '').trim() || null)
+                : null,
         }));
         // Todo en una transacción con un lock por proveedor: si dos cargas del mismo proveedor llegan casi
         // al mismo tiempo (doble clic en "Subir"), la segunda espera a que la primera termine su

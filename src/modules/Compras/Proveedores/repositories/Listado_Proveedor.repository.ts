@@ -76,7 +76,8 @@ export const Listado_ProveedorRepository = {
                 "cod_barra_pro_detlist",
                 "descrip_pro_detlis",
                 "exist_pro_detlist",
-                "preio_pro_detlist"
+                "preio_pro_detlist",
+                "cod_interno_articulo_prove_detlist"
             ],
             transaction: t,
         });

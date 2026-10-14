@@ -252,9 +252,17 @@ export class Pedido_AlmacenController {
   static actualizarDetalles = async (req: Request, res: Response) => {
     const data: ActualizarDetallesPedidoRequest = req.body;
 
-    const pedidoAActualizar = await Pedido_AlmacenService.actualizarDetallesPedidoServ(data);
-
-    res.status(200).json("HOLA");
+    try {
+      await Pedido_AlmacenService.actualizarDetallesPedidoServ(data);
+      res.status(200).json("HOLA");
+    } catch (error: any) {
+      if (error?.status) {
+        res.status(error.status).json({ mensaje: error.message, message: error.message });
+        return;
+      }
+      console.error(error);
+      res.status(500).json({ mensaje: 'Error al actualizar el pedido.' });
+    }
   }
 
 
@@ -491,8 +499,12 @@ export class Pedido_AlmacenController {
       const nuevo = await Pedido_AlmacenService.create(data);
 
       res.status(201).json(nuevo);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
+      if (error?.status === 400) {
+        res.status(400).json({ mensaje: error.message, message: error.message });
+        return;
+      }
       res.status(500).json({ mensaje: 'Error al crear pedido.' });
     }
   };

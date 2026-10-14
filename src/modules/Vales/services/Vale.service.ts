@@ -324,8 +324,8 @@ export const ValeService = {
             LEFT JOIN pedido_almacen pa ON pa.id_empleado_vale = e.id_empleado
                 AND pa.origen_pedido = 'VALE'
                 AND pa.status_pedido_alm IN ('CA', 'SU', 'CH', 'EM', 'EN')
-                ${fecha_inicio ? `AND pa."createdAt"::date >= :fecha_inicio` : ''}
-                ${fecha_fin    ? `AND pa."createdAt"::date <= :fecha_fin`    : ''}
+                ${fecha_inicio ? `AND ${fechaValeSql('pa')} >= :fecha_inicio` : ''}
+                ${fecha_fin    ? `AND ${fechaValeSql('pa')} <= :fecha_fin`    : ''}
             WHERE e.id_sucursal_empleado = :id_empresa
               AND e.estatus_empleado = true
             GROUP BY e.id_empleado, e.idinterno_empleado, e.nombre_empleado,
@@ -375,8 +375,8 @@ export const ValeService = {
               AND pa.origen_pedido    = 'VALE'
               -- Cancelados y negados no son vales activos: no se cobran, no deben salir con importe
               AND pa.status_pedido_alm NOT IN ('FA', 'CN', 'NE')
-              ${fecha_inicio ? `AND pa."createdAt"::date >= :fecha_inicio` : ''}
-              ${fecha_fin    ? `AND pa."createdAt"::date <= :fecha_fin`    : ''}
+              ${fecha_inicio ? `AND ${fechaValeSql('pa')} >= :fecha_inicio` : ''}
+              ${fecha_fin    ? `AND ${fechaValeSql('pa')} <= :fecha_fin`    : ''}
             ORDER BY pa."createdAt" DESC, a.des_artic ASC
         `, { type: QueryTypes.SELECT, replacements: { id_empleado, fecha_inicio, fecha_fin } });
 

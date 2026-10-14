@@ -751,6 +751,13 @@ export const Pedido_AlmacenService = {
   },
 
   create: async (data: ICreatePedidoAlmacenCompleto) => {
+    // Un artículo sin precio (menos de 1 centavo) no se puede pedir: se rechaza todo el pedido antes de crear nada
+    const sinPrecio = (data.detalle ?? []).filter((i: any) => !(Number(i.precio_unitario) >= 0.01));
+    if (sinPrecio.length > 0) {
+      const nombres = sinPrecio.map((i: any) => i.descripcion ?? i.codigo_interno ?? i.id_articulo);
+      throw { status: 400, message: `Hay artículos sin precio asignado, no se pueden pedir: ${nombres.join(', ')}. Quítalos del pedido.` };
+    }
+
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
@@ -1887,6 +1894,44 @@ export const Pedido_AlmacenService = {
         return x.idx - y.idx;
       });
       itemsConFefo.splice(0, itemsConFefo.length, ...conLlave.map(c => c.item));
+    }
+
+    // Otras ubicaciones con existencia de cada artículo (las que NO salen ya en sus renglones de lote), para que
+    // el surtidor sepa dónde más hay si la sugerida no alcanza o no está. Respeta la caducidad mínima del agente.
+    try {
+      const idsArt = Array.from(new Set((itemsConFefo as any[]).map(i => i.id_artic).filter(Boolean)));
+      if (idsArt.length) {
+        const filasOtras = await dbLocal.query<any>(`
+          SELECT s.id_articulo, s.id_ubicacion_sucursal, SUM(s.cantidad) AS pz,
+                 u.tipo_ubicacion, u.tarima_ub, u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub
+          FROM stock_ubicacion_lote s
+          LEFT JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = s.id_ubicacion_sucursal
+          LEFT JOIN lote_articulo_sucursal l ON l.id_lote_sucursal = s.id_lote
+          WHERE s.id_empresa_sucursal = :id_empresa AND s.id_articulo IN (:ids) AND COALESCE(s.cantidad, 0) > 0
+            AND (:meses = 0 OR l.fecha_venci_lote_sucursal IS NULL
+                 OR l.fecha_venci_lote_sucursal >= (CURRENT_DATE + (:meses * INTERVAL '1 month')))
+          GROUP BY s.id_articulo, s.id_ubicacion_sucursal, u.tipo_ubicacion, u.tarima_ub,
+                   u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub`,
+          { replacements: { id_empresa, ids: idsArt, meses: Number(mesesMin) || 0 }, type: QueryTypes.SELECT });
+        const porArt = new Map<string, Array<{ ubicacion: string; pz: number }>>();
+        for (const r of filasOtras) {
+          const lista = porArt.get(String(r.id_articulo)) ?? [];
+          lista.push({ ubicacion: r.id_ubicacion_sucursal ? etiquetaUbicacion(r) : 'Sin ubicación', pz: Number(r.pz) || 0 });
+          porArt.set(String(r.id_articulo), lista);
+        }
+        for (const item of itemsConFefo as any[]) {
+          // Las que ya aparecen en los renglones de lote (ubicacion_lote puede traer "A-1-2 (5), B-2-1 (3)")
+          const yaSalen = new Set<string>(
+            item.lotes.flatMap((l: any) =>
+              String(l.ubicacion_lote ?? '').split(', ').map((x: string) => x.replace(/\s*\([\d.]+\)$/, '').trim()).filter(Boolean)),
+          );
+          item.otras_ubicaciones = (porArt.get(String(item.id_artic)) ?? [])
+            .filter(o => !yaSalen.has(o.ubicacion))
+            .sort((a, b) => b.pz - a.pz);
+        }
+      }
+    } catch (e) {
+      console.warn('[getHojaSurtido] No se pudieron calcular las otras ubicaciones:', (e as any)?.message);
     }
 
     return { cabecera: data.cabecera, items: itemsConFefo };

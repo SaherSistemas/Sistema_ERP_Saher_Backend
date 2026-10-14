@@ -82,6 +82,27 @@ export const Detalle_Pedido_AlmacenRepository = {
 
     const idsArticulosNuevoCarrito = carrito.map(item => item.id_articulo);
 
+    // Un artículo sin precio (menos de 1 centavo) no se puede pedir. Se rechaza lo NUEVO o lo que BAJA a cero;
+    // un renglón que ya estaba guardado en cero y no cambia se deja pasar para no bloquear pedidos viejos.
+    const sinPrecio = carrito.filter(item => {
+      if (Number(item.precio_venta) >= 0.01) return false;
+      const existente = detallesActuales.find(d => d.id_articulo === item.id_articulo);
+      return !(existente && Number(existente.precio_venta) < 0.01);
+    });
+    if (sinPrecio.length > 0) {
+      const arts = await Articulo.findAll({
+        where: { id_artic: { [Op.in]: sinPrecio.map(i => i.id_articulo) } },
+        attributes: ['id_artic', 'des_artic'],
+        raw: true,
+        transaction: t,
+      }) as any[];
+      const nombres = sinPrecio.map(i => arts.find(a => a.id_artic === i.id_articulo)?.des_artic ?? i.id_articulo);
+      throw {
+        status: 400,
+        message: `Hay artículos sin precio asignado, no se pueden pedir: ${nombres.join(', ')}. Quítalos del pedido.`,
+      };
+    }
+
     // 2. Eliminar los detalles que ya no están en el carrito,
     //    excepto los que tienen registro en detalle_pedido_negado (se conservan para compras)
     const detallesAEliminar = detallesActuales.filter(d => !idsArticulosNuevoCarrito.includes(d.id_articulo));

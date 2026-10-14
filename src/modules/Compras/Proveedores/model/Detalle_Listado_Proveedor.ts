@@ -39,6 +39,14 @@ class Detalle_Listado_Proveedor extends Model {
     })
     declare exist_pro_detlist: number
 
+    // Código interno del artículo EN EL SISTEMA DEL PROVEEDOR (algunos piden la orden de compra con su código).
+    // Requiere: ALTER TABLE detalle_listado_proveedor ADD COLUMN cod_interno_articulo_prove_detlist varchar(60);
+    @Column({
+        type: DataType.STRING(60),
+        allowNull: true,
+    })
+    declare cod_interno_articulo_prove_detlist: string | null
+
     @Column({
         type: DataType.DECIMAL(12, 2),
         allowNull: false

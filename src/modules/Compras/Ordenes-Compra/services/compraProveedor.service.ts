@@ -127,6 +127,29 @@ export const compraProveedorService = {
 
     },
 
+    // Código interno del artículo en el sistema del PROVEEDOR (viene de su listado de precios, que se cruza por
+    // código de barras). Si el proveedor no lo tiene cargado, el artículo no aparece en el mapa.
+    codigosInternosProveedor: async (id_prove: string | null | undefined, codigosBarras: string[]) => {
+        const mapa = new Map<string, string>();
+        const limpios = Array.from(new Set(codigosBarras.map(c => String(c ?? '').trim()).filter(Boolean)));
+        if (!id_prove || !limpios.length) return mapa;
+        try {
+            const filas = await dbLocal.query<any>(`
+                SELECT trim(dlp.cod_barra_pro_detlist) AS cod, trim(dlp.cod_interno_articulo_prove_detlist) AS cod_prove
+                FROM detalle_listado_proveedor dlp
+                JOIN listados_proveedor lp ON lp.id_listprove = dlp.id_list_detlist
+                WHERE lp.id_prove_listprove = :id_prove
+                  AND trim(dlp.cod_barra_pro_detlist) IN (:cods)
+                  AND NULLIF(trim(dlp.cod_interno_articulo_prove_detlist), '') IS NOT NULL`,
+                { replacements: { id_prove, cods: limpios }, type: QueryTypes.SELECT });
+            for (const f of filas) mapa.set(String(f.cod), String(f.cod_prove));
+        } catch (e) {
+            // Si la columna aún no existe (falta el ALTER TABLE) la orden sale igual, con el código de barras
+            console.warn('[orden] No se pudo leer el código interno del proveedor:', (e as any)?.message);
+        }
+        return mapa;
+    },
+
     // Vista previa de la orden (mismos cálculos que el PDF). No cambia ningún estado:
     // marcar como enviada ocurre solo al generar el PDF.
     obtenerDetalleOrden: async (id_comp: string) => {
@@ -222,6 +245,10 @@ export const compraProveedorService = {
             }
         }
 
+        const mapaProve = await compraProveedorService.codigosInternosProveedor(
+            (compra as any).idprove_comp, items.map((i: any) => i.cod_barr_artic));
+        items = items.map((i: any) => ({ ...i, cod_prove: mapaProve.get(String(i.cod_barr_artic ?? '').trim()) ?? null }));
+
         const iva = Object.keys(ivaGroups).sort().map(tasa => ({ tasa, monto: ivaGroups[tasa] }));
         const totalIva = iva.reduce((s, g) => s + g.monto, 0);
 
@@ -249,25 +276,47 @@ export const compraProveedorService = {
         const compraProveedor = await Compra_ProveedorRepository.articulosDetalleCompraProveedor(id_comp);
         const { proveedor, detallesCompra } = compraProveedor;
 
+        // Algunos proveedores piden la orden con SU código interno del artículo: si el listado del proveedor lo trae,
+        // la columna "Código" muestra ese; si no, el código de barras de siempre.
+        const compraCab = await Compra_ProveedorRepository.getByID(id_comp);
+        const mapaProve = await compraProveedorService.codigosInternosProveedor(
+            (compraCab as any)?.idprove_comp,
+            (detallesCompra ?? []).map((d: any) => d.articulo?.cod_barr_artic ?? ''));
+        const hayCodProve = (detallesCompra ?? []).some((d: any) => mapaProve.has(String(d.articulo?.cod_barr_artic ?? '').trim()));
+
         const doc = new PDFDocument({ margin: 30, size: 'letter' });
         const buffers: Buffer[] = [];
         doc.on('data', buffers.push.bind(buffers));
 
         const TL = 30, TR = 540, TW = 510;
-        const C = {
-            codigo: { x: 32, w: 84 },
-            desc: { x: 119, w: 142 },
-            cant: { x: 264, w: 34 },
-            precio: { x: 301, w: 60 },
-            pctIva: { x: 364, w: 32 },
-            iva: { x: 399, w: 60 },
-            importe: { x: 462, w: 75 },
-        };
+        // Si el proveedor tiene código interno cargado: dos columnas (Cód. Prov. + Cód. Barras); si no, solo barras.
+        const C = hayCodProve
+            ? {
+                prov: { x: 32, w: 58 },
+                codigo: { x: 92, w: 72 },
+                desc: { x: 167, w: 111 },
+                cant: { x: 280, w: 30 },
+                precio: { x: 312, w: 54 },
+                pctIva: { x: 368, w: 28 },
+                iva: { x: 398, w: 58 },
+                importe: { x: 458, w: 79 },
+            }
+            : {
+                prov: { x: 0, w: 0 },
+                codigo: { x: 32, w: 84 },
+                desc: { x: 119, w: 142 },
+                cant: { x: 264, w: 34 },
+                precio: { x: 301, w: 60 },
+                pctIva: { x: 364, w: 32 },
+                iva: { x: 399, w: 60 },
+                importe: { x: 462, w: 75 },
+            };
 
         const drawTableHeader = (y: number): number => {
             doc.rect(TL, y, TW, 18).fill('#1B4F72');
             doc.font('Helvetica-Bold').fontSize(8).fillColor('white');
-            doc.text('Código', C.codigo.x, y + 5, { width: C.codigo.w, lineBreak: false });
+            if (hayCodProve) doc.text('Cód. Prov.', C.prov.x, y + 5, { width: C.prov.w, lineBreak: false });
+            doc.text(hayCodProve ? 'Cód. Barras' : 'Código', C.codigo.x, y + 5, { width: C.codigo.w, lineBreak: false });
             doc.text('Descripción', C.desc.x, y + 5, { width: C.desc.w, lineBreak: false });
             doc.text('Cant.', C.cant.x, y + 5, { width: C.cant.w, align: 'center', lineBreak: false });
             doc.text('P. Unit.', C.precio.x, y + 5, { width: C.precio.w, align: 'right', lineBreak: false });
@@ -337,7 +386,9 @@ export const compraProveedorService = {
             doc.rect(TL, cy, TW, rowH).fill(rowIndex % 2 === 0 ? '#FDFEFE' : '#EAF2FF');
             doc.font('Helvetica').fontSize(8).fillColor('#1C2833');
 
-            doc.text(item.articulo?.cod_barr_artic ?? '', C.codigo.x, cy + 3, { width: C.codigo.w, lineBreak: false });
+            const barras = String(item.articulo?.cod_barr_artic ?? '').trim();
+            if (hayCodProve) doc.text(mapaProve.get(barras) ?? '', C.prov.x, cy + 3, { width: C.prov.w, lineBreak: false });
+            doc.text(barras, C.codigo.x, cy + 3, { width: C.codigo.w, lineBreak: false });
             doc.text(descText, C.desc.x, cy + 3, { width: C.desc.w });
             doc.text(`${cantidad}`, C.cant.x, cy + 3, { width: C.cant.w, align: 'center', lineBreak: false });
             doc.text(`$${precioUnit.toFixed(2)}`, C.precio.x, cy + 3, { width: C.precio.w, align: 'right', lineBreak: false });

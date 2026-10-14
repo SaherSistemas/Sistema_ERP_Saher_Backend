@@ -124,19 +124,19 @@ export const Pago_CxCRepository = {
 
     // Pagos aplicados (APL) — para cálculo de comisiones en el frontend.
     // Incluye fecha_vencimiento de la CxC para que el motor pueda determinar si fue anticipado.
-    // Filtros opcionales: ?fecha_inicio=YYYY-MM-DD&fecha_fin=YYYY-MM-DD (sobre fecha_pago)
+    // Filtros opcionales: ?fecha_inicio=YYYY-MM-DD&fecha_fin=YYYY-MM-DD
+    // El rango es sobre la FECHA DE CREACIÓN del pago (createdAt, en hora de Sinaloa), no sobre fecha_pago:
+    // fecha_pago es la que se escribió al capturar y de noche quedaba un día adelante (UTC).
     getPagosAplicados: async (filtros?: { fecha_inicio?: string; fecha_fin?: string }) => {
-        const { Op } = await import('sequelize');
+        const { Op, literal } = await import('sequelize');
 
         const where: any = { estatus_pago: 'APL' };
-        if (filtros?.fecha_inicio || filtros?.fecha_fin) {
-            // fecha_pago es DATEONLY: se compara contra el string 'YYYY-MM-DD' tal cual, sin pasar
-            // por new Date() — un objeto Date reintroduce la zona horaria del proceso de Node
-            // (que en producción no necesariamente coincide con la de Sinaloa) y desfasaba el filtro.
-            where.fecha_pago = {};
-            if (filtros.fecha_inicio) where.fecha_pago[Op.gte] = filtros.fecha_inicio;
-            if (filtros.fecha_fin)    where.fecha_pago[Op.lte] = filtros.fecha_fin;
-        }
+        const condiciones: any[] = [];
+        const fechaCreacionLocal = `("Pago_CxC"."createdAt" AT TIME ZONE 'America/Mazatlan')::date`;
+        const esYmd = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+        if (esYmd(filtros?.fecha_inicio)) condiciones.push(literal(`${fechaCreacionLocal} >= '${filtros!.fecha_inicio}'`));
+        if (esYmd(filtros?.fecha_fin))    condiciones.push(literal(`${fechaCreacionLocal} <= '${filtros!.fecha_fin}'`));
+        if (condiciones.length) where[Op.and] = condiciones;
 
         return await Pago_CxC.findAll({
             where,
