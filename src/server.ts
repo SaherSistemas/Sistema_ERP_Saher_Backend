@@ -6,6 +6,7 @@ import { dbLocal, dbPoly, /*dbVieja/* dbRemota */ } from './config/db'; // Ambas
 import router from './routes';
 import { ConfiguracionService } from './modules/Configuracion/services/Configuracion.service';
 import path from 'path';
+import { RUTA_FACTURAS_PROVEEDOR } from './middleware/multerArchivosFacturaProveedor';
 
 async function connectDatabases() {
     try {
@@ -47,6 +48,8 @@ app.use('/uploads/firmas', express.static(
 app.use('/api/uploads/recepciones', express.static(
     path.join(__dirname, '../uploads/recepciones')
 ));
+// PDF y XML de las facturas de proveedor (carpeta configurable con RUTA_FACTURAS_PROVEEDOR)
+app.use('/api/uploads/facturas-proveedor', express.static(RUTA_FACTURAS_PROVEEDOR));
 app.use('/uploads/publicidad', express.static(
     path.join(__dirname, '../uploads/publicidad')
 ));

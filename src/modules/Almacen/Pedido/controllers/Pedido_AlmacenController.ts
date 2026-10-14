@@ -548,6 +548,15 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // GET /pedido/:id_pedido_alm/estado-surtido
+  static getEstadoSurtido = async (req: AuthedRequest, res: Response) => {
+    try {
+      res.json(await Pedido_AlmacenService.getEstadoSurtido(req.params.id_pedido_alm));
+    } catch (error: any) {
+      res.status(error.status || 500).json({ message: error.message || 'Error al consultar el estado del surtido.' });
+    }
+  };
+
   // GET /pedido/:id_pedido_alm/hoja-surtido
   static getHojaSurtido = async (req: AuthedRequest, res: Response) => {
     try {
@@ -702,7 +711,9 @@ export class Pedido_AlmacenController {
       }
       const data = await Pedido_AlmacenService.importarDePolyDB({
         num_pedido: parseInt(num_pedido, 10),
-        tipo_pedido: tipo_pedido || 'AGE',
+        // Los pedidos que vienen de PolyDB son automáticos (AUT), no de agente: así no se surten antes que los demás.
+        // Se ignora el tipo que mande el cliente.
+        tipo_pedido: 'AUT',
         id_empleado: req.user!.id_referencia_persona,
       });
       res.status(201).json(data);

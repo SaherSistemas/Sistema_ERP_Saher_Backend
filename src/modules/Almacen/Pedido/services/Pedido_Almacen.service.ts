@@ -435,6 +435,132 @@ async function _previewPedidoPoly(pdicdpdin: string) {
   };
 }
 
+// Libera el stock apartado por los renglones de lote de UN detalle del pedido (se usa antes de reemplazar o borrar
+// esos renglones). Primero la fila de stock con la que se apartó; si ya no existe, otra fila del mismo lote.
+async function liberarApartadoDeLotesDetalle(id_detalle_pedido_almacen: string, t: Transaction): Promise<number> {
+  const renglones = await Detalle_Pedido_Almacen_LoteModel.findAll({
+    where: { id_detalle_pedido_almacen },
+    transaction: t,
+  });
+  let liberadas = 0;
+  for (const l of renglones) {
+    let por = Number(l.cantidad) || 0;
+    if (por <= 0) continue;
+
+    const candidatas: Stock_Ubicacion_Lote[] = [];
+    const exacta = (l as any).id_stock_ubicacion_lote
+      ? await Stock_Ubicacion_Lote.findByPk((l as any).id_stock_ubicacion_lote, { transaction: t, lock: t.LOCK.UPDATE })
+      : null;
+    if (exacta) candidatas.push(exacta);
+    const otras = await Stock_Ubicacion_Lote.findAll({
+      where: {
+        id_lote: l.id_lote_sucursal,
+        cantidad_apartada: { [Op.gt]: 0 },
+        ...(exacta ? { id_stock_ubicacion_lote: { [Op.ne]: exacta.id_stock_ubicacion_lote } } : {}),
+      },
+      order: [['cantidad_apartada', 'DESC']],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    candidatas.push(...otras);
+
+    for (const f of candidatas) {
+      if (por <= 0) break;
+      const ap = Number(f.cantidad_apartada) || 0;
+      const liberar = Math.min(ap, por);
+      if (liberar <= 0) continue;
+      await f.update({ cantidad_apartada: ap - liberar }, { transaction: t });
+      por -= liberar;
+      liberadas += liberar;
+    }
+  }
+  return liberadas;
+}
+
+// El stock de un pedido queda apartado desde que se imprime la hoja y se mantiene así durante surtido y chequeo.
+// Al finalizar el surtido NO se libera para volver a apartar: se compara lo apartado al inicio contra lo que de
+// verdad se surtió, por lote, y solo se mueve la diferencia (menos piezas surtidas → se libera esa parte; más
+// piezas o un lote distinto → se aparta esa parte). Después se reemplazan los renglones de lote sin tocar el apartado.
+async function ajustarLotesApartadosDetalle(
+  id_detalle_pedido_almacen: string,
+  previos: Detalle_Pedido_Almacen_LoteModel[],
+  nuevos: Array<{
+    id_lote_sucursal: string;
+    id_stock_ubicacion_lote?: string | null;
+    id_ubicacion_sucursal?: string | null;
+    cantidad: number;
+    lote_factura?: { numero_lote: string | null; fecha_caducidad: string | null } | null;
+  }>,
+  t: Transaction,
+): Promise<void> {
+  const viejo = new Map<string, number>();
+  for (const l of previos) viejo.set(l.id_lote_sucursal, (viejo.get(l.id_lote_sucursal) ?? 0) + (Number(l.cantidad) || 0));
+  const nuevo = new Map<string, number>();
+  for (const n of nuevos) nuevo.set(n.id_lote_sucursal, (nuevo.get(n.id_lote_sucursal) ?? 0) + (Number(n.cantidad) || 0));
+
+  const lotes = new Set<string>([...Array.from(viejo.keys()), ...Array.from(nuevo.keys())]);
+  for (const id_lote of Array.from(lotes)) {
+    const diff = (nuevo.get(id_lote) ?? 0) - (viejo.get(id_lote) ?? 0);
+    if (diff === 0) continue;
+
+    const filas = await Stock_Ubicacion_Lote.findAll({
+      where: { id_lote },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    const libre = (f: Stock_Ubicacion_Lote) => (Number(f.cantidad) || 0) - (Number(f.cantidad_apartada) || 0);
+
+    if (diff > 0) {
+      // Más piezas de las apartadas: la fila que se eligió en la hoja primero, luego la que tenga más libre
+      const preferida = nuevos.find(n => n.id_lote_sucursal === id_lote && n.id_stock_ubicacion_lote)?.id_stock_ubicacion_lote;
+      const orden = [...filas].sort((a, b) =>
+        (b.id_stock_ubicacion_lote === preferida ? 1 : 0) - (a.id_stock_ubicacion_lote === preferida ? 1 : 0)
+        || libre(b) - libre(a));
+      let por = diff;
+      for (const f of orden) {
+        if (por <= 0) break;
+        const tomar = Math.min(Math.max(libre(f), 0), por);
+        if (tomar <= 0) continue;
+        await f.update({ cantidad_apartada: (Number(f.cantidad_apartada) || 0) + tomar }, { transaction: t });
+        por -= tomar;
+      }
+      // Lo que no alcanzó libre se aparta igual en la fila con más existencia (el surtidor ya sacó esas piezas)
+      if (por > 0 && orden.length) {
+        const f = orden[0];
+        await f.update({ cantidad_apartada: (Number(f.cantidad_apartada) || 0) + por }, { transaction: t });
+      }
+    } else {
+      // Se surtió menos de lo apartado (o se cambió de lote): se libera solo esa diferencia
+      let por = -diff;
+      const orden = [...filas].sort((a, b) => (Number(b.cantidad_apartada) || 0) - (Number(a.cantidad_apartada) || 0));
+      for (const f of orden) {
+        if (por <= 0) break;
+        const ap = Number(f.cantidad_apartada) || 0;
+        const liberar = Math.min(ap, por);
+        if (liberar <= 0) continue;
+        await f.update({ cantidad_apartada: ap - liberar }, { transaction: t });
+        por -= liberar;
+      }
+    }
+  }
+
+  // Los renglones de lote se reemplazan por lo surtido (con los datos de factura si es lote migrado)
+  await Detalle_Pedido_Almacen_LoteModel.destroy({ where: { id_detalle_pedido_almacen }, transaction: t });
+  const validos = nuevos.filter(n => Number(n.cantidad) > 0);
+  if (validos.length) {
+    await Detalle_Pedido_Almacen_LoteModel.bulkCreate(validos.map(n => ({
+      id_detalle_pedido_almacen_lote: uuidv4(),
+      id_detalle_pedido_almacen,
+      id_stock_ubicacion_lote: n.id_stock_ubicacion_lote || null,
+      id_lote_sucursal: n.id_lote_sucursal,
+      id_ubicacion_sucursal: n.id_ubicacion_sucursal ?? null,
+      cantidad: Number(n.cantidad),
+      lote_factura_numero: n.lote_factura?.numero_lote ?? null,
+      lote_factura_fecha: n.lote_factura?.fecha_caducidad ? new Date(n.lote_factura.fecha_caducidad) : null,
+    })) as any[], { transaction: t });
+  }
+}
+
 export const Pedido_AlmacenService = {
   /**CHEQUEO */
 
@@ -1937,6 +2063,36 @@ export const Pedido_AlmacenService = {
     return { cabecera: data.cabecera, items: itemsConFefo };
   },
 
+  // Estado ACTUAL del surtido de un pedido. Solo lectura (no marca nada como "en surtido"): sirve para avisar, al
+  // abrir o reimprimir la hoja, que el pedido ya se está surtiendo aunque el tablero no se haya actualizado.
+  getEstadoSurtido: async (id_pedido_alm: string) => {
+    const [r] = await dbLocal.query<any>(`
+      SELECT pa.cod_int_pedido_alm, pa.status_pedido_alm, pa.inicio_surtido, pa.fin_surtido,
+             (SELECT NULLIF(TRIM(CONCAT_WS(' ', e.nombre_empleado, e.ap_pat_empleado)), '')
+                FROM detalle_pedido_almacen d
+                JOIN detalle_pedido_almacen_asignacion a ON a.id_detalle_pedido_almacen = d.id_detalle_pedido_almacen
+                JOIN empleado e ON e.id_empleado = a.id_usuario
+               WHERE d.id_pedido_almacen = pa.id_pedido_alm
+               ORDER BY a.created_at ASC
+               LIMIT 1) AS surtidor,
+             EXISTS (SELECT 1
+                       FROM detalle_pedido_almacen d
+                       JOIN detalle_pedido_almacen_asignacion a ON a.id_detalle_pedido_almacen = d.id_detalle_pedido_almacen
+                      WHERE d.id_pedido_almacen = pa.id_pedido_alm) AS asignado
+        FROM pedido_almacen pa
+       WHERE pa.id_pedido_alm = :id_pedido_alm`,
+      { replacements: { id_pedido_alm }, type: QueryTypes.SELECT });
+    if (!r) throw { status: 404, message: 'Pedido no encontrado.' };
+    return {
+      cod_int_pedido_alm: r.cod_int_pedido_alm,
+      status_pedido_alm: r.status_pedido_alm,
+      inicio_surtido: r.inicio_surtido ?? null,
+      fin_surtido: r.fin_surtido ?? null,
+      surtidor: r.surtidor ?? null,
+      asignado: !!r.asignado,
+    };
+  },
+
   // Finalizar surtido en papel: guarda lotes, cierra asignaciones, manda a chequeo
   finalizarSurtidoPapel: async (
     id_pedido_alm: string,
@@ -1968,16 +2124,22 @@ export const Pedido_AlmacenService = {
 
       for (const detalle of detalles) {
         const lotesValidos = detalle.lotes.filter(l => Number(l.cantidad) > 0);
-        if (lotesValidos.length > 0) {
-          // Por si este detalle ya tenía lotes registrados de un intento previo
-          // (ej. el pedido quedó en un estado inconsistente y "Finalizar surtido"
-          // se corrió más de una vez) — reemplaza en vez de acumular. Sin esto,
-          // cada re-finalización deja lotes duplicados que después se descuentan
-          // doble del inventario al facturar.
-          await Detalle_Pedido_Almacen_LoteModel.destroy({
-            where: { id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen },
-            transaction: t,
-          });
+        const previos = await Detalle_Pedido_Almacen_LoteModel.findAll({
+          where: { id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen },
+          transaction: t,
+        });
+        if (previos.length > 0) {
+          // El stock ya está apartado desde que se imprimió la hoja (y sigue apartado en surtido y chequeo): no se
+          // libera ni se vuelve a apartar. Solo se ajusta la diferencia contra lo que realmente se surtió.
+          await ajustarLotesApartadosDetalle(detalle.id_detalle_pedido_almacen, previos, lotesValidos.map(l => ({
+            id_lote_sucursal: l.id_lote_sucursal,
+            id_stock_ubicacion_lote: l.id_stock_ubicacion_lote ?? null,
+            id_ubicacion_sucursal: l.id_ubicacion_sucursal ?? null,
+            cantidad: Number(l.cantidad),
+            lote_factura: l.lote_factura ?? null,
+          })), t);
+        } else if (lotesValidos.length > 0) {
+          // Pedido asignado antes de apartar al inicio: se aparta ahora con lo surtido, como antes
           await Detalle_Pedido_Almacen_LoteRepository.create({
             id_detalle_pedido: detalle.id_detalle_pedido_almacen,
             estado: 'SURTIDO',
@@ -1998,6 +2160,23 @@ export const Pedido_AlmacenService = {
             comentario: detalle.negacion.comentario ?? null,
           }, t);
         }
+      }
+
+      // Renglones del pedido que no vinieron en lo finalizado: sus lotes apartados al inicio no se surtieron
+      const enviados = new Set(detalles.map(d => d.id_detalle_pedido_almacen));
+      const todos = await Detalle_Pedido_Almacen.findAll({
+        where: { id_pedido_almacen: id_pedido_alm },
+        attributes: ['id_detalle_pedido_almacen'],
+        raw: true,
+        transaction: t,
+      }) as any[];
+      for (const d of todos) {
+        if (enviados.has(d.id_detalle_pedido_almacen)) continue;
+        await liberarApartadoDeLotesDetalle(d.id_detalle_pedido_almacen, t);
+        await Detalle_Pedido_Almacen_LoteModel.destroy({
+          where: { id_detalle_pedido_almacen: d.id_detalle_pedido_almacen },
+          transaction: t,
+        });
       }
 
       await Detalle_Pedido_Almacen_AsignacionRepository.marcarTodosSurtidos(id_pedido_alm, t);
@@ -2119,6 +2298,32 @@ export const Pedido_AlmacenService = {
 
       await Pedido_AlmacenRepository.iniciarSurtido(id_pedido_alm, t);
       await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(empleado.id_empleado, detallesOrdenados, t);
+
+      // APARTAR AL INICIO: al imprimir la hoja las piezas ya se separan (lotes por FEFO, respetando la caducidad
+      // mínima del agente). Antes se apartaban hasta "Finalizar surtido". Al finalizar, lo apartado aquí se libera
+      // y se vuelve a apartar con lo que realmente se surtió.
+      for (const d of detalles as any[]) {
+        const cantidad = Number(d.cant_pedida) || 0;
+        if (cantidad <= 0) continue;
+        const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
+          d.id_articulo, id_empresa, cantidad, { mesesMinCaducidad: mesesMinAsignar },
+        );
+        const lotes = (plan.detalles ?? [])
+          .filter((x: any) => x.lote?.id_lote_sucursal && x.id_stock_ubicacion_lote && Number(x.cantidad_a_tomar) > 0)
+          .map((x: any) => ({
+            id_stock_ubicacion_lote: x.id_stock_ubicacion_lote as string,
+            id_lote_sucursal: x.lote.id_lote_sucursal as string,
+            id_ubicacion_sucursal: (x.ubicacion?.id_ubicacion_sucursal ?? null) as string | null,
+            cantidad: Number(x.cantidad_a_tomar),
+          }));
+        if (lotes.length === 0) continue;   // sin existencia: el surtidor lo niega al finalizar
+        await Detalle_Pedido_Almacen_LoteRepository.create({
+          id_detalle_pedido: d.id_detalle_pedido_almacen,
+          estado: 'APARTADO',
+          lotes,
+        }, t);
+      }
+
       await t.commit();
     } catch (err) {
       await t.rollback();
@@ -2293,7 +2498,7 @@ export const Pedido_AlmacenService = {
     });
     const ids = idsDetalles.map((d: any) => d.id_detalle_pedido_almacen);
 
-    if (['CA', 'SU', 'NE', 'CN'].includes(nuevo_status)) {
+    if (['EC', 'CO', 'CA', 'SU', 'NE', 'CN'].includes(nuevo_status)) {
       // Revertir a capturado/re-surtir, o negar/cancelar definitivamente: en ambos casos
       // hay que liberar el stock apartado y borrar el trabajo de surtido y chequeo.
       let piezas_liberadas = 0;
@@ -2326,7 +2531,7 @@ export const Pedido_AlmacenService = {
       }
       // Al reiniciar surtido (CA/SU) se resetean los tiempos; al negar/cancelar se conservan como bitácora.
       const updatePayload: any = { status_pedido_alm: nuevo_status };
-      if (['CA', 'SU'].includes(nuevo_status)) {
+      if (['EC', 'CO', 'CA', 'SU'].includes(nuevo_status)) {
         updatePayload.inicio_surtido = null;
         updatePayload.fin_surtido = null;
       }

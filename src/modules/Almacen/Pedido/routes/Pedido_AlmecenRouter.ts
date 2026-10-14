@@ -37,6 +37,7 @@ router.post('/importar-polydb', Pedido_AlmacenController.importarDePolyDB);
 router.get('/lista-gestion', Pedido_AlmacenController.getListaGestion);
 router.get('/resumen-gestion', Pedido_AlmacenController.getResumenGestion);
 router.post('/ordenar-por-horario', Pedido_AlmacenController.ordenarPorHorario);
+router.get('/:id_pedido_alm/estado-surtido', Pedido_AlmacenController.getEstadoSurtido);
 router.get('/:id_pedido_alm/hoja-surtido', Pedido_AlmacenController.getHojaSurtido);
 router.patch('/:id_pedido_alm/iniciar-surtido', Pedido_AlmacenController.iniciarSurtido);
 router.post('/:id_pedido_alm/asignar-surtidor-cod', Pedido_AlmacenController.asignarSurtidorPorCodigo);

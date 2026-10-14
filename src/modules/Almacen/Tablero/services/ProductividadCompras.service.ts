@@ -143,13 +143,258 @@ export interface ComprasResumen {
 
 const FACTURA_COMPRA = `f.tipo_origen = 'COMPRA'`;
 const REGISTRADA_EN_RANGO = `(f.inicio_de_registro_lotes AT TIME ZONE ${TZ})::date BETWEEN :desde AND :hasta`;
+// "Facturas checadas" se cuentan por el día en que se CHECARON (no por el día en que se registró la factura)
+const CHECADA_EN_RANGO = `f.fin_de_checado IS NOT NULL AND (f.fin_de_checado AT TIME ZONE ${TZ})::date BETWEEN :desde AND :hasta`;
+
+export type TipoListaPeriodo = 'ordenes' | 'notas';
+export const TIPOS_LISTA_PERIODO: TipoListaPeriodo[] = ['ordenes', 'notas'];
+
+export type TipoFacturasPeriodo = 'registradas' | 'checadas';
+export const TIPOS_FACTURAS_PERIODO: TipoFacturasPeriodo[] = ['registradas', 'checadas'];
 
 export type TipoPendienteCompras = 'ordenes' | 'registrar' | 'checar' | 'acomodar';
 export const TIPOS_PENDIENTE_COMPRAS: TipoPendienteCompras[] = ['ordenes', 'registrar', 'checar', 'acomodar'];
 
 const TOPE_PENDIENTES = 300;
+const TOPE_FACTURAS_PERIODO = 500;
 
 export const ProductividadComprasService = {
+
+    // Lo que cuentan las tarjetas "Órdenes de compra" / "Monto ordenado" (ordenes) y "Notas de crédito" (notas)
+    getListaPeriodo: async (tipo: TipoListaPeriodo, desde: string, hasta: string) => {
+        const iso = (v: unknown) => (v ? new Date(v as any).toISOString() : null);
+
+        if (tipo === 'ordenes') {
+            const filas = await consulta(`
+                SELECT cp.id_comp AS id, cg.id_interno_compra_gen AS folio, p.nomcort_prove AS proveedor,
+                       cp.inicio_de_compra_proveedor AS fecha, cp.fecha_enviada_proveedor AS enviada,
+                       cp.estado_comp AS estado,
+                       COALESCE((SELECT SUM(d.cantidad_detcompsol * d.precio_detcompsol) FROM detalle_compra_solicitado d WHERE d.idcompr_detcompsol = cp.id_comp), 0) AS monto,
+                       COALESCE((SELECT SUM(d.cantidad_detcompsol) FROM detalle_compra_solicitado d WHERE d.idcompr_detcompsol = cp.id_comp), 0) AS piezas,
+                       (SELECT COUNT(*) FROM detalle_compra_solicitado d WHERE d.idcompr_detcompsol = cp.id_comp) AS renglones,
+                       (SELECT COUNT(*) FROM factura_compra_proveedor f WHERE f.id_compra_prove_factura = cp.id_comp) AS facturas,
+                       COUNT(*) OVER () AS total_filas
+                  FROM compra_proveedor cp
+                  LEFT JOIN compra_general cg ON cg.id_compra_general = cp.id_compra_general
+                  LEFT JOIN proveedor p ON p.id_prove = cp.idprove_comp
+                 WHERE cp.estado_comp <> 'C'
+                   AND (cp.inicio_de_compra_proveedor AT TIME ZONE ${TZ})::date BETWEEN :desde AND :hasta
+                 ORDER BY cp.inicio_de_compra_proveedor DESC
+                 LIMIT ${TOPE_FACTURAS_PERIODO}
+            `, { desde, hasta });
+            return {
+                tipo, desde, hasta,
+                total: filas.length ? num(filas[0].total_filas) : 0,
+                tope: TOPE_FACTURAS_PERIODO,
+                filas: filas.map(r => ({
+                    id: r.id,
+                    folio: r.folio ?? null,
+                    proveedor: r.proveedor ?? null,
+                    fecha: iso(r.fecha),
+                    enviada: iso(r.enviada),
+                    estado: r.estado ?? null,
+                    monto: r2(num(r.monto)),
+                    piezas: num(r.piezas),
+                    renglones: num(r.renglones),
+                    facturas: num(r.facturas),
+                    // solo notas
+                    factura: null as string | null,
+                    motivo: null as string | null,
+                })),
+            };
+        }
+
+        const filas = await consulta(`
+            SELECT n.id_nc AS id, n.folio_nc AS folio, p.nomcort_prove AS proveedor,
+                   n.fecha_emision::text AS fecha, n.estado_nc AS estado, n.total_nc AS monto,
+                   n.motivo_nc AS motivo, f.folio_factura_proveedor AS factura,
+                   (SELECT COUNT(*) FROM faltante_factura_proveedor ff WHERE ff.id_nc = n.id_nc) AS renglones,
+                   (SELECT COALESCE(SUM(ff.cantidad_faltante), 0) FROM faltante_factura_proveedor ff WHERE ff.id_nc = n.id_nc) AS piezas,
+                   COUNT(*) OVER () AS total_filas
+              FROM notas_credito_proveedor n
+              LEFT JOIN factura_compra_proveedor f ON f.id_factura_proveedor = n.id_factura_proveedor
+              LEFT JOIN compra_proveedor cp ON cp.id_comp = f.id_compra_prove_factura
+              LEFT JOIN proveedor p ON p.id_prove = cp.idprove_comp
+             WHERE n.fecha_emision::date BETWEEN :desde AND :hasta
+             ORDER BY n.fecha_emision DESC
+             LIMIT ${TOPE_FACTURAS_PERIODO}
+        `, { desde, hasta });
+        return {
+            tipo, desde, hasta,
+            total: filas.length ? num(filas[0].total_filas) : 0,
+            tope: TOPE_FACTURAS_PERIODO,
+            filas: filas.map(r => ({
+                id: r.id,
+                folio: r.folio ?? null,
+                proveedor: r.proveedor ?? null,
+                fecha: r.fecha ?? null,
+                enviada: null as string | null,
+                estado: r.estado ?? null,
+                monto: r2(num(r.monto)),
+                piezas: num(r.piezas),
+                renglones: num(r.renglones),
+                facturas: 0,
+                factura: r.factura ?? null,
+                motivo: r.motivo ?? null,
+            })),
+        };
+    },
+
+    // Renglones de UNA orden de compra o de UNA nota de crédito
+    getLineasLista: async (tipo: TipoListaPeriodo, id: string) => {
+        if (tipo === 'ordenes') {
+            const filas = await consulta(`
+                SELECT d.id_detcompsol AS id, a.des_artic AS articulo, a.cod_int_artic AS codigo,
+                       a.cod_barr_artic AS barras, d.cantidad_detcompsol AS cantidad, d.precio_detcompsol AS precio,
+                       COALESCE((SELECT SUM(df.cantidad_articulo_facturada) FROM detalle_factura_compra_proveedor df
+                                  WHERE df.id_detcompsol = d.id_detcompsol), 0) AS facturada
+                  FROM detalle_compra_solicitado d
+                  LEFT JOIN articulo a ON a.id_artic = d.idarticulo_detcompsol
+                 WHERE d.idcompr_detcompsol = :id
+                 ORDER BY a.des_artic ASC
+            `, { id });
+            return filas.map(r => ({
+                id: r.id,
+                articulo: r.articulo ?? '—',
+                codigo: r.codigo ?? null,
+                barras: (r.barras ?? '').trim() || null,
+                cantidad: num(r.cantidad),
+                precio: r2(num(r.precio)),
+                importe: r2(num(r.cantidad) * num(r.precio)),
+                extra: num(r.facturada),     // lo que ya vino facturado de este renglón
+            }));
+        }
+        const filas = await consulta(`
+            SELECT ff.id_faltante AS id, a.des_artic AS articulo, a.cod_int_artic AS codigo, a.cod_barr_artic AS barras,
+                   ff.cantidad_faltante AS cantidad, ff.precio_unitario AS precio
+              FROM faltante_factura_proveedor ff
+              LEFT JOIN articulo a ON a.id_artic = ff.id_articulo
+             WHERE ff.id_nc = :id
+             ORDER BY a.des_artic ASC
+        `, { id });
+        return filas.map(r => ({
+            id: r.id,
+            articulo: r.articulo ?? '—',
+            codigo: r.codigo ?? null,
+            barras: (r.barras ?? '').trim() || null,
+            cantidad: num(r.cantidad),
+            precio: r2(num(r.precio)),
+            importe: r2(num(r.cantidad) * num(r.precio)),
+            extra: null as number | null,
+        }));
+    },
+
+    // Detalle de UNA factura de proveedor: cada renglón con lo facturado, lo recibido y sus lotes
+    getFacturaDetalle: async (id_factura: string) => {
+        const renglones = await consulta(`
+            SELECT d.id_factura_proveedor_detalle AS id, a.des_artic AS articulo, a.cod_int_artic AS codigo,
+                   a.cod_barr_artic AS barras,
+                   d.cantidad_articulo_facturada AS facturada,
+                   COALESCE((SELECT SUM(r.cantidad_detcomprec) FROM detalle_compra_recibido r
+                              WHERE r.id_detalle_factura_compra_proveedor = d.id_factura_proveedor_detalle), 0) AS recibida,
+                   d.precio_articulo_factura AS precio, d.descuento_articulo_factura AS descuento,
+                   d.iva_articulo_factura AS iva, d.checado AS checado
+              FROM detalle_factura_compra_proveedor d
+              LEFT JOIN articulo a ON a.id_artic = d.id_artic
+             WHERE d.id_factura_compra_proveedor = :id
+             ORDER BY a.des_artic ASC
+        `, { id: id_factura });
+
+        const lotes = renglones.length ? await consulta(`
+            SELECT l.id_det_factura_proveedor AS id_renglon, l.numero_lote AS lote,
+                   l.fecha_caducidad::date::text AS caducidad, l.cantidad_lote AS cantidad
+              FROM lote_factura_compra_proveedor l
+              JOIN detalle_factura_compra_proveedor d ON d.id_factura_proveedor_detalle = l.id_det_factura_proveedor
+             WHERE d.id_factura_compra_proveedor = :id
+             ORDER BY l.fecha_caducidad ASC NULLS LAST
+        `, { id: id_factura }) : [];
+
+        const porRenglon = new Map<string, Array<{ lote: string; caducidad: string | null; cantidad: number }>>();
+        for (const l of lotes) {
+            const k = String(l.id_renglon);
+            const arr = porRenglon.get(k) ?? [];
+            arr.push({ lote: l.lote ?? '—', caducidad: l.caducidad ?? null, cantidad: num(l.cantidad) });
+            porRenglon.set(k, arr);
+        }
+
+        return renglones.map(r => {
+            const facturada = num(r.facturada);
+            const precio = num(r.precio);
+            const desc = num(r.descuento);
+            return {
+                id: r.id,
+                articulo: r.articulo ?? '—',
+                codigo: r.codigo ?? null,
+                barras: (r.barras ?? '').trim() || null,
+                facturada,
+                recibida: num(r.recibida),
+                precio: r2(precio),
+                descuento: r2(desc),
+                iva: r2(num(r.iva)),
+                importe: r2(facturada * precio * (1 - desc / 100)),
+                checado: !!r.checado,
+                lotes: porRenglon.get(String(r.id)) ?? [],
+            };
+        });
+    },
+
+    // Las facturas de proveedor que cuentan las tarjetas "Facturas registradas" / "Facturas checadas" del periodo
+    // (mismos filtros que el resumen: compras, registradas en el rango; las checadas, además, con fin de checado).
+    getFacturasPeriodo: async (desde: string, hasta: string, tipo: TipoFacturasPeriodo) => {
+        const filas = await consulta(`
+            SELECT f.id_factura_proveedor AS id, f.folio_factura_proveedor AS folio, p.nomcort_prove AS proveedor,
+                   f.fecha_emision::text AS fecha_emision,
+                   f.inicio_de_registro_lotes AS registrada, f.fin_de_registro_lotes AS lotes_listos,
+                   f.fin_de_checado AS checada, f.estado_factura_proveedor AS estado,
+                   f.total_factura_proveedor AS total, f.total_recibido_factura AS recibido,
+                   (SELECT COUNT(*) FROM detalle_factura_compra_proveedor d
+                     WHERE d.id_factura_compra_proveedor = f.id_factura_proveedor) AS renglones,
+                   (SELECT COUNT(*) FROM lote_factura_compra_proveedor l
+                      JOIN detalle_factura_compra_proveedor d ON d.id_factura_proveedor_detalle = l.id_det_factura_proveedor
+                     WHERE d.id_factura_compra_proveedor = f.id_factura_proveedor) AS lotes,
+                   TRIM(CONCAT(er.nombre_empleado, ' ', er.ap_pat_empleado)) AS registro,
+                   TRIM(CONCAT(ec.nombre_empleado, ' ', ec.ap_pat_empleado)) AS checo,
+                   COUNT(*) OVER () AS total_filas
+              FROM factura_compra_proveedor f
+              LEFT JOIN compra_proveedor cp ON cp.id_comp = f.id_compra_prove_factura
+              LEFT JOIN proveedor p ON p.id_prove = cp.idprove_comp
+              LEFT JOIN empleado er ON er.id_empleado = f.id_empleado_registro_lotes
+              LEFT JOIN empleado ec ON ec.id_empleado = f.id_empleado_checado
+             WHERE ${FACTURA_COMPRA} AND ${tipo === 'checadas' ? CHECADA_EN_RANGO : REGISTRADA_EN_RANGO}
+             ORDER BY ${tipo === 'checadas' ? 'f.fin_de_checado' : 'f.inicio_de_registro_lotes'} DESC
+             LIMIT ${TOPE_FACTURAS_PERIODO}
+        `, { desde, hasta });
+
+        const iso = (v: unknown) => (v ? new Date(v as any).toISOString() : null);
+        return {
+            tipo,
+            desde,
+            hasta,
+            total: filas.length ? num(filas[0].total_filas) : 0,
+            tope: TOPE_FACTURAS_PERIODO,
+            filas: filas.map(r => {
+                const total = num(r.total);
+                const recibido = num(r.recibido);
+                return {
+                    id: r.id,
+                    folio: r.folio ?? null,
+                    proveedor: r.proveedor ?? null,
+                    fecha_emision: r.fecha_emision ?? null,
+                    registrada: iso(r.registrada),
+                    checada: iso(r.checada),
+                    estado: r.estado ?? null,
+                    total: r2(total),
+                    recibido: r2(recibido),
+                    // lo recibido se topa al facturado de cada factura (igual que el surtido del resumen)
+                    surtido_pct: r.checada && total > 0 ? Math.round((Math.min(recibido, total) / total) * 1000) / 10 : null,
+                    renglones: num(r.renglones),
+                    lotes: num(r.lotes),
+                    registro: (r.registro ?? '').trim() || null,
+                    checo: (r.checo ?? '').trim() || null,
+                };
+            }),
+        };
+    },
 
     // Detalle de lo que cuentan las tarjetas de "Pendiente ahora" (más antiguo primero)
     getPendientes: async (tipo: TipoPendienteCompras) => {
@@ -302,10 +547,14 @@ export const ProductividadComprasService = {
             seguro('facturas', consulta(`
                 SELECT COUNT(*) AS facturas,
                        COALESCE(SUM(f.total_factura_proveedor), 0) AS monto,
-                       COUNT(*) FILTER (WHERE f.fin_de_checado IS NOT NULL) AS checadas,
-                       COALESCE(SUM(f.total_factura_proveedor) FILTER (WHERE f.fin_de_checado IS NOT NULL), 0) AS monto_checado,
-                       COALESCE(SUM(LEAST(f.total_recibido_factura, f.total_factura_proveedor)) FILTER (WHERE f.fin_de_checado IS NOT NULL), 0) AS monto_recibido,
-                       COUNT(*) FILTER (WHERE f.estado_factura_proveedor = 'D') AS con_devolucion
+                       (SELECT COUNT(*) FROM factura_compra_proveedor f
+                         WHERE ${FACTURA_COMPRA} AND ${CHECADA_EN_RANGO}) AS checadas,
+                       (SELECT COALESCE(SUM(f.total_factura_proveedor), 0) FROM factura_compra_proveedor f
+                         WHERE ${FACTURA_COMPRA} AND ${CHECADA_EN_RANGO}) AS monto_checado,
+                       (SELECT COALESCE(SUM(LEAST(f.total_recibido_factura, f.total_factura_proveedor)), 0) FROM factura_compra_proveedor f
+                         WHERE ${FACTURA_COMPRA} AND ${CHECADA_EN_RANGO}) AS monto_recibido,
+                       (SELECT COUNT(*) FROM factura_compra_proveedor f
+                         WHERE ${FACTURA_COMPRA} AND ${CHECADA_EN_RANGO} AND f.estado_factura_proveedor = 'D') AS con_devolucion
                 FROM factura_compra_proveedor f
                 WHERE ${FACTURA_COMPRA} AND ${REGISTRADA_EN_RANGO}
             `, rep), []),

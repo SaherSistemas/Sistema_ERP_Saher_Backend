@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { ValeController } from '../controllers/Vale.controller';
+import { authMiddleware } from '../../../middleware/auth';
 
 const router = Router();
 
 // POST   /vales                          → crear vale
-router.post('/', ValeController.crearVale);
+router.post('/', authMiddleware, ValeController.crearVale);
 
 // POST   /vales/calcular-total             → subtotal + IVA + total de un vale (antes de crearlo)
 router.post('/calcular-total', ValeController.calcularTotal);

@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthedRequest } from '../../../../middleware/auth';
 import { TableroAlmacenService } from '../services/TableroAlmacen.service';
 import { ProductividadAlmacenService } from '../services/ProductividadAlmacen.service';
-import { ProductividadComprasService, TIPOS_PENDIENTE_COMPRAS, type TipoPendienteCompras } from '../services/ProductividadCompras.service';
+import { ProductividadComprasService, TIPOS_PENDIENTE_COMPRAS, TIPOS_FACTURAS_PERIODO, type TipoFacturasPeriodo, TIPOS_LISTA_PERIODO, type TipoListaPeriodo, type TipoPendienteCompras } from '../services/ProductividadCompras.service';
 import { ValorInventarioService, type OrdenValor } from '../services/ValorInventario.service';
 import { DiasInventarioService } from '../services/DiasInventario.service';
 import { NegadosVigentesService } from '../services/NegadosVigentes.service';
@@ -28,6 +28,65 @@ function leerRango(req: AuthedRequest, res: Response): { desde: string; hasta: s
 }
 
 export const TableroAlmacenController = {
+    // GET /almacen/tablero/compras/lista?tipo=ordenes|notas&desde=&hasta= — órdenes o notas de crédito del periodo
+    getComprasLista: async (req: AuthedRequest, res: Response) => {
+        try {
+            const tipo = String(req.query.tipo ?? '') as TipoListaPeriodo;
+            if (!TIPOS_LISTA_PERIODO.includes(tipo)) {
+                res.status(400).json({ message: 'Tipo de lista no válido.' });
+                return;
+            }
+            const rango = leerRango(req, res);
+            if (!rango) return;
+            res.status(200).json(await ProductividadComprasService.getListaPeriodo(tipo, rango.desde, rango.hasta));
+        } catch (e: any) {
+            console.error('[TableroAlmacen.getComprasLista]', e);
+            res.status(500).json({ message: e?.message ?? 'Error al consultar la lista del periodo.' });
+        }
+    },
+
+    // GET /almacen/tablero/compras/lista/:tipo/:id/lineas — renglones de una orden o de una nota de crédito
+    getComprasListaLineas: async (req: AuthedRequest, res: Response) => {
+        try {
+            const tipo = String(req.params.tipo ?? '') as TipoListaPeriodo;
+            if (!TIPOS_LISTA_PERIODO.includes(tipo)) {
+                res.status(400).json({ message: 'Tipo de lista no válido.' });
+                return;
+            }
+            res.status(200).json(await ProductividadComprasService.getLineasLista(tipo, String(req.params.id)));
+        } catch (e: any) {
+            console.error('[TableroAlmacen.getComprasListaLineas]', e);
+            res.status(500).json({ message: e?.message ?? 'Error al consultar el detalle.' });
+        }
+    },
+
+    // GET /almacen/tablero/compras/facturas/:id_factura/detalle — renglones y lotes de una factura
+    getCompraFacturaDetalle: async (req: AuthedRequest, res: Response) => {
+        try {
+            res.status(200).json(await ProductividadComprasService.getFacturaDetalle(String(req.params.id_factura)));
+        } catch (e: any) {
+            console.error('[TableroAlmacen.getCompraFacturaDetalle]', e);
+            res.status(500).json({ message: e?.message ?? 'Error al consultar el detalle de la factura.' });
+        }
+    },
+
+    // GET /almacen/tablero/compras/facturas?desde=&hasta=&tipo=registradas|checadas — las facturas detrás de las tarjetas del periodo
+    getComprasFacturas: async (req: AuthedRequest, res: Response) => {
+        try {
+            const tipo = String(req.query.tipo ?? '') as TipoFacturasPeriodo;
+            if (!TIPOS_FACTURAS_PERIODO.includes(tipo)) {
+                res.status(400).json({ message: 'Tipo de facturas no válido.' });
+                return;
+            }
+            const rango = leerRango(req, res);
+            if (!rango) return;
+            res.status(200).json(await ProductividadComprasService.getFacturasPeriodo(rango.desde, rango.hasta, tipo));
+        } catch (e: any) {
+            console.error('[TableroAlmacen.getComprasFacturas]', e);
+            res.status(500).json({ message: e?.message ?? 'Error al consultar las facturas del periodo.' });
+        }
+    },
+
     // GET /almacen/tablero/compras/pendientes?tipo=ordenes|registrar|checar|acomodar — qué hay detrás de cada tarjeta de pendientes
     getComprasPendientes: async (req: AuthedRequest, res: Response) => {
         try {

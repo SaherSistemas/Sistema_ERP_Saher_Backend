@@ -82,6 +82,9 @@ export const CompraDirectaService = {
                 total_comp_recibido: totalSinIva,
                 total_iva_recibido: totalIva,
                 inicio_de_compra_proveedor: new Date(data.fecha_emision),
+                // Una compra directa no se "envía" al proveedor: ya viene facturada. Se marca como enviada en el momento
+                // en que se crea para que no quede como orden sin enviar (aparecía en 0 enviadas / sin fecha).
+                fecha_enviada_proveedor: ahora,
                 inicio_de_registro_lotes: ahora,
                 fin_de_registro_lotes: ahora,
                 id_empleado_compra: data.id_empleado_registra ?? null,

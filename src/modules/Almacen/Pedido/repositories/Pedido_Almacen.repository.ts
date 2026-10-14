@@ -165,7 +165,7 @@ export const Pedido_AlmacenRepository = {
       include: [
         {
           model: Cliente_Almacen,
-          attributes: ['nom_corto_cliente_alm'],
+          attributes: ['razon_social_cliente_alm', 'nom_corto_cliente_alm'],
         }
       ],
       order: [['createdAt', 'ASC']]

@@ -130,9 +130,41 @@ export const ValeService = {
             cantidad: number;
             precio_unitario: number;
         }[];
-    }) => {
+    }, opts?: { id_empresa_stock?: string }) => {
         const empleado = await Empleado.findByPk(dto.id_empleado);
         if (!empleado) throw new Error('Empleado no encontrado');
+
+        // Existencia: no se pueden pedir artículos que no hay (o más piezas de las que hay). Disponible = existencia
+        // menos lo apartado por otros pedidos, en el almacén de la empresa.
+        {
+            const empresaStock = opts?.id_empresa_stock || dto.id_empresa;
+            const pedidas = new Map<string, number>();
+            for (const a of dto.articulos) {
+                pedidas.set(a.id_articulo, (pedidas.get(a.id_articulo) ?? 0) + Number(a.cantidad || 0));
+            }
+            const ids = Array.from(pedidas.keys());
+            if (ids.length) {
+                const filas = await dbLocal.query<{ id_articulo: string; disponible: string }>(`
+                    SELECT s.id_articulo, COALESCE(SUM(s.cantidad - COALESCE(s.cantidad_apartada, 0)), 0) AS disponible
+                      FROM stock_ubicacion_lote s
+                     WHERE s.id_empresa_sucursal = :emp AND s.id_articulo IN (:ids)
+                     GROUP BY s.id_articulo`,
+                    { type: QueryTypes.SELECT, replacements: { emp: empresaStock, ids } });
+                const disponible = new Map<string, number>(filas.map(f => [String(f.id_articulo), Number(f.disponible) || 0]));
+                const faltan = ids.filter(id => (disponible.get(id) ?? 0) < (pedidas.get(id) ?? 0));
+                if (faltan.length) {
+                    const nombres = await dbLocal.query<{ id_artic: string; des_artic: string }>(
+                        `SELECT id_artic, des_artic FROM articulo WHERE id_artic IN (:ids)`,
+                        { type: QueryTypes.SELECT, replacements: { ids: faltan } });
+                    const nom = new Map(nombres.map(n => [String(n.id_artic), String(n.des_artic).trim()]));
+                    const detalle = faltan.map(id => {
+                        const hay = Math.max(0, disponible.get(id) ?? 0);
+                        return `${nom.get(id) ?? id} (hay ${hay}, pides ${pedidas.get(id)})`;
+                    });
+                    throw new Error(`No hay existencia suficiente: ${detalle.join('; ')}.`);
+                }
+            }
+        }
 
         // Total CON IVA (el precio es antes de IVA; ver calcularTotalVale)
         const totalVale = (await ValeService.calcularTotalVale(dto.articulos)).total;

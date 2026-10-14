@@ -2,6 +2,7 @@ import { Router } from "express";
 import { Factura_Compra_ProveedorController } from "../controllers/Factura_Compra_ProveedorController";
 import { Detalle_Factura_Compra_ProveedorController } from "../controllers/Detalle_Factura_Compra_ProveedorController";
 import { authMiddleware } from "../../../../middleware/auth";
+import { uploadArchivosFacturaProveedor } from "../../../../middleware/multerArchivosFacturaProveedor";
 const router = Router()
 
 // - Obtener las facturas que estan por recibirse
@@ -24,6 +25,10 @@ router.get('/enCaptura/:id_comp', Factura_Compra_ProveedorController.getFacturaE
 
 
 router.delete('/detalles/:id_factura_proveedor_detalle', Detalle_Factura_Compra_ProveedorController.eliminarDetalle);
+// Lee XML + PDF de la factura y los compara con la orden (form-data: id_comp, xml, pdf). No guarda nada.
+router.post('/analizarDocumentos', authMiddleware, uploadArchivosFacturaProveedor, Factura_Compra_ProveedorController.analizarDocumentos);
+// PDF y XML de la factura del proveedor (form-data: pdf, xml)
+router.post('/:id_factura/archivos', authMiddleware, uploadArchivosFacturaProveedor, Factura_Compra_ProveedorController.subirArchivos);
 router.post('/:id_factura/guardarLinea', Detalle_Factura_Compra_ProveedorController.guardarLineaFactura);
 router.get('/:id_factura/lineas', Detalle_Factura_Compra_ProveedorController.getLineasFactura);
 

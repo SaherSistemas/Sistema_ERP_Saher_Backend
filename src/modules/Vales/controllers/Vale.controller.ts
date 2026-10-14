@@ -5,7 +5,8 @@ export class ValeController {
 
     static crearVale = async (req: Request, res: Response) => {
         try {
-            const vale = await ValeService.crearVale(req.body);
+            // La existencia se valida en el almacén de la empresa del usuario (la misma que ve en el catálogo)
+            const vale = await ValeService.crearVale(req.body, { id_empresa_stock: (req as any).user?.id_empresa });
             res.status(201).json(vale);
         } catch (err: any) {
             res.status(400).json({ mensaje: err.message });
