@@ -1,5 +1,6 @@
 import { QueryTypes } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
+import { patronBusqueda } from '../../../../utils/busqueda';
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -20,7 +21,7 @@ export const MercanciaNuevaService = {
         )`;
         let filtro = '';
         if (busqueda) {
-            rep.like = `%${busqueda}%`;
+            rep.like = patronBusqueda(busqueda);
             filtro = `AND (a.des_artic ILIKE :like OR a.cod_barr_artic ILIKE :like OR a.cod_int_artic::text ILIKE :like OR p.nomcort_prove ILIKE :like)`;
         }
 

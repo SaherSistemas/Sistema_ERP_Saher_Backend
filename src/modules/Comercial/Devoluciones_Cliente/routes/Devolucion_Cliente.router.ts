@@ -16,6 +16,10 @@ router.get('/admin/factura/:id_factura', DevolucionClienteController.getFacturaA
 router.post('/admin', DevolucionClienteController.crearAdmin);
 router.get('/inventario-virtual', DevolucionClienteController.inventarioVirtual);
 router.post('/inventario-virtual/recibir', DevolucionClienteController.recibirInventarioVirtual);
+router.patch('/inventario-virtual/lote', DevolucionClienteController.asignarLoteInventarioVirtual);
+
+// Mi inventario virtual (agente logueado), por artículo
+router.get('/mi-inventario-virtual', DevolucionClienteController.miInventarioVirtual);
 
 // Mis solicitudes de devolución
 router.get('/mis-devoluciones', DevolucionClienteController.misDevoluciones);

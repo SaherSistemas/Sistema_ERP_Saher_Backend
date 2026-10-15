@@ -1,5 +1,6 @@
 import { QueryTypes } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
+import { patronBusqueda } from '../../../../utils/busqueda';
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -25,7 +26,7 @@ export const ValorInventarioService = {
             : '';
         const rep: Record<string, any> = { emp: id_empresa, limit, offset };
         if (busqueda) {
-            rep.like = `%${busqueda}%`;
+            rep.like = patronBusqueda(busqueda);
             if (/^\d+$/.test(busqueda)) rep.cod = Number(busqueda);
         }
 

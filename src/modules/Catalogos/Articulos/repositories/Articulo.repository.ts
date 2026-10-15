@@ -24,6 +24,7 @@ import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacio
 import Proveedor from '../../../Compras/Proveedores/model/Proveedor';
 import { NegadosVigentesService } from '../../../Almacen/Tablero/services/NegadosVigentes.service';
 import { DiasInventarioService } from '../../../Almacen/Tablero/services/DiasInventario.service';
+import { patronBusqueda } from '../../../../utils/busqueda';
 
 
 export const ArticuloRepository = {
@@ -32,16 +33,17 @@ export const ArticuloRepository = {
         return await Articulo.findAll({ attributes: ['id_artic'], raw: true })
     },
     getBycodBarroNombre: async (query: string) => {
+        const patron = patronBusqueda(query);   // los espacios son %: "paracetamol alpharma" → %paracetamol%alpharma%
         return await Articulo.findAll({
             where: {
                 [Op.or]: [
-                    { des_artic: { [Op.iLike]: `%${query}%` } },
-                    { des_gener_artic: { [Op.iLike]: `%${query}%` } },
+                    { des_artic: { [Op.iLike]: patron } },
+                    { des_gener_artic: { [Op.iLike]: patron } },
                     Sequelize.where(Sequelize.cast(Sequelize.col('cod_barr_artic'), 'TEXT'), {
-                        [Op.iLike]: `%${query}%`
+                        [Op.iLike]: patron
                     }),
                     Sequelize.where(Sequelize.cast(Sequelize.col('cod_int_artic'), 'TEXT'), {
-                        [Op.iLike]: `%${query}%`
+                        [Op.iLike]: patron
                     })
                 ]
             },
@@ -209,11 +211,12 @@ export const ArticuloRepository = {
             status_artic: true,
         };
         if (q) {
-            const qEscaped = q.replace(/'/g, "''");
+            const patronQ = patronBusqueda(q);
+            const qEscaped = patronQ.replace(/'/g, "''");
             whereArticulo[Op.or] = [
-                { des_artic: { [Op.iLike]: `%${q}%` } },
-                literal(`"Articulo"."cod_int_artic"::text ILIKE '%${qEscaped}%'`),
-                literal(`"Articulo"."cod_barr_artic"::text ILIKE '%${qEscaped}%'`),
+                { des_artic: { [Op.iLike]: patronQ } },
+                literal(`"Articulo"."cod_int_artic"::text ILIKE '${qEscaped}'`),
+                literal(`"Articulo"."cod_barr_artic"::text ILIKE '${qEscaped}'`),
             ];
         }
 

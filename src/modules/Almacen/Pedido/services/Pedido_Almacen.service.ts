@@ -2060,6 +2060,52 @@ export const Pedido_AlmacenService = {
       console.warn('[getHojaSurtido] No se pudieron calcular las otras ubicaciones:', (e as any)?.message);
     }
 
+    // Inventario virtual del agente: las piezas que el agente ya tiene (devoluciones sin llegar al almacén) no se
+    // surten del almacén. Se informa por artículo cuánto NO se surte y cuánto sí.
+    try {
+      const [ped] = await dbLocal.query<any>(
+        `SELECT id_agente_pedido_alm FROM pedido_almacen WHERE id_pedido_alm = :id`,
+        { replacements: { id: id_pedido_alm }, type: QueryTypes.SELECT });
+      if (ped?.id_agente_pedido_alm) {
+        const virt = await dbLocal.query<any>(`
+          SELECT v.id_articulo, v.cantidad, v.folio_factura, v."createdAt" AS fecha,
+                 l.numero_lote_sucursal, l.fecha_venci_lote_sucursal
+          FROM agente_inventario_virtual v
+          LEFT JOIN lote_articulo_sucursal l ON l.id_lote_sucursal = v.id_lote
+          WHERE v.id_agente = :ag AND v.estatus = 'EN_AGENTE' AND v.id_articulo IS NOT NULL AND v.cantidad > 0
+          ORDER BY v."createdAt" ASC`,
+          { replacements: { ag: ped.id_agente_pedido_alm }, type: QueryTypes.SELECT });
+        if (virt.length) {
+          const porArt = new Map<string, any[]>();
+          for (const v of virt) {
+            const l = porArt.get(String(v.id_articulo)) ?? [];
+            l.push(v);
+            porArt.set(String(v.id_articulo), l);
+          }
+          for (const item of itemsConFefo as any[]) {
+            const filas = porArt.get(String(item.id_artic));
+            if (!filas?.length) continue;
+            const pz = filas.reduce((s, f) => s + (Number(f.cantidad) || 0), 0);
+            const pedida = Number(item.cant_pedida) || 0;
+            const noSurtir = Math.min(pedida, pz);
+            item.virtual_agente = {
+              pz,
+              no_surtir: noSurtir,
+              surtir: Math.max(0, pedida - noSurtir),
+              detalle: filas.map(f => ({
+                cantidad: Number(f.cantidad) || 0,
+                folio_factura: f.folio_factura ?? null,
+                numero_lote: f.numero_lote_sucursal ? String(f.numero_lote_sucursal).trim() : null,
+                fecha_vencimiento: f.fecha_venci_lote_sucursal ?? null,
+              })),
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[getHojaSurtido] No se pudo consultar el inventario virtual del agente:', (e as any)?.message);
+    }
+
     return { cabecera: data.cabecera, items: itemsConFefo };
   },
 

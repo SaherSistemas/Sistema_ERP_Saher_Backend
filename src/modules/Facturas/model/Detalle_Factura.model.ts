@@ -31,7 +31,7 @@ export class Detalle_Factura extends Model {
 
     // FK → Artículo facturado
     @ForeignKey(() => Articulo)
-    @Column({ type: DataType.UUID, allowNull: false })
+    @Column({ type: DataType.UUID, allowNull: true })
     declare id_articulo: string;
 
     @Column(DataType.STRING(255))

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Transaction } from 'sequelize';
+import { QueryTypes, Transaction } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
 import { FacturacionRepository } from '../../../Facturas/repositories/Facturacion.repository';
 import Facturas from '../../../Facturas/model/Facturas.model';
@@ -75,7 +75,41 @@ export async function timbraDevolucionEgreso(params: {
     const esPublicoGeneral = detectarPublicoGeneral(origen.rfc_cliente, origen.nom_corto_cliente);
 
     // ── 2. Construir items ────────────────────────────────────────────────────
-    const items = solo_total && solo_total > 0
+    // Factura anterior con artículos capturados a mano (precio con IVA): un concepto por artículo, con su clave SAT,
+    // unidad y tasa de IVA del catálogo. Así cada renglón del egreso lleva su artículo (la columna es NOT NULL).
+    let itemsPorArticulo: any[] | null = null;
+    if (solo_total && solo_total > 0 && detalles.length > 0 && detalles.every(d => d.id_articulo)) {
+        const ids = Array.from(new Set(detalles.map(d => d.id_articulo as string)));
+        const cat = await dbLocal.query<any>(`
+            SELECT a.id_artic, a.satclave_artic AS cve_sat, um.sat_medida, um.descrip_medida AS desc_medida,
+                   CAST(ti.porcentaje_iva AS NUMERIC) AS tasa_iva
+            FROM articulo a
+            LEFT JOIN unidadmedida um ON um.id_medida = a.unidmedi_artic
+            LEFT JOIN tipo_iva     ti ON ti.id_iva    = a.tipo_de_iva
+            WHERE a.id_artic IN (:ids)`, { replacements: { ids }, type: QueryTypes.SELECT });
+        const porId = new Map<string, any>(cat.map((c: any) => [String(c.id_artic), c]));
+        itemsPorArticulo = detalles.map(d => {
+            const c = porId.get(String(d.id_articulo)) ?? {};
+            const tasa = Number(c.tasa_iva ?? 0) || 0;
+            const cantidad = Number(d.cantidad_devolucion);
+            const base = r2(Number(d.precio_unitario) / (1 + tasa));   // el precio capturado trae IVA
+            return {
+                cve_sat:         c.cve_sat     ?? SAT_GENERICO.cve_sat,
+                sat_medida:      c.sat_medida  ?? SAT_GENERICO.sat_medida,
+                desc_medida:     c.desc_medida ?? SAT_GENERICO.desc_medida,
+                tasa_iva:        tasa,
+                precio_unitario: base,
+                cantidad,
+                subtotal_linea:  r2(base * cantidad),
+                descripcion:     d.descripcion_articulo,
+                id_articulo:     d.id_articulo as string | null,
+            };
+        });
+    }
+
+    const items = itemsPorArticulo
+        ? itemsPorArticulo
+        : solo_total && solo_total > 0
         ? desglosePorTotal(origen, solo_total).map(g => ({
             cve_sat:         SAT_GENERICO.cve_sat,
             sat_medida:      SAT_GENERICO.sat_medida,

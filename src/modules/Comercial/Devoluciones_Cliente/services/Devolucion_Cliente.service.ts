@@ -1,7 +1,8 @@
-import { DevolucionClienteRepository } from '../repositories/Devolucion_Cliente.repository';
+import { DevolucionClienteRepository, IEntradaManualDevolucion } from '../repositories/Devolucion_Cliente.repository';
 import { AgenteRepository } from '../../Agente_Venta/repositories/Agente.repository';
 import { IDevolucionClienteCreate, IDevolucionDetalleCreate } from '../interface/Devolucion_Cliente.interface';
 import { Detalle_Factura } from '../../../Facturas/model/Detalle_Factura.model';
+import Devolucion_Cliente_Lote_Manual from '../model/Devolucion_Cliente_Lote_Manual.model';
 
 const MOTIVOS = ['error_pedido', 'error_surtido', 'error_precio', 'mal_estado', 'otros'] as const;
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -20,6 +21,8 @@ export interface IFacturaAdmin {
     lineas: ILineaDevolvible[];
     monto_ya_devuelto: number;
     total_disponible: number;
+    /** Saldo pendiente de la factura si sigue viva (con CxC sin pagar); null si no tiene o ya está pagada */
+    cxc_saldo_pendiente: number | null;
 }
 
 export interface ILineaDevolvible {
@@ -148,6 +151,7 @@ export const DevolucionClienteService = {
 
         const detalles = await Detalle_Factura.findAll({ where: { id_factura }, raw: true }) as any[];
         const yaDevuelto = await DevolucionClienteRepository.getCantidadesYaDevueltas(id_factura);
+        const cxc_saldo_pendiente = await DevolucionClienteRepository.getSaldoCxcFactura(id_factura);
 
         if (detalles.length === 0) {
             const montoYaDevuelto = await DevolucionClienteRepository.getMontoYaDevuelto(id_factura);
@@ -157,6 +161,7 @@ export const DevolucionClienteService = {
                 lineas: [] as ILineaDevolvible[],
                 monto_ya_devuelto: r2(montoYaDevuelto),
                 total_disponible: r2(Math.max(0, Number(cab.total_factura) - montoYaDevuelto)),
+                cxc_saldo_pendiente,
             };
         }
 
@@ -191,6 +196,7 @@ export const DevolucionClienteService = {
             lineas,
             monto_ya_devuelto: 0,
             total_disponible: r2(lineas.reduce((s, l) => s + l.cantidad_disponible * l.precio_unitario, 0)),
+            cxc_saldo_pendiente,
         };
     },
 
@@ -205,6 +211,8 @@ export const DevolucionClienteService = {
             observaciones?: string | null;
             detalles?: { clave: string; cantidad: number }[];
             monto_total?: number;
+            /** Factura vieja: artículos capturados a mano (precio con IVA); el monto sale de su suma */
+            lineas_manual?: { id_articulo?: string | null; descripcion: string; cantidad: number; precio_unitario: number; numero_lote?: string; fecha_caducidad?: string }[];
             aprobar?: boolean;
             recibio_mercancia?: boolean;
             descontar_cxc?: boolean;
@@ -224,8 +232,74 @@ export const DevolucionClienteService = {
         }
 
         let detalles: IDevolucionDetalleCreate[];
+        // Factura anterior con la mercancía recibida: lote y caducidad capturados a mano (entra sin ubicación)
+        let entradasManual: IEntradaManualDevolucion[] = [];
 
-        if (info.modo === 'TOTAL') {
+        if (info.modo === 'TOTAL' && Array.isArray(body.lineas_manual) && body.lineas_manual.length > 0) {
+            // Factura vieja con artículos capturados a mano: el monto es la suma de los renglones
+            detalles = body.lineas_manual.map(l => {
+                const cantidad = Number(l.cantidad);
+                const precio = Number(l.precio_unitario);
+                const descripcion = String(l.descripcion ?? '').trim();
+                if (!descripcion) throw { status: 400, message: 'Cada renglón debe tener un artículo o descripción.' };
+                if (!Number.isInteger(cantidad) || cantidad <= 0) {
+                    throw { status: 400, message: `La cantidad de "${descripcion}" debe ser un entero mayor a 0.` };
+                }
+                if (!Number.isFinite(precio) || precio <= 0) {
+                    throw { status: 400, message: `El precio de "${descripcion}" debe ser mayor a 0.` };
+                }
+                return {
+                    id_articulo: l.id_articulo || null,
+                    descripcion_articulo: descripcion,
+                    cantidad_facturada: cantidad,
+                    cantidad_devolucion: cantidad,
+                    precio_unitario: precio,
+                    subtotal_devolucion: r2(precio * cantidad),
+                };
+            });
+            if (body.recibio_mercancia === true) {
+                entradasManual = body.lineas_manual.map(l => {
+                    const lote = String(l.numero_lote ?? '').trim();
+                    const cad = String(l.fecha_caducidad ?? '').slice(0, 10);
+                    if (!l.id_articulo) {
+                        throw { status: 400, message: `"${l.descripcion}": para dar entrada al almacén elige el artículo del catálogo (no renglón libre).` };
+                    }
+                    if (!lote) throw { status: 400, message: `"${l.descripcion}": falta el número de lote.` };
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(cad)) throw { status: 400, message: `"${l.descripcion}": falta la fecha de caducidad.` };
+                    return {
+                        id_articulo: l.id_articulo,
+                        descripcion: String(l.descripcion).trim(),
+                        cantidad: Number(l.cantidad),
+                        numero_lote: lote,
+                        fecha_caducidad: cad,
+                    };
+                });
+            }
+            if (body.recibio_mercancia !== true) {
+                // No llegó al almacén: va al inventario virtual del agente; el lote y la caducidad son opcionales
+                // (sirven para poder recibirlo después), pero si se captura uno debe venir el otro.
+                entradasManual = body.lineas_manual
+                    .filter(l => l.id_articulo)
+                    .map(l => {
+                        const lote = String(l.numero_lote ?? '').trim();
+                        const cad = String(l.fecha_caducidad ?? '').slice(0, 10);
+                        if ((lote && !cad) || (!lote && cad)) {
+                            throw { status: 400, message: `"${l.descripcion}": captura lote y caducidad juntos (o ninguno).` };
+                        }
+                        return {
+                            id_articulo: l.id_articulo as string,
+                            descripcion: String(l.descripcion).trim(),
+                            cantidad: Number(l.cantidad),
+                            numero_lote: lote || undefined,
+                            fecha_caducidad: cad || undefined,
+                        };
+                    });
+            }
+            const montoLineas = r2(detalles.reduce((s, d) => s + Number(d.subtotal_devolucion), 0));
+            if (montoLineas > info.total_disponible + 0.009) {
+                throw { status: 400, message: `Los artículos suman ${montoLineas.toFixed(2)} y lo disponible de la factura es ${info.total_disponible.toFixed(2)}.` };
+            }
+        } else if (info.modo === 'TOTAL') {
             const monto = r2(Number(body.monto_total));
             if (!Number.isFinite(monto) || monto <= 0) {
                 throw { status: 400, message: 'Captura el monto a devolver (mayor a 0).' };
@@ -275,6 +349,17 @@ export const DevolucionClienteService = {
             detalles,
         });
 
+        // Lote y caducidad capturados: se guardan con la solicitud para que al aprobarla después no se pierdan
+        const conLote = entradasManual.filter(e => e.id_articulo && e.numero_lote && e.fecha_caducidad);
+        if (conLote.length) {
+            await Devolucion_Cliente_Lote_Manual.bulkCreate(conLote.map(e => ({
+                id_devolucion_cliente,
+                id_articulo: e.id_articulo,
+                numero_lote: e.numero_lote as string,
+                fecha_caducidad: e.fecha_caducidad as string,
+            })) as any);
+        }
+
         if (!body.aprobar) {
             return { id_devolucion_cliente, aprobada: false as const, modo: info.modo };
         }
@@ -291,7 +376,7 @@ export const DevolucionClienteService = {
                 id_empleado,
                 body.recibio_mercancia === true,
                 id_empresa,
-                { descontar_cxc: body.descontar_cxc === true },
+                { descontar_cxc: body.descontar_cxc === true, entradas_manual: entradasManual },
             );
             return { id_devolucion_cliente, aprobada: true as const, modo: info.modo, resultado };
         } catch (err: any) {
@@ -300,6 +385,22 @@ export const DevolucionClienteService = {
                 message: `La devolución se registró como PENDIENTE pero no pudo aprobarse: ${err?.message ?? 'error desconocido'}`,
             };
         }
+    },
+
+    // ── ADMIN: asignar lote y caducidad a un renglón del inventario virtual ──
+    asignarLoteInventarioVirtual: async (id_inventario_virtual: string, id_empresa: string, numero_lote: string, fecha_caducidad: string) => {
+        const lote = String(numero_lote ?? '').trim();
+        const cad = String(fecha_caducidad ?? '').slice(0, 10);
+        if (!lote) throw { status: 400, message: 'Captura el número de lote.' };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(cad)) throw { status: 400, message: 'Captura la fecha de caducidad.' };
+        return await DevolucionClienteRepository.asignarLoteInventarioVirtual(id_inventario_virtual, id_empresa, lote, cad);
+    },
+
+    // ── Inventario virtual del agente logueado (por artículo) ───────────
+    miInventarioVirtual: async (id_empleado: string) => {
+        const agente = await AgenteRepository.getByIdEmpleado(id_empleado);
+        if (!agente) return {};
+        return await DevolucionClienteRepository.getInventarioVirtualDeAgente(agente.id_agente);
     },
 
     // ── Inventario virtual de agentes ───────────────────────────────────
@@ -324,7 +425,7 @@ export const DevolucionClienteService = {
     },
 
     // ── Aprobar devolución con efectos financieros ──────────────────────
-    aprobar: async (id: string, id_empleado_aprueba: string, recibio_mercancia: boolean, id_empresa?: string, opciones?: { descontar_cxc?: boolean }) => {
+    aprobar: async (id: string, id_empleado_aprueba: string, recibio_mercancia: boolean, id_empresa?: string, opciones?: { descontar_cxc?: boolean; entradas_manual?: IEntradaManualDevolucion[] }) => {
         const dev = await DevolucionClienteRepository.getById(id);
         if (!dev) throw { status: 404, message: 'Devolución no encontrada.' };
         if (dev.estatus !== 'PENDIENTE') {

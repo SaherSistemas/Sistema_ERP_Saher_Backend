@@ -386,15 +386,15 @@ export const Pedido_AlmacenRepository = {
     id_agente?: string;
   }) => {
     const { page = 1, limit = 50 } = params;
-    // Con un término de búsqueda (folio o cliente) se busca en TODA la tabla: se ignoran fechas, estatus, la vista de
-    // "solo Capturado y Surtiendo" y el agente elegido.
+    // Con un término de búsqueda (folio o cliente) se busca en TODA la tabla: no aplica la vista por defecto de
+    // "solo Capturado y Surtiendo". Las fechas, el estatus y el agente solo cuentan si se eligieron a propósito.
     const busqueda = (params.busqueda ?? '').trim();
     const modoBusqueda = busqueda.length > 0;
-    const fecha_inicio = modoBusqueda ? undefined : params.fecha_inicio;
-    const fecha_fin = modoBusqueda ? undefined : params.fecha_fin;
-    const status = modoBusqueda ? undefined : params.status;
+    const fecha_inicio = params.fecha_inicio;
+    const fecha_fin = params.fecha_fin;
+    const status = params.status;
     const excluir_finalizados = modoBusqueda ? undefined : params.excluir_finalizados;
-    const id_agente = modoBusqueda ? undefined : params.id_agente;
+    const id_agente = params.id_agente;
     const offset = (page - 1) * limit;
     const porAtender = status === 'CA' || status === 'SU' || (!status && !!excluir_finalizados);
 

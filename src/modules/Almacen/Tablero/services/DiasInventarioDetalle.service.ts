@@ -1,5 +1,6 @@
 import { QueryTypes } from 'sequelize';
 import { dbLocal } from '../../../../config/db';
+import { patronBusqueda } from '../../../../utils/busqueda';
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -22,7 +23,7 @@ export const DiasInventarioDetalleService = {
         const rep: Record<string, any> = { emp: id_empresa, limite, offset: (page - 1) * limite };
         let filtroBusqueda = '';
         if (busqueda) {
-            rep.like = `%${busqueda}%`;
+            rep.like = patronBusqueda(busqueda);
             filtroBusqueda = `AND (des_artic ILIKE :like OR cod_barr_artic ILIKE :like ${/^\d+$/.test(busqueda) ? 'OR cod_int_artic = :cod' : ''})`;
             if (/^\d+$/.test(busqueda)) rep.cod = Number(busqueda);
         }

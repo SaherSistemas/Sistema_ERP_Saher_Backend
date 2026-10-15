@@ -36,6 +36,16 @@ export const DevolucionClienteController = {
         }
     },
 
+    // GET /devolucion_cliente/mi-inventario-virtual → lo que el agente logueado tiene en su inventario virtual, por artículo
+    miInventarioVirtual: async (req: AuthedRequest, res: Response) => {
+        try {
+            const data = await DevolucionClienteService.miInventarioVirtual(req.user!.id_referencia_persona);
+            res.status(200).json(data);
+        } catch (err: any) {
+            res.status(err?.status ?? 500).json({ message: err?.message ?? 'No se pudo consultar el inventario virtual.' });
+        }
+    },
+
     // POST /devolucion_cliente/admin
     crearAdmin: async (req: AuthedRequest, res: Response) => {
         try {
@@ -91,6 +101,20 @@ export const DevolucionClienteController = {
                 id_agente: id_agente || undefined,
                 estatus: estatus === 'RECIBIDO' ? 'RECIBIDO' : 'EN_AGENTE',
             });
+            res.status(200).json(data);
+        } catch (error: any) {
+            res.status(error.status || 500).json({ message: error.message || 'Error interno del servidor' });
+        }
+    },
+
+    // PATCH /devolucion_cliente/inventario-virtual/lote  { id_inventario_virtual, numero_lote, fecha_caducidad }
+    asignarLoteInventarioVirtual: async (req: AuthedRequest, res: Response) => {
+        try {
+            if (!soloAdmin(req, res)) return;
+            const b = req.body ?? {};
+            const data = await DevolucionClienteService.asignarLoteInventarioVirtual(
+                String(b.id_inventario_virtual ?? ''), req.user!.id_empresa, b.numero_lote, b.fecha_caducidad,
+            );
             res.status(200).json(data);
         } catch (error: any) {
             res.status(error.status || 500).json({ message: error.message || 'Error interno del servidor' });

@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { dbLocal } from '../../../../config/db';
 import { Pedido_AlmacenRepository } from '../../Pedido/repositories/Pedido_Almacen.repository';
 import { Detalle_Pedido_AlmacenRepository } from '../../Pedido/repositories/Detalle_Pedido_Almacen.repository';
+import { patronBusqueda } from '../../../../utils/busqueda';
 
 // Cotizaciones creadas desde el ERP: un pedido del cliente en estatus CO (En cotización) con sus renglones.
 // El agente la ve en la web, en las cotizaciones de ese cliente, igual que las que arma él mismo.
@@ -87,7 +88,7 @@ export const CotizacionService = {
              WHERE a.des_artic ILIKE :q OR trim(a.cod_barr_artic) = :exacto OR a.cod_int_artic::text = :exacto
              ORDER BY a.des_artic
              LIMIT 15`,
-            { replacements: { q: `%${termino}%`, exacto: termino, cli: id_cliente || null }, type: QueryTypes.SELECT });
+            { replacements: { q: patronBusqueda(termino), exacto: termino, cli: id_cliente || null }, type: QueryTypes.SELECT });
         const ex = await existenciaDisponible(filas.map((f: any) => String(f.id_artic)), id_empresa);
         return filas.map((f: any) => ({ ...f, existencia: id_empresa ? (ex.get(String(f.id_artic)) ?? 0) : null }));
     },
