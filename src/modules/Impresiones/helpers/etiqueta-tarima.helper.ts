@@ -31,6 +31,14 @@ function fmtFecha(iso?: string | null): string {
     return `${dd}/${mm}/${yy}`;
 }
 
+// La caducidad es una fecha de calendario (sin hora): se toma tal cual para que no se recorra un día por zona horaria
+function fmtCaducidad(valor?: string | null): string {
+    if (!valor) return '—';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(valor));
+    if (m) return `${m[3]}/${m[2]}/${m[1].slice(2)}`;
+    return fmtFecha(String(valor));
+}
+
 function hoy(): string {
     return fmtFecha(new Date().toISOString());
 }
@@ -106,6 +114,7 @@ export async function generarPdfEtiquetasTarima(datos: DatosEtiquetaTarima): Pro
             const rows: [string, string][] = [
                 ['Lote:',      datos.lote.numero_lote_sucursal ?? '—'],
                 ['Fec Ent:',   hoy()],
+                ['Caduca:',    fmtCaducidad(datos.lote.fecha_venci_lote_sucursal)],
                 ['Ubi Bod:',   et.nombre_tarima],
                 ['Pzas/caja:', et.pzas_por_caja.toFixed(0)],
             ];

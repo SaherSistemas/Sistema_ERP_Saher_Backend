@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { CxPController } from '../controllers/CxPController';
+import { AjusteFacturaController } from '../controllers/AjusteFacturaController';
 import { authMiddleware } from '../../../../middleware/auth';
 
 // Directorio donde se guardan los comprobantes de pago
@@ -27,6 +28,8 @@ router.get('/reporte-saldos',                         CxPController.reporteSaldo
 router.get('/',                            CxPController.getAll);
 router.get('/proveedor/:id_proveedor',     CxPController.getByProveedor);
 router.get('/comprobante/:id_pago_cxp',    CxPController.getComprobante);
+router.get('/ajuste-factura/:id_factura',  AjusteFacturaController.listar);
+router.post('/ajuste-factura',             AjusteFacturaController.crear);
 router.get('/:id_cxp',                     CxPController.getById);
 
 router.post('/',                           CxPController.create);

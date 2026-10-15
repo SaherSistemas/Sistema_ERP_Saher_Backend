@@ -10,7 +10,9 @@ const generalLimiter = rateLimit({
                 const payload = JSON.parse(
                     Buffer.from(auth.split('.')[1], 'base64').toString()
                 );
-                if (payload?.id) return `user_${payload.id}`;
+                // El JWT (utils/jwt.ts) trae `id_user`; antes se leía `id`, que no existe, y todos caían a la misma IP
+                const idUsuario = payload?.id_user ?? payload?.id;
+                if (idUsuario) return `user_${idUsuario}`;
             } catch { }
         }
         // Normalizar IPv6 ::ffff:x.x.x.x → x.x.x.x para evitar bypass

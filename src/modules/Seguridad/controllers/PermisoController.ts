@@ -161,6 +161,8 @@ export class PermisoController {
                 { modulo_permiso: 'web_crm', accion_permiso: 'mover_tarima' },
                 // Web CRM → Mercancía Nueva (lo que ya se chequeó en recibo; para vendedora de mostrador)
                 { modulo_permiso: 'web_crm', accion_permiso: 'mercancia_nueva' },
+                // Web CRM → Verificar Existencia (administrador: cuenta una ubicación y compara contra el sistema)
+                { modulo_permiso: 'web_crm', accion_permiso: 'verificar_existencia' },
             ];
 
             const existentes = await PermisoService.getAll();

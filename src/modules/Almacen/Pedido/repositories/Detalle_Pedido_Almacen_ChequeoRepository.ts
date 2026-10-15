@@ -229,6 +229,33 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         id_empleado: string
     ) => {
         //console.log(`Chequeando artículo ${cod_barras} (cantidad: ${cantidad}) para pedido ${idPedido} y empleado ${id_empleado}`);
+        // El código escaneado se resuelve contra el catálogo tolerando diferencias de captura del lector o del
+        // catálogo: espacios, ceros a la izquierda (UPC-12 vs EAN-13) y dígito verificador de más o de menos.
+        const codigoLeido = cod_barras.trim();
+        const sinCeros = codigoLeido.replace(/^0+/, '');
+        const trimCol = sqlFn('trim', sqlCol('cod_barr_artic'));
+        const condicionesCodigo: any[] = [
+            sqlWhere(trimCol, codigoLeido),
+            { cod_barr_artic: { [Op.iLike]: `%${codigoLeido}%` } },
+            // el código del catálogo viene contenido en lo escaneado (el lector agregó dígitos)
+            { [Op.and]: [
+                sqlWhere(sqlFn('strpos', codigoLeido, trimCol), { [Op.gt]: 0 }),
+                sqlWhere(sqlFn('length', trimCol), { [Op.gte]: 8 }),
+            ] },
+        ];
+        if (sinCeros) {
+            condicionesCodigo.push(sqlWhere(sqlFn('ltrim', trimCol, '0'), sinCeros));
+        }
+        const articulosCoincidentes = codigoLeido
+            ? await Articulo.findAll({
+                where: { [Op.or]: condicionesCodigo },
+                attributes: ['id_artic', 'des_artic', 'cod_barr_artic'],
+                raw: true,
+                limit: 50,
+            }) as any[]
+            : [];
+        const idsArticulos = articulosCoincidentes.map(a => a.id_artic);
+
         // Obtener todas las filas de chequeo del artículo (una por lote)
         const filas = await Detalle_Pedido_Almacen_Chequeo.findAll({
             where: { id_empleado },
@@ -241,11 +268,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                     model: Articulo,
                     required: true,
                     attributes: ['id_artic', 'cod_barr_artic', 'des_artic'],
-                    where: {
-                        cod_barr_artic: {
-                            [Op.iLike]: `%${cod_barras.trim()}%`
-                        }
-                    },
+                    where: { id_artic: { [Op.in]: idsArticulos } },
                 }],
             }],
             order: [['fecha_asignado', 'ASC']],
@@ -256,11 +279,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
             // El código escaneado no es de este pedido: se dice de qué artículo es (si existe en el catálogo)
             const codigo = cod_barras.trim();
             // El código de barras del catálogo puede traer espacios al final: se compara sin ellos
-            const escaneado = await Articulo.findOne({
-                where: sqlWhere(sqlFn('trim', sqlCol('cod_barr_artic')), codigo),
-                attributes: ['des_artic', 'cod_int_artic'],
-                raw: true,
-            }) as any;
+            const escaneado = articulosCoincidentes[0];
             // Las palabras "no encontrado" no se cambian: de ellas depende que la pantalla lo marque como código no válido
             if (escaneado?.des_artic) {
                 throw new Error([
