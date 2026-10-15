@@ -169,9 +169,9 @@ export const Stock_Ubicacion_LoteService = {
             );
             if (!origen) throw new Error("Stock origen no encontrado");
 
-            const disponible = origen.cantidad - origen.cantidad_apartada;
-            if (cantidad > disponible)
-                throw new Error(`Solo hay ${disponible} unidades disponibles (no apartadas) para mover`);
+            // Se puede mover todo lo que hay en la fila: las piezas apartadas viajan con lo movido (ver paso 5)
+            if (cantidad > origen.cantidad)
+                throw new Error(`Solo hay ${origen.cantidad} unidades en esta ubicación para mover`);
 
             // 2. Validar destino
             const destino = await Ubicacion_SucursalRepository.findById(id_ubicacion_destino);
@@ -199,6 +199,8 @@ export const Stock_Ubicacion_LoteService = {
             }
 
             // 5. Acumular en destino (buscar fila existente para mismo articulo+lote)
+            // Lo apartado en el origen se pasa a la ubicación destino (donde queda la mercancía), hasta donde alcance
+            // lo que hay ahí; siempre se pasa al menos lo que ya no cabría apartado en el origen.
             const filaDestino = await Stock_Ubicacion_Lote.findOne({
                 where: {
                     id_empresa_sucursal,
@@ -210,8 +212,22 @@ export const Stock_Ubicacion_LoteService = {
                 lock: tx.LOCK.UPDATE,
             });
 
+            const apartadaOrigen = Number(origen.cantidad_apartada) || 0;
+            const cantDestinoAntes = Number(filaDestino?.cantidad) || 0;
+            const apartadaDestinoAntes = Number(filaDestino?.cantidad_apartada) || 0;
+            const obligada = Math.max(0, apartadaOrigen - nuevaCantOrigen);
+            const cabeEnDestino = Math.max(0, cantDestinoAntes + cantidad - apartadaDestinoAntes);
+            const apartadaQueViaja = Math.min(apartadaOrigen, Math.max(cabeEnDestino, obligada));
+
+            if (apartadaQueViaja > 0 && nuevaCantOrigen > 0) {
+                await origen.update({ cantidad_apartada: apartadaOrigen - apartadaQueViaja }, { transaction: tx });
+            }
+
             if (filaDestino) {
-                await filaDestino.update({ cantidad: filaDestino.cantidad + cantidad }, { transaction: tx });
+                await filaDestino.update({
+                    cantidad: filaDestino.cantidad + cantidad,
+                    cantidad_apartada: apartadaDestinoAntes + apartadaQueViaja,
+                }, { transaction: tx });
             } else {
                 await Stock_Ubicacion_LoteRepository.create({
                     id_empresa_sucursal,
@@ -219,11 +235,11 @@ export const Stock_Ubicacion_LoteService = {
                     id_articulo: origen.id_articulo,
                     id_lote: origen.id_lote,
                     cantidad,
-                    cantidad_apartada: 0,
+                    cantidad_apartada: apartadaQueViaja,
                 }, tx);
             }
 
-            return { ok: true, movido: cantidad };
+            return { ok: true, movido: cantidad, apartadas_movidas: apartadaQueViaja };
         });
     },
 

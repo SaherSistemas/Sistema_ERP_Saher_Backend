@@ -560,10 +560,10 @@ export const ExistenciasService = {
             }
             if (destinoId) await validarUbicacionDeEmpresa(destinoId, d.id_empresa, t)
 
+            // Se puede mover toda la fila: las piezas apartadas viajan con lo movido hacia la ubicación destino
             const cantOrigen = Number(origen.cantidad) || 0
-            const disponible = Math.max(0, cantOrigen - (Number(origen.cantidad_apartada) || 0))
-            if (cantidad > disponible) {
-                throw new Error(`Solo puedes mover lo disponible (${disponible} pz); el resto está apartado por pedidos.`)
+            if (cantidad > cantOrigen) {
+                throw new Error(`Solo hay ${cantOrigen} pz en esta ubicación para mover.`)
             }
 
             const destino = await Stock_Ubicacion_Lote.findOne({
@@ -576,9 +576,25 @@ export const ExistenciasService = {
                 transaction: t, lock: t.LOCK.UPDATE,
             })
 
-            await origen.update({ cantidad: cantOrigen - cantidad }, { transaction: t })
+            // Lo apartado del origen se pasa a la ubicación destino (donde queda la mercancía), hasta donde alcance lo que
+            // hay ahí; siempre se pasa al menos lo que ya no cabría apartado en el origen.
+            const apartadaOrigen = Number(origen.cantidad_apartada) || 0
+            const nuevaCantOrigen = cantOrigen - cantidad
+            const cantDestinoAntes = Number(destino?.cantidad) || 0
+            const apartadaDestinoAntes = Number(destino?.cantidad_apartada) || 0
+            const obligada = Math.max(0, apartadaOrigen - nuevaCantOrigen)
+            const cabeEnDestino = Math.max(0, cantDestinoAntes + cantidad - apartadaDestinoAntes)
+            const apartadaQueViaja = Math.min(apartadaOrigen, Math.max(cabeEnDestino, obligada))
+
+            await origen.update({
+                cantidad: nuevaCantOrigen,
+                cantidad_apartada: apartadaOrigen - apartadaQueViaja,
+            }, { transaction: t })
             if (destino) {
-                await destino.update({ cantidad: (Number(destino.cantidad) || 0) + cantidad }, { transaction: t })
+                await destino.update({
+                    cantidad: cantDestinoAntes + cantidad,
+                    cantidad_apartada: apartadaDestinoAntes + apartadaQueViaja,
+                }, { transaction: t })
             } else {
                 await Stock_Ubicacion_Lote.create({
                     id_empresa_sucursal: d.id_empresa,
@@ -586,12 +602,12 @@ export const ExistenciasService = {
                     id_lote: origen.id_lote,
                     id_ubicacion_sucursal: destinoId,
                     cantidad,
-                    cantidad_apartada: 0,
+                    cantidad_apartada: apartadaQueViaja,
                 }, { transaction: t })
             }
 
             await t.commit()
-            return { ok: true, movidas: cantidad }
+            return { ok: true, movidas: cantidad, apartadas_movidas: apartadaQueViaja }
         } catch (err) {
             await t.rollback()
             throw err
