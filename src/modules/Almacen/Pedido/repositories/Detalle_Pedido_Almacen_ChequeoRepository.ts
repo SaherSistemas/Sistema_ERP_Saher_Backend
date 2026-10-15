@@ -1,4 +1,4 @@
-import { Op, Transaction } from 'sequelize';
+import { Op, Transaction, where as sqlWhere, fn as sqlFn, col as sqlCol } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import Detalle_Pedido_Almacen_Chequeo, {
     EstadoAsignacionDetalle
@@ -255,15 +255,24 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         if (!filas.length) {
             // El código escaneado no es de este pedido: se dice de qué artículo es (si existe en el catálogo)
             const codigo = cod_barras.trim();
+            // El código de barras del catálogo puede traer espacios al final: se compara sin ellos
             const escaneado = await Articulo.findOne({
-                where: { cod_barr_artic: codigo },
+                where: sqlWhere(sqlFn('trim', sqlCol('cod_barr_artic')), codigo),
                 attributes: ['des_artic', 'cod_int_artic'],
                 raw: true,
             }) as any;
+            // Las palabras "no encontrado" no se cambian: de ellas depende que la pantalla lo marque como código no válido
             if (escaneado?.des_artic) {
-                throw new Error(`Artículo no encontrado en el chequeo: "${String(escaneado.des_artic).trim()}" (código ${codigo}) no corresponde a este pedido`);
+                throw new Error([
+                    'Artículo no encontrado en el chequeo: no es de este pedido',
+                    String(escaneado.des_artic).trim(),
+                    `Código escaneado: ${codigo}`,
+                ].join('\n'));
             }
-            throw new Error(`Artículo no encontrado en el chequeo: el código ${codigo} no existe en el catálogo`);
+            throw new Error([
+                'Artículo no encontrado en el chequeo: el código no existe en el catálogo',
+                `Código escaneado: ${codigo}`,
+            ].join('\n'));
         }
 
         const cantSurtidaTotal = filas.reduce((s, f) => s + (Number(f.cant_surtida_lote) || 0), 0);
@@ -271,11 +280,23 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         const cantPedida = (filas[0] as any).detalle_pedido?.cant_pedida ?? cantSurtidaTotal;
 
         if (cantChecadaActual + cantidad > cantSurtidaTotal) {
-            const art = (filas[0] as any).detalle_pedido?.articulo ?? (filas[0] as any).detalle_pedido?.Articulo;
+            const det = (filas[0] as any).detalle_pedido;
+            let art = det?.articulo ?? det?.Articulo;
+            // Si la asociación no vino cargada, se busca el artículo del renglón directamente
+            if (!art?.des_artic && det?.id_articulo) {
+                art = await Articulo.findByPk(det.id_articulo, { attributes: ['des_artic', 'cod_barr_artic'], raw: true });
+            }
             const nombre = String(art?.des_artic ?? '').trim();
-            throw new Error(
-                `Cantidad excede lo surtido${nombre ? ` de "${nombre}"` : ''}. Surtido: ${cantSurtidaTotal}, Ya chequeado: ${cantChecadaActual}, Intentando agregar: ${cantidad}`
-            );
+            const codigoEscaneado = cod_barras.trim();
+            const codigoArticulo = String(art?.cod_barr_artic ?? '').trim();
+            // Varias líneas para que se lea de un vistazo: qué se escaneó y de qué artículo se pasó
+            throw new Error([
+                // La palabra "excede" no se cambia: de ella depende que se marque como cantidad excedida (422)
+                'La cantidad excede lo surtido de:',
+                nombre || '(artículo sin nombre)',
+                `Código escaneado: ${codigoEscaneado}${codigoArticulo && codigoArticulo !== codigoEscaneado ? ` (código del artículo: ${codigoArticulo})` : ''}`,
+                `Surtido: ${cantSurtidaTotal} · Ya chequeado: ${cantChecadaActual} · Intentando agregar: ${cantidad}`,
+            ].join('\n'));
         }
 
         // Distribuir entre lotes en orden (llena el primero incompleto primero)
