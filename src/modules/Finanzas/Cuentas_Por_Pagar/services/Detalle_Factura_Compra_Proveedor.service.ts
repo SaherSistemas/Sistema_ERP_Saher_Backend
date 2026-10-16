@@ -135,7 +135,8 @@ export const Detalle_Factura_Compra_ProveedorService = {
                 await EntradaInventarioFacturaService.sincronizarDesdeRecibidos(
                     data.id_factura_proveedor_detalle,
                     (data as any).id_empleado ?? null,
-                    t
+                    t,
+                    data.id_empresa ?? null
                 );
             }
 

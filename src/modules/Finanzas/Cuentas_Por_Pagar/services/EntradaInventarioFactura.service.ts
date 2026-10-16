@@ -228,11 +228,11 @@ export const EntradaInventarioFacturaService = {
     },
 
     // Datos comunes del renglón: artículo real, precio, empresa donde entra y si es traslado
-    cargarContexto: async (id_detalle: string, t: Transaction) => {
+    cargarContexto: async (id_detalle: string, t: Transaction, id_empresa_usuario?: string | null) => {
         const detalle = await Detalle_Factura_Compra_Proveedor.findByPk(id_detalle, { transaction: t });
         if (!detalle) throw new Error('Detalle de factura no encontrado.');
 
-        const factura: any = await Factura_Compra_Proveedor.findByPk(detalle.id_factura_compra_proveedor, {
+        const facturaInst: any = await Factura_Compra_Proveedor.findByPk(detalle.id_factura_compra_proveedor, {
             attributes: ['id_factura_proveedor', 'tipo_origen', 'id_empresa_receptora'],
             include: [{
                 model: Compra_Proveedor,
@@ -242,10 +242,15 @@ export const EntradaInventarioFacturaService = {
             }],
             transaction: t,
         });
-        if (!factura) throw new Error('Factura no encontrada.');
+        if (!facturaInst) throw new Error('Factura no encontrada.');
+        // Objeto plano (igual que lo lee el cierre de la factura): en la instancia la compra general no viene bajo el mismo nombre
+        const factura: any = facturaInst.toJSON();
 
         const esTraslado = factura.tipo_origen === 'TRASLADO';
-        const id_empresa = esTraslado ? factura.id_empresa_receptora : factura.compra?.compra_general?.id_empresa_sucursal;
+        // Empresa donde entra: la del usuario que checa (viene de su token); si no hubiera, la de la compra (o la receptora en traslados)
+        const id_empresa = id_empresa_usuario
+            || (esTraslado ? factura.id_empresa_receptora : factura.compra?.compra_general?.id_empresa_sucursal)
+            || null;
 
         let id_articulo: string | null = (detalle as any).id_artic ?? null;
         if (!id_articulo && (detalle as any).id_detcompsol) {
@@ -262,8 +267,8 @@ export const EntradaInventarioFacturaService = {
     },
 
     // AL GUARDAR EL CHEQUEO de un renglón: lo que debe haber entrado son sus lotes recibidos recién guardados
-    sincronizarDesdeRecibidos: async (id_detalle: string, id_empleado: string | null, t: Transaction) => {
-        const ctx = await EntradaInventarioFacturaService.cargarContexto(id_detalle, t);
+    sincronizarDesdeRecibidos: async (id_detalle: string, id_empleado: string | null, t: Transaction, id_empresa_usuario?: string | null) => {
+        const ctx = await EntradaInventarioFacturaService.cargarContexto(id_detalle, t, id_empresa_usuario);
         if (!ctx.id_articulo || !ctx.id_empresa) {
             console.warn("[EntradaInv] NO se dio entrada al checar: falta dato — artículo:", ctx.id_articulo, "| empresa:", ctx.id_empresa, "| detalle", id_detalle);
             return;

@@ -42,6 +42,7 @@ export const Factura_Compra_ProveedorService = {
     finalizarChequeoFacturaProveedor: async (
         id_factura_proveedor: string,
         id_referencia_persona: string,
+        id_empresa_usuario?: string | null,
     ) => {
 
 
@@ -189,9 +190,11 @@ export const Factura_Compra_ProveedorService = {
             const estadoFactura = totalesNegados.total > 0 ? 'D' : 'H';
 
             // 8) Darle entrada al inventario
-            const id_empresa_para_stock = esTraslado
-                ? factura.id_empresa_receptora
-                : factura.compra?.compra_general?.id_empresa_sucursal;
+            // Misma empresa que al checar (la del token del usuario); si no hubiera, la de la compra / receptora
+            const id_empresa_para_stock = id_empresa_usuario
+                || (esTraslado
+                    ? factura.id_empresa_receptora
+                    : factura.compra?.compra_general?.id_empresa_sucursal);
 
             // La entrada al inventario se da al CHECAR cada renglón. Aquí se vuelve a sincronizar con los lotes finales:
             // lo que ya entró no se repite y lo que no hubiera entrado (renglones checados antes de este cambio) entra ahora.
