@@ -17,6 +17,7 @@ import Detalle_Compra_Solicitado from "../../../Compras/Ordenes-Compra/model/Det
 import ListaPrecio from "../../../Comercial/Precios/model/Lista_Precio";
 import Factura_Compra_Proveedor from "../model/Factura_Compra_Proveedor";
 import Detalle_Factura_Compra_Proveedor from "../model/Detalle_Factura_Compra_Proveedor";
+import { EntradaInventarioFacturaService } from "./EntradaInventarioFactura.service";
 
 export const Detalle_Factura_Compra_ProveedorService = {
     modificarLotesYDetallesRecibidosFacturaProveedor: async (data: IModificarLotesDetalleFacturaDTO, usuario_empleado_chequeo: string) => {
@@ -94,10 +95,27 @@ export const Detalle_Factura_Compra_ProveedorService = {
                         await LotesArticuloSucursalRepository.llevarmeCostosDeLotesExistentesEnVariasEmpresas(
                             id_artic, empresas, modeloArticulo.cod_int_artic, costoNeto, { transaction: t }
                         );
-                    console.log("[PRECIO] Existentes:", totalCantidad, "@ promedio:", costoPromedio, "| Nuevas:", cantidadNueva, "@ costo:", costoNeto);
-                    const totalUnidades = totalCantidad + cantidadNueva;
+                    // Si este renglón ya había dado de entrada piezas (corrección de un chequeo), esas piezas ya
+                    // están en las "existentes": se descuentan para no contarlas dos veces
+                    let cantExistente = totalCantidad;
+                    let costoExistente = costoPromedio;
+                    const yaEntrada = marcarChecado
+                        ? await EntradaInventarioFacturaService.cantidadYaEntrada(data.id_factura_proveedor_detalle, t)
+                        : 0;
+                    if (yaEntrada > 0 && cantExistente > 0) {
+                        const resto = cantExistente - yaEntrada;
+                        if (resto > 0) {
+                            costoExistente = (costoPromedio * cantExistente - costoNeto * yaEntrada) / resto;
+                            cantExistente = resto;
+                        } else {
+                            cantExistente = 0;
+                            costoExistente = costoNeto;
+                        }
+                    }
+                    console.log("[PRECIO] Existentes:", cantExistente, "@ promedio:", costoExistente, "| Nuevas:", cantidadNueva, "@ costo:", costoNeto);
+                    const totalUnidades = cantExistente + cantidadNueva;
                     costoPromedioActualizado = totalUnidades > 0
-                        ? (costoPromedio * totalCantidad + costoNeto * cantidadNueva) / totalUnidades
+                        ? (costoExistente * cantExistente + costoNeto * cantidadNueva) / totalUnidades
                         : costoNeto;
                     console.log("[PRECIO] Costo promedio actualizado:", costoPromedioActualizado);
                 }
@@ -106,7 +124,19 @@ export const Detalle_Factura_Compra_ProveedorService = {
             // 5) Registrar los lotes recibidos en inventario — solo en chequeo real: si viene de
             //    una edición administrativa no se debe dar por recibida mercancía que nadie chequeó.
             if (marcarChecado) {
+                // Los lotes del inventario ligados a un lote recibido que se va a reemplazar se desligan primero
+                await EntradaInventarioFacturaService.liberarReferenciasDeLotesQueSeQuitan(
+                    data.id_factura_proveedor_detalle,
+                    (data.lotes ?? []).map((l: any) => l.__local_id).filter(Boolean).map(String),
+                    t
+                );
                 await Detalle_Compra_RecibidosRepository.updateLoteDetalleComproRecibido(data, t);
+                // La mercancía entra al inventario (sin ubicación) al checar el renglón; corregirlo ajusta la diferencia
+                await EntradaInventarioFacturaService.sincronizarDesdeRecibidos(
+                    data.id_factura_proveedor_detalle,
+                    (data as any).id_empleado ?? null,
+                    t
+                );
             }
 
             // 6) Actualizar precios en ERP y PolyDB

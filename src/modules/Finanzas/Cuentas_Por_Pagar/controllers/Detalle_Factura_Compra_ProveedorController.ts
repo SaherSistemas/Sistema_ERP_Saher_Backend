@@ -12,13 +12,18 @@ export class Detalle_Factura_Compra_ProveedorController {
         try {
             const usuario_empleado_chequeo = req.user?.username;
             const facturas = await Detalle_Factura_Compra_ProveedorService.modificarLotesYDetallesRecibidosFacturaProveedor(
-                { ...req.body, id_empresa: req.user?.id_empresa },
+                { ...req.body, id_empresa: req.user?.id_empresa, id_empleado: req.user?.id_referencia_persona },
                 usuario_empleado_chequeo
             );
             res.status(200).json({ mensaje: facturas })
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            // Los avisos de negocio (p. ej. piezas ya apartadas al corregir) se muestran tal cual
+            if (error?.expose) {
+                res.status(error.status ?? 409).json({ message: error.message });
+                return;
+            }
             res.status(500).json({ message: "Error al mostrar todos los proveedores." });
         }
     }

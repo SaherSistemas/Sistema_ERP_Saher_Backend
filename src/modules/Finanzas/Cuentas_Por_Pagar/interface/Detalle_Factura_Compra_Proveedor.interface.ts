@@ -109,6 +109,8 @@ export interface IModificarLotesDetalleFacturaDTO {
      * algo que nadie chequeó.
      */
     marcar_checado?: boolean;
+    /** Empleado que chequea (lo pone el controlador desde el token): para el Kardex de la entrada al inventario */
+    id_empleado?: string;
 }
 
 export interface ILoteDetalleFacturaDTO {

@@ -20,6 +20,7 @@ import { Faltante_Factura_ProveedorRepository } from "../../../../repository/Dev
 import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/repositories/Compra_General.repository";
 import Cuenta_Por_Pagar from '../model/Cuenta_Por_Pagar.model';
 import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
+import { EntradaInventarioFacturaService } from './EntradaInventarioFactura.service';
 export const Factura_Compra_ProveedorService = {
 
     actualizarEncabezado: async (id_factura_proveedor: string, data: IActualizarEncabezadoFacturaDTO) => {
@@ -192,70 +193,18 @@ export const Factura_Compra_ProveedorService = {
                 ? factura.id_empresa_receptora
                 : factura.compra?.compra_general?.id_empresa_sucursal;
 
-            const lotesArticuloSucursal: ICreaterOrUdateLotesArticuloSucursal[] = [];
-
+            // La entrada al inventario se da al CHECAR cada renglón. Aquí se vuelve a sincronizar con los lotes finales:
+            // lo que ya entró no se repite y lo que no hubiera entrado (renglones checados antes de este cambio) entra ahora.
             for (const d of detallesClasificados) {
-                // d.id_artic es el artículo real de esta línea de factura (por default el solicitado,
-                // pero puede haber sido corregido con "Cambiar artículo" si llegó algo distinto) — debe
-                // tener prioridad sobre detalleCompraSolicitado.idarticulo_detcompsol, que es solo lo
-                // que se pidió originalmente.
-                const idArticulo = esTraslado
-                    ? (d.articulo?.id_artic ?? d.id_artic)
-                    : (d.id_artic ?? d.detalleCompraSolicitado?.idarticulo_detcompsol);
-                if (!idArticulo) continue;
-
-                const recibido = Number(d?.resumen?.recibido ?? 0);
-                if (recibido <= 0) continue;
-
-                const lotes = Array.isArray(d.lotes_finales) ? d.lotes_finales : [];
-                for (const l of lotes) {
-                    const cantidad = Number(l.cantidad_lote ?? 0);
-                    if (cantidad <= 0) continue;
-
-                    lotesArticuloSucursal.push({
-                        id_artic: idArticulo,
-                        id_empre: id_empresa_para_stock,
-                        numero_lote_sucursal: l.numerolote_lote ?? l.numero_lote,
-                        fecha_venci_lote_sucursal: l.fechavencimiento_lote ?? l.fecha_caducidad ?? null,
-                        cantidad_entrada_lote: cantidad,
-                        precio_costo_lote_sucursal: Number(d.precio_articulo_factura ?? 0),
-                        estado_lote_sucursal: 'A',
-                        id_loterecibido_lote_sucursal: l.id_loterecibido ?? l.id_lote ?? null,
-                    });
-                }
+                await EntradaInventarioFacturaService.sincronizarDesdeFinales({
+                    d,
+                    id_factura: id_factura_proveedor,
+                    id_empresa: id_empresa_para_stock,
+                    esTraslado,
+                    id_empleado: id_referencia_persona ?? null,
+                    t,
+                });
             }
-            // Un mismo artículo puede venir en 2+ renglones de la factura (sin fusionar al
-            // capturarla) y, si además comparten número de lote, generan la MISMA llave
-            // (artículo, empresa, lote) dos veces dentro del mismo bulkUpsert — Postgres
-            // rechaza un ON CONFLICT DO UPDATE que toque la misma fila dos veces en una orden.
-            // Se fusiona por esa llave antes de mandarlo, sumando cantidad.
-            const lotesFusionados = new Map<string, ICreaterOrUdateLotesArticuloSucursal>();
-            for (const l of lotesArticuloSucursal) {
-                const key = `${l.id_artic}|${l.id_empre}|${l.numero_lote_sucursal}`;
-                const existente = lotesFusionados.get(key);
-                if (existente) {
-                    existente.cantidad_entrada_lote = Number(existente.cantidad_entrada_lote) + Number(l.cantidad_entrada_lote);
-                } else {
-                    lotesFusionados.set(key, { ...l });
-                }
-            }
-            const lotesArticuloSucursalFusionados = Array.from(lotesFusionados.values());
-
-            let lotesUpserted = [];
-
-            if (lotesArticuloSucursalFusionados.length > 0) {
-                lotesUpserted = await LotesArticuloSucursalRepository.bulkUpsert(lotesArticuloSucursalFusionados, t, { actualizarPrecio: !esTraslado });
-            }
-
-            const stockRows = lotesUpserted.map(l => ({
-                id_empresa_sucursal: id_empresa_para_stock,
-                id_articulo: l.id_artic,
-                id_lote: l.id_lote_sucursal,
-                cantidad: l.cantidad_entrada_lote,
-                cantidad_apartada: 0,
-            }));
-
-            await Stock_Ubicacion_LoteRepository.bulkUpsertAcumular(stockRows, t);
             // 9) Actualizar los precios al articulo (DETALLES_LISTA_PRECIA) 
 
             // 10) Finalizar checado factura (guarda totales recibidos y estado correcto)
