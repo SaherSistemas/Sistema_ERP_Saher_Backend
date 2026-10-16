@@ -61,6 +61,7 @@ async function registrarKardex(p: ParamsDelta, id_lote: string, tipo: 'ENTRADA' 
 }
 
 async function entrar(p: ParamsDelta, id_lote: string, cantidad: number, notas: string) {
+    console.log("[EntradaInv] ENTRAR", cantidad, "pz | lote", id_lote, "| empresa", p.id_empresa);
     const fila = await Stock_Ubicacion_Lote.findOne({
         where: { id_empresa_sucursal: p.id_empresa, id_articulo: p.id_articulo, id_lote, id_ubicacion_sucursal: null as any },
         transaction: p.t,
@@ -138,6 +139,9 @@ async function aplicarDelta(p: ParamsDelta) {
     const numeroDe = new Map(lotesPrevios.map(l => [l.id_lote_sucursal, String(l.numero_lote_sucursal ?? '').trim()]));
 
     const lotesTocados = new Set<string>();
+    console.log("[EntradaInv] detalle", p.id_detalle, "| artículo", p.id_articulo, "| empresa", p.id_empresa,
+        "| deseado:", JSON.stringify(Array.from(deseado.values()).map(l => ({ lote: l.numero, cant: l.cantidad }))),
+        "| ya entrado:", JSON.stringify(yaEntrado.map(f => ({ lote: f.id_lote_sucursal, cant: f.cantidad }))));
 
     // 1) Lotes que deben tener entrada: alta del lote si no existe y diferencia contra lo ya entrado
     for (const [numero, l] of deseado) {
@@ -170,6 +174,7 @@ async function aplicarDelta(p: ParamsDelta) {
         const previo = porLote.get(lote.id_lote_sucursal);
         const entrado = previo ? Number(previo.cantidad) : 0;
         const delta = l.cantidad - entrado;
+        console.log("[EntradaInv] lote", numero, "→ id", lote.id_lote_sucursal, "| entrado", entrado, "| deseado", l.cantidad, "| delta", delta);
 
         if (delta > 0) {
             await entrar(p, lote.id_lote_sucursal, delta,
@@ -259,13 +264,17 @@ export const EntradaInventarioFacturaService = {
     // AL GUARDAR EL CHEQUEO de un renglón: lo que debe haber entrado son sus lotes recibidos recién guardados
     sincronizarDesdeRecibidos: async (id_detalle: string, id_empleado: string | null, t: Transaction) => {
         const ctx = await EntradaInventarioFacturaService.cargarContexto(id_detalle, t);
-        if (!ctx.id_articulo || !ctx.id_empresa) return;
+        if (!ctx.id_articulo || !ctx.id_empresa) {
+            console.warn("[EntradaInv] NO se dio entrada al checar: falta dato — artículo:", ctx.id_articulo, "| empresa:", ctx.id_empresa, "| detalle", id_detalle);
+            return;
+        }
 
         const dr = await Detalle_Compra_Recibido.findOne({ where: { id_detalle_factura_compra_proveedor: id_detalle }, transaction: t });
         const lotes = dr
             ? await LotesRecibidosCompra.findAll({ where: { id_detallecompr_recibido: dr.id_detcomprec }, transaction: t })
             : [];
 
+        console.log("[EntradaInv] sincronizarDesdeRecibidos: lotes recibidos encontrados:", lotes.length, "| detalle", id_detalle);
         await aplicarDelta({
             id_detalle,
             id_factura: ctx.id_factura,
@@ -296,6 +305,7 @@ export const EntradaInventarioFacturaService = {
 
         const recibido = Number(d?.resumen?.recibido ?? 0);
         const lotes = recibido > 0 && Array.isArray(d.lotes_finales) ? d.lotes_finales : [];
+        console.log("[EntradaInv] sincronizarDesdeFinales (al cerrar): detalle", d.id_factura_proveedor_detalle, "| recibido", recibido, "| lotes", lotes.length);
 
         await aplicarDelta({
             id_detalle: d.id_factura_proveedor_detalle,
