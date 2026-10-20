@@ -144,6 +144,33 @@ export const TableroAlmacenController = {
         }
     },
 
+    // GET /almacen/tablero/valor-costo/:cod_int_artic/lotes
+    getLotesCosto: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa = String(req.user?.id_empresa || '').trim();
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+            const cod = Number(req.params.cod_int_artic);
+            if (!Number.isFinite(cod)) { res.status(400).json({ message: 'Código inválido.' }); return; }
+            res.status(200).json(await ValorInventarioService.getLotes(id_empresa, cod));
+        } catch (e: any) {
+            console.error('[TableroAlmacen.getLotesCosto]', e);
+            res.status(500).json({ message: e?.message ?? 'Error al consultar los lotes.' });
+        }
+    },
+
+    // PATCH /almacen/tablero/valor-costo/lote/:id_lote  body: { costo }
+    patchCostoLote: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa = String(req.user?.id_empresa || '').trim();
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+            res.status(200).json(await ValorInventarioService.actualizarCostoLote(
+                id_empresa, req.params.id_lote, Number(req.body?.costo), String(req.user?.username ?? '')));
+        } catch (e: any) {
+            console.error('[TableroAlmacen.patchCostoLote]', e);
+            res.status(e?.status ?? 500).json({ message: e?.message ?? 'No se pudo cambiar el costo.' });
+        }
+    },
+
     // GET /almacen/tablero/dias-inventario?dias=90&limite=30&compra=sin|camino|recibo
     // Artículos agotados, críticos o bajos según el ritmo real de salida de los últimos X días
     getDiasInventario: async (req: AuthedRequest, res: Response) => {

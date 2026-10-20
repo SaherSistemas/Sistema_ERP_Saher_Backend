@@ -41,6 +41,14 @@ router.get('/apartadas-sin-pedido', ExistenciasController.getApartadasSinPedido)
 //   libera lo apartado que ningún pedido activo respalda (se recalcula en el servidor)
 router.post('/liberar-apartadas', ExistenciasController.liberarApartadasSinPedido)
 
+// POST  /api/almacen/existencias_ubicacion/:id_stock_ubicacion_lote/mover-apartado
+//   body: { id_stock_destino, cantidad } → pasa piezas apartadas a otra ubicación del mismo lote (no mueve lo físico)
+router.post('/:id_stock_ubicacion_lote/mover-apartado', ExistenciasController.moverApartado)
+
+// GET   /api/almacen/existencias_ubicacion/lote/:id_lote/lineas-apartado
+//   → líneas de pedido sin facturar que tienen piezas apartadas de ese lote (para pasarlas a otro lote)
+router.get('/lote/:id_lote/lineas-apartado', ExistenciasController.getLineasApartadoLote)
+
 // GET   /api/almacen/existencias_ubicacion/:id_articulo
 //   → filas de stock_ubicacion_lote (ubicación + lote + existencia/apartada/disponible) y totales
 router.get('/:id_articulo', ExistenciasController.getPorArticulo)

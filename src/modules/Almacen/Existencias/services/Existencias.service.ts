@@ -1,5 +1,6 @@
 import { ordenarLotes } from '../../../../utils/ordenLotes';
 import { Op, QueryTypes, Transaction } from 'sequelize'
+import { v4 as uuidv4 } from 'uuid'
 import { dbLocal } from '../../../../config/db'
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote'
 import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal'
@@ -7,6 +8,7 @@ import Ubicacion_Sucursal from '../../Ubicaciones/model/Ubicacion_Sucursal'
 import { Movimiento_ArticuloRepository } from '../../Movimientos/repositories/Movimiento_Articulo.repository'
 import { Movimiento_ArticuloService } from '../../Movimientos/services/Movimiento_Articulo.service'
 import Liberacion_Apartada from '../model/Liberacion_Apartada.model'
+import Detalle_Pedido_Almacen_Lote from '../../Pedido/model/Detalle_Pedido_Almacen_Lote'
 
 // Pedidos que de verdad sostienen piezas apartadas: surtidos/chequeados/empacados y aún sin facturar.
 // (Empaque deja en EM a pedidos ya facturados y "Vale entregado" es EN, por eso se usa la fecha de facturado.)
@@ -142,6 +144,64 @@ export const ExistenciasService = {
     },
 
     // Lotes cuya apartada es mayor a lo que respaldan pedidos activos (de toda la sucursal)
+    // Pasa piezas APARTADAS de una fila de stock a otra fila del mismo lote (p. ej. de la tarima a la ubicación de estantería).
+    // Lo físico no se mueve: solo cambia de dónde se toma lo que ya está apartado por los pedidos.
+    moverApartado: async (d: { id_empresa: string; id_stock_origen: string; id_stock_destino: string; cantidad: number }) => {
+        const cantidad = Math.floor(Number(d.cantidad))
+        if (!(cantidad > 0)) throw new Error('Captura cuántas piezas apartadas se pasan.')
+        if (d.id_stock_origen === d.id_stock_destino) throw new Error('El origen y el destino son la misma fila.')
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED })
+        try {
+            const filas = await Stock_Ubicacion_Lote.findAll({
+                where: { id_stock_ubicacion_lote: [d.id_stock_origen, d.id_stock_destino], id_empresa_sucursal: d.id_empresa },
+                transaction: t, lock: t.LOCK.UPDATE,
+            })
+            const origen = filas.find(f => f.id_stock_ubicacion_lote === d.id_stock_origen)
+            const destino = filas.find(f => f.id_stock_ubicacion_lote === d.id_stock_destino)
+            if (!origen || !destino) throw new Error('No se encontró la ubicación de origen o de destino.')
+            if (origen.id_lote !== destino.id_lote) throw new Error('Solo se puede pasar el apartado entre ubicaciones del mismo lote.')
+
+            const apartadaOrigen = Number(origen.cantidad_apartada) || 0
+            if (cantidad > apartadaOrigen) throw new Error(`En el origen solo hay ${apartadaOrigen} pz apartadas.`)
+            const libreDestino = (Number(destino.cantidad) || 0) - (Number(destino.cantidad_apartada) || 0)
+            if (cantidad > libreDestino) throw new Error(`En el destino solo hay ${Math.max(0, libreDestino)} pz libres.`)
+
+            await origen.update({ cantidad_apartada: apartadaOrigen - cantidad }, { transaction: t })
+            await destino.update({ cantidad_apartada: (Number(destino.cantidad_apartada) || 0) + cantidad }, { transaction: t })
+            await t.commit()
+            return { ok: true, cantidad }
+        } catch (err) {
+            await t.rollback()
+            throw err
+        }
+    },
+
+    // Líneas de pedido (sin facturar) que tienen apartadas piezas de un lote: son las que se pueden pasar a otro lote
+    getLineasApartadoLote: async (id_empresa: string, id_lote: string) => {
+        const filas = await dbLocal.query<any>(`
+            SELECT dpal.id_detalle_pedido_almacen_lote AS id_linea, dpal.cantidad,
+                   pa.cod_int_pedido_alm, pa.status_pedido_alm, cs.descrip_almacen AS status_desc,
+                   ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm
+            FROM detalle_pedido_almacen_lote dpal
+            JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpal.id_detalle_pedido_almacen
+            JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
+            JOIN lote_articulo_sucursal l ON l.id_lote_sucursal = dpal.id_lote_sucursal
+            LEFT JOIN cat_status_pedido_almacen cs ON cs.id_status_pedido_almacen = pa.status_pedido_alm
+            LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+            WHERE dpal.id_lote_sucursal = :id_lote AND l.id_empre = :id_empresa AND ${PEDIDO_ACTIVO_SQL}
+            ORDER BY pa.cod_int_pedido_alm`,
+            { replacements: { id_lote, id_empresa }, type: QueryTypes.SELECT })
+        return filas.map((p: any) => ({
+            id_linea: p.id_linea as string,
+            cod_pedido: p.cod_int_pedido_alm as string,
+            status: p.status_pedido_alm as string,
+            status_desc: (p.status_desc ?? p.status_pedido_alm) as string,
+            cliente: String(p.nom_corto_cliente_alm ?? '').trim() || String(p.razon_social_cliente_alm ?? '').trim() || '—',
+            cantidad: Number(p.cantidad) || 0,
+        }))
+    },
+
     getApartadasSinPedido: async (id_empresa: string) => {
         const lotes = await dbLocal.query<any>(`
             WITH ap AS (
@@ -466,9 +526,7 @@ export const ExistenciasService = {
             const cantidad = Number(origen.cantidad) || 0
             const apartada = Number(origen.cantidad_apartada) || 0
             if (cantidad <= 0) throw new Error('Esta fila no tiene existencia que cambiar de lote.')
-            if (apartada > 0) {
-                throw new Error(`No se puede cambiar el lote: tiene ${apartada} pz apartadas por pedidos. Libéralas o espera a que se facturen.`)
-            }
+            // Si tiene piezas apartadas por pedidos, el apartado se va con las piezas al lote nuevo (y los pedidos pasan a ese lote)
 
             const loteOrigen = await Lote_Articulo_Sucursal.findOne({
                 where: { id_lote_sucursal: origen.id_lote }, transaction: t, lock: t.LOCK.UPDATE,
@@ -515,10 +573,49 @@ export const ExistenciasService = {
                 transaction: t, lock: t.LOCK.UPDATE,
             })
             if (existente) {
-                await existente.update({ cantidad: (Number(existente.cantidad) || 0) + cantidad }, { transaction: t })
+                await existente.update({
+                    cantidad: (Number(existente.cantidad) || 0) + cantidad,
+                    cantidad_apartada: (Number(existente.cantidad_apartada) || 0) + apartada,
+                }, { transaction: t })
                 await origen.destroy({ transaction: t })
             } else {
                 await origen.update({ id_lote: loteDestino.id_lote_sucursal }, { transaction: t })
+            }
+
+            // Los pedidos (sin facturar) que apartaban de este lote pasan al lote nuevo, por la cantidad apartada que se movió.
+            // Si una línea es más grande que lo que falta por pasar, se parte: una parte queda en el lote anterior y otra va al nuevo.
+            if (apartada > 0) {
+                const lineas = await dbLocal.query<any>(`
+                    SELECT dpal.id_detalle_pedido_almacen_lote AS id
+                    FROM detalle_pedido_almacen_lote dpal
+                    JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpal.id_detalle_pedido_almacen
+                    JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
+                    WHERE dpal.id_lote_sucursal = :lote AND ${PEDIDO_ACTIVO_SQL}
+                    ORDER BY pa."createdAt" ASC, dpal.id_detalle_pedido_almacen_lote ASC`,
+                    { replacements: { lote: origen.id_lote }, type: QueryTypes.SELECT, transaction: t })
+                let porPasar = apartada
+                for (const l of lineas) {
+                    if (porPasar <= 0) break
+                    const linea = await Detalle_Pedido_Almacen_Lote.findByPk(l.id, { transaction: t, lock: t.LOCK.UPDATE })
+                    if (!linea) continue
+                    const q = Number(linea.cantidad) || 0
+                    if (q <= 0) continue
+                    if (q <= porPasar) {
+                        await linea.update({ id_lote_sucursal: loteDestino.id_lote_sucursal, lote_factura_numero: null, lote_factura_fecha: null }, { transaction: t })
+                        porPasar -= q
+                    } else {
+                        await linea.update({ cantidad: q - porPasar }, { transaction: t })
+                        await Detalle_Pedido_Almacen_Lote.create({
+                            id_detalle_pedido_almacen_lote: uuidv4(),
+                            id_detalle_pedido_almacen: linea.id_detalle_pedido_almacen,
+                            id_lote_sucursal: loteDestino.id_lote_sucursal,
+                            cantidad: porPasar,
+                            lote_factura_numero: null,
+                            lote_factura_fecha: null,
+                        } as any, { transaction: t })
+                        porPasar = 0
+                    }
+                }
             }
 
             await loteOrigen.update(
@@ -531,7 +628,7 @@ export const ExistenciasService = {
             )
 
             await t.commit()
-            return { ok: true, piezas: cantidad, lote: String(loteDestino.numero_lote_sucursal).trim() }
+            return { ok: true, piezas: cantidad, apartadas: apartada, lote: String(loteDestino.numero_lote_sucursal).trim() }
         } catch (err) {
             await t.rollback()
             throw err

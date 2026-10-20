@@ -29,12 +29,13 @@ export class Detalle_Factura_Compra_ProveedorController {
     }
 
     // PATCH /detalles/:id_factura_proveedor_detalle/articulo  body: { id_artic }
-    static cambiarArticulo = async (req: Request, res: Response) => {
+    static cambiarArticulo = async (req: AuthedRequest, res: Response) => {
         try {
             const { id_factura_proveedor_detalle } = req.params;
             const { id_artic } = req.body ?? {};
             if (!id_artic) { res.status(400).json({ message: 'id_artic requerido' }); return; }
-            const detalle = await Detalle_Factura_Compra_ProveedorService.cambiarArticulo(id_factura_proveedor_detalle, id_artic);
+            const detalle = await Detalle_Factura_Compra_ProveedorService.cambiarArticulo(
+                id_factura_proveedor_detalle, id_artic, req.user?.id_referencia_persona ?? null, req.user?.id_empresa ?? null);
             res.status(200).json({ ok: true, detalle });
         } catch (error: any) {
             console.error('[cambiarArticulo]', error);

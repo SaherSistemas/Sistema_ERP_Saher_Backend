@@ -1460,8 +1460,20 @@ export const Pedido_AlmacenService = {
         throw new Error(`El lote ${String(lote.numero_lote_sucursal).trim()} solo tiene ${disponible} pz disponibles y la línea necesita ${cantidad}.`);
       }
       let porApartar = cantidad;
+      // Primero lo que está en una UBICACIÓN de estantería, después la tarima y al final lo que no tiene ubicación;
+      // dentro de cada grupo, la fila con más piezas libres.
+      const idsUbic = filasNuevo.map(f => f.id_ubicacion_sucursal).filter(Boolean) as string[];
+      const tipoDe = new Map<string, string>();
+      if (idsUbic.length) {
+        const us = await dbLocal.query<any>(
+          `SELECT id_ubicacion_sucursal, tipo_ubicacion FROM ubicacion_sucursal WHERE id_ubicacion_sucursal IN (:ids)`,
+          { replacements: { ids: idsUbic }, type: QueryTypes.SELECT, transaction: t });
+        for (const u of us) tipoDe.set(u.id_ubicacion_sucursal, String(u.tipo_ubicacion ?? ''));
+      }
+      const rango = (f: Stock_Ubicacion_Lote) => (!f.id_ubicacion_sucursal ? 2 : tipoDe.get(f.id_ubicacion_sucursal) === 'TARIMA' ? 1 : 0);
       const ordenadas = [...filasNuevo].sort((a, b) =>
-        ((Number(b.cantidad) || 0) - (Number(b.cantidad_apartada) || 0)) - ((Number(a.cantidad) || 0) - (Number(a.cantidad_apartada) || 0)));
+        rango(a) - rango(b)
+        || ((Number(b.cantidad) || 0) - (Number(b.cantidad_apartada) || 0)) - ((Number(a.cantidad) || 0) - (Number(a.cantidad_apartada) || 0)));
       for (const f of ordenadas) {
         if (porApartar <= 0) break;
         const libre = Math.max(0, (Number(f.cantidad) || 0) - (Number(f.cantidad_apartada) || 0));

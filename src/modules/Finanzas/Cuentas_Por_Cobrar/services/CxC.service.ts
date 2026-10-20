@@ -17,6 +17,7 @@ import { calcularImpuestosProporcionalesPago as _impuestosProporcionalesPago, re
 import { FacturacionRepository } from '../../../Facturas/repositories/Facturacion.repository';
 import EmpresaSucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import { generarReciboPDFBuffer } from '../helpers/recibo_cobranza.pdf';
+import { huellaDatos, leerReciboGuardado, guardarRecibo } from '../helpers/recibos_guardados';
 import { timbrarIngresoPublicoGeneral, generarFacturaAbonoPublicoGeneral, verificarAdmin } from '../../../Facturas/services/Facturacion.service';
 import Agente_Folio_Recibo from '../../../Comercial/Agente_Venta/model/Agente_Folio_Recibo';
 import { v4 as uuidv4 } from 'uuid';
@@ -1262,6 +1263,27 @@ export const CxCService = {
         const datos = await Pago_CxCRepository.getDatosRecibo(numero_recibo);
         if (!datos) throw new Error(`Recibo ${numero_recibo} no encontrado`);
         return generarReciboPDFBuffer(datos);
+    },
+
+    // Abre el PDF del recibo si ya está guardado en la carpeta de recibos (y sigue vigente); si no, lo genera, lo guarda
+    // ahí y lo regresa. "regenerar" obliga a crearlo de nuevo.
+    obtenerOGenerarReciboPDF: async (numero_recibo: string, regenerar = false): Promise<{ buffer: Buffer; desde_carpeta: boolean }> => {
+        const datos = await Pago_CxCRepository.getDatosRecibo(numero_recibo);
+        if (!datos) throw new Error(`Recibo ${numero_recibo} no encontrado (o todos sus pagos están cancelados)`);
+        const huella = huellaDatos(datos);
+
+        if (!regenerar) {
+            const guardado = leerReciboGuardado(numero_recibo, huella);
+            if (guardado) return { buffer: guardado, desde_carpeta: true };
+        }
+        const buffer = await generarReciboPDFBuffer(datos);
+        try {
+            guardarRecibo(numero_recibo, buffer, huella);
+        } catch (err: any) {
+            // Si la carpeta no se puede escribir, el recibo igual se muestra; solo no queda guardado
+            console.error('[Recibo] No se pudo guardar el PDF en la carpeta de recibos:', err?.message ?? err);
+        }
+        return { buffer, desde_carpeta: false };
     },
 
     // ─────────────────────────────────────────────────────────────────────────

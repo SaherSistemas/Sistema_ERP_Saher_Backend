@@ -368,6 +368,7 @@ export const Pago_CxCRepository = {
             nombre_cliente: string;
             ciudad:         string;
             notas:          string | null;
+            vendedor:       string | null;
             abonos:         string;   // JSON array devuelto por Postgres
         };
 
@@ -379,6 +380,7 @@ export const Pago_CxCRepository = {
                 MAX(COALESCE(ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm))              AS nombre_cliente,
                 MAX(COALESCE(ciu.nom_ciuda || ', ' || est.nom_esta, ''))                          AS ciudad,
                 MIN(p.notas)                                                                      AS notas,
+                MAX(NULLIF(TRIM(CONCAT_WS(' ', ecap.nombre_empleado, ecap.ap_pat_empleado)), ''))   AS vendedor,
                 JSON_AGG(
                     JSON_BUILD_OBJECT(
                         'folio_documento', COALESCE(f.folio_factura, r.folio_remision::TEXT, ''),
@@ -399,6 +401,7 @@ export const Pago_CxCRepository = {
             LEFT JOIN facturas      f   ON f.id_factura        = cxc.id_factura
             LEFT JOIN remision      r   ON r.id_remision       = cxc.id_remision
             LEFT JOIN cat_bancos    bco ON bco.id_banco        = p.id_banco
+            LEFT JOIN empleado      ecap ON ecap.id_empleado   = p.id_empleado_captura
             WHERE p.numero_recibo = :numero_recibo
               AND p.estatus_pago != 'CAN'
             GROUP BY p.numero_recibo
@@ -428,6 +431,7 @@ export const Pago_CxCRepository = {
             nombre_cliente: raw.nombre_cliente,
             ciudad:         raw.ciudad ?? '',
             notas:          raw.notas ?? null,
+            nombre_vendedor: raw.vendedor ?? null,
             abonos,
         };
     },

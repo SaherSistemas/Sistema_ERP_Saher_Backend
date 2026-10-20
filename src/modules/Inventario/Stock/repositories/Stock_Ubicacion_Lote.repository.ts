@@ -501,11 +501,7 @@ export const Stock_Ubicacion_LoteRepository = {
                 }
             ],
             order: [
-                // Lotes migrados (del sistema anterior) primero — el comentario de
-                // arriba ya lo declaraba, pero nunca se aplicó en el ORDER BY: solo
-                // se ordenaba por fecha_venci, así que un lote nuevo con caducidad
-                // más próxima podía salir antes que uno migrado más viejo.
-                [{ model: LoteArticuloSucursal, as: 'lote' }, 'migracion', 'DESC'],
+                // Caducidad más próxima primero (el orden final por lote y ubicación se aplica abajo)
                 [{ model: LoteArticuloSucursal, as: 'lote' }, 'fecha_venci_lote_sucursal', 'ASC'],
 
 
@@ -534,22 +530,14 @@ export const Stock_Ubicacion_LoteRepository = {
                 ['id_stock_ubicacion_lote', 'ASC']
             ],
         });
-        // Orden final de los lotes: migrados primero y, dentro de cada grupo, caducidad (por día) → número de lote en orden
-        // natural (misma forma) → fecha de entrada. Las filas del mismo lote conservan el orden por ubicación de arriba.
+        // Orden final de los lotes: caducidad (por día) → número de lote en orden natural (misma forma) → fecha de entrada. Las filas del mismo lote conservan el orden por ubicación de arriba.
         const infoLote = (r: any) => ({
             numero: r.lote?.numero_lote_sucursal,
             caducidad: r.lote?.fecha_venci_lote_sucursal,
             entrada: r.lote?.createdAt,
         });
-        // Lo que quedó SIN UBICACIÓN va primero (p. ej. la mercancía que regresó al cancelar una factura y se va a volver a
-        // facturar): ya está a la mano y no hay que ir a buscarla a un anaquel. Después, el orden de siempre.
-        const sinUbicacion = rowsBase.filter((r: any) => !r.id_ubicacion_sucursal);
-        const conUbicacion = rowsBase.filter((r: any) => !!r.id_ubicacion_sucursal);
-        const rows = [
-            ...ordenarLotes(sinUbicacion, infoLote),
-            ...ordenarLotes(conUbicacion.filter((r: any) => r.lote?.migracion), infoLote),
-            ...ordenarLotes(conUbicacion.filter((r: any) => !r.lote?.migracion), infoLote),
-        ];
+        // Sin prioridad especial para lo que está sin ubicación: manda la caducidad y, si empatan, el número de lote.
+        const rows = ordenarLotes(rowsBase, infoLote);
         /* console.log("ROWS DISPONIBLES PARA ARTÍCULO", id_articulo, ":", rows.map(r => ({
              id_stock_ubicacion_lote: r.id_stock_ubicacion_lote,
              cantidad: r.cantidad

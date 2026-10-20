@@ -21,6 +21,7 @@ import { CompraGeneralRepository } from "../../../Compras/Ordenes-Compra/reposit
 import Cuenta_Por_Pagar from '../model/Cuenta_Por_Pagar.model';
 import Factura_Compra_Proveedor from '../model/Factura_Compra_Proveedor';
 import { EntradaInventarioFacturaService } from './EntradaInventarioFactura.service';
+import { DevolucionProveedorService } from './DevolucionProveedor.service';
 export const Factura_Compra_ProveedorService = {
 
     actualizarEncabezado: async (id_factura_proveedor: string, data: IActualizarEncabezadoFacturaDTO) => {
@@ -261,6 +262,20 @@ export const Factura_Compra_ProveedorService = {
 
             // 12) Commit
             await t.commit();
+
+            // Con faltantes ("Con devolución"): se genera el documento de devolución y sale a imprimir solo.
+            // Es posterior al cierre y nunca lo rompe: si algo falla solo se registra en el servidor.
+            if (estadoFactura === 'D' && !esTraslado && id_empresa_usuario) {
+                try {
+                    await DevolucionProveedorService.registrarPorFaltantes({
+                        id_factura_proveedor,
+                        id_empresa: id_empresa_usuario,
+                        id_empleado: id_referencia_persona ?? null,
+                    });
+                } catch (errDoc: any) {
+                    console.error('[DevolucionProveedor] No se pudo generar el documento por faltantes:', errDoc?.message ?? errDoc);
+                }
+            }
             return facturaChequeada;
         } catch (err) {
             try {

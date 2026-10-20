@@ -408,10 +408,14 @@ export class CxCController {
     static getReciboPDF = async (req: Request, res: Response) => {
         try {
             const { numero_recibo } = req.params;
-            const buffer = await CxCService.generarReciboPDF(numero_recibo);
+            const regenerar = ['1', 'true', 'si'].includes(String(req.query.regenerar ?? '').toLowerCase());
+            // Si el PDF ya está en la carpeta de recibos se abre ese; si no, se genera, se guarda ahí y se abre
+            const { buffer, desde_carpeta } = await CxCService.obtenerOGenerarReciboPDF(numero_recibo, regenerar);
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `inline; filename="recibo-${numero_recibo}.pdf"`);
             res.setHeader('Content-Length', buffer.length);
+            res.setHeader('X-Recibo-Origen', desde_carpeta ? 'carpeta' : 'generado');
+            res.setHeader('Access-Control-Expose-Headers', 'X-Recibo-Origen');
             res.send(buffer);
         } catch (error: any) {
             console.error(error);

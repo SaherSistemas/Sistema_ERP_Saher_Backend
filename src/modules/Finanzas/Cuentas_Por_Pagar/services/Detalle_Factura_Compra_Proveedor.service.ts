@@ -217,11 +217,27 @@ export const Detalle_Factura_Compra_ProveedorService = {
     // no el que se solicitó/facturó bajo ese código de barras (cambio de presentación del proveedor,
     // por ejemplo). Solo antes de checar esa línea — si ya se registraron lotes con el artículo
     // anterior, hay que deshacer ese chequeo primero para no dejar existencia mal atribuida.
-    cambiarArticulo: async (id_factura_proveedor_detalle: string, id_artic: string) => {
+    cambiarArticulo: async (id_factura_proveedor_detalle: string, id_artic: string, id_empleado?: string | null, id_empresa_usuario?: string | null) => {
         const detalle = await Detalle_Factura_Compra_ProveedorRepository.getByPK(id_factura_proveedor_detalle);
         if (!detalle) throw new Error('Renglón de factura no encontrado.');
         if ((detalle as any).checado) {
-            throw new Error('Este renglón ya fue checado con el artículo anterior; no se puede cambiar así nada más.');
+            // Ya se había dado entrada con el artículo equivocado: sale ese (Kardex SALIDA) y entra el correcto (Kardex ENTRADA)
+            const factura = await Factura_Compra_Proveedor.findByPk(detalle.id_factura_compra_proveedor);
+            if (factura && (factura as any).estado_factura_proveedor === 'F') {
+                throw new Error('La factura ya está finalizada; no se puede cambiar el artículo de un renglón checado.');
+            }
+            const t = await dbLocal.transaction();
+            try {
+                await EntradaInventarioFacturaService.reasignarArticulo({
+                    id_detalle: id_factura_proveedor_detalle, id_articulo_nuevo: id_artic,
+                    id_empleado: id_empleado ?? null, id_empresa_usuario, t,
+                });
+                await t.commit();
+            } catch (err) {
+                await t.rollback();
+                throw err;
+            }
+            return await Detalle_Factura_Compra_ProveedorRepository.getByPK(id_factura_proveedor_detalle);
         }
 
         const factura = await Factura_Compra_Proveedor.findByPk(detalle.id_factura_compra_proveedor);

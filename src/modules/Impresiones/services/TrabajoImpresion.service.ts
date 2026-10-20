@@ -16,7 +16,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 // Convierte la ruta local del servidor a la ruta que ve el agente de impresión (UNC o unidad mapeada).
 // Si RUTA_PDFS_AGENTE no está configurado, devuelve la ruta original (agente en la misma máquina).
-function toAgentPath(localPath: string): string {
+export function toAgentPath(localPath: string): string {
     const guardar = process.env.RUTA_PDFS_GUARDAR;
     const agente = process.env.RUTA_PDFS_AGENTE;
     if (guardar && agente && localPath.startsWith(guardar)) {

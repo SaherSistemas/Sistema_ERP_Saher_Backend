@@ -1,4 +1,6 @@
 import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -20,6 +22,10 @@ export interface DatosRecibo {
     ciudad:           string;
     notas:            string | null;
     abonos:           AbonoRecibo[];
+    /** Firma del cliente capturada en el cobro (imagen en base64, con o sin prefijo data:) */
+    firma_cliente?:   string | null;
+    /** Nombre del agente que cobra (sale sobre la línea de NOMBRE Y FIRMA VENDEDOR) */
+    nombre_vendedor?: string | null;
 }
 
 // ─── Utilidades ───────────────────────────────────────────────────────────────
@@ -74,267 +80,254 @@ export function numeroALetras(n: number): string {
 }
 
 // ─── Generador principal ──────────────────────────────────────────────────────
+// Recibo de cobranza en HOJA CARTA HORIZONTAL, con el mismo formato del recibo impreso de Saher:
+// logo y datos de la empresa, RECIBO DE COBRANZA con su número en rojo, datos del cliente, tabla de documentos
+// (FACT. NO · VALOR · CHEQUE · BANCO · FECHA DEP. · EFECTIVO · MONTO TOTAL), observaciones, transferencia,
+// devolución / pronto pago / otros, cantidad con letra, subtotal / descuento / total, firmas y nota legal.
+
+// Logo: RUTA_LOGO_PDF si existe; si no, el que va en la carpeta assets del backend; si no, texto.
+function rutaLogo(): string | null {
+    const candidatos = [
+        process.env.RUTA_LOGO_PDF ? path.resolve(process.cwd(), process.env.RUTA_LOGO_PDF) : null,
+        path.resolve(process.cwd(), 'assets', 'logo_saher.png'),
+        path.resolve(__dirname, '..', '..', '..', '..', '..', 'assets', 'logo_saher.png'),
+    ].filter(Boolean) as string[];
+    return candidatos.find(p => fs.existsSync(p)) ?? null;
+}
 
 export function generarReciboPDFBuffer(datos: DatosRecibo): Promise<Buffer> {
     return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    const doc = new PDFDocument({ size: 'LETTER', margin: 0, info: { Title: `Recibo ${datos.numero_recibo}` } });
+    const doc = new PDFDocument({
+        size: 'LETTER', layout: 'landscape', margin: 0,
+        info: { Title: `Recibo de cobranza ${datos.numero_recibo}` },
+    });
     doc.on('data',  (c: Buffer) => chunks.push(c));
     doc.on('end',   () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const PW = 612;
-    const MX = 32;          // margen horizontal
-    const CW = PW - MX * 2; // ancho del contenido = 548
-    const AZUL   = '#1a3c6e';
-    const ROJO   = '#cc1111';
-    const GRIS_L = '#eeeeee';
-    const GRIS_D = '#888888';
-    const NEGRO  = '#111111';
+    // Hoja carta horizontal: 792 x 612 pt
+    const PW = 792, PH = 612;
+    const FM = 20;                  // margen del marco
+    const MX = FM + 16;             // margen del contenido
+    const CW = PW - MX * 2;         // ancho del contenido
+    const AZUL  = '#2b3a8f';        // azul del formato impreso
+    const AZUL_C = '#b9c0e4';       // azul claro del encabezado de tabla
+    const ROJO  = '#d11a1a';
+    const NEGRO = '#1a1a1a';
 
-    // Helper: celda con borde
-    const cell = (x: number, y: number, w: number, h: number, text: string, opts?: {
-        bold?: boolean; size?: number; color?: string; align?: 'left' | 'center' | 'right';
-        bg?: string; paddingX?: number; paddingY?: number;
-    }) => {
-        const { bold = false, size = 8, color = NEGRO, align = 'left', bg, paddingX = 4, paddingY = 3 } = opts ?? {};
-        if (bg) doc.rect(x, y, w, h).fill(bg);
-        doc.rect(x, y, w, h).stroke('#bbbbbb');
-        doc.font(bold ? 'Helvetica-Bold' : 'Helvetica')
-           .fontSize(size)
-           .fillColor(color)
-           .text(text, x + paddingX, y + paddingY, { width: w - paddingX * 2, align, lineBreak: false, ellipsis: true });
-    };
+    // Marco redondeado de toda la hoja
+    doc.roundedRect(FM, FM, PW - FM * 2, PH - FM * 2, 10).lineWidth(1.4).stroke(AZUL);
 
-    let y = MX;
+    // Texto de etiqueta (azul, negrita)
+    const etiqueta = (t: string, x: number, y: number, size = 8, opts: any = {}) =>
+        doc.font('Helvetica-Bold').fontSize(size).fillColor(AZUL).text(t, x, y, { lineBreak: false, ...opts });
+    const valor = (t: string, x: number, y: number, w: number, size = 9) =>
+        doc.font('Helvetica').fontSize(size).fillColor(NEGRO).text(t, x, y, { width: w, lineBreak: false, ellipsis: true });
 
     // ── ENCABEZADO ─────────────────────────────────────────────────────────────
+    let y = FM + 12;
+    const logo = rutaLogo();
+    const LOGO_W = 150, LOGO_H = 52;
+    if (logo) {
+        doc.image(logo, MX, y, { fit: [LOGO_W, LOGO_H] });
+    } else {
+        doc.font('Helvetica-Bold').fontSize(30).fillColor(AZUL).text('Saher', MX, y + 8, { lineBreak: false });
+    }
 
-    // Caja logo "S"
-    const LOGO_SIZE = 64;
-    doc.rect(MX, y, LOGO_SIZE, LOGO_SIZE).fillAndStroke(AZUL, AZUL);
-    doc.font('Helvetica-Bold').fontSize(44).fillColor('#ffffff')
-       .text('S', MX, y + 8, { width: LOGO_SIZE, align: 'center', lineBreak: false });
-
-    // Nombre debajo del logo
+    // Datos de la empresa (a la derecha del logo, alineados a la derecha como en el formato)
+    const EMP_W = 330;
+    const EMP_X = MX + CW - EMP_W;
     doc.font('Helvetica-Bold').fontSize(9).fillColor(AZUL)
-       .text('Farmacias Saher', MX + LOGO_SIZE + 6, y + 4);
-    doc.font('Helvetica').fontSize(7).fillColor(GRIS_D)
-       .text('de Sinaloa', MX + LOGO_SIZE + 6, y + 16);
+       .text('FARMACIAS SAHER DE SINALOA S. DE R.L. DE C.V.', EMP_X, y, { width: EMP_W, align: 'right', lineBreak: false });
+    doc.font('Helvetica').fontSize(7.5).fillColor(AZUL)
+       .text('Calle Pastor Rouix 2314 Int. B Colonia Industrial El Palmito.', EMP_X, y + 12, { width: EMP_W, align: 'right', lineBreak: false })
+       .text('C.P. 80160, Culiacán, Sinaloa  RFC: FSS231107F4',              EMP_X, y + 22, { width: EMP_W, align: 'right', lineBreak: false })
+       .text('Correo: farmacias.saher@gmail.com  Teléfono: 66 77 644798',   EMP_X, y + 32, { width: EMP_W, align: 'right', lineBreak: false });
 
-    // Datos de empresa (columna central)
-    const EMP_X = MX + 155;
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(NEGRO)
-       .text('FARMACIAS SAHER DE SINALOA S. DE R.L. DE C.V.', EMP_X, y + 2, { width: 260 });
-    doc.font('Helvetica').fontSize(7).fillColor('#444444')
-       .text('Calle Pastor Rouix 2314 Int. B Colonia Industrial El Palmito', EMP_X, y + 14, { width: 260 })
-       .text('C.P. 80160, Culiacán, Sinaloa     RFC: FSS231107F4',            EMP_X, y + 23, { width: 260 })
-       .text('Correo: farmacias.saher@gmail.com  Teléfono: 66 77 644798',      EMP_X, y + 32, { width: 260 });
+    // RECIBO DE COBRANZA + Nº en rojo (caja redondeada)
+    const NB_W = 150, NB_H = 24;
+    const NB_X = MX + CW - NB_W, NB_Y = y + 48;
+    doc.roundedRect(NB_X, NB_Y, NB_W, NB_H, 5).lineWidth(1.2).stroke(AZUL);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(AZUL).text('Nº', NB_X + 8, NB_Y + 8, { lineBreak: false });
+    doc.font('Helvetica-Bold').fontSize(15).fillColor(ROJO)
+       .text(String(datos.numero_recibo), NB_X + 24, NB_Y + 4, { width: NB_W - 30, align: 'center', lineBreak: false, ellipsis: true });
+    etiqueta('RECIBO DE COBRANZA', NB_X - 175, NB_Y + 6, 12, { width: 168, align: 'right' });
 
-    doc.font('Helvetica-Bold').fontSize(11).fillColor(AZUL)
-       .text('RECIBO DE COBRANZA', EMP_X, y + 44, { width: 260 });
+    // ── DATOS DEL CLIENTE (cuatro renglones, como en el formato) ───────────────
+    y = FM + 12 + 78;
+    const FW_ = 400;            // ancho de la caja de datos
+    const FH = 17;
+    doc.roundedRect(MX, y, FW_, FH * 4 + 4, 6).lineWidth(1).stroke(AZUL);
+    const campos: [string, string][] = [
+        ['FECHA:',        formatDate(datos.fecha_emision)],
+        ['RAZÓN SOCIAL:', datos.razon_social],
+        ['NOMBRE:',       datos.nombre_cliente],
+        ['CIUDAD:',       datos.ciudad],
+    ];
+    campos.forEach(([lbl, val], i) => {
+        const ry = y + 3 + i * FH;
+        if (i > 0) doc.moveTo(MX + 4, ry).lineTo(MX + FW_ - 4, ry).lineWidth(0.5).stroke(AZUL_C);
+        etiqueta(lbl, MX + 8, ry + 5, 8);
+        valor(val ?? '', MX + 92, ry + 4, FW_ - 100, 9);
+    });
 
-    // Número de recibo (caja roja, esquina derecha)
-    const RB_W = 90; const RB_H = 26;
-    const RB_X = MX + CW - RB_W; const RB_Y = y + 4;
-    doc.rect(RB_X, RB_Y, RB_W, RB_H).fillAndStroke(ROJO, ROJO);
-    doc.font('Helvetica-Bold').fontSize(13).fillColor('#ffffff')
-       .text(`N° ${datos.numero_recibo}`, RB_X, RB_Y + 7, { width: RB_W, align: 'center', lineBreak: false });
-
-    y += LOGO_SIZE + 8;
-
-    // ── LÍNEA SEPARADORA ───────────────────────────────────────────────────────
-    doc.rect(MX, y, CW, 1.5).fill(AZUL);
-    y += 6;
-
-    // ── DATOS DEL CLIENTE ──────────────────────────────────────────────────────
-    const CH = 18; // altura de cada celda de info cliente
-
-    // Fila 1: FECHA | RAZÓN SOCIAL
-    const C1W = 110; const C2W = CW - C1W;
-    cell(MX,        y, C1W, CH, 'FECHA:', { bold: true, size: 7.5, color: '#555' });
-    doc.font('Helvetica').fontSize(8.5).fillColor(NEGRO)
-       .text(formatDate(datos.fecha_emision), MX + C1W - 78, y + 4, { lineBreak: false });
-
-    cell(MX + C1W, y, C2W, CH, `RAZÓN SOCIAL:  ${datos.razon_social}`, { bold: false, size: 8.5 });
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555')
-       .text('RAZÓN SOCIAL:', MX + C1W + 4, y + 4);
-    y += CH;
-
-    // Fila 2: NOMBRE | CIUDAD
-    const C3W = 300; const C4W = CW - C3W;
-    cell(MX,        y, C3W, CH, `NOMBRE:  ${datos.nombre_cliente}`,  { bold: false, size: 8.5 });
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555').text('NOMBRE:', MX + 4, y + 4);
-    cell(MX + C3W, y, C4W, CH, `CIUDAD:  ${datos.ciudad}`, { bold: false, size: 8.5 });
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555').text('CIUDAD:', MX + C3W + 4, y + 4);
-    y += CH;
-
-    y += 4;
-
-    // ── TABLA DE PAGOS ─────────────────────────────────────────────────────────
-    // Definición de columnas (suma = 548)
+    // ── TABLA DE DOCUMENTOS ────────────────────────────────────────────────────
+    y += FH * 4 + 4 + 10;
     type ColDef = { label: string; w: number };
     const COLS: ColDef[] = [
-        { label: 'FACT. NO.',   w: 75 },
-        { label: 'VALOR',       w: 68 },
-        { label: 'CHEQUE',      w: 60 },
-        { label: 'BANCO',       w: 68 },
-        { label: 'FECHA DEP.',  w: 72 },
-        { label: 'EFECTIVO',    w: 65 },
-        { label: 'MONTO TOTAL', w: 140 },
+        { label: 'FACT. NO.',   w: 92 },
+        { label: 'VALOR',       w: 96 },
+        { label: 'CHEQUE',      w: 92 },
+        { label: 'BANCO',       w: 112 },
+        { label: 'FECHA DEP.',  w: 96 },
+        { label: 'EFECTIVO',    w: 100 },
+        { label: 'MONTO TOTAL', w: CW - (92 + 96 + 92 + 112 + 96 + 100) },
     ];
+    const TH = 19, TR = 15.5;
+    const FILAS = Math.max(12, datos.abonos.length);   // al menos 12 renglones, como la hoja impresa
+    const tablaTop = y;
+    const tablaH = TH + TR * FILAS;
 
-    const TH = 17; // altura del header de tabla
-    const TR = 16; // altura de cada fila
-
-    // Header
+    // Encabezado azul claro
+    doc.rect(MX, y, CW, TH).fill(AZUL_C);
     let cx = MX;
     for (const col of COLS) {
-        cell(cx, y, col.w, TH, col.label, { bold: true, size: 7.5, color: '#ffffff', align: 'center', bg: AZUL });
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(AZUL)
+           .text(col.label, cx, y + 6, { width: col.w, align: 'center', lineBreak: false });
         cx += col.w;
     }
     y += TH;
 
-    // Filas de abonos
+    // Renglones
     let totalMonto = 0;
-    datos.abonos.forEach((ab, idx) => {
-        const rowBg = idx % 2 === 0 ? '#ffffff' : GRIS_L;
-        cx = MX;
-
-        const esEfectivo     = ab.id_forma_pago === '01';
-        const esCheque       = ab.id_forma_pago === '02';
-        const esTrans        = !esEfectivo && !esCheque;
-
-        const chequeVal   = esCheque ? formatMXN(ab.monto)             : '';
-        const efectivoVal = esEfectivo ? formatMXN(ab.monto)           : '';
-        // Columna BANCO: el banco elegido al capturar; si no hay (recibos anteriores) se queda la referencia
-        const bancoVal    = (esCheque || esTrans) ? (ab.banco || ab.referencia_pago || '') : '';
-
-        const vals = [
-            ab.folio_documento,
-            formatMXN(ab.valor_documento),
-            chequeVal,
-            bancoVal,
-            formatDate(ab.fecha_deposito),
-            efectivoVal,
-            formatMXN(ab.monto),
-        ];
-
-        COLS.forEach((col, ci) => {
-            const isNum = ci >= 1;
-            cell(cx, y, col.w, TR, vals[ci], { size: 8, align: isNum ? 'right' : 'left', bg: rowBg });
-            cx += col.w;
-        });
-
-        totalMonto += ab.monto;
-        y += TR;
-    });
-
-    // Filas vacías (mínimo 5 filas en total, al menos 2 vacías)
-    const minFilas = Math.max(5, datos.abonos.length + 2);
-    const filasVacias = minFilas - datos.abonos.length;
-    for (let i = 0; i < filasVacias; i++) {
-        cx = MX;
-        const rowBg = (datos.abonos.length + i) % 2 === 0 ? '#ffffff' : GRIS_L;
-        COLS.forEach(col => {
-            cell(cx, y, col.w, TR, '', { bg: rowBg });
-            cx += col.w;
-        });
+    for (let i = 0; i < FILAS; i++) {
+        const ab = datos.abonos[i];
+        if (ab) {
+            const esEfectivo = ab.id_forma_pago === '01';
+            const esCheque   = ab.id_forma_pago === '02';
+            const esTrans    = !esEfectivo && !esCheque;
+            const vals = [
+                ab.folio_documento,
+                formatMXN(ab.valor_documento),
+                esCheque ? formatMXN(ab.monto) : '',
+                (esCheque || esTrans) ? (ab.banco || ab.referencia_pago || '') : '',
+                formatDate(ab.fecha_deposito),
+                esEfectivo ? formatMXN(ab.monto) : '',
+                formatMXN(ab.monto),
+            ];
+            cx = MX;
+            COLS.forEach((col, ci) => {
+                const num = ci === 1 || ci === 2 || ci === 5 || ci === 6;
+                doc.font('Helvetica').fontSize(8.5).fillColor(NEGRO)
+                   .text(vals[ci], cx + 4, y + 4, { width: col.w - 8, align: ci === 0 || ci === 3 ? 'left' : (num ? 'right' : 'center'), lineBreak: false, ellipsis: true });
+                cx += col.w;
+            });
+            totalMonto += ab.monto;
+        }
+        // línea horizontal del renglón
+        doc.moveTo(MX, y + TR).lineTo(MX + CW, y + TR).lineWidth(0.5).stroke(AZUL);
         y += TR;
     }
 
-    y += 6;
+    // Marco de la tabla y líneas verticales
+    doc.rect(MX, tablaTop, CW, tablaH).lineWidth(1).stroke(AZUL);
+    cx = MX;
+    for (let i = 0; i < COLS.length - 1; i++) {
+        cx += COLS[i].w;
+        doc.moveTo(cx, tablaTop).lineTo(cx, tablaTop + tablaH).lineWidth(0.5).stroke(AZUL);
+    }
 
-    // ── SECCIÓN INFERIOR ───────────────────────────────────────────────────────
-    const BOTTOM_W_L  = CW * 0.60; // izquierda: observaciones
-    const BOTTOM_W_R  = CW - BOTTOM_W_L; // derecha: totales
+    // ── PARTE INFERIOR ─────────────────────────────────────────────────────────
+    y += 10;
+    const IZQ_W = CW - 200;       // izquierda: observaciones, transferencia, etc.
+    const TOT_W = 190;            // derecha: subtotal / descuento / total
+    const BAJO_Y = y;
 
-    // ──── Izquierda: observaciones y forma de pago ─────────────────────────────
-    const OBS_H = 56;
-
-    // Caja observaciones
-    doc.rect(MX, y, BOTTOM_W_L, OBS_H).stroke('#bbbbbb');
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555')
-       .text('OBSERVACIONES (', MX + 4, y + 4, { lineBreak: false });
-    doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
-       .text(datos.notas ?? '', MX + 4, y + 14, { width: BOTTOM_W_L - 8, height: OBS_H - 20 });
-
-    // Transferencia
-    const transRef = datos.abonos.find(a => a.id_forma_pago === '03')?.referencia_pago ?? '';
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555')
-       .text('TRANSFERENCIAS No.', MX + 4, y + OBS_H / 2 + 4, { lineBreak: false });
+    // Observaciones ( ... )
+    etiqueta('OBSERVACIONES', MX, y + 1, 8);
     doc.font('Helvetica').fontSize(8).fillColor(NEGRO)
-       .text(transRef, MX + 104, y + OBS_H / 2 + 4, { lineBreak: false });
+       .text(datos.notas ?? '', MX + 82, y + 1, { width: IZQ_W - 90, height: 24, ellipsis: true });
+    doc.moveTo(MX + 80, y + 12).lineTo(MX + IZQ_W, y + 12).lineWidth(0.5).stroke(AZUL);
+    doc.moveTo(MX + 80, y + 25).lineTo(MX + IZQ_W, y + 25).lineWidth(0.5).stroke(AZUL);
+    y += 32;
 
-    // Checkboxes
-    const CHK_Y = y + OBS_H - 12;
-    const checkboxes = ['DEVOLUCIÓN', 'PRONTO PAGO', 'OTROS'];
-    let ckx = MX + 4;
-    checkboxes.forEach(label => {
-        doc.rect(ckx, CHK_Y, 8, 8).stroke('#888888');
-        doc.font('Helvetica').fontSize(7).fillColor(NEGRO)
-           .text(label, ckx + 10, CHK_Y + 1, { lineBreak: false });
-        ckx += label.length * 4.5 + 18;
+    // Transferencias No. ______  FECHA ______
+    const transf = datos.abonos.find(a => a.id_forma_pago === '03');
+    etiqueta('TRANSFERENCIAS No.', MX, y + 2, 8);
+    valor(transf?.referencia_pago ?? '', MX + 100, y + 1, 140, 8.5);
+    doc.moveTo(MX + 98, y + 12).lineTo(MX + 250, y + 12).lineWidth(0.5).stroke(AZUL);
+    etiqueta('FECHA', MX + 270, y + 2, 8);
+    valor(transf ? formatDate(transf.fecha_deposito) : '', MX + 305, y + 1, 110, 8.5);
+    doc.moveTo(MX + 302, y + 12).lineTo(MX + 420, y + 12).lineWidth(0.5).stroke(AZUL);
+    y += 20;
+
+    // DEVOLUCIÓN ○   PRONTO PAGO ○   OTROS ○
+    let ox = MX;
+    ['DEVOLUCIÓN', 'PRONTO PAGO', 'OTROS'].forEach(lbl => {
+        etiqueta(lbl, ox, y + 2, 8);
+        const lw = doc.widthOfString(lbl) + 6;
+        doc.circle(ox + lw + 6, y + 6, 5).lineWidth(0.8).stroke(AZUL);
+        ox += lw + 50;
     });
+    y += 20;
 
-    // ──── Derecha: subtotal, descuento, total ──────────────────────────────────
-    const TR_H  = OBS_H / 3;
-    const LBL_W = BOTTOM_W_R * 0.5;
-    const VAL_W = BOTTOM_W_R - LBL_W;
-    const rx     = MX + BOTTOM_W_L;
+    // CANTIDAD CON LETRA ( ... )
+    etiqueta('CANTIDAD CON LETRA', MX, y + 1, 8);
+    doc.font('Helvetica').fontSize(8.5).fillColor(NEGRO)
+       .text(numeroALetras(totalMonto), MX + 112, y, { width: IZQ_W - 120, lineBreak: false, ellipsis: true });
+    doc.moveTo(MX + 110, y + 12).lineTo(MX + IZQ_W, y + 12).lineWidth(0.5).stroke(AZUL);
 
-    const totalesRows = [
-        { label: 'SUB TOTAL', value: formatMXN(totalMonto) },
-        { label: 'DESC.',     value: '' },
-        { label: 'TOTAL',     value: formatMXN(totalMonto) },
+    // Totales (a la derecha): SUB. TOTAL / DESC. / TOTAL
+    const TX = MX + CW - TOT_W;
+    const filasTot: [string, string][] = [
+        ['SUB. TOTAL', formatMXN(totalMonto)],
+        ['DESC.',      ''],
+        ['TOTAL',      formatMXN(totalMonto)],
     ];
-    totalesRows.forEach((row, i) => {
-        const ry = y + i * TR_H;
-        cell(rx,           ry, LBL_W, TR_H, row.label, { bold: true, size: 8, color: '#333', align: 'right', bg: i === 2 ? '#f0f0f0' : '#ffffff' });
-        cell(rx + LBL_W,   ry, VAL_W, TR_H, row.value, { bold: i === 2, size: 8, align: 'right', bg: i === 2 ? '#f0f0f0' : '#ffffff' });
+    const TOT_H = 19;
+    filasTot.forEach(([lbl, val], i) => {
+        const ty = BAJO_Y + i * TOT_H;
+        doc.rect(TX, ty, 70, TOT_H).lineWidth(0.8).stroke(AZUL);
+        doc.rect(TX + 70, ty, TOT_W - 70, TOT_H).lineWidth(0.8).stroke(AZUL);
+        etiqueta(lbl, TX, ty + 6, 7.5, { width: 66, align: 'right' });
+        doc.font(i === 2 ? 'Helvetica-Bold' : 'Helvetica').fontSize(9.5).fillColor(NEGRO)
+           .text(val, TX + 74, ty + 5, { width: TOT_W - 82, align: 'right', lineBreak: false });
     });
-
-    y += OBS_H + 8;
-
-    // ── CANTIDAD CON LETRA ─────────────────────────────────────────────────────
-    doc.rect(MX, y, CW, 17).stroke('#bbbbbb');
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555')
-       .text('CANTIDAD CON LETRA:', MX + 4, y + 5, { lineBreak: false });
-    doc.font('Helvetica').fontSize(8).fillColor(NEGRO)
-       .text(numeroALetras(totalMonto), MX + 110, y + 5, { width: CW - 116, lineBreak: false, ellipsis: true });
-    y += 17 + 16;
 
     // ── FIRMAS ────────────────────────────────────────────────────────────────
-    const FW = CW / 2 - 10;
-    const FY_LINE = y + 28;
-
+    y = Math.max(y + 22, BAJO_Y + TOT_H * 3 + 12);
+    const FIRMA_Y = Math.min(y + 34, PH - FM - 58);
+    const FIRMA_W = 230;
     // Vendedor
-    doc.moveTo(MX, FY_LINE).lineTo(MX + FW, FY_LINE).stroke('#555555');
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555')
-       .text('NOMBRE Y FIRMA VENDEDOR', MX, FY_LINE + 4, { width: FW, align: 'center' });
-
-    // Cliente
-    const FC_X = MX + CW - FW;
-    doc.moveTo(FC_X, FY_LINE).lineTo(MX + CW, FY_LINE).stroke('#555555');
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555')
-       .text('NOMBRE Y FIRMA CLIENTE', FC_X, FY_LINE + 4, { width: FW, align: 'center' });
-
-    y = FY_LINE + 20;
+    if (datos.nombre_vendedor) {
+        doc.font('Helvetica').fontSize(8.5).fillColor(NEGRO)
+           .text(datos.nombre_vendedor, MX, FIRMA_Y - 12, { width: FIRMA_W, align: 'center', lineBreak: false });
+    }
+    doc.moveTo(MX, FIRMA_Y).lineTo(MX + FIRMA_W, FIRMA_Y).lineWidth(0.8).stroke(AZUL);
+    etiqueta('NOMBRE Y FIRMA VENDEDOR', MX, FIRMA_Y + 4, 7.5, { width: FIRMA_W, align: 'center' });
+    // Cliente (con la firma capturada, si la hay)
+    const CX_ = MX + CW - FIRMA_W;
+    if (datos.firma_cliente) {
+        try {
+            const b64 = String(datos.firma_cliente).replace(/^data:image\/\w+;base64,/, '');
+            doc.image(Buffer.from(b64, 'base64'), CX_ + 30, FIRMA_Y - 34, { fit: [FIRMA_W - 60, 32] });
+        } catch { /* firma inválida: se deja el renglón en blanco */ }
+    }
+    doc.moveTo(CX_, FIRMA_Y).lineTo(CX_ + FIRMA_W, FIRMA_Y).lineWidth(0.8).stroke(AZUL);
+    etiqueta('NOMBRE Y FIRMA CLIENTE', CX_, FIRMA_Y + 4, 7.5, { width: FIRMA_W, align: 'center' });
 
     // ── NOTA LEGAL ────────────────────────────────────────────────────────────
-    y += 8;
-    doc.rect(MX, y, CW, 1).fill(GRIS_D);
-    y += 4;
-    doc.font('Helvetica').fontSize(6).fillColor(GRIS_D)
+    const NOTA_Y = PH - FM - 40;
+    doc.font('Helvetica-Bold').fontSize(5.6).fillColor(AZUL)
        .text(
            'NOTA: NO RECONOCEMOS NINGÚN PAGO REALIZADO A NUESTROS REPRESENTANTES SI NO CONSTA CON ESTE RECIBO DE COBRO FIRMADO POR NUESTRO REPRESENTANTE. ' +
-           'LOS PAGOS SE ABONAN CON BUEN COBRO; EN CHEQUES DEVUELTOS SE COBRARÁ EL 20% (ARTÍCULO 193 DE LA LEY). ' +
-           'SALVO BUEN COBRO; EN CHEQUES DEVUELTOS POR FALTA DE FONDOS SE COBRARÁ DE TÍTULO 1 OPERACIONES DE CRÉDITO.',
-           MX, y, { width: CW }
+           'LOS PAGOS CON CHEQUE SON SALVO BUEN COBRO. EN CHEQUES DEVUELTOS POR FALTA DE FONDOS SE COBRARÁ EL 20% ' +
+           '(ARTÍCULO 193 DE LA LEY DE TÍTULOS Y OPERACIONES DE CRÉDITO).',
+           MX, NOTA_Y, { width: CW, align: 'center' }
        );
-    y += 20;
-    doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#333')
-       .text('FARMACIAS SYG S.A. DE C.V.', MX, y, { width: CW, align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(5.6).fillColor(AZUL)
+       .text('FARMACIAS SYG S.A. DE C.V.', MX, NOTA_Y + 22, { width: CW, align: 'center', lineBreak: false });
 
     doc.end();
     }); // Promise

@@ -75,7 +75,7 @@ router.post('/pago-cfdi/:id_pago_cfdi/regenerar-txt', CxCController.regenerarTxt
 
 // ─── RECIBO DE COBRANZA PDF ───────────────────────────────────────────────────
 // GET /api/cxc/recibo/:numero_recibo/pdf
-router.get('/recibo/:numero_recibo/pdf', CxCController.getReciboPDF);
+router.get('/recibo/:numero_recibo/pdf', authMiddleware, CxCController.getReciboPDF);
 
 // ─── JOBS ─────────────────────────────────────────────────────────────────────
 router.patch('/marcar-vencidas', CxCController.marcarVencidas);

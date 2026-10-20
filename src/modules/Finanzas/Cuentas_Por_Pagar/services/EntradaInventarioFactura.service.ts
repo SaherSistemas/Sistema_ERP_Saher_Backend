@@ -10,6 +10,7 @@ import Detalle_Compra_Solicitado from '../../../Compras/Ordenes-Compra/model/Det
 import LotesRecibidosCompra from '../../../../models/LotesYCaducidad/LotesRecibidosCompra';
 import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
+import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import Kardex_Movimientos_Articulos from '../../../Almacen/Kardex/model/Kardex_Movimientos_Articulos';
 
 /**
@@ -38,6 +39,7 @@ interface ParamsDelta {
     precio: number;
     deseados: LoteDeseado[];
     id_empleado?: string | null;
+    nota?: string;   // texto del Kardex cuando el movimiento viene de una corrección especial
     t: Transaction;
 }
 
@@ -178,7 +180,7 @@ async function aplicarDelta(p: ParamsDelta) {
 
         if (delta > 0) {
             await entrar(p, lote.id_lote_sucursal, delta,
-                entrado > 0 ? 'Corrección de recepción de factura proveedor (aumento)' : 'Recepción factura proveedor');
+                entrado > 0 ? 'Corrección de recepción de factura proveedor (aumento)' : (p.nota ?? 'Recepción factura proveedor'));
         } else if (delta < 0) {
             await sacar(p, lote.id_lote_sucursal, numero, -delta, 'Corrección de recepción de factura proveedor (disminución)');
         }
@@ -200,12 +202,77 @@ async function aplicarDelta(p: ParamsDelta) {
     for (const f of yaEntrado) {
         if (lotesTocados.has(f.id_lote_sucursal)) continue;
         await sacar(p, f.id_lote_sucursal, numeroDe.get(f.id_lote_sucursal) ?? f.id_lote_sucursal, Number(f.cantidad),
-            'Corrección de recepción de factura proveedor (lote cambiado o quitado)');
+            p.nota ?? 'Corrección de recepción de factura proveedor (lote cambiado o quitado)');
         await f.destroy({ transaction: t });
     }
 }
 
 export const EntradaInventarioFacturaService = {
+
+    // DEVOLUCIÓN A PROVEEDOR de mercancía ya recibida: baja solo piezas LIBRES (no apartadas) del lote y deja el
+    // Kardex como SALIDA. Si no alcanzan, avisa y no cambia nada (la transacción del que llama se revierte).
+    sacarPorDevolucion: async (p: {
+        id_empresa: string; id_articulo: string; id_factura: string; id_lote: string; numero_lote: string;
+        cantidad: number; id_empleado?: string | null; notas: string; t: Transaction;
+    }) => {
+        await sacar({
+            id_detalle: "", id_factura: p.id_factura, id_articulo: p.id_articulo, id_empresa: p.id_empresa,
+            esTraslado: false, precio: 0, deseados: [], id_empleado: p.id_empleado ?? null, t: p.t,
+        }, p.id_lote, p.numero_lote, p.cantidad, p.notas);
+    },
+
+    // Se dio entrada a un artículo y en realidad llegó OTRO: el artículo equivocado sale del inventario (SALIDA en Kardex)
+    // y el correcto entra con los mismos lotes y cantidades (ENTRADA en Kardex), sin ubicación (pendiente de acomodo).
+    // Si algo del equivocado ya está apartado o ya salió, avisa y no cambia nada (la transacción del que llama se revierte).
+    reasignarArticulo: async (p: {
+        id_detalle: string; id_articulo_nuevo: string; id_empleado: string | null; id_empresa_usuario?: string | null; t: Transaction;
+    }) => {
+        const ctx = await EntradaInventarioFacturaService.cargarContexto(p.id_detalle, p.t, p.id_empresa_usuario);
+        if (!ctx.id_articulo || !ctx.id_empresa) throw errorNegocio('No se pudo determinar el artículo o la empresa del renglón.');
+        if (ctx.id_articulo === p.id_articulo_nuevo) throw errorNegocio('El renglón ya tiene ese artículo.');
+
+        const dr = await Detalle_Compra_Recibido.findOne({ where: { id_detalle_factura_compra_proveedor: p.id_detalle }, transaction: p.t });
+        const lotes = dr ? await LotesRecibidosCompra.findAll({ where: { id_detallecompr_recibido: dr.id_detcomprec }, transaction: p.t }) : [];
+
+        const base = { id_detalle: p.id_detalle, id_factura: ctx.id_factura, id_empresa: ctx.id_empresa, esTraslado: ctx.esTraslado, precio: ctx.precio, id_empleado: p.id_empleado, t: p.t };
+        const [anterior, nuevo] = await Promise.all([
+            Articulo.findByPk(ctx.id_articulo, { attributes: ['des_artic'], transaction: p.t }),
+            Articulo.findByPk(p.id_articulo_nuevo, { attributes: ['des_artic'], transaction: p.t }),
+        ]);
+        if (!nuevo) throw errorNegocio('El artículo indicado no existe.');
+        const nombreAnt = String((anterior as any)?.des_artic ?? '').trim();
+        const nombreNue = String((nuevo as any).des_artic ?? '').trim();
+
+        // 1) Sale TODO lo que había entrado con el artículo equivocado
+        await aplicarDelta({ ...base, id_articulo: ctx.id_articulo, deseados: [],
+            nota: `Corrección de recepción: se dio entrada a "${nombreAnt}" pero llegó "${nombreNue}"` });
+
+        // 2) El renglón queda con el artículo correcto; los lotes de recepción dejan de apuntar a los del artículo anterior
+        await EntradaInventarioFacturaService.liberarReferenciasDeLotesQueSeQuitan(p.id_detalle, [], p.t);
+        await Detalle_Factura_Compra_Proveedor.update({ id_artic: p.id_articulo_nuevo } as any,
+            { where: { id_factura_proveedor_detalle: p.id_detalle }, transaction: p.t });
+
+        // 3) Entra lo mismo con el artículo correcto
+        await aplicarDelta({ ...base, id_articulo: p.id_articulo_nuevo,
+            deseados: lotes.map((l: any) => ({
+                numero: l.numerolote_lote,
+                caducidad: l.fechavencimiento_lote ?? null,
+                cantidad: Number(l.cantidad_lote) || 0,
+                id_loterecibido: l.id_loterecibido ?? null,
+            })),
+            nota: `Corrección de recepción: llegó "${nombreNue}" (se había registrado "${nombreAnt}")` });
+    },
+
+    // Lo ya anotado como entrado de ese renglón y lote baja con la devolución (para que las cuentas sigan cuadrando)
+    descontarEntradaRegistrada: async (id_detalle: string, id_lote: string, cantidad: number, t: Transaction) => {
+        const fila = await Entrada_Inventario_Factura_Detalle.findOne({
+            where: { id_factura_proveedor_detalle: id_detalle, id_lote_sucursal: id_lote }, transaction: t, lock: t.LOCK.UPDATE,
+        });
+        if (!fila) return;
+        const nueva = Number(fila.cantidad) - cantidad;
+        if (nueva <= 0) await fila.destroy({ transaction: t });
+        else await fila.update({ cantidad: nueva }, { transaction: t });
+    },
 
     // Cuántas piezas de este renglón ya entraron (para no contarlas dos veces en el costo promedio al corregir)
     cantidadYaEntrada: async (id_detalle: string, t: Transaction): Promise<number> => {

@@ -34,6 +34,36 @@ export const ExistenciasController = {
         }
     },
 
+    // POST /:id_stock_ubicacion_lote/mover-apartado  body: { id_stock_destino, cantidad }
+    moverApartado: async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_empresa } = ctx(req)
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return }
+            const b = req.body ?? {}
+            const r = await ExistenciasService.moverApartado({
+                id_empresa, id_stock_origen: req.params.id_stock_ubicacion_lote,
+                id_stock_destino: String(b.id_stock_destino ?? ''), cantidad: Number(b.cantidad),
+            })
+            console.warn(`[Existencias.moverApartado] ${r.cantidad} pz apartadas de ${req.params.id_stock_ubicacion_lote} a ${b.id_stock_destino} por ${req.user?.username}`)
+            res.status(200).json(r)
+        } catch (e: any) {
+            console.error('[Existencias.moverApartado]', e)
+            res.status(400).json({ message: e.message ?? 'No se pudo mover el apartado.' })
+        }
+    },
+
+    // GET /lote/:id_lote/lineas-apartado
+    getLineasApartadoLote: async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_empresa } = ctx(req)
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return }
+            res.status(200).json(await ExistenciasService.getLineasApartadoLote(id_empresa, req.params.id_lote))
+        } catch (e: any) {
+            console.error('[Existencias.getLineasApartadoLote]', e)
+            res.status(500).json({ message: e.message ?? 'Error al consultar los pedidos del lote.' })
+        }
+    },
+
     getPorArticulo: async (req: AuthedRequest, res: Response) => {
         try {
             const { id_empresa } = ctx(req)
