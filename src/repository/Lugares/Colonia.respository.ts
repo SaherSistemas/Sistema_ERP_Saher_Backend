@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Op, UniqueConstraintError } from 'sequelize';
 import { isUUID } from '../../utils/validaciones';
 import { CiudadRepository } from './Ciudad.repository';
+import { patronBusqueda } from '../../utils/busqueda';
 
 export const ColoniaRepository = {
   getAll: async (): Promise<IColonia[]> => {
@@ -15,6 +16,38 @@ export const ColoniaRepository = {
   getColoniasActivas: async (): Promise<IColonia[]> => {
     return await Colonia.findAll({
       where: { activa_colonia: true }
+    });
+  },
+
+  // Listado paginado para el catálogo (hay miles de colonias): busca por nombre, código postal o ciudad
+  getPaginadas: async (page: number, limit: number, q: string) => {
+    const busqueda = q.trim();
+    const where: any = {};
+    if (busqueda) {
+      const like = patronBusqueda(busqueda);
+      where[Op.or] = [
+        { nom_colonia: { [Op.iLike]: like } },
+        { cp_colonia: { [Op.iLike]: `${busqueda}%` } },
+        { '$ciudad.nom_ciuda$': { [Op.iLike]: like } },
+      ];
+    }
+    const { rows, count } = await Colonia.findAndCountAll({
+      where,
+      include: [{ model: Ciudad, attributes: ['id_ciuda', 'nom_ciuda'], required: false }],
+      order: [['nom_colonia', 'ASC'], ['id_intcolonia', 'ASC']],
+      limit,
+      offset: (page - 1) * limit,
+      subQuery: false,
+    });
+    return { items: rows, total: count };
+  },
+
+  // Colonias activas de un código postal (con su ciudad), para buscar la ubicación de un cliente por CP
+  getColoniasPorCP: async (cp: string) => {
+    return await Colonia.findAll({
+      where: { cp_colonia: cp, activa_colonia: true },
+      include: [{ model: Ciudad, attributes: ['id_ciuda', 'nom_ciuda'] }],
+      order: [['nom_colonia', 'ASC']],
     });
   },
 

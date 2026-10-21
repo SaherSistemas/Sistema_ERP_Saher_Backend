@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { QueryTypes, Transaction } from 'sequelize';
+import { Op, QueryTypes, Transaction } from 'sequelize';
 import { dbLocal, dbPoly } from '../../../config/db';
 import { FacturacionRepository } from '../repositories/Facturacion.repository';
 import { ConceptoFacturacion } from '../interfaces/Facturacion.types';
@@ -889,6 +889,13 @@ export const FacturacionService = {
                 // antes de insertar, o la segunda choca por llave duplicada.
                 const lotesAgrupados = new Map<string, { fecha_venci: string; cantidad: number }>();
                 for (const lote of c.lotes) {
+                    // Sin caducidad el lote no se puede registrar en el sistema anterior: se avisa cuál es en lugar de un error técnico
+                    if (!lote.fecha_venci) {
+                        throw {
+                            status: 400,
+                            message: `El lote ${lote.lote} de "${c.descripcion}" no tiene fecha de caducidad. Captúrala en Existencias por Ubicación → Lote (corregir) y vuelve a facturar.`,
+                        };
+                    }
                     const existente = lotesAgrupados.get(lote.lote);
                     if (existente) existente.cantidad += lote.cantidad;
                     else lotesAgrupados.set(lote.lote, { fecha_venci: lote.fecha_venci, cantidad: lote.cantidad });
@@ -1014,13 +1021,36 @@ export const FacturacionService = {
         id_empleado: string;
     }) => {
         const totales = calcularTotales(conceptos);
-        const folio = await FacturacionRepository.getSiguienteFolio();
         const leyenda = cab.leyenda_factura_empre
             ?? `Traslado Pedido: ${cab.cod_int_pedido_alm}`;
 
-        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        // REINTENTO: si este pedido ya tiene su traslado (un intento anterior se cayó DESPUÉS de descontar existencias y
+        // registrar la salida), no se vuelve a descontar ni a registrar nada: solo se retoman los pasos que faltaron
+        // (PDF, registro en el sistema anterior, impresión, factura por recibir).
+        const previa = await Facturas.findOne({
+            where: { id_pedido_alm: cab.id_pedido_alm, origen_factura: 'TRA', estatus_factura: { [Op.ne]: 'CAN' } },
+            order: [['createdAt', 'ASC']],
+        });
+        let folio: number;
         let id_factura: string;
+        if (previa) {
+            folio = Number(previa.folio_factura);
+            id_factura = previa.id_factura;
+            console.warn(`[TRASLADO] Reintento del pedido ${cab.cod_int_pedido_alm}: ya existe el traslado folio ${folio}; no se vuelve a descontar existencia.`);
+        } else {
+        folio = await FacturacionRepository.getSiguienteFolio();
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
         try {
+            // Candado: evita facturar dos veces el mismo pedido (doble clic o dos reintentos al mismo tiempo)
+            const pedidoLock = await Pedido_Almacen.findByPk(cab.id_pedido_alm, {
+                attributes: ['id_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm'],
+                transaction: t, lock: t.LOCK.UPDATE,
+            });
+            if (!pedidoLock) throw new Error('Pedido no encontrado.');
+            if (pedidoLock.status_pedido_alm === 'FA' || pedidoLock.fecha_facturado_pedido_alm) {
+                throw new Error('Este pedido ya fue facturado. Revisa el módulo de Facturas antes de generar otro traslado.');
+            }
+
             const factura = await FacturacionRepository.registrarFactura({
                 folio,
                 tipo_cfdi: 'T',
@@ -1064,6 +1094,7 @@ export const FacturacionService = {
         } catch (err) {
             await t.rollback();
             throw err;
+        }
         }
 
         const now = new Date();
@@ -1143,6 +1174,8 @@ export const FacturacionService = {
                 const lotesPorArticulo = await getLotesPorPedido(cab.id_pedido_alm);
                 const id_factura_proveedor = uuidv4();
                 const hoy = new Date();
+                const yaPorRecibir = await Factura_Compra_Proveedor.findOne({ where: { folio_factura_proveedor: `TRA-${folio}`, tipo_origen: 'TRASLADO' } });
+                if (yaPorRecibir) throw new Error(`La factura por recibir TRA-${folio} ya existe (reintento).`);
                 await Factura_Compra_Proveedor.create({
                     id_factura_proveedor, id_compra_prove_factura: null,
                     tipo_origen: 'TRASLADO',

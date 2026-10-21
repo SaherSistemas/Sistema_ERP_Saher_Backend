@@ -217,7 +217,43 @@ export const DevolucionClienteRepository = {
             });
             porDev.set(String(v.id_devolucion_cliente), l);
         }
-        return devoluciones.map(d => ({ ...(d.toJSON() as any), inventario_virtual: porDev.get(String(d.id_devolucion_cliente)) ?? [] })) as any;
+
+        // Lote y caducidad con los que salió cada artículo en la factura (los del pedido surtido; si la línea trae un
+        // lote de factura capturado a mano —lotes migrados— se usa ese)
+        const idsFactura = Array.from(new Set(devoluciones.map(d => String(d.id_factura)).filter(Boolean)));
+        const lotesFactura = idsFactura.length ? await dbLocal.query<any>(`
+            SELECT f.id_factura, dpa.id_articulo,
+                   COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal) AS lote,
+                   COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal) AS caducidad,
+                   SUM(dpal.cantidad) AS cantidad
+            FROM facturas f
+            JOIN detalle_pedido_almacen dpa ON dpa.id_pedido_almacen = f.id_pedido_alm
+            JOIN detalle_pedido_almacen_lote dpal ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+            LEFT JOIN lote_articulo_sucursal las ON las.id_lote_sucursal = dpal.id_lote_sucursal
+            WHERE f.id_factura IN (:ids) AND dpal.cantidad > 0
+            GROUP BY f.id_factura, dpa.id_articulo, COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal),
+                     COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal)
+            ORDER BY caducidad ASC`,
+            { replacements: { ids: idsFactura }, type: QueryTypes.SELECT }) : [];
+        const lotesPorLinea = new Map<string, { numero_lote: string; caducidad: string | null; cantidad: number }[]>();
+        for (const l of lotesFactura) {
+            const k = `${l.id_factura}|${l.id_articulo}`;
+            const lista = lotesPorLinea.get(k) ?? [];
+            lista.push({ numero_lote: String(l.lote ?? '').trim(), caducidad: l.caducidad ?? null, cantidad: Number(l.cantidad) || 0 });
+            lotesPorLinea.set(k, lista);
+        }
+
+        return devoluciones.map(d => {
+            const plano = d.toJSON() as any;
+            return {
+                ...plano,
+                inventario_virtual: porDev.get(String(d.id_devolucion_cliente)) ?? [],
+                detalles: (plano.detalles ?? []).map((x: any) => ({
+                    ...x,
+                    lotes_factura: x.id_articulo ? (lotesPorLinea.get(`${d.id_factura}|${x.id_articulo}`) ?? []) : [],
+                })),
+            };
+        }) as any;
     },
 
     // ── Aprobar devolución con efectos financieros ─────────────────────

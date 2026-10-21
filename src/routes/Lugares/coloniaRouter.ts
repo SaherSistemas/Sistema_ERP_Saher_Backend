@@ -4,6 +4,8 @@ const router = Router()
 
 router.get('/', ColoniaController.getAllColonias)
 router.get('/coloniasActivas', ColoniaController.coloniasActivas)
+router.get('/paginadas', ColoniaController.getPaginadas)
+router.get('/porCP/:cp', ColoniaController.getColoniasPorCP)
 router.get('/:id_colonia', ColoniaController.getColoniaById);
 router.get('/coloniasCiudad/:id_ciuda_colonia', ColoniaController.getColoniasCiudad)
 router.post('/', ColoniaController.crearColonia)

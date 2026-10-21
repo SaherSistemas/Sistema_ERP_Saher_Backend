@@ -59,10 +59,12 @@ async function _getEmisor(id_empresa?: string): Promise<EmisorTxt & { num_cuenta
 // clientes sin RFC y los RFC que no tienen formato de RFC ("NA", "SIN RFC", ceros…) no identifican a un cliente
 // concreto, así que esos se agrupan por cliente: antes dos clientes con el mismo RFC "basura" caían en un solo recibo.
 const RFC_GENERICOS = new Set(['XAXX010101000', 'XEXX010101000']);
-const RFC_VALIDO = /^[A-ZÑ&]{3,4}d{6}[A-Z0-9]{3}$/;
-export function claveReciboCliente(rfc: string | null | undefined, id_cliente_alm: string): string {
+const RFC_VALIDO = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+// `juntarPorRfc`: solo lo activa el ERP de escritorio al generar recibos de varias cuentas ("un recibo por RFC").
+// En la web (y al validar folios propios) cada recibo es de UN solo cliente, aunque otros tengan el mismo RFC.
+export function claveReciboCliente(rfc: string | null | undefined, id_cliente_alm: string, juntarPorRfc = false): string {
     const r = (rfc ?? '').trim().toUpperCase();
-    return r && !RFC_GENERICOS.has(r) && RFC_VALIDO.test(r) ? `RFC:${r}` : `CLI:${id_cliente_alm}`;
+    return juntarPorRfc && r && !RFC_GENERICOS.has(r) && RFC_VALIDO.test(r) ? `RFC:${r}` : `CLI:${id_cliente_alm}`;
 }
 
 // `mismoRfc`: el recibo junta cuentas de varios clientes con el mismo RFC (ya validado por quien llama)
@@ -606,7 +608,7 @@ export const CxCService = {
         const porCliente = new Map<string, { abonos: { id_cxc: string; monto_abono: number }[]; id_cliente_alm: string }>();
         for (const a of data.abonos) {
             const c = porId.get(a.id_cxc)!;
-            const clave = claveReciboCliente(c.cliente.rfc, c.id_cliente_alm);
+            const clave = claveReciboCliente(c.cliente.rfc, c.id_cliente_alm, true);
             if (!porCliente.has(clave)) porCliente.set(clave, { abonos: [], id_cliente_alm: c.id_cliente_alm });
             porCliente.get(clave)!.abonos.push({ id_cxc: a.id_cxc, monto_abono: Number(a.monto_abono) });
         }

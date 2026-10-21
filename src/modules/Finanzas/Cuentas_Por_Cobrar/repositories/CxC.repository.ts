@@ -47,7 +47,10 @@ export const CxCRepository = {
         // "Vencida" se filtra por fecha real, no por campo estatus_cxc (que se queda en PEN/PAR al
         // pasar la fecha). Igual que la pantalla: con saldo y vencimiento anterior a hoy es Vencida,
         // y Pendiente/Parcial son solo las que todavía NO han vencido.
-        if (filtros?.estatus === 'VEN') {
+        if (filtros?.estatus === 'ABI') {
+            // "Por cobrar": todo lo que aún se debe: Pendientes, Parciales y Vencidas
+            conditions.push(`(cxc.estatus_cxc IN ('PEN', 'PAR') OR (cxc.saldo_pendiente > 0 AND cxc.fecha_vencimiento < CURRENT_DATE))`);
+        } else if (filtros?.estatus === 'VEN') {
             conditions.push(`cxc.saldo_pendiente > 0 AND cxc.fecha_vencimiento < CURRENT_DATE`);
         } else if (filtros?.estatus === 'PEN' || filtros?.estatus === 'PAR') {
             conditions.push(`cxc.estatus_cxc = :estatus AND NOT (cxc.saldo_pendiente > 0 AND cxc.fecha_vencimiento < CURRENT_DATE)`);
@@ -93,7 +96,7 @@ export const CxCRepository = {
 
         const whereClause = conditions.length ? `AND ${conditions.join(' AND ')}` : '';
 
-        const [rows, [{ total }]] = await Promise.all([
+        const [rows, [{ total, saldo_total, monto_total_suma }]] = await Promise.all([
             dbLocal.query<{
                 id_cxc: string; estatus_cxc: string; monto_total: number;
                 saldo_pendiente: number; fecha_vencimiento: string; createdAt: string;
@@ -123,8 +126,10 @@ export const CxCRepository = {
                 LIMIT :limit OFFSET :offset
             `, { replacements, type: QueryTypes.SELECT }),
 
-            dbLocal.query<{ total: string }>(`
-                SELECT COUNT(*) AS total
+            dbLocal.query<{ total: string; saldo_total: string; monto_total_suma: string }>(`
+                SELECT COUNT(*) AS total,
+                       COALESCE(SUM(cxc.saldo_pendiente), 0) AS saldo_total,
+                       COALESCE(SUM(cxc.monto_total), 0)     AS monto_total_suma
                 FROM cuenta_por_cobrar cxc
                 JOIN  cliente_almacen   ca  ON ca.id_cliente_alm = cxc.id_cliente_alm
                 LEFT JOIN facturas      f   ON f.id_factura      = cxc.id_factura
@@ -135,7 +140,8 @@ export const CxCRepository = {
             `, { replacements, type: QueryTypes.SELECT }),
         ]);
 
-        return { rows, total: Number(total) };
+        // Totales de TODO lo filtrado (no solo de la página que se ve)
+        return { rows, total: Number(total), totales: { saldo: Number(saldo_total), monto: Number(monto_total_suma) } };
     },
 
     getByCliente: async (id_cliente_alm: string) => {

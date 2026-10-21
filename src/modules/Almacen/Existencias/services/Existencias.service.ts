@@ -525,6 +525,7 @@ export const ExistenciasService = {
 
             const cantidad = Number(origen.cantidad) || 0
             const apartada = Number(origen.cantidad_apartada) || 0
+            const idLoteOrigen = origen.id_lote   // se guarda aquí: más abajo la fila se actualiza al lote nuevo
             if (cantidad <= 0) throw new Error('Esta fila no tiene existencia que cambiar de lote.')
             // Si tiene piezas apartadas por pedidos, el apartado se va con las piezas al lote nuevo (y los pedidos pasan a ese lote)
 
@@ -592,7 +593,7 @@ export const ExistenciasService = {
                     JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
                     WHERE dpal.id_lote_sucursal = :lote AND ${PEDIDO_ACTIVO_SQL}
                     ORDER BY pa."createdAt" ASC, dpal.id_detalle_pedido_almacen_lote ASC`,
-                    { replacements: { lote: origen.id_lote }, type: QueryTypes.SELECT, transaction: t })
+                    { replacements: { lote: idLoteOrigen }, type: QueryTypes.SELECT, transaction: t })
                 let porPasar = apartada
                 for (const l of lineas) {
                     if (porPasar <= 0) break
