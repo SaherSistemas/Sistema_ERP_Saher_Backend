@@ -9,7 +9,8 @@ import { QueryTypes } from "sequelize";
 async function validarRenglonEditable(detalle: { id_detcompsol: string; idcompr_detcompsol: string }) {
     const compra = await Compra_ProveedorRepository.getByID(detalle.idcompr_detcompsol);
     if (!compra) throw new Error('La orden de compra no existe.');
-    if (!['C', 'A'].includes(compra.estado_comp)) {
+    // Se puede modificar mientras no se haya empezado a recibir: capturando (C), capturada (A) o enviada al proveedor (E)
+    if (!['C', 'A', 'E'].includes(compra.estado_comp)) {
         throw new Error('La orden ya está en recepción o cerrada: no se puede modificar.');
     }
     const [r] = await dbLocal.query<any>(

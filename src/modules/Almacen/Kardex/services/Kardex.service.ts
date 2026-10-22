@@ -5,6 +5,93 @@ import { Kardex_Movimiento_ArticuloRepository, IFiltrosMovimientos } from '../re
 
 export const KardexService = {
 
+    // Artículos cuyo SALDO INICIAL del kardex es negativo (sin filtrar por fechas): lo que el kardex suma/resta de todos sus
+    // movimientos es MÁS de lo que hay hoy en existencia. Mismo cálculo que el kardex de un artículo:
+    //   saldo inicial = existencia actual − (suma de movimientos con signo)
+    getSaldosInicialesNegativos: async (id_empresa: string) => {
+        const filas = await dbLocal.query<any>(`
+            WITH mov AS (
+                SELECT x.id_articulo, x.cantidad,
+                       CASE WHEN x.origen = 'M'
+                            THEN CASE WHEN x.tipo IN ('AJUSTE_ENTRADA', 'INICIAL') THEN 1 ELSE -1 END
+                            ELSE CASE x.tipo WHEN 'ENTRADA' THEN 1 WHEN 'SURTIDO' THEN 1 WHEN 'SALIDA' THEN -1 WHEN 'VENTA' THEN -1 ELSE 0 END
+                       END AS signo
+                FROM (
+                    SELECT k.id_articulo, k.tipo_movimiento::text AS tipo, k.cantidad_movimiento AS cantidad, 'K' AS origen
+                    FROM kardex_movimientos_articulos k WHERE k.id_empresa = :emp
+                    UNION ALL
+                    SELECT m.id_articulo, m.tipo_movimiento::text AS tipo, m.cantidad, 'M' AS origen
+                    FROM movimiento_articulo m WHERE m.id_empresa = :emp
+                ) x
+            ),
+            neto AS (
+                SELECT id_articulo,
+                       SUM(signo * cantidad)                              AS neto,
+                       COALESCE(SUM(cantidad) FILTER (WHERE signo > 0), 0) AS entradas,
+                       COALESCE(SUM(cantidad) FILTER (WHERE signo < 0), 0) AS salidas
+                FROM mov GROUP BY id_articulo
+            ),
+            ex AS (
+                SELECT id_articulo, SUM(cantidad) AS existencia
+                FROM stock_ubicacion_lote WHERE id_empresa_sucursal = :emp GROUP BY id_articulo
+            ),
+            -- Ubicación de cada artículo para recorrer el almacén: su ubicación por defecto (estantería antes que tarima);
+            -- si no tiene, donde hay más existencia
+            ub AS (
+                SELECT DISTINCT ON (z.id_articulo) z.id_articulo, z.id_ubicacion
+                FROM (
+                    SELECT aud.id_articulo, aud.id_ubicacion_default AS id_ubicacion, 1 AS prioridad,
+                           (u.tipo_ubicacion::text = 'TARIMA') AS es_tarima, 0 AS cant
+                    FROM articulo_ubicacion_default aud
+                    JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = aud.id_ubicacion_default
+                    WHERE aud.id_empresa_sucursal = :emp
+                    UNION ALL
+                    SELECT s.id_articulo, s.id_ubicacion_sucursal, 2, (u.tipo_ubicacion::text = 'TARIMA'), s.cantidad
+                    FROM stock_ubicacion_lote s
+                    JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = s.id_ubicacion_sucursal
+                    WHERE s.id_empresa_sucursal = :emp AND s.cantidad > 0
+                ) z
+                ORDER BY z.id_articulo, z.prioridad, z.es_tarima, z.cant DESC
+            )
+            SELECT a.id_artic, a.cod_int_artic, a.cod_barr_artic, a.des_artic,
+                   COALESCE(ex.existencia, 0)                      AS existencia_actual,
+                   n.entradas, n.salidas,
+                   COALESCE(ex.existencia, 0) - n.neto             AS saldo_inicial,
+                   u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub, u.tarima_ub, u.tipo_ubicacion::text AS tipo_ubicacion
+            FROM neto n
+            JOIN articulo a ON a.id_artic = n.id_articulo
+            LEFT JOIN ex ON ex.id_articulo = n.id_articulo
+            LEFT JOIN ub ON ub.id_articulo = n.id_articulo
+            LEFT JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = ub.id_ubicacion
+            WHERE COALESCE(ex.existencia, 0) - n.neto < 0
+            -- Por ubicación en el orden del almacén: estanterías (pasillo, anaquel, nivel, posición), luego tarimas, luego sin ubicación
+            ORDER BY (u.id_ubicacion_sucursal IS NULL),
+                     (u.tipo_ubicacion::text = 'TARIMA'),
+                     CASE u.pasillo_ub WHEN 'A1' THEN 1 WHEN 'A' THEN 2 WHEN 'B' THEN 3 WHEN 'C' THEN 4 WHEN 'D' THEN 5
+                                       WHEN 'E' THEN 6 WHEN 'F' THEN 7 WHEN 'G' THEN 8 WHEN 'H' THEN 9 WHEN 'H1' THEN 10 ELSE 99 END,
+                     NULLIF(regexp_replace(COALESCE(u.anaquel_ub, ''), '\\D', '', 'g'), '')::int NULLS LAST,
+                     NULLIF(regexp_replace(COALESCE(u.nivel_ub, ''), '\\D', '', 'g'), '')::int NULLS LAST,
+                     NULLIF(regexp_replace(COALESCE(u.posicion_ub, ''), '\\D', '', 'g'), '')::int NULLS LAST,
+                     NULLIF(regexp_replace(COALESCE(u.tarima_ub, ''), '\\D', '', 'g'), '')::int NULLS LAST,
+                     a.des_artic ASC`,
+            { replacements: { emp: id_empresa }, type: QueryTypes.SELECT });
+        return filas.map(f => ({
+            ubicacion: f.tipo_ubicacion === 'TARIMA'
+                ? `Tarima ${String(f.tarima_ub ?? '').trim()}`
+                : f.pasillo_ub
+                    ? [f.pasillo_ub, f.anaquel_ub, f.nivel_ub, f.posicion_ub].map((p: any) => String(p ?? '').trim()).filter(Boolean).join('-')
+                    : null,
+            id_artic: f.id_artic as string,
+            cod_int_artic: Number(f.cod_int_artic),
+            cod_barr_artic: f.cod_barr_artic ? String(f.cod_barr_artic).trim() : null,
+            des_artic: String(f.des_artic ?? '').trim(),
+            existencia_actual: Number(f.existencia_actual) || 0,
+            entradas: Number(f.entradas) || 0,
+            salidas: Number(f.salidas) || 0,
+            saldo_inicial: Number(f.saldo_inicial) || 0,
+        }));
+    },
+
     // Kardex de UN artículo: movimientos con entrada / salida / saldo corrido, PAGINADOS.
     // Junta el kardex (ventas, cancelaciones, devoluciones) con los movimientos manuales de almacén (ajustes, mermas).
     // El saldo se ancla a la existencia actual (stock_ubicacion_lote): el saldo final del último movimiento es lo que hay hoy.

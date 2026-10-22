@@ -29,6 +29,18 @@ export const KardexController = {
         }
     },
 
+    // GET /almacen/kardex/saldos-negativos
+    obtenerSaldosNegativos: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa = String(req.user?.id_empresa || '').trim()
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return }
+            res.status(200).json(await KardexService.getSaldosInicialesNegativos(id_empresa))
+        } catch (e: any) {
+            console.error('[Kardex.saldosNegativos]', e)
+            res.status(500).json({ message: e?.message ?? 'Error al calcular los saldos iniciales.' })
+        }
+    },
+
     obtenerKardexArticulo: async (req: AuthedRequest, res: Response) => {
         try {
             const id_empresa = String(req.user?.id_empresa || '').trim();

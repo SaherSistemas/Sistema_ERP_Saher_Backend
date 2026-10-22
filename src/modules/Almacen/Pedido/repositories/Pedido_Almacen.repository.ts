@@ -42,8 +42,21 @@ export const Pedido_AlmacenRepository = {
       attributes: ['id_pedido_alm', 'cod_int_pedido_alm'],
       where
     });
+    if (pedido || isUUID(codigo)) return pedido;
 
-    return pedido;
+    // No coincidió el código exacto: se acepta con otras mayúsculas/minúsculas o solo con los últimos números
+    // ("57310" para EVC_211026_142357310), siempre que lo encontrado sea UN solo pedido (si hay varios, no se adivina).
+    const texto = String(codigo ?? '').trim();
+    if (texto.length < 4) return null;
+    const candidatos = await Pedido_Almacen.findAll({
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm'],
+      where: {
+        status_pedido_alm: { [Op.in]: ['CH', 'FA'] },
+        cod_int_pedido_alm: { [Op.iLike]: `%${texto.replace(/[%_]/g, '')}` },
+      },
+      limit: 2,
+    });
+    return candidatos.length === 1 ? candidatos[0] : null;
   },
   cambiarStatusAEmpacado: async (id_pedido_alm: string) => {
     return await Pedido_Almacen.update(

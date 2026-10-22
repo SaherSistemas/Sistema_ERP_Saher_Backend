@@ -109,7 +109,11 @@ export const InventarioService = {
 
         const dentro = (r: any): boolean => {
             if (idsAlcance.has(String(r.id_ubicacion_sucursal))) return true;
-            if (inv.tipo_inventario === 'GENERAL' || inv.tipo_inventario === 'ARTICULO') return true;
+            // GENERAL cuenta todo lo que tiene ubicación; lo de "sin ubicación" queda fuera del conteo (se muestra como "otras")
+            if (inv.tipo_inventario === 'GENERAL') return !!r.id_ubicacion_sucursal;
+            // POR UBICAR: lo que cuenta es lo que no tiene ubicación; lo ubicado queda fuera (se muestra como "otras"/tarima)
+            if (inv.tipo_inventario === 'SIN_UBICACION') return !r.id_ubicacion_sucursal;
+            if (inv.tipo_inventario === 'ARTICULO') return true;
             if (inv.tipo_inventario === 'PASILLO' && f.pasillo) return r.tipo_ubicacion !== 'TARIMA' && norm(r.pasillo_ub) === norm(f.pasillo);
             if (inv.tipo_inventario === 'TARIMA' && f.tarima) return r.tipo_ubicacion === 'TARIMA' && norm(r.tarima_ub) === norm(f.tarima);
             return false;

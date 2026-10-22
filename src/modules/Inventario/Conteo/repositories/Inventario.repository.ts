@@ -34,6 +34,15 @@ async function stockDelFiltro(id_empresa_sucursal: string, filtro: FiltroStock, 
         const whereStock: any = { id_empresa_sucursal, cantidad: { [Op.gt]: 0 } };
         const whereUbicacion: any = {};
 
+        // GENERAL: todo lo que está en una ubicación (estantería o tarima). Lo que aún no tiene ubicación (mercancía que
+        // va llegando sin ubicación por defecto) no se cuenta: se acomoda después.
+        if (filtro.tipo === 'GENERAL') {
+            whereStock.id_ubicacion_sucursal = { [Op.ne]: null };
+        }
+        // POR UBICAR: solo lo que está sin ubicación (mercancía recibida que aún no se acomoda)
+        if (filtro.tipo === 'SIN_UBICACION') {
+            whereStock.id_ubicacion_sucursal = null;
+        }
         if (filtro.tipo === 'UBICACION' && filtro.ids_ubicaciones?.length) {
             whereStock.id_ubicacion_sucursal = { [Op.in]: filtro.ids_ubicaciones };
         } else if (filtro.tipo === 'UBICACION' && filtro.id_ubicacion_sucursal) {
@@ -400,7 +409,8 @@ export const InventarioRepository = {
             for (const d of detalles) {
                 // Ajustar la fila de stock correspondiente (misma ubicacion + lote)
                 const where: any = { id_empresa_sucursal: inv.id_empresa_sucursal, id_articulo: d.id_articulo };
-                if (d.id_ubicacion_sucursal) where.id_ubicacion_sucursal = d.id_ubicacion_sucursal;
+                // Renglón "sin ubicación": se ajusta SOLO la fila sin ubicación, nunca otra del mismo artículo
+                where.id_ubicacion_sucursal = d.id_ubicacion_sucursal ?? null;
                 if (d.id_lote) where.id_lote = d.id_lote;
 
                 // Contra qué se compara lo contado: lo que había al contar ('CONTEO') o lo que hay ahora ('AHORA').

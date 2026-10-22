@@ -1,5 +1,5 @@
 import { QueryTypes } from 'sequelize';
-import { dbLocal } from '../../../../config/db';
+import { dbLocal, dbPoly } from '../../../../config/db';
 import { patronBusqueda } from '../../../../utils/busqueda';
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
@@ -9,8 +9,8 @@ const num = (v: unknown) => Number(v ?? 0) || 0;
 // artículo y lote de cada recibo, de lo más reciente a lo más antiguo.
 export const MercanciaNuevaService = {
 
-    getLista: async (id_empresa: string, opts: { dias: number; q: string; limite: number }) => {
-        const { dias, q, limite } = opts;
+    getLista: async (id_empresa: string, opts: { dias: number; q: string; limite: number; soloNegados?: boolean }) => {
+        const { dias, q, limite, soloNegados } = opts;
         const busqueda = q.trim();
         const rep: Record<string, any> = { emp: id_empresa, dias, limite };
         // Empresas del mismo grupo que la del usuario (el recibo lo chequea almacén, que puede ser otra empresa que mostrador)
@@ -19,10 +19,16 @@ export const MercanciaNuevaService = {
             WHERE e.idgrup_empre = (SELECT idgrup_empre FROM empresa_sucursal WHERE id_empre = :emp)
                OR e.id_empre = :emp
         )`;
-        let filtro = '';
+        // Negados vigentes (mismo criterio que la lista de Negados de Compras): no recuperados y de los últimos 7 días
+        const NEGADOS_VIGENTES = `n.recuperado = false AND n.fecha + INTERVAL '7 days' >= NOW()`;
+        let filtro = soloNegados
+            ? `AND EXISTS (SELECT 1 FROM detalle_pedido_negado n
+                            JOIN detalle_pedido_almacen dpa_n ON dpa_n.id_detalle_pedido_almacen = n.id_detalle_pedido_almacen
+                            WHERE dpa_n.id_articulo = a.id_artic AND ${NEGADOS_VIGENTES})`
+            : '';
         if (busqueda) {
             rep.like = patronBusqueda(busqueda);
-            filtro = `AND (a.des_artic ILIKE :like OR a.cod_barr_artic ILIKE :like OR a.cod_int_artic::text ILIKE :like OR p.nomcort_prove ILIKE :like)`;
+            filtro += ` AND (a.des_artic ILIKE :like OR a.cod_barr_artic ILIKE :like OR a.cod_int_artic::text ILIKE :like OR p.nomcort_prove ILIKE :like)`;
         }
 
         const filas = await dbLocal.query<any>(`
@@ -71,10 +77,48 @@ export const MercanciaNuevaService = {
             : [];
         const stockPorArt = new Map(stock.map(s => [s.id_articulo, s]));
 
-        return {
-            dias,
-            total: filas.length,
-            items: filas.map(f => ({
+        // Lo que se negó (pedidos sin existencia) de esos artículos y sigue vigente: para saber qué de lo negado ya llegó
+        const negados = ids.length
+            ? await dbLocal.query<any>(`
+                SELECT dpa.id_articulo, SUM(n.cantidad_negada) AS negada, COUNT(DISTINCT dpa.id_pedido_almacen) AS pedidos
+                FROM detalle_pedido_negado n
+                JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = n.id_detalle_pedido_almacen
+                WHERE ${NEGADOS_VIGENTES} AND dpa.id_articulo IN (:ids)
+                GROUP BY dpa.id_articulo
+            `, { replacements: { ids }, type: QueryTypes.SELECT }) as any[]
+            : [];
+        const negadoPorArt = new Map(negados.map(x => [x.id_articulo, x]));
+
+        // Existencia de la SUCURSAL del usuario en PolyDB (sistema anterior: almacenes1, almacén 1). Si la empresa del usuario no
+        // está en el sistema anterior, o PolyDB no responde, se devuelve null y la pantalla no la muestra.
+        const existenciaPoly = new Map<number, number>();
+        let sucursalPoly = false;
+        try {
+            const [emp] = await dbLocal.query<any>(
+                `SELECT id_empresa_sys_anterior FROM empresa_sucursal WHERE id_empre = :emp`,
+                { replacements: { emp: id_empresa }, type: QueryTypes.SELECT });
+            const empPoly = Number(emp?.id_empresa_sys_anterior);
+            const codigos = Array.from(new Set(filas.map(f => Number(f.cod_int_artic)).filter(Number.isFinite)));
+            if (Number.isFinite(empPoly) && empPoly > 0) {
+                sucursalPoly = true;
+                if (codigos.length) {
+                    const rowsPoly = await dbPoly.query<{ artcdartn: number; almexistn: number }>(
+                        `SELECT artcdartn, COALESCE(almexistn, 0) AS almexistn
+                         FROM public.almacenes1
+                         WHERE empcdempn = :empPoly AND almcdalmn = 1 AND artcdartn IN (:codigos)`,
+                        { type: QueryTypes.SELECT, replacements: { empPoly, codigos } });
+                    for (const r of rowsPoly) existenciaPoly.set(Number(r.artcdartn), Number(r.almexistn));
+                }
+            }
+        } catch (e: any) {
+            console.warn('[MercanciaNueva] No se pudo leer la existencia de PolyDB:', e?.message ?? e);
+            sucursalPoly = false;
+        }
+
+        const items = filas.map(f => {
+            const negado = num(negadoPorArt.get(f.id_artic)?.negada);       // acumulado de los pedidos negados vigentes
+            const existenciaSucursal = sucursalPoly ? (existenciaPoly.get(Number(f.cod_int_artic)) ?? 0) : null;
+            return {
                 fecha: f.fecha,
                 cod_int_artic: f.cod_int_artic,
                 des_artic: String(f.des_artic ?? '').trim(),
@@ -86,7 +130,22 @@ export const MercanciaNuevaService = {
                 proveedor: String(f.proveedor ?? '').trim(),
                 existencia: num(stockPorArt.get(f.id_artic)?.existencia),
                 disponible: num(stockPorArt.get(f.id_artic)?.disponible),
-            })),
+                // Negado vigente de este artículo (0 si no hay) y cuántos pedidos lo pidieron
+                negado,
+                negado_pedidos: num(negadoPorArt.get(f.id_artic)?.pedidos),
+                // Existencia de la sucursal en PolyDB (null = la sucursal no está en el sistema anterior)
+                existencia_sucursal: existenciaSucursal,
+            };
+        });
+
+        // "Negados que ya llegaron": solo lo que tiene negados vigentes
+        const visibles = soloNegados ? items.filter(i => i.negado > 0) : items;
+
+        return {
+            dias,
+            total: visibles.length,
+            solo_negados: !!soloNegados,
+            items: visibles,
             generado: new Date().toISOString(),
         };
     },
