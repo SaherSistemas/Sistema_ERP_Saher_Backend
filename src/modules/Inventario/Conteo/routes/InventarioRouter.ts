@@ -29,6 +29,9 @@ router.post('/:id/manual', InventarioController.agregarManual);
 router.patch('/:id/iniciar',          InventarioController.iniciar);
 router.patch('/:id/terminar',         InventarioController.terminar);
 router.patch('/:id/terminar-forzado', InventarioController.terminarForzado);
+router.patch('/:id/revertir-renglones', InventarioController.revertirRenglones);   // body { ids } — corrige solo esos renglones
+router.patch('/:id/revertir-aplicacion', InventarioController.revertirAplicacion);   // APLICADO → EN_CONTEO (deshace los ajustes)
+router.patch('/:id/reabrir',          InventarioController.reabrir);   // TERMINADO → EN_CONTEO (si aún no se aplicó)
 router.patch('/:id/aplicar',          InventarioController.aplicar);
 router.patch('/:id/cancelar',         InventarioController.cancelar);
 router.patch('/:id/dar-de-baja',      InventarioController.darDeBaja);

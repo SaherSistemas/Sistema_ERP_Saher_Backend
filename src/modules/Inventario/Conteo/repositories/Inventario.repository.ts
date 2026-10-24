@@ -15,6 +15,28 @@ import { Transaction } from 'sequelize';
 const esperadoEnAnaquel = (stock: { cantidad: any; cantidad_apartada?: any }): number =>
     Math.max(0, (Number(stock.cantidad) || 0) - (Number(stock.cantidad_apartada) || 0));
 
+// Explica en el Kardex un cambio de lote: una baja en un lote suele ser lo que sobró en OTRO lote del mismo artículo en este mismo
+// conteo (se acomodó o se surtió con otro lote), y viceversa. Devuelve el texto para anexar a la nota del movimiento ('' si no aplica).
+async function notaCambioDeLote(id_inventario: string, id_articulo: string, id_lote: string | null, buscarSobrantes: boolean, tx: Transaction): Promise<string> {
+    if (!id_lote) return '';
+    const filas = await Detalle_Inventario.findAll({
+        where: { id_inventario, id_articulo, contado: true, id_lote: { [Op.ne]: id_lote } },
+        attributes: ['id_lote', 'cant_contada', 'cant_sistema'], raw: true, transaction: tx,
+    }) as any[];
+    const netoPorLote = new Map<string, number>();
+    for (const f of filas) netoPorLote.set(f.id_lote, (netoPorLote.get(f.id_lote) ?? 0) + (Number(f.cant_contada) || 0) - (Number(f.cant_sistema) || 0));
+    const ids = Array.from(netoPorLote.entries()).filter(([, n]) => (buscarSobrantes ? n > 0 : n < 0)).map(([id]) => id);
+    if (!ids.length) return '';
+    const lotes = await LoteArticuloSucursal.findAll({ where: { id_lote_sucursal: { [Op.in]: ids } }, attributes: ['id_lote_sucursal', 'numero_lote_sucursal'], raw: true, transaction: tx }) as any[];
+    const lista = ids.map(id => {
+        const n = netoPorLote.get(id) as number;
+        return `${String(lotes.find(l => l.id_lote_sucursal === id)?.numero_lote_sucursal ?? '').trim()} (${n > 0 ? '+' : ''}${n})`;
+    }).join(', ');
+    return buscarSobrantes
+        ? ` — posible cambio de lote: en este conteo sobraron piezas de este artículo en el lote ${lista}`
+        : ` — posible cambio de lote: en este conteo faltaron piezas de este artículo en el lote ${lista}`;
+}
+
 // Filas de stock (existencia > 0) que corresponden al filtro de un inventario: la misma consulta sirve para generar
 // los renglones al crearlo y para agregarle después lo que se asignó a esa ubicación mientras se contaba.
 type FiltroStock = {
@@ -25,6 +47,9 @@ type FiltroStock = {
     ids_ubicaciones?: string[];
     id_articulo?: string;
     id_articulos?: string[];
+    // Por pasillo / ubicación: además de lo que hay en esas ubicaciones, incluye las demás ubicaciones (tarimas, otros pasillos)
+    // donde están esos mismos artículos, para cuadrar cada artículo completo en un solo inventario
+    incluir_otras_ubicaciones?: boolean;
 };
 async function stockDelFiltro(id_empresa_sucursal: string, filtro: FiltroStock, tx?: Transaction): Promise<any[]> {
         // Construir where para stock — solo renglones con existencia > 0: si el
@@ -75,7 +100,62 @@ async function stockDelFiltro(id_empresa_sucursal: string, filtro: FiltroStock, 
             attributes: ['id_articulo', 'id_ubicacion_sucursal', 'id_lote', 'cantidad'],
             transaction: tx,
         }) as any[];
+
+    // Las demás ubicaciones (con ubicación asignada) de los artículos que ya trae el inventario
+    if (filtro.incluir_otras_ubicaciones && (filtro.tipo === 'UBICACION' || filtro.tipo === 'PASILLO')) {
+        const idsArt = Array.from(new Set(rows.map(r => r.id_articulo)));
+        if (idsArt.length) {
+            const llave = (r: any) => `${r.id_articulo}|${r.id_ubicacion_sucursal ?? ''}|${r.id_lote ?? ''}`;
+            const ya = new Set(rows.map(llave));
+            const otras = await Stock_Ubicacion_Lote.findAll({
+                where: {
+                    id_empresa_sucursal, cantidad: { [Op.gt]: 0 },
+                    id_articulo: { [Op.in]: idsArt }, id_ubicacion_sucursal: { [Op.ne]: null },
+                },
+                attributes: ['id_articulo', 'id_ubicacion_sucursal', 'id_lote', 'cantidad'],
+                transaction: tx,
+            }) as any[];
+            for (const r of otras) if (!ya.has(llave(r))) rows.push(r);
+        }
+    }
     return rows;
+}
+
+// Deshace en el stock el ajuste que un inventario hizo en un renglón y deja el renglón sin ajustar. Devuelve las piezas movidas.
+//  · lo aplicado = contado menos el sistema con el que se comparó (queda guardado en cant_sistema)
+//  · volverAContar: el renglón queda pendiente de contar (sin cantidad ni comentario); si no, conserva lo capturado
+async function revertirDetalleAplicado(inv: any, d: any, por: string, tx: Transaction, volverAContar: boolean): Promise<number> {
+    const diff = (Number(d.cant_contada) || 0) - (Number(d.cant_sistema) || 0);
+    let piezas = 0;
+    if (d.contado && diff !== 0) {
+        const where: any = { id_empresa_sucursal: inv.id_empresa_sucursal, id_articulo: d.id_articulo, id_ubicacion_sucursal: d.id_ubicacion_sucursal ?? null };
+        if (d.id_lote) where.id_lote = d.id_lote;
+        const stock = await Stock_Ubicacion_Lote.findOne({ where, transaction: tx, lock: tx.LOCK.UPDATE });
+        if (stock) {
+            await stock.update({ cantidad: Math.max(0, Number(stock.cantidad) - diff) }, { transaction: tx });
+        } else if (diff < 0 && d.id_lote) {
+            // La fila ya no existe y hay que devolver piezas: se vuelve a dar de alta
+            await Stock_Ubicacion_Lote.create({
+                id_empresa_sucursal: inv.id_empresa_sucursal, id_articulo: d.id_articulo,
+                id_ubicacion_sucursal: d.id_ubicacion_sucursal, id_lote: d.id_lote,
+                cantidad: -diff, cantidad_apartada: 0,
+            }, { transaction: tx });
+        }
+        await Movimiento_Articulo.create({
+            id_empresa: inv.id_empresa_sucursal,
+            id_articulo: d.id_articulo,
+            tipo_movimiento: diff > 0 ? 'SALIDA_MERMA' : 'AJUSTE_ENTRADA',
+            cantidad: Math.abs(diff),
+            fecha: new Date(),
+            id_lote: d.id_lote,
+            notas: 'Reversa de inventario aplicado (regresado a conteo)',
+            id_empleado: por,
+        } as any, { transaction: tx });
+        piezas = Math.abs(diff);
+    }
+    if (volverAContar) await d.update({ ajustado: false, contado: false, cant_contada: null, comentario: null }, { transaction: tx });
+    else await d.update({ ajustado: false }, { transaction: tx });
+    return piezas;
 }
 
 export const InventarioRepository = {
@@ -206,6 +286,7 @@ export const InventarioRepository = {
             ids_ubicaciones?: string[];
             id_articulo?: string;
             id_articulos?: string[];
+            incluir_otras_ubicaciones?: boolean;
         },
         tx: Transaction,
     ) => {
@@ -455,6 +536,7 @@ export const InventarioRepository = {
                         } as any, { transaction: tx });
                     }
                 } else if (diferencia !== 0) {
+                    const aclaracion = await notaCambioDeLote(id_inventario, d.id_articulo, d.id_lote, diferencia < 0, tx);
                     await Movimiento_Articulo.create({
                         id_empresa: inv.id_empresa_sucursal,
                         id_articulo: d.id_articulo,
@@ -462,7 +544,7 @@ export const InventarioRepository = {
                         cantidad: Math.abs(diferencia),
                         fecha: new Date(),
                         id_lote: d.id_lote,
-                        notas: 'Ajuste por conteo de inventario',
+                        notas: `Ajuste por conteo de inventario${aclaracion}`,
                         id_empleado: aplicado_por,
                     } as any, { transaction: tx });
                 }
@@ -477,6 +559,50 @@ export const InventarioRepository = {
             }, { transaction: tx });
 
             return inv;
+        });
+    },
+
+    // Regresa un inventario APLICADO a EN_CONTEO: deshace en el stock el ajuste de cada renglón (lo que se sumó se resta y lo que se
+    // restó se suma, con su movimiento de reversa en el Kardex de ajustes) y deja los renglones sin ajustar para corregirlos y volver
+    // a aplicar. Los renglones que se dieron de baja SIN CONTAR vuelven a quedar pendientes de contar. No toca lo que se vendió o
+    // movió después de aplicar, ni las ubicaciones default que el aplicar haya asignado.
+    revertirAplicacion: async (id_inventario: string, por: string) => {
+        return dbLocal.transaction(async (tx) => {
+            const inv = await Inventario.findByPk(id_inventario, { transaction: tx, lock: tx.LOCK.UPDATE });
+            if (!inv) throw new Error('Inventario no encontrado');
+            if (inv.status !== 'APLICADO') throw new Error('Solo se puede regresar a conteo un inventario que ya se aplicó.');
+
+            const detalles = await Detalle_Inventario.findAll({
+                where: { id_inventario, ajustado: true }, transaction: tx, lock: tx.LOCK.UPDATE,
+            });
+            let piezas = 0;
+            for (const d of detalles) piezas += await revertirDetalleAplicado(inv, d, por, tx, String(d.comentario ?? '').startsWith('Dado de baja'));
+
+            await inv.update({ status: 'EN_CONTEO', fecha_aplicacion: null, aplicado_por: null }, { transaction: tx });
+            return { renglones: detalles.length, piezas };
+        });
+    },
+
+    // Corrige SOLO algunos renglones de un inventario APLICADO: a cada uno le devuelve al stock lo que el inventario le ajustó y lo deja
+    // pendiente de contar. Los demás renglones siguen aplicados. El inventario vuelve a EN_CONTEO para contar esos renglones y, al
+    // terminar y aplicar de nuevo, solo se ajustan los corregidos.
+    revertirRenglones: async (id_inventario: string, ids: string[], por: string) => {
+        if (!ids.length) throw new Error('Elige al menos un renglón.');
+        return dbLocal.transaction(async (tx) => {
+            const inv = await Inventario.findByPk(id_inventario, { transaction: tx, lock: tx.LOCK.UPDATE });
+            if (!inv) throw new Error('Inventario no encontrado');
+            if (inv.status !== 'APLICADO') throw new Error('Solo se pueden corregir renglones de un inventario que ya se aplicó.');
+
+            const detalles = await Detalle_Inventario.findAll({
+                where: { id_inventario, ajustado: true, id_detalle_inventario: { [Op.in]: ids } }, transaction: tx, lock: tx.LOCK.UPDATE,
+            });
+            if (!detalles.length) throw new Error('Esos renglones no están ajustados en este inventario.');
+
+            let piezas = 0;
+            for (const d of detalles) piezas += await revertirDetalleAplicado(inv, d, por, tx, true);
+
+            await inv.update({ status: 'EN_CONTEO', fecha_aplicacion: null, aplicado_por: null }, { transaction: tx });
+            return { renglones: detalles.length, piezas };
         });
     },
 
@@ -517,6 +643,7 @@ export const InventarioRepository = {
 
                 if (stock && esperado > 0) {
                     await stock.update({ cantidad: Math.max(0, Number(stock.cantidad) - esperado) }, { transaction: tx });
+                    const aclaracion = await notaCambioDeLote(id_inventario, d.id_articulo, d.id_lote, true, tx);
                     await Movimiento_Articulo.create({
                         id_empresa: inv.id_empresa_sucursal,
                         id_articulo: d.id_articulo,
@@ -524,7 +651,7 @@ export const InventarioRepository = {
                         cantidad: esperado,
                         fecha: new Date(),
                         id_lote: d.id_lote,
-                        notas: 'Baja por conteo de inventario (renglón sin contar)',
+                        notas: `Baja por conteo de inventario (renglón sin contar)${aclaracion}`,
                         id_empleado: aplicado_por,
                     } as any, { transaction: tx });
                     piezas += esperado;

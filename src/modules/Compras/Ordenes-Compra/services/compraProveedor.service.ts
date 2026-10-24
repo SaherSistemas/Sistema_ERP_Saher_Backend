@@ -1,4 +1,6 @@
 import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
 import dayjs from 'dayjs';
 import { QueryTypes, Transaction } from "sequelize";
 import { ICreateCompra_Proveedor, IEsctructuraCompra } from "../interface/Compra_Proveedor.interface";
@@ -277,162 +279,201 @@ export const compraProveedorService = {
         const { proveedor, detallesCompra } = compraProveedor;
 
         // Algunos proveedores piden la orden con SU código interno del artículo: si el listado del proveedor lo trae,
-        // la columna "Código" muestra ese; si no, el código de barras de siempre.
+        // se agrega la columna "Cód. Prov." además del código de barras.
         const compraCab = await Compra_ProveedorRepository.getByID(id_comp);
         const mapaProve = await compraProveedorService.codigosInternosProveedor(
             (compraCab as any)?.idprove_comp,
             (detallesCompra ?? []).map((d: any) => d.articulo?.cod_barr_artic ?? ''));
         const hayCodProve = (detallesCompra ?? []).some((d: any) => mapaProve.has(String(d.articulo?.cod_barr_artic ?? '').trim()));
 
-        const doc = new PDFDocument({ margin: 30, size: 'letter' });
+        // Folio corto de la orden (el número de la compra general + 4 caracteres de la orden del proveedor)
+        let folio = id_comp.slice(0, 8).toUpperCase();
+        try {
+            const [cg] = await dbLocal.query<any>(
+                `SELECT id_interno_compra_gen FROM compra_general WHERE id_compra_general = :id`,
+                { replacements: { id: (compraCab as any)?.id_compra_general }, type: QueryTypes.SELECT });
+            const interno = String(cg?.id_interno_compra_gen ?? '').trim();
+            if (interno) folio = `${interno.split(/[-_]/).pop()}-${id_comp.slice(0, 4).toUpperCase()}`;
+        } catch { /* se queda el folio corto de la orden */ }
+
+        // Formato de la cotización de la web: encabezado con logo, datos de la empresa y folio; barra del proveedor;
+        // tabla con encabezado oscuro; y desglose Subtotal / IVA / TOTAL.
+        const doc = new PDFDocument({ margin: 0, size: 'letter', bufferPages: true });
         const buffers: Buffer[] = [];
         doc.on('data', buffers.push.bind(buffers));
 
-        const TL = 30, TR = 540, TW = 510;
-        // Si el proveedor tiene código interno cargado: dos columnas (Cód. Prov. + Cód. Barras); si no, solo barras.
-        const C = hayCodProve
-            ? {
-                prov: { x: 32, w: 58 },
-                codigo: { x: 92, w: 72 },
-                desc: { x: 167, w: 111 },
-                cant: { x: 280, w: 30 },
-                precio: { x: 312, w: 54 },
-                pctIva: { x: 368, w: 28 },
-                iva: { x: 398, w: 58 },
-                importe: { x: 458, w: 79 },
-            }
-            : {
-                prov: { x: 0, w: 0 },
-                codigo: { x: 32, w: 84 },
-                desc: { x: 119, w: 142 },
-                cant: { x: 264, w: 34 },
-                precio: { x: 301, w: 60 },
-                pctIva: { x: 364, w: 32 },
-                iva: { x: 399, w: 60 },
-                importe: { x: 462, w: 75 },
-            };
+        const PW = 612, PH = 792, MX = 24, CW = PW - MX * 2;
+        const GRIS = '#999999', NEGRO = '#111111';
+        const LIMITE = PH - 46;   // abajo de aquí va el "Página X de Y"
+        const money = (n: number) => '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-        const drawTableHeader = (y: number): number => {
-            doc.rect(TL, y, TW, 18).fill('#1B4F72');
-            doc.font('Helvetica-Bold').fontSize(8).fillColor('white');
-            if (hayCodProve) doc.text('Cód. Prov.', C.prov.x, y + 5, { width: C.prov.w, lineBreak: false });
-            doc.text(hayCodProve ? 'Cód. Barras' : 'Código', C.codigo.x, y + 5, { width: C.codigo.w, lineBreak: false });
-            doc.text('Descripción', C.desc.x, y + 5, { width: C.desc.w, lineBreak: false });
-            doc.text('Cant.', C.cant.x, y + 5, { width: C.cant.w, align: 'center', lineBreak: false });
-            doc.text('P. Unit.', C.precio.x, y + 5, { width: C.precio.w, align: 'right', lineBreak: false });
-            doc.text('%IVA', C.pctIva.x, y + 5, { width: C.pctIva.w, align: 'center', lineBreak: false });
-            doc.text('IVA', C.iva.x, y + 5, { width: C.iva.w, align: 'right', lineBreak: false });
-            doc.text('Importe', C.importe.x, y + 5, { width: C.importe.w, align: 'right', lineBreak: false });
-            doc.font('Helvetica').fillColor('black');
-            return y + 20;
+        // Columnas (si el proveedor tiene código interno: una columna más)
+        const anchos = hayCodProve
+            ? { prov: 52, barras: 78, desc: 170, cant: 34, punit: 56, iva: 34, pciva: 60, importe: 80 }
+            : { prov: 0, barras: 88, desc: 214, cant: 34, punit: 56, iva: 34, pciva: 60, importe: 78 };
+        const X: Record<string, number> = {};
+        let ax = MX;
+        for (const k of ['prov', 'barras', 'desc', 'cant', 'punit', 'iva', 'pciva', 'importe'] as const) { X[k] = ax; ax += anchos[k]; }
+
+        const rutaLogo = (): string | null => {
+            const candidatos = [
+                process.env.RUTA_LOGO_PDF ? path.resolve(process.cwd(), process.env.RUTA_LOGO_PDF) : null,
+                path.resolve(process.cwd(), 'assets', 'logo_saher.png'),
+            ].filter(Boolean) as string[];
+            return candidatos.find(p => fs.existsSync(p)) ?? null;
         };
 
-        // HEADER
-        doc.rect(0, 0, 612, 65).fill('#1B4F72');
-        doc.font('Helvetica-Bold').fontSize(22).fillColor('white').text('FARMACIA SAHER', 35, 14, { lineBreak: false });
-        doc.font('Helvetica').fontSize(10).fillColor('#AED6F1').text('Orden de Compra a Proveedor', 35, 43, { lineBreak: false });
-        doc.font('Helvetica').fontSize(9).fillColor('white');
-        doc.text(`Folio: ${id_comp}`, 400, 26, { lineBreak: false });
-        doc.text(`Fecha: ${dayjs().format('DD/MM/YYYY')}`, 400, 41, { lineBreak: false });
+        // ── Encabezado ──
+        const encabezado = (): number => {
+            const y0 = 24, h = 78;
+            doc.lineWidth(0.8).strokeColor(GRIS).rect(MX, y0, CW, h).stroke();
+            doc.moveTo(MX + 110, y0).lineTo(MX + 110, y0 + h).stroke();
+            doc.moveTo(MX + CW - 130, y0).lineTo(MX + CW - 130, y0 + h).stroke();
 
-        // INFO PROVEEDOR
-        let cy = 75;
-        doc.rect(TL, cy, TW, 14).fill('#D6EAF8');
-        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#1B4F72').text('DATOS DEL PROVEEDOR', TL + 5, cy + 3, { lineBreak: false });
-        cy += 16;
+            const logo = rutaLogo();
+            if (logo) doc.image(logo, MX + 12, y0 + 16, { fit: [86, 34], align: 'center' });
+            else doc.font('Helvetica-Bold').fontSize(22).fillColor('#16a34a').text('Saher', MX, y0 + 24, { width: 110, align: 'center', lineBreak: false });
+            doc.font('Helvetica').fontSize(6.5).fillColor('#555555')
+                .text('FARMACIAS SAHER', MX, y0 + 54, { width: 110, align: 'center', lineBreak: false })
+                .text('DE SINALOA', MX, y0 + 62, { width: 110, align: 'center', lineBreak: false });
 
-        doc.font('Helvetica').fontSize(9).fillColor('#1C2833');
-        doc.text(`Nombre: ${proveedor.nomcort_prove}`, TL + 5, cy, { lineBreak: false });
-        doc.text(`RFC: ${proveedor.rfc_prove}`, 310, cy, { lineBreak: false });
-        cy += 13;
-        doc.text(`Razón Social: ${proveedor.razsoc_prove}`, TL + 5, cy, { lineBreak: false });
-        cy += 13;
-        doc.text(`Correo: ${proveedor.corr_prove}`, TL + 5, cy, { lineBreak: false });
-        doc.text(`Teléfono: ${proveedor.telef_prove}`, 310, cy, { lineBreak: false });
-        cy += 14;
+            const ex = MX + 122;
+            doc.font('Helvetica-Bold').fontSize(10).fillColor(NEGRO).text('FARMACIAS SAHER DE SINALOA S DE RL DE CV', ex, y0 + 12, { lineBreak: false });
+            doc.font('Helvetica').fontSize(8.5).fillColor('#333333')
+                .text('PASTOR ROUIX #2314 B     INDUSTRIAL EL PALMITO', ex, y0 + 28, { lineBreak: false })
+                .text('C.P.: 80160     CULIACÁN, SINALOA', ex, y0 + 41, { lineBreak: false })
+                .text('Teléfono: ', ex, y0 + 54, { lineBreak: false, continued: true })
+                .font('Helvetica-Bold').text('6677644798', { lineBreak: false });
 
-        doc.moveTo(TL, cy).lineTo(TR, cy).strokeColor('#AEB6BF').lineWidth(0.5).stroke();
-        cy += 7;
+            const fx = MX + CW - 130;
+            doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555555').text('ORDEN DE COMPRA', fx, y0 + 8, { width: 130, align: 'center', lineBreak: false });
+            doc.lineWidth(0.8).strokeColor(GRIS).rect(fx + 8, y0 + 20, 114, 26).stroke();
+            doc.font('Helvetica-Bold').fontSize(folio.length > 16 ? 9.5 : folio.length > 12 ? 11 : 15).fillColor(NEGRO)
+                .text(folio, fx + 8, y0 + (folio.length > 12 ? 29 : 25), { width: 114, align: 'center', lineBreak: false });
+            doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555555').text('FECHA', fx, y0 + 53, { width: 130, align: 'center', lineBreak: false });
+            doc.font('Helvetica-Bold').fontSize(10).fillColor(NEGRO).text(dayjs().format('DD/MM/YY'), fx, y0 + 64, { width: 130, align: 'center', lineBreak: false });
+            return y0 + h + 8;
+        };
 
-        cy = drawTableHeader(cy);
+        // ── Barra del proveedor (dos renglones, como la del cliente en la cotización) ──
+        const correoReal = (c: string | null | undefined) => {
+            const v = String(c ?? '').trim();
+            return v && !/^sin-correo@/i.test(v) ? v : '—';
+        };
+        const barraProveedor = (y: number): number => {
+            const h = 16;
+            doc.lineWidth(0.8).strokeColor(GRIS).rect(MX, y, CW, h * 2).stroke();
+            doc.moveTo(MX, y + h).lineTo(MX + CW, y + h).strokeColor('#cccccc').lineWidth(0.5).stroke();
+            const corte = MX + CW - 200;
+            doc.moveTo(corte, y).lineTo(corte, y + h * 2).stroke();
+            const campo = (lbl: string, val: string, x: number, yy: number, w: number) => {
+                doc.font('Helvetica-Bold').fontSize(8).fillColor(NEGRO).text(lbl, x, yy, { lineBreak: false, continued: true });
+                doc.font('Helvetica').fontSize(8).text(' ' + val, { width: w, lineBreak: false, ellipsis: true });
+            };
+            const nombre = String(proveedor?.razsoc_prove ?? proveedor?.nomcort_prove ?? '').trim() || String(proveedor?.nomcort_prove ?? '');
+            campo('Proveedor:', nombre, MX + 8, y + 4.5, corte - MX - 14);
+            campo('Teléfono:', String(proveedor?.telef_prove ?? '—'), corte + 8, y + 4.5, 186);
+            campo('RFC:', String(proveedor?.rfc_prove ?? '—'), MX + 8, y + h + 4.5, corte - MX - 14);
+            campo('Correo:', correoReal(proveedor?.corr_prove), corte + 8, y + h + 4.5, 186);
+            return y + h * 2 + 8;
+        };
+
+        // ── Encabezado de la tabla ──
+        const encabezadoTabla = (y: number): number => {
+            doc.rect(MX, y, CW, 17).fill('#333333');
+            doc.font('Helvetica-Bold').fontSize(8).fillColor('white');
+            if (hayCodProve) doc.text('Cód. Prov.', X.prov, y + 5, { width: anchos.prov, align: 'center', lineBreak: false });
+            doc.text('Cód. Barras', X.barras, y + 5, { width: anchos.barras, align: 'center', lineBreak: false });
+            doc.text('Descripción', X.desc, y + 5, { width: anchos.desc, align: 'center', lineBreak: false });
+            doc.text('Cant.', X.cant, y + 5, { width: anchos.cant, align: 'center', lineBreak: false });
+            doc.text('P. Unit.', X.punit, y + 5, { width: anchos.punit - 4, align: 'right', lineBreak: false });
+            doc.text('IVA', X.iva, y + 5, { width: anchos.iva, align: 'center', lineBreak: false });
+            doc.text('P c/IVA', X.pciva, y + 5, { width: anchos.pciva - 4, align: 'right', lineBreak: false });
+            doc.text('Importe', X.importe, y + 5, { width: anchos.importe - 6, align: 'right', lineBreak: false });
+            return y + 17;
+        };
+
+        let cy = encabezado();
+        cy = barraProveedor(cy);
+        cy = encabezadoTabla(cy);
 
         let subtotalSinIva = 0;
-        const ivaGroups: Record<string, number> = {};
+        let ivaTotal = 0;
         let rowIndex = 0;
 
         for (const item of detallesCompra) {
             const cantidad = Number(item.cantidad_detcompsol);
             const precioUnit = Number(item.precio_detcompsol);
-            const pctIva = Number(item.articulo?.tipo_iva?.porcentaje_iva ?? 0);
-            const baseLine = cantidad * precioUnit;
-            const ivaLinea = baseLine * pctIva;
+            // El IVA del catálogo viene como fracción (0.16 = 16%)
+            const pctRaw = Number(item.articulo?.tipo_iva?.porcentaje_iva ?? 0);
+            const pctIva = pctRaw > 1 ? pctRaw / 100 : pctRaw;
+            const baseLine = Math.round(cantidad * precioUnit * 100) / 100;
+            const ivaLinea = Math.round(baseLine * pctIva * 100) / 100;
             const importeTotal = baseLine + ivaLinea;
+            const precioConIva = Math.round(precioUnit * (1 + pctIva) * 100) / 100;
 
             subtotalSinIva += baseLine;
-            const ivaKey = `${(pctIva * 100).toFixed(0)}%`;
-            ivaGroups[ivaKey] = (ivaGroups[ivaKey] ?? 0) + ivaLinea;
+            ivaTotal += ivaLinea;
 
-            const descText = item.articulo?.des_artic ?? '';
+            const descText = String(item.articulo?.des_artic ?? '').trim();
+            const descGen = String(item.articulo?.des_gener_artic ?? '').trim();
             doc.font('Helvetica').fontSize(8);
-            const rowH = Math.max(doc.heightOfString(descText, { width: C.desc.w }) + 6, 16);
+            const hDesc = doc.heightOfString(descText, { width: anchos.desc - 8 });
+            let hGen = 0;
+            if (descGen) { doc.fontSize(6.5); hGen = doc.heightOfString(descGen, { width: anchos.desc - 8 }); }
+            const rowH = Math.max(hDesc + hGen + 8, 17);
 
-            if (cy + rowH > doc.page.height - doc.page.margins.bottom - 10) {
+            if (cy + rowH > LIMITE) {
                 doc.addPage();
-                cy = doc.page.margins.top;
-                cy = drawTableHeader(cy);
+                cy = encabezadoTabla(MX);
                 rowIndex = 0;
             }
 
-            doc.rect(TL, cy, TW, rowH).fill(rowIndex % 2 === 0 ? '#FDFEFE' : '#EAF2FF');
-            doc.font('Helvetica').fontSize(8).fillColor('#1C2833');
-
+            doc.rect(MX, cy, CW, rowH).fill(rowIndex % 2 === 0 ? '#ffffff' : '#f5f5f5');
             const barras = String(item.articulo?.cod_barr_artic ?? '').trim();
-            if (hayCodProve) doc.text(mapaProve.get(barras) ?? '', C.prov.x, cy + 3, { width: C.prov.w, lineBreak: false });
-            doc.text(barras, C.codigo.x, cy + 3, { width: C.codigo.w, lineBreak: false });
-            doc.text(descText, C.desc.x, cy + 3, { width: C.desc.w });
-            doc.text(`${cantidad}`, C.cant.x, cy + 3, { width: C.cant.w, align: 'center', lineBreak: false });
-            doc.text(`$${precioUnit.toFixed(2)}`, C.precio.x, cy + 3, { width: C.precio.w, align: 'right', lineBreak: false });
-            doc.text(`${(pctIva * 100).toFixed(0)}%`, C.pctIva.x, cy + 3, { width: C.pctIva.w, align: 'center', lineBreak: false });
-            doc.text(`$${ivaLinea.toFixed(2)}`, C.iva.x, cy + 3, { width: C.iva.w, align: 'right', lineBreak: false });
-            doc.text(`$${importeTotal.toFixed(2)}`, C.importe.x, cy + 3, { width: C.importe.w, align: 'right', lineBreak: false });
+            doc.font('Helvetica').fontSize(8).fillColor(NEGRO);
+            if (hayCodProve) doc.text(mapaProve.get(barras) ?? '', X.prov + 2, cy + 4, { width: anchos.prov - 4, align: 'center', lineBreak: false });
+            doc.font('Courier').fontSize(7.5).text(barras, X.barras + 2, cy + 4.5, { width: anchos.barras - 4, align: 'center', lineBreak: false });
+            doc.font('Helvetica').fontSize(8).text(descText, X.desc + 4, cy + 4, { width: anchos.desc - 8 });
+            if (descGen) doc.font('Helvetica').fontSize(6.5).fillColor('#666666').text(descGen, X.desc + 4, cy + 4 + hDesc, { width: anchos.desc - 8 });
+            doc.font('Helvetica').fontSize(8).fillColor(NEGRO);
+            doc.text(`${cantidad}`, X.cant, cy + 4, { width: anchos.cant, align: 'center', lineBreak: false });
+            doc.text(money(precioUnit), X.punit, cy + 4, { width: anchos.punit - 4, align: 'right', lineBreak: false });
+            doc.text(`${Math.round(pctIva * 100)}%`, X.iva, cy + 4, { width: anchos.iva, align: 'center', lineBreak: false });
+            doc.text(money(precioConIva), X.pciva, cy + 4, { width: anchos.pciva - 4, align: 'right', lineBreak: false });
+            doc.font('Helvetica-Bold').text(money(importeTotal), X.importe, cy + 4, { width: anchos.importe - 6, align: 'right', lineBreak: false });
 
-            doc.moveTo(TL, cy + rowH).lineTo(TR, cy + rowH).strokeColor('#D5D8DC').lineWidth(0.3).stroke();
+            doc.moveTo(MX, cy + rowH).lineTo(MX + CW, cy + rowH).strokeColor('#dddddd').lineWidth(0.4).stroke();
             cy += rowH;
             rowIndex++;
         }
 
-        // TOTALS
-        const totalIva = Object.values(ivaGroups).reduce((a, b) => a + b, 0);
-        const total = subtotalSinIva + totalIva;
-        const ivaKeys = Object.keys(ivaGroups).sort();
-        const boxNeeded = 22 + ivaKeys.length * 18 + 26;
+        // ── Desglose como factura ──
+        const total = subtotalSinIva + ivaTotal;
+        const bw = 230, bh = 22;
+        if (cy + 12 + bh * 3 > LIMITE) { doc.addPage(); cy = MX; }
+        cy += 12;
+        const bx = MX + CW - bw;
+        doc.lineWidth(0.8).strokeColor(GRIS).rect(bx, cy, bw, bh * 3).stroke();
+        doc.moveTo(bx, cy + bh).lineTo(bx + bw, cy + bh).strokeColor('#dddddd').lineWidth(0.5).stroke();
+        doc.rect(bx + 0.4, cy + bh * 2, bw - 0.8, bh - 0.4).fill('#f1f1f1');
+        doc.moveTo(bx, cy + bh * 2).lineTo(bx + bw, cy + bh * 2).strokeColor(GRIS).lineWidth(0.8).stroke();
+        doc.font('Helvetica').fontSize(10).fillColor(NEGRO);
+        doc.text('Subtotal:', bx + 12, cy + 6, { lineBreak: false });
+        doc.text(money(subtotalSinIva), bx, cy + 6, { width: bw - 12, align: 'right', lineBreak: false });
+        doc.text('IVA:', bx + 12, cy + bh + 6, { lineBreak: false });
+        doc.text(money(ivaTotal), bx, cy + bh + 6, { width: bw - 12, align: 'right', lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(11);
+        doc.text('TOTAL:', bx + 12, cy + bh * 2 + 5, { lineBreak: false });
+        doc.text(money(total), bx, cy + bh * 2 + 5, { width: bw - 12, align: 'right', lineBreak: false });
 
-        if (cy + boxNeeded > doc.page.height - doc.page.margins.bottom) {
-            doc.addPage();
-            cy = doc.page.margins.top;
+        // ── Pie: número de página ──
+        const paginas = doc.bufferedPageRange();
+        for (let p = 0; p < paginas.count; p++) {
+            doc.switchToPage(paginas.start + p);
+            doc.font('Helvetica').fontSize(8).fillColor('#999999')
+                .text(`Página ${p + 1} de ${paginas.count}`, MX, PH - 34, { width: CW, align: 'right', lineBreak: false });
         }
-
-        cy += 10;
-        const bx = 358, bw = 182;
-
-        doc.rect(bx, cy, bw, 20).fill('#D6EAF8');
-        doc.font('Helvetica-Bold').fontSize(9).fillColor('#1B4F72');
-        doc.text('Subtotal (sin IVA):', bx + 5, cy + 6, { width: 112, lineBreak: false });
-        doc.text(`$${subtotalSinIva.toFixed(2)}`, bx + 116, cy + 6, { width: 61, align: 'right', lineBreak: false });
-        cy += 20;
-
-        for (const key of ivaKeys) {
-            doc.rect(bx, cy, bw, 18).fill('#FDFEFE');
-            doc.font('Helvetica').fontSize(9).fillColor('#1C2833');
-            doc.text(`IVA ${key}:`, bx + 5, cy + 5, { width: 112, lineBreak: false });
-            doc.text(`$${ivaGroups[key].toFixed(2)}`, bx + 116, cy + 5, { width: 61, align: 'right', lineBreak: false });
-            cy += 18;
-        }
-
-        doc.rect(bx, cy, bw, 24).fill('#1B4F72');
-        doc.font('Helvetica-Bold').fontSize(11).fillColor('white');
-        doc.text('TOTAL:', bx + 5, cy + 6, { width: 112, lineBreak: false });
-        doc.text(`$${total.toFixed(2)}`, bx + 112, cy + 6, { width: 65, align: 'right', lineBreak: false });
 
         doc.end();
         return new Promise((resolve) => {

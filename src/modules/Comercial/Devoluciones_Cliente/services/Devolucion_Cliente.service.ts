@@ -408,6 +408,9 @@ export const DevolucionClienteService = {
         return await DevolucionClienteRepository.getInventarioVirtual(id_empresa, filtros);
     },
 
+    agregarInventarioVirtualManual: async (d: { id_empresa: string; id_agente: string; id_articulo: string; cantidad: number; numero_lote?: string | null; fecha_caducidad?: string | null }) =>
+        DevolucionClienteRepository.agregarInventarioVirtualManual(d),
+
     recibirInventarioVirtual: async (ids: string[], id_empresa: string, id_empleado: string) => {
         const limpios = Array.from(new Set((ids ?? []).map(String).filter(Boolean)));
         if (!limpios.length) throw { status: 400, message: 'Selecciona al menos un renglón.' };

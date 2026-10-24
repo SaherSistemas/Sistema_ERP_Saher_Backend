@@ -8,6 +8,12 @@ const DEFAULTS: Record<string, { valor: string; tipo: 'boolean' | 'number' | 'st
         categoria: 'empaque',
         descripcion: 'Solicitar número de empleado al finalizar el empaque de un pedido',
     },
+    surtido_cualquier_usuario_empresa: {
+        valor: 'false',
+        tipo: 'boolean',
+        categoria: 'surtido',
+        descripcion: 'Permitir que cualquier usuario de la misma empresa (no solo el rol Surtidor) tome un pedido para surtir',
+    },
 };
 
 export class ConfiguracionService {

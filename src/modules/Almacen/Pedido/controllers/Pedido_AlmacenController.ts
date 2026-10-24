@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
 import Autorizacion_Credito from '../../../Facturas/model/Autorizacion_Credito.model';
 import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.repository';
+import { CalculoNecesariosService } from '../services/CalculoNecesarios.service';
 
 export class Pedido_AlmacenController {
   /*CHECARRR */
@@ -113,14 +114,35 @@ export class Pedido_AlmacenController {
     }
   };
 
-  // PATCH /almacen/pedido/lote/:id_detalle_pedido_almacen_lote/cambiar  body: { id_lote_nuevo }
+  // POST /almacen/pedido/calcular-necesarios  body: { ids_pedidos: string[], dia_envio?: 1|3|5, seguridad_pct?: number }
+  // Calcula cuánto necesita cada sucursal por artículo (solo calcula: no modifica pedidos ni existencias)
+  static calcularNecesarios = async (req: AuthedRequest, res: Response) => {
+    try {
+      const id_empresa = String(req.user?.id_empresa || '').trim();
+      if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+      const b = req.body ?? {};
+      const r = await CalculoNecesariosService.calcular(id_empresa, {
+        ids_pedidos: Array.isArray(b.ids_pedidos) ? b.ids_pedidos : [],
+        dia_envio: b.dia_envio === undefined || b.dia_envio === null || b.dia_envio === '' ? undefined : Number(b.dia_envio),
+        seguridad_pct: b.seguridad_pct === undefined || b.seguridad_pct === null || b.seguridad_pct === '' ? undefined : Number(b.seguridad_pct),
+      });
+      res.status(200).json(r);
+    } catch (error: any) {
+      if (error?.status) { res.status(error.status).json({ message: error.message }); return; }
+      console.error('[calcularNecesarios]', error);
+      res.status(500).json({ message: error?.message ?? 'No se pudieron calcular los necesarios.' });
+    }
+  };
+
+  // PATCH /almacen/pedido/lote/:id_detalle_pedido_almacen_lote/cambiar  body: { id_lote_nuevo, cantidad? }  (sin cantidad = toda la línea)
   static cambiarLoteDetalle = async (req: AuthedRequest, res: Response) => {
     try {
       const { id_detalle_pedido_almacen_lote } = req.params;
-      const { id_lote_nuevo } = req.body ?? {};
+      const { id_lote_nuevo, cantidad } = req.body ?? {};
       if (!id_lote_nuevo) { res.status(400).json({ message: 'id_lote_nuevo requerido' }); return; }
       const r = await Pedido_AlmacenService.cambiarLoteDetalle(
         id_detalle_pedido_almacen_lote, id_lote_nuevo, req.user?.id_empresa as string,
+        cantidad === undefined || cantidad === null || cantidad === '' ? undefined : Number(cantidad),
       );
       console.warn(`[cambiarLoteDetalle] Pedido ${r.cod_pedido}: lote → ${r.lote_nuevo} (${r.cantidad} pz) por ${req.user?.username}`);
       res.status(200).json(r);

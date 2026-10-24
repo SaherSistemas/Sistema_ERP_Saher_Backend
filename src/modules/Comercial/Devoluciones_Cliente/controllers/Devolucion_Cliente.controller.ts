@@ -121,6 +121,26 @@ export const DevolucionClienteController = {
         }
     },
 
+    // POST /devolucion_cliente/inventario-virtual/agregar  { id_agente, id_articulo, cantidad, numero_lote?, fecha_caducidad? }
+    agregarInventarioVirtual: async (req: AuthedRequest, res: Response) => {
+        try {
+            const b = req.body ?? {};
+            const data = await DevolucionClienteService.agregarInventarioVirtualManual({
+                id_empresa: String(req.user!.id_empresa),
+                id_agente: String(b.id_agente ?? ''),
+                id_articulo: String(b.id_articulo ?? ''),
+                cantidad: Number(b.cantidad),
+                numero_lote: b.numero_lote ?? null,
+                fecha_caducidad: b.fecha_caducidad ?? null,
+            });
+            console.warn(`[InventarioVirtual] Alta manual: agente ${b.id_agente}, artículo ${b.id_articulo}, ${b.cantidad} pz por ${req.user?.username}`);
+            res.status(200).json(data);
+        } catch (e: any) {
+            console.error('[agregarInventarioVirtual]', e);
+            res.status(e?.status ?? 500).json({ message: e?.message ?? 'No se pudo agregar al inventario virtual.' });
+        }
+    },
+
     // POST /devolucion_cliente/inventario-virtual/recibir  { ids: string[] }
     recibirInventarioVirtual: async (req: AuthedRequest, res: Response) => {
         try {

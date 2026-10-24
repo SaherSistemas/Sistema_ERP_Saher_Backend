@@ -156,6 +156,34 @@ export const InventarioController = {
         }
     },
 
+    reabrir: async (req: AuthedRequest, res: Response) => {
+        try {
+            const data = await InventarioService.reabrir(req.params.id);
+            res.json(data);
+        } catch (e: any) {
+            res.status(400).json({ mensaje: e.message });
+        }
+    },
+
+    revertirRenglones: async (req: AuthedRequest, res: Response) => {
+        try {
+            const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).map(String) : [];
+            const data = await InventarioService.revertirRenglones(req.params.id, ids, req.user.id_referencia_persona);
+            res.json(data);
+        } catch (e: any) {
+            res.status(400).json({ mensaje: e.message });
+        }
+    },
+
+    revertirAplicacion: async (req: AuthedRequest, res: Response) => {
+        try {
+            const data = await InventarioService.revertirAplicacion(req.params.id, req.user.id_referencia_persona);
+            res.json(data);
+        } catch (e: any) {
+            res.status(400).json({ mensaje: e.message });
+        }
+    },
+
     terminarForzado: async (req: AuthedRequest, res: Response) => {
         try {
             const data = await InventarioService.terminarForzado(req.params.id);

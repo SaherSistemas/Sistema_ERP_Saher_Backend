@@ -689,6 +689,50 @@ export const DevolucionClienteRepository = {
         }
     },
 
+    // Agrega a mano mercancía al inventario virtual de un agente (la tiene el agente y no vino de una devolución del sistema).
+    // No tiene devolución ligada: se usa el identificador vacío y el folio "MANUAL". Después se recibe en almacén igual que las demás.
+    agregarInventarioVirtualManual: async (d: {
+        id_empresa: string; id_agente: string; id_articulo: string; cantidad: number; numero_lote?: string | null; fecha_caducidad?: string | null;
+    }) => {
+        const cantidad = Math.floor(Number(d.cantidad));
+        if (!(cantidad > 0)) throw Object.assign(new Error('La cantidad debe ser mayor a 0.'), { status: 400 });
+        const numero = String(d.numero_lote ?? '').trim();
+        if (numero && !d.fecha_caducidad) throw Object.assign(new Error('Si capturas el lote, captura también su fecha de caducidad.'), { status: 400 });
+
+        const [agente] = await dbLocal.query<any>(`SELECT id_agente FROM agente_de_venta WHERE id_agente = :id`,
+            { replacements: { id: d.id_agente }, type: QueryTypes.SELECT });
+        if (!agente) throw Object.assign(new Error('Agente no encontrado.'), { status: 404 });
+        const [art] = await dbLocal.query<any>(`SELECT id_artic, des_artic FROM articulo WHERE id_artic = :id`,
+            { replacements: { id: d.id_articulo }, type: QueryTypes.SELECT });
+        if (!art) throw Object.assign(new Error('Artículo no encontrado.'), { status: 404 });
+
+        const t = await dbLocal.transaction();
+        try {
+            let id_lote: string | null = null;
+            if (numero) {
+                const lote = await obtenerOCrearLote(d.id_articulo, d.id_empresa, numero, String(d.fecha_caducidad), cantidad, t);
+                id_lote = lote.id_lote_sucursal;
+            }
+            const fila = await Agente_Inventario_Virtual.create({
+                id_inventario_virtual: uuidv4(),
+                id_empresa: d.id_empresa,
+                id_agente: d.id_agente,
+                id_devolucion_cliente: '00000000-0000-0000-0000-000000000000',
+                id_articulo: d.id_articulo,
+                id_lote,
+                descripcion_articulo: String(art.des_artic ?? '').trim().slice(0, 255),
+                cantidad,
+                folio_factura: 'MANUAL',
+                estatus: 'EN_AGENTE',
+            } as any, { transaction: t });
+            await t.commit();
+            return { ok: true, id_inventario_virtual: fila.id_inventario_virtual };
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+    },
+
     // Lo que el agente tiene vigente en su inventario virtual, agrupado por artículo (con el detalle de cada devolución).
     getInventarioVirtualDeAgente: async (id_agente: string) => {
         const filas = await dbLocal.query<any>(`

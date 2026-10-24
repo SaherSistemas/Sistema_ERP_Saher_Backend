@@ -154,9 +154,12 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     const RIG_W   = MX + CW - RIG_X;
 
     // — Logo —
-    const logoRaw  = process.env.RUTA_LOGO_PDF;
-    const logoPath = logoRaw ? path.resolve(process.cwd(), logoRaw) : null;
-    if (logoPath && fs.existsSync(logoPath)) {
+    const logoPath = [
+        process.env.RUTA_LOGO_PDF ? path.resolve(process.cwd(), process.env.RUTA_LOGO_PDF) : null,
+        path.resolve(process.cwd(), 'assets', 'logo_saher.png'),
+        path.resolve(__dirname, '..', '..', '..', '..', '..', 'assets', 'logo_saher.png'),
+    ].find(p => p && fs.existsSync(p)) ?? null;
+    if (logoPath) {
         doc.image(logoPath, MX, y, { fit: [LOGO_W, LOGO_H] });
     } else {
         // Fallback: círculo con texto
@@ -264,15 +267,17 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     // 3. TABLA DE ARTÍCULOS
     // ══════════════════════════════════════════════════════════════════════════
     // Columnas (suma = CW = 556):
-    // Cantidad(48) | Unidad(36) | C.Barras(82) | Descripcion(258) | PrecioU(66) | Importe(66)
+    // Cantidad(42) | Unidad(40) | C.Barras(74) | Descripcion(196) | P Vta(54) | IVA(34) | P c/IVA(56) | Total(60)
 
     const COLS = [
-        { label: 'Cantidad',    w:  48, align: 'right'  as const },
-        { label: 'unidad',      w:  36, align: 'center' as const },
-        { label: 'C Barras',    w:  82, align: 'left'   as const },
-        { label: 'Descripcion', w: 258, align: 'left'   as const },
-        { label: 'Precio U.',   w:  66, align: 'right'  as const },
-        { label: 'Importe',     w:  66, align: 'right'  as const },
+        { label: 'Cantidad',    w:  42, align: 'right'  as const },
+        { label: 'unidad',      w:  40, align: 'center' as const },
+        { label: 'C Barras',    w:  74, align: 'left'   as const },
+        { label: 'Descripcion', w: 196, align: 'left'   as const },
+        { label: 'P Vta',       w:  54, align: 'right'  as const },
+        { label: 'IVA',         w:  34, align: 'right'  as const },
+        { label: 'P c/IVA',     w:  56, align: 'right'  as const },
+        { label: 'Total',       w:  60, align: 'right'  as const },
     ];
 
     const TH = 14;  // altura header
@@ -311,9 +316,15 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
     let cx = MX;
     datos.detalles.forEach((d, idx) => {
         totalPiezas += d.cantidad;
-        ensureSpace(TR, true);
+        // La fila crece según lo que ocupe la descripción (una descripción larga baja a otra línea en vez de cortarse
+        // o encimarse con la fila de abajo)
+        const DESC_I = 3;
+        doc.font('Helvetica').fontSize(7.5);
+        const hDesc = doc.heightOfString(d.descripcion_articulo, { width: COLS[DESC_I].w - 8 });
+        const rowH = Math.max(TR, Math.ceil(hDesc) + 6);
+        ensureSpace(rowH, true);
         if (idx % 2 === 1) {
-            doc.rect(MX, y, CW, TR).fill('#f9fafb');
+            doc.rect(MX, y, CW, rowH).fill('#f9fafb');
         }
 
         const vals = [
@@ -322,6 +333,8 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
             d.cod_barras,
             d.descripcion_articulo,
             fmt2(d.precio_unitario),
+            `${(d.tasa_iva * 100).toFixed(0)}%`,
+            fmt2(d.precio_unitario * (1 + d.tasa_iva)),
             fmt2(d.subtotal + d.importe_iva),
         ];
 
@@ -329,10 +342,12 @@ export function generarRemisionPDFBuffer(datos: DatosRemisionPDF): Promise<Buffe
         COLS.forEach((col, ci) => {
             doc.font('Helvetica').fontSize(7.5).fillColor(NEGRO)
                .text(vals[ci], cx + 4, y + 3,
-                     { width: col.w - 8, align: col.align, lineBreak: false, ellipsis: true });
+                     ci === DESC_I
+                         ? { width: col.w - 8, align: col.align }
+                         : { width: col.w - 8, align: col.align, lineBreak: false, ellipsis: true });
             cx += col.w;
         });
-        y += TR;
+        y += rowH;
     });
 
     // Filas vacías (mínimo 3 filas vacías)

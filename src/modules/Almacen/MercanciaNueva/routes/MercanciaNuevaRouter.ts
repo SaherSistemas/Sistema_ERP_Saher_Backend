@@ -21,4 +21,37 @@ router.get('/', async (req: AuthedRequest, res: Response) => {
     }
 });
 
+// GET /almacen/mercancia_nueva/buscar?q=texto
+// Búsqueda general de artículos (no solo lo que acaba de llegar) para armar el pedido general
+router.get('/buscar', async (req: AuthedRequest, res: Response) => {
+    try {
+        const id_empresa = String(req.user?.id_empresa || '').trim();
+        if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+        const q = typeof req.query.q === 'string' ? req.query.q : '';
+        res.status(200).json(await MercanciaNuevaService.buscarArticulos(id_empresa, q));
+    } catch (e: any) {
+        console.error('[MercanciaNueva] buscar', e);
+        res.status(500).json({ message: e?.message ?? 'Error al buscar artículos.' });
+    }
+});
+
+// POST /almacen/mercancia_nueva/pedido-excel  { tipo?: 'NUEVA' | 'GENERAL', items: [{ cod_int_artic, des_artic, cod_barr_artic, cantidad }] }
+// Devuelve el Excel del pedido armado en pantalla (el pedido se guarda solo en el navegador)
+router.post('/pedido-excel', async (req: AuthedRequest, res: Response) => {
+    try {
+        const id_empresa = String(req.user?.id_empresa || '').trim();
+        if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+        const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 500) : [];
+        const tipo = req.body?.tipo === 'GENERAL' ? 'GENERAL' : 'NUEVA';
+        const { nombre, buffer } = await MercanciaNuevaService.pedidoExcel(id_empresa, items, tipo);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
+        res.status(200).send(buffer);
+    } catch (e: any) {
+        if (e?.status) { res.status(e.status).json({ message: e.message }); return; }
+        console.error('[MercanciaNueva] pedido-excel', e);
+        res.status(500).json({ message: e?.message ?? 'No se pudo generar el Excel.' });
+    }
+});
+
 export default router;

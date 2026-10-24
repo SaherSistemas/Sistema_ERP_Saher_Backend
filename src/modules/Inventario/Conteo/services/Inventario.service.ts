@@ -109,6 +109,8 @@ export const InventarioService = {
 
         const dentro = (r: any): boolean => {
             if (idsAlcance.has(String(r.id_ubicacion_sucursal))) return true;
+            // Por pasillo / ubicación con "incluir las demás ubicaciones": cuenta todo lo que tiene ubicación de esos artículos
+            if (f.incluir_otras_ubicaciones && (inv.tipo_inventario === 'UBICACION' || inv.tipo_inventario === 'PASILLO')) return !!r.id_ubicacion_sucursal;
             // GENERAL cuenta todo lo que tiene ubicación; lo de "sin ubicación" queda fuera del conteo (se muestra como "otras")
             if (inv.tipo_inventario === 'GENERAL') return !!r.id_ubicacion_sucursal;
             // POR UBICAR: lo que cuenta es lo que no tiene ubicación; lo ubicado queda fuera (se muestra como "otras"/tarima)
@@ -260,6 +262,9 @@ export const InventarioService = {
             renglones: 0, contados: 0, sin_contar: 0, pz_sin_contar: 0, faltante_pz: 0, sobrante_pz: 0, faltante_valor: 0, sobrante_valor: 0,
         }));
 
+        // Por inventario y artículo (para el faltante/sobrante REAL de cada inventario, compensando lotes y ubicaciones dentro de él)
+        const porInvArt = new Map<string, { id_inventario: string; pos: number; neg: number; vpos: number; vneg: number }>();
+
         const etiquetaUb = (u: any) => !u ? '' : (u.tarima_ub ? `Tarima ${String(u.tarima_ub).trim()}`
             : [u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub].map((p: any) => String(p ?? '').trim()).filter(Boolean).join('-'));
 
@@ -296,8 +301,11 @@ export const InventarioService = {
             if (ub) a.ubicaciones.add(ub);
             if (costo <= 0) a.sin_costo = true;
 
-            if (dif > 0) { a.pos += dif; a.valor_pos += dif * costo; resInv.sobrante_pz += dif; resInv.sobrante_valor += dif * costo; }
-            else { a.neg += -dif; a.valor_neg += -dif * costo; resInv.faltante_pz += -dif; resInv.faltante_valor += -dif * costo; }
+            const kIA = `${id_inventario}|${idArt}`;
+            if (!porInvArt.has(kIA)) porInvArt.set(kIA, { id_inventario: String(id_inventario), pos: 0, neg: 0, vpos: 0, vneg: 0 });
+            const ia = porInvArt.get(kIA)!;
+            if (dif > 0) { a.pos += dif; a.valor_pos += dif * costo; resInv.sobrante_pz += dif; resInv.sobrante_valor += dif * costo; ia.pos += dif; ia.vpos += dif * costo; }
+            else { a.neg += -dif; a.valor_neg += -dif * costo; resInv.faltante_pz += -dif; resInv.faltante_valor += -dif * costo; ia.neg += -dif; ia.vneg += -dif * costo; }
         }
 
         const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -327,9 +335,27 @@ export const InventarioService = {
         const sum = (l: any[], campo: string) => l.reduce((s, x) => s + (Number(x[campo]) || 0), 0);
         const faltantes = articulos.filter(a => a.neto_pz < 0);
         const sobrantes = articulos.filter(a => a.neto_pz > 0);
+        // Faltante y sobrante REALES de cada inventario: por artículo dentro del inventario (lo que solo cambió de lote o
+        // ubicación se compensa). El total de arriba compensa además entre inventarios, por eso puede ser menor que la suma.
+        const realPorInv = new Map<string, { fpz: number; spz: number; fval: number; sval: number }>();
+        for (const ia of porInvArt.values()) {
+            const acum = realPorInv.get(ia.id_inventario) ?? { fpz: 0, spz: 0, fval: 0, sval: 0 };
+            const bruto = ia.pos + ia.neg;
+            const costoProm = bruto > 0 ? (ia.vpos + ia.vneg) / bruto : 0;
+            const neto = ia.pos - ia.neg;
+            if (neto < 0) { acum.fpz += -neto; acum.fval += -neto * costoProm; }
+            else if (neto > 0) { acum.spz += neto; acum.sval += neto * costoProm; }
+            realPorInv.set(ia.id_inventario, acum);
+        }
+
         const inventarios = invs.map(inv => {
             const r = porInv.get(String(inv.id_inventario))!;
+            const real = realPorInv.get(String(inv.id_inventario)) ?? { fpz: 0, spz: 0, fval: 0, sval: 0 };
             return {
+                faltante_real_pz: real.fpz,
+                sobrante_real_pz: real.spz,
+                faltante_real_valor: r2(real.fval),
+                sobrante_real_valor: r2(real.sval),
                 id_inventario: inv.id_inventario,
                 tipo_inventario: inv.tipo_inventario,
                 status: inv.status,
@@ -415,7 +441,7 @@ export const InventarioService = {
     crear: async (data: {
         id_empresa_sucursal: string;
         tipo_inventario: TipoInventario;
-        filtro?: { pasillo?: string; id_ubicacion_sucursal?: string; ids_ubicaciones?: string[]; etiqueta?: string; id_articulo?: string; id_articulos?: string[] };
+        filtro?: { pasillo?: string; id_ubicacion_sucursal?: string; ids_ubicaciones?: string[]; etiqueta?: string; id_articulo?: string; id_articulos?: string[]; incluir_otras_ubicaciones?: boolean };
         creado_por?: string;
         notas?: string;
     }) => {
@@ -597,12 +623,35 @@ export const InventarioService = {
         return { ok: true };
     },
 
+    // Regresa un inventario TERMINADO a EN_CONTEO para seguir contando o corregir conteos. Solo si todavía no se aplicó al stock:
+    // un inventario APLICADO ya movió existencias y no se puede reabrir.
+    reabrir: async (id_inventario: string) => {
+        const inv = await InventarioRepository.getById(id_inventario);
+        if (!inv) throw new Error('Inventario no encontrado');
+        if (inv.status === 'APLICADO') throw new Error('Este inventario ya se aplicó al stock (movió existencias): no se puede regresar a conteo.');
+        if (inv.status !== 'TERMINADO') throw new Error('Solo se puede regresar a conteo un inventario TERMINADO.');
+        await InventarioRepository.cambiarStatus(id_inventario, 'EN_CONTEO');
+        return { ok: true };
+    },
+
     // Terminar forzado aunque haya renglones sin contar (los no contados se ignoran)
     terminarForzado: async (id_inventario: string) => {
         const inv = await InventarioRepository.getById(id_inventario);
         if (!inv) throw new Error('Inventario no encontrado');
         await InventarioRepository.cambiarStatus(id_inventario, 'TERMINADO');
         return { ok: true };
+    },
+
+    // Corrige solo algunos renglones de un inventario aplicado (les devuelve lo ajustado y quedan pendientes de contar)
+    revertirRenglones: async (id_inventario: string, ids: string[], por: string) => {
+        const r = await InventarioRepository.revertirRenglones(id_inventario, ids, por);
+        return { ok: true, ...r };
+    },
+
+    // Deshace la aplicación de un inventario (ajustes de stock) y lo regresa a EN_CONTEO para corregirlo
+    revertirAplicacion: async (id_inventario: string, por: string) => {
+        const r = await InventarioRepository.revertirAplicacion(id_inventario, por);
+        return { ok: true, ...r };
     },
 
     aplicar: async (id_inventario: string, aplicado_por: string, marcarInicial: boolean = false, base?: 'AHORA' | 'CONTEO') => {

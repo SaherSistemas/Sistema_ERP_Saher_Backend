@@ -393,7 +393,7 @@ export const Compra_ProveedorRepository = {
           include: [
             {
               model: Articulo,
-              attributes: ['cod_int_artic', 'cod_barr_artic', 'des_artic'],
+              attributes: ['cod_int_artic', 'cod_barr_artic', 'des_artic', 'des_gener_artic'],
               include: [{
                 model: Tipo_IVA,
                 attributes: ['porcentaje_iva'],

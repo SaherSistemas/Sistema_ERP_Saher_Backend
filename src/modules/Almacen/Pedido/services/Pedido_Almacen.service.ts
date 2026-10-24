@@ -24,6 +24,7 @@ import Pedido_Almacen from '../model/Pedido_Almacen';
 import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import Cuenta_Por_Cobrar from '../../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
 import Usuario from '../../../Seguridad/model/Usuario';
+import { ConfiguracionService } from '../../../Configuracion/services/Configuracion.service';
 import DetalleListaPrecio from '../../../Comercial/Precios/model/Detalle_Lista_Precio';
 import ListaPrecio from '../../../Comercial/Precios/model/Lista_Precio';
 import { generarTraspasoCompletoPDFBuffer, TraspasoItem } from '../../../Facturas/helpers/traspaso.pdf';
@@ -1403,10 +1404,12 @@ export const Pedido_AlmacenService = {
   // en vez de solo lo realmente entregado.
   // Cambia el lote de una línea surtida (antes de facturar): libera lo apartado del lote anterior y aparta
   // la misma cantidad del lote nuevo. El chequeo y los precios no se tocan; solo el lote.
+  // cantidadMover (opcional): pasa solo esas piezas al lote nuevo y deja el resto de la línea en el lote actual.
   cambiarLoteDetalle: async (
     id_detalle_pedido_almacen_lote: string,
     id_lote_nuevo: string,
     id_empresa: string,
+    cantidadMover?: number,
   ) => {
     const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
     try {
@@ -1433,7 +1436,11 @@ export const Pedido_AlmacenService = {
         { replacements: { l: id_lote_nuevo, a: info.id_articulo, e: id_empresa }, type: QueryTypes.SELECT, transaction: t });
       if (!lote) throw new Error('El lote elegido no es de este artículo o no pertenece a esta sucursal.');
 
-      const cantidad = Number(linea.cantidad) || 0;
+      const cantidadLinea = Number(linea.cantidad) || 0;
+      const cantidad = cantidadMover === undefined ? cantidadLinea : Number(cantidadMover);
+      if (!Number.isInteger(cantidad) || cantidad <= 0 || cantidad > cantidadLinea) {
+        throw new Error(`La cantidad a pasar debe ser un entero de 1 a ${cantidadLinea}.`);
+      }
       const loteAnterior = linea.id_lote_sucursal;
 
       // 1) Liberar lo apartado del lote anterior
@@ -1484,7 +1491,20 @@ export const Pedido_AlmacenService = {
       }
 
       // 3) La línea queda con el lote nuevo (el lote "de factura" capturado a mano era del anterior)
-      await linea.update({ id_lote_sucursal: id_lote_nuevo, lote_factura_numero: null, lote_factura_fecha: null }, { transaction: t });
+      if (cantidad === cantidadLinea) {
+        await linea.update({ id_lote_sucursal: id_lote_nuevo, lote_factura_numero: null, lote_factura_fecha: null }, { transaction: t });
+      } else {
+        // Solo una parte: la línea conserva el resto en el lote actual y las piezas que pasan van en una línea nueva
+        await linea.update({ cantidad: cantidadLinea - cantidad }, { transaction: t });
+        await Detalle_Pedido_Almacen_LoteModel.create({
+          id_detalle_pedido_almacen_lote: uuidv4(),
+          id_detalle_pedido_almacen: linea.id_detalle_pedido_almacen,
+          id_lote_sucursal: id_lote_nuevo,
+          cantidad,
+          lote_factura_numero: null,
+          lote_factura_fecha: null,
+        } as any, { transaction: t });
+      }
 
       await t.commit();
       return { cod_pedido: info.cod_int_pedido_alm, cantidad, lote_nuevo: String(lote.numero_lote_sucursal).trim() };
@@ -2280,10 +2300,27 @@ export const Pedido_AlmacenService = {
     const empleado = await Empleado.findOne({ where: { idinterno_empleado: cod_interno } });
     if (!empleado) throw { status: 404, message: `No se encontró empleado con código interno ${cod_interno}.` };
 
-    // Verificar que el empleado tenga rol Surtidor/Acomodador
+    // Verificar que el empleado tenga rol Surtidor/Acomodador. Con la regla "surtido_cualquier_usuario_empresa" activa basta con que
+    // sea un usuario activo de la misma empresa de quien asigna.
     const usuario = await Usuario.findOne({ where: { id_referencia_persona: empleado.id_empleado } });
-    if (!usuario || Number(usuario.idrol_user) !== ID_ROL_SURTIDOR) {
-      throw { status: 403, message: `El empleado ${empleado.nombre_empleado} ${empleado.ap_pat_empleado} no tiene el rol de Surtidor/Acomodador.` };
+    const nombreEmp = `${empleado.nombre_empleado} ${empleado.ap_pat_empleado}`;
+    if (!usuario) {
+      throw { status: 403, message: `El empleado ${nombreEmp} no tiene usuario en el sistema.` };
+    }
+    if (Number(usuario.idrol_user) !== ID_ROL_SURTIDOR) {
+      const regla = await ConfiguracionService.getByClave('surtido_cualquier_usuario_empresa').catch(() => ({ valor: 'false' }));
+      if (String(regla.valor).toLowerCase() !== 'true') {
+        throw { status: 403, message: `El empleado ${nombreEmp} no tiene el rol de Surtidor/Acomodador.` };
+      }
+      if (!usuario.status_user) {
+        throw { status: 403, message: `El usuario de ${nombreEmp} está inactivo.` };
+      }
+      const [mismaEmpresa] = await dbLocal.query<{ n: number }>(
+        `SELECT 1 AS n FROM asignacion_empleado_sucursal WHERE id_empleado = :emp AND id_empre = :empresa AND activo = true LIMIT 1`,
+        { replacements: { emp: empleado.id_empleado, empresa: id_empresa }, type: QueryTypes.SELECT });
+      if (!mismaEmpresa) {
+        throw { status: 403, message: `El empleado ${nombreEmp} no pertenece a la misma empresa.` };
+      }
     }
 
     // Verificar que no tenga ya un pedido en surtido
