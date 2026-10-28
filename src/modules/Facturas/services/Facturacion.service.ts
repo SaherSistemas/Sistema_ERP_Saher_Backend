@@ -1829,7 +1829,7 @@ export const FacturacionService = {
 
         const renglones = await dbLocal.query<any>(`
             SELECT df.id_articulo, df.descripcion_articulo, df.cantidad_facturada, df.precio_artic, df.subtotal, df.tasa_iva,
-                   a.satclave_artic AS cve_sat, um.sat_medida, um.descrip_medida AS desc_medida,
+                   a.satclave_artic AS cve_sat, a.cod_barr_artic AS cod_barras, um.sat_medida, um.descrip_medida AS desc_medida,
                    ti.impuesto_sat, ti.tipo_factor
             FROM detalle_factura df
             LEFT JOIN articulo     a  ON a.id_artic  = df.id_articulo
@@ -1912,7 +1912,8 @@ export const FacturacionService = {
                 };
                 return {
                     cve_sat: r.cve_sat, sat_medida: r.sat_medida, desc_medida: r.desc_medida,
-                    cod_barras: '', cantidad: c.cantidad,
+                    // NoIdentificacion = código de barras del artículo (no puede ir vacío: sin código se manda ".")
+                    cod_barras: String(r.cod_barras ?? '').trim() || '.', cantidad: c.cantidad,
                     descripcion: buildDescripcionConcepto(c as any, ' '),   // vales: sin barras "|"
                     precio_unitario: precio, descuento: 0,
                     subtotal_linea: c.subtotal_linea, tasa_iva: c.tasa_iva,

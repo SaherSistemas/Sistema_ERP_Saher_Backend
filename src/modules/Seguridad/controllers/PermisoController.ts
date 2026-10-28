@@ -165,6 +165,8 @@ export class PermisoController {
                 { modulo_permiso: 'web_crm', accion_permiso: 'verificar_existencia' },
                 // Web CRM → Lista de Precios (el agente descarga la lista de precios en PDF o Excel)
                 { modulo_permiso: 'web_crm', accion_permiso: 'lista_precios' },
+                // Web CRM → Buscar Pedido / Factura (el agente busca un pedido o factura de sus clientes, ve su estatus y baja PDF/XML)
+                { modulo_permiso: 'web_crm', accion_permiso: 'buscar_documento' },
             ];
 
             const existentes = await PermisoService.getAll();

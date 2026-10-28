@@ -8,6 +8,7 @@ import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
 import Lote_Articulo_Sucursal from '../../../Inventario/Lotes/model/Lote_Articulo_Sucursal';
 import Detalle_Pedido_Almacen_Lote from '../model/Detalle_Pedido_Almacen_Lote';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
+import { filtrarPorCodigoBarras } from '../helpers/codigoBarras';
 
 export const Detalle_Pedido_Almacen_ChequeoRepository = {
 
@@ -229,24 +230,26 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
         id_empleado: string
     ) => {
         //console.log(`Chequeando artículo ${cod_barras} (cantidad: ${cantidad}) para pedido ${idPedido} y empleado ${id_empleado}`);
-        // El código escaneado se resuelve contra el catálogo tolerando diferencias de captura del lector o del
-        // catálogo: espacios, ceros a la izquierda (UPC-12 vs EAN-13) y dígito verificador de más o de menos.
+        // El código escaneado se resuelve contra el catálogo tolerando SOLO diferencias de captura del lector o del catálogo:
+        // espacios, ceros a la izquierda (UPC-12 vs EAN-13) y un dígito verificador de más o de menos. Un número cualquiera,
+        // un pedazo del código o un código con signos (-, +, *) no corresponde a ningún artículo (ver helpers/codigoBarras).
         const codigoLeido = cod_barras.trim();
         const sinCeros = codigoLeido.replace(/^0+/, '');
         const trimCol = sqlFn('trim', sqlCol('cod_barr_artic'));
-        const condicionesCodigo: any[] = [
-            sqlWhere(trimCol, codigoLeido),
-            { cod_barr_artic: { [Op.iLike]: `%${codigoLeido}%` } },
-            // el código del catálogo viene contenido en lo escaneado (el lector agregó dígitos)
-            { [Op.and]: [
-                sqlWhere(sqlFn('strpos', codigoLeido, trimCol), { [Op.gt]: 0 }),
-                sqlWhere(sqlFn('length', trimCol), { [Op.gte]: 8 }),
-            ] },
-        ];
+        const sinCerosCol = sqlFn('ltrim', trimCol, '0');
+        const condicionesCodigo: any[] = [sqlWhere(trimCol, codigoLeido)];
         if (sinCeros) {
-            condicionesCodigo.push(sqlWhere(sqlFn('ltrim', trimCol, '0'), sinCeros));
+            condicionesCodigo.push(sqlWhere(sinCerosCol, sinCeros));
+            if (sinCeros.length >= 8) {
+                // dígito verificador de más o de menos: el código de uno empieza con el del otro (el filtro fino se hace abajo)
+                condicionesCodigo.push(sqlWhere(sinCerosCol, { [Op.like]: `${sinCeros.replace(/[%_\\]/g, '')}%` }));
+                condicionesCodigo.push({ [Op.and]: [
+                    sqlWhere(sqlFn('strpos', sinCeros, sinCerosCol), 1),
+                    sqlWhere(sqlFn('length', sinCerosCol), { [Op.gte]: 8 }),
+                ] });
+            }
         }
-        const articulosCoincidentes = codigoLeido
+        const candidatos = /^[A-Za-z0-9]+$/.test(codigoLeido)
             ? await Articulo.findAll({
                 where: { [Op.or]: condicionesCodigo },
                 attributes: ['id_artic', 'des_artic', 'cod_barr_artic'],
@@ -254,6 +257,7 @@ export const Detalle_Pedido_Almacen_ChequeoRepository = {
                 limit: 50,
             }) as any[]
             : [];
+        const articulosCoincidentes = filtrarPorCodigoBarras(candidatos, codigoLeido);
         const idsArticulos = articulosCoincidentes.map(a => a.id_artic);
 
         // Obtener todas las filas de chequeo del artículo (una por lote)

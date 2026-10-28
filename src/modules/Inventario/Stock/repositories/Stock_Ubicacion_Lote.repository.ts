@@ -431,8 +431,9 @@ export const Stock_Ubicacion_LoteRepository = {
         // El lote que MÁS tarda en vencer entre los que no cumplen la regla: es el que se le ofrece al agente
         const mejorLoteFueraDeRegla = async () => {
             if (meses <= 0) return null;
-            const [l] = await dbLocal.query<{ lote: string; fecha_venci: string; disponible: string }>(
-                `SELECT l.numero_lote_sucursal AS lote,
+            const [l] = await dbLocal.query<{ id_lote: string; lote: string; fecha_venci: string; disponible: string }>(
+                `SELECT l.id_lote_sucursal AS id_lote,
+                        l.numero_lote_sucursal AS lote,
                         l.fecha_venci_lote_sucursal::date::text AS fecha_venci,
                         SUM(s.cantidad - COALESCE(s.cantidad_apartada, 0)) AS disponible
                  FROM stock_ubicacion_lote s
@@ -446,7 +447,26 @@ export const Stock_Ubicacion_LoteRepository = {
                  LIMIT 1`,
                 { type: QueryTypes.SELECT, replacements: { id_articulo, id_empresa_sucursal, meses } },
             );
-            return l ? { lote: l.lote, fecha_venci: l.fecha_venci, disponible: Number(l.disponible) } : null;
+            if (!l) return null;
+            // Dónde está ese lote (la ubicación con más piezas disponibles) para que el surtidor pueda ir a verlo
+            const [u] = await dbLocal.query<any>(
+                `SELECT s.id_ubicacion_sucursal, u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub, u.tarima_ub
+                 FROM stock_ubicacion_lote s
+                 LEFT JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = s.id_ubicacion_sucursal
+                 WHERE s.id_lote = :id_lote AND s.id_empresa_sucursal = :id_empresa_sucursal
+                   AND s.cantidad - COALESCE(s.cantidad_apartada, 0) > 0
+                 ORDER BY s.cantidad - COALESCE(s.cantidad_apartada, 0) DESC
+                 LIMIT 1`,
+                { type: QueryTypes.SELECT, replacements: { id_lote: l.id_lote, id_empresa_sucursal } },
+            );
+            const ubicacion = !u?.id_ubicacion_sucursal ? 'Sin ubicación'
+                : String(u.tarima_ub ?? '').trim() ? `Tarima ${String(u.tarima_ub).trim()}`
+                : `${u.pasillo_ub}-${u.anaquel_ub}-${u.nivel_ub}-${u.posicion_ub}`;
+            // Misma forma que la ubicación de los detalles del plan: sirve para ordenar el renglón en la hoja de surtido
+            const ubicacionObj = u?.id_ubicacion_sucursal
+                ? { id_ubicacion_sucursal: u.id_ubicacion_sucursal, pasillo: u.pasillo_ub, anaquel: u.anaquel_ub, nivel: u.nivel_ub, posicion: u.posicion_ub, tarima: u.tarima_ub ?? null }
+                : null;
+            return { lote: l.lote, fecha_venci: l.fecha_venci, disponible: Number(l.disponible), ubicacion, ubicacion_obj: ubicacionObj };
         };
         const rowsBase = await Stock_Ubicacion_Lote.findAll({
             where: {
@@ -496,7 +516,8 @@ export const Stock_Ubicacion_LoteRepository = {
                         'pasillo_ub',
                         'anaquel_ub',
                         'nivel_ub',
-                        'posicion_ub'
+                        'posicion_ub',
+                        'tarima_ub'
                     ]
                 }
             ],
@@ -507,18 +528,23 @@ export const Stock_Ubicacion_LoteRepository = {
 
                 [
                     literal(`
-            CASE "ubicacion"."pasillo_ub"
-                WHEN 'A1' THEN 1
-                WHEN 'A'  THEN 2
-                WHEN 'B'  THEN 3
-                WHEN 'C'  THEN 4
-                WHEN 'D'  THEN 5
-                WHEN 'E'  THEN 6
-                WHEN 'F'  THEN 7
-                WHEN 'G'  THEN 8
-                WHEN 'H'  THEN 9
-                WHEN 'H1' THEN 10
-                ELSE 99
+            CASE
+                WHEN COALESCE(TRIM("ubicacion"."tarima_ub"), '') <> '' THEN 100
+                ELSE CASE "ubicacion"."pasillo_ub"
+                    WHEN '1A' THEN 1
+                    WHEN 'A1' THEN 1
+                    WHEN 'A'  THEN 2
+                    WHEN 'B'  THEN 3
+                    WHEN 'C'  THEN 4
+                    WHEN 'D'  THEN 5
+                    WHEN 'E'  THEN 6
+                    WHEN 'F'  THEN 7
+                    WHEN 'G'  THEN 8
+                    WHEN 'H'  THEN 9
+                    WHEN 'H1' THEN 10
+                    WHEN 'R'  THEN 11
+                    ELSE 99
+                END
             END
         `),
                     'ASC'
@@ -597,7 +623,8 @@ export const Stock_Ubicacion_LoteRepository = {
                         pasillo: json.ubicacion.pasillo_ub,
                         anaquel: json.ubicacion.anaquel_ub,
                         nivel: json.ubicacion.nivel_ub,
-                        posicion: json.ubicacion.posicion_ub
+                        posicion: json.ubicacion.posicion_ub,
+                        tarima: json.ubicacion.tarima_ub ?? null
                     }
                     : null
             });

@@ -115,7 +115,7 @@ export const InventarioService = {
             if (inv.tipo_inventario === 'GENERAL') return !!r.id_ubicacion_sucursal;
             // POR UBICAR: lo que cuenta es lo que no tiene ubicación; lo ubicado queda fuera (se muestra como "otras"/tarima)
             if (inv.tipo_inventario === 'SIN_UBICACION') return !r.id_ubicacion_sucursal;
-            if (inv.tipo_inventario === 'ARTICULO') return true;
+            if (inv.tipo_inventario === 'ARTICULO' || inv.tipo_inventario === 'ROTACION' || inv.tipo_inventario === 'MULTILOTE') return true;
             if (inv.tipo_inventario === 'PASILLO' && f.pasillo) return r.tipo_ubicacion !== 'TARIMA' && norm(r.pasillo_ub) === norm(f.pasillo);
             if (inv.tipo_inventario === 'TARIMA' && f.tarima) return r.tipo_ubicacion === 'TARIMA' && norm(r.tarima_ub) === norm(f.tarima);
             return false;
@@ -441,23 +441,55 @@ export const InventarioService = {
     crear: async (data: {
         id_empresa_sucursal: string;
         tipo_inventario: TipoInventario;
-        filtro?: { pasillo?: string; id_ubicacion_sucursal?: string; ids_ubicaciones?: string[]; etiqueta?: string; id_articulo?: string; id_articulos?: string[]; incluir_otras_ubicaciones?: boolean };
+        filtro?: {
+            pasillo?: string; id_ubicacion_sucursal?: string; ids_ubicaciones?: string[]; etiqueta?: string; id_articulo?: string; id_articulos?: string[]; incluir_otras_ubicaciones?: boolean;
+            // Por movimiento: cuántos de los que más / menos se mueven y de cuántos días atrás. Varios lotes: mínimo de lotes con existencia
+            top_mas?: number; top_menos?: number; dias?: number; min_lotes?: number;
+            // Por movimiento / varios lotes: si los cambios del conteo se van a aplicar al stock (por defecto no: solo seguimiento)
+            aplicar_cambios?: boolean;
+        };
         creado_por?: string;
         notas?: string;
     }) => {
+        // Por movimiento y varios lotes: los artículos se eligen ahora y se guardan en el filtro (el inventario queda con esos artículos)
+        let filtro: any = data.filtro ?? {};
+        let notas = data.notas;
+        const aplicar_cambios = filtro.aplicar_cambios === true;
+        const sufijo = aplicar_cambios ? '' : ' · solo seguimiento';
+        if (data.tipo_inventario === 'ROTACION') {
+            const mas = Math.min(500, Math.max(0, Math.floor(Number(filtro.top_mas) || 0)));
+            const menos = Math.min(500, Math.max(0, Math.floor(Number(filtro.top_menos) || 0)));
+            const dias = Math.min(730, Math.max(1, Math.floor(Number(filtro.dias) || 90)));
+            if (mas + menos <= 0) throw new Error('Indica cuántos artículos de los que más y/o de los que menos se mueven.');
+            const { mas: arrMas, menos: arrMenos } = await InventarioRepository.articulosPorMovimiento(data.id_empresa_sucursal, mas, menos, dias);
+            const ids = [...arrMas, ...arrMenos].map(f => f.id_articulo as string);
+            if (!ids.length) throw new Error('No hay artículos con existencia que cumplan.');
+            filtro = {
+                top_mas: mas, top_menos: menos, dias, id_articulos: ids, aplicar_cambios,
+                grupo_mas: arrMas.map(f => f.id_articulo), grupo_menos: arrMenos.map(f => f.id_articulo),
+            };
+            notas = notas ?? `Por movimiento — ${arrMas.length} más y ${arrMenos.length} menos movidos (últimos ${dias} días)${sufijo}`;
+        } else if (data.tipo_inventario === 'MULTILOTE') {
+            const minLotes = Math.min(50, Math.max(2, Math.floor(Number(filtro.min_lotes) || 2)));
+            const filas = await InventarioRepository.articulosMultilote(data.id_empresa_sucursal, minLotes);
+            if (!filas.length) throw new Error(`No hay artículos con existencia en ${minLotes} lotes o más.`);
+            filtro = { min_lotes: minLotes, id_articulos: filas.map(f => f.id_articulo as string), aplicar_cambios };
+            notas = notas ?? `Artículos con ${minLotes} lotes o más — ${filas.length} artículo(s)${sufijo}`;
+        }
+
         return dbLocal.transaction(async (tx) => {
             const inv = await InventarioRepository.crearEncabezado({
                 id_empresa_sucursal: data.id_empresa_sucursal,
                 tipo_inventario: data.tipo_inventario,
-                filtro: data.filtro ?? {},
+                filtro,
                 creado_por: data.creado_por,
-                notas: data.notas,
+                notas,
             }, tx);
 
             const detalles = await InventarioRepository.generarDetalles(
                 inv.id_inventario,
                 data.id_empresa_sucursal,
-                { tipo: data.tipo_inventario, ...data.filtro },
+                { tipo: data.tipo_inventario, ...filtro },
                 tx,
             );
 

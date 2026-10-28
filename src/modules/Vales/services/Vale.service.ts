@@ -475,6 +475,7 @@ export const ValeService = {
             sat_medida: string;
             desc_medida: string;
             descripcion: string;
+            cod_barras: string | null;
             precio_unitario: number;
             tasa_iva: number;
             impuesto_sat: string;
@@ -491,6 +492,7 @@ export const ValeService = {
                 um.sat_medida,
                 um.descrip_medida                    AS desc_medida,
                 a.des_artic                          AS descripcion,
+                a.cod_barr_artic                     AS cod_barras,
                 dpa.precio_venta                     AS precio_unitario,
                 CAST(ti.porcentaje_iva AS NUMERIC)   AS tasa_iva,
                 ti.impuesto_sat,
@@ -523,7 +525,7 @@ export const ValeService = {
         const mapConceptos = new Map<KeyConcepto, {
             id_pedido_alm: string; cod_int_pedido_alm: string;
             id_articulo: string; cve_sat: string; sat_medida: string; desc_medida: string;
-            descripcion: string; cantidad: number; precio_unitario: number;
+            descripcion: string; cod_barras: string; cantidad: number; precio_unitario: number;
             tasa_iva: number; impuesto_sat: string; tipo_factor: string;
             lotes: { lote: string; fecha_venci: string; cantidad: number }[];
         }>();
@@ -535,7 +537,7 @@ export const ValeService = {
                     id_pedido_alm: f.id_pedido_alm, cod_int_pedido_alm: f.cod_int_pedido_alm,
                     id_articulo: f.id_articulo, cve_sat: f.cve_sat,
                     sat_medida: f.sat_medida, desc_medida: f.desc_medida,
-                    descripcion: f.descripcion, cantidad: 0,
+                    descripcion: f.descripcion, cod_barras: String(f.cod_barras ?? '').trim(), cantidad: 0,
                     precio_unitario: Number(f.precio_unitario),
                     tasa_iva: Number(f.tasa_iva), impuesto_sat: f.impuesto_sat,
                     tipo_factor: f.tipo_factor, lotes: [],
@@ -578,7 +580,8 @@ export const ValeService = {
                 tipo_factor: v.tipo_factor,
                 necesita_receta: false,
                 cod_int_artic: 0,
-                cod_barras: '',
+                // NoIdentificacion no puede ir vacío: sin código de barras se manda "."
+                cod_barras: v.cod_barras || '.',
                 lotes: v.lotes.map(l => ({ ...l, folio_factura_proveedor: '', nom_proveedor: '' })),
             })),
             periodo: `${dto.fecha_inicio} al ${dto.fecha_fin}`,

@@ -1,5 +1,5 @@
-import { Op } from 'sequelize';
-import Inventario, { StatusInventario, TipoInventario } from '../model/Inventario';
+import { Op, QueryTypes } from 'sequelize';
+import Inventario, { StatusInventario, TipoInventario, esSoloSeguimiento } from '../model/Inventario';
 import Detalle_Inventario from '../model/Detalle_Inventario';
 import Articulo from '../../../Catalogos/Articulos/model/Articulo';
 import Ubicacion_Sucursal from '../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal';
@@ -86,6 +86,11 @@ async function stockDelFiltro(id_empresa_sucursal: string, filtro: FiltroStock, 
                       : null;
             if (ids) whereStock.id_articulo = { [Op.in]: ids };
         }
+        // Por movimiento / varios lotes: los artículos se eligieron al crear y quedan guardados en el filtro
+        if (filtro.tipo === 'ROTACION' || filtro.tipo === 'MULTILOTE') {
+            if (!filtro.id_articulos?.length) return [];
+            whereStock.id_articulo = { [Op.in]: filtro.id_articulos };
+        }
 
         const rows = await Stock_Ubicacion_Lote.findAll({
             where: whereStock,
@@ -159,6 +164,40 @@ async function revertirDetalleAplicado(inv: any, d: any, por: string, tx: Transa
 }
 
 export const InventarioRepository = {
+
+    // Artículos con existencia según lo que se han movido (salidas por venta y salidas del almacén) en los últimos `dias`:
+    // los `topMas` que más piezas movieron y los `topMenos` que menos (los que no se movieron nada, primero los de más existencia).
+    articulosPorMovimiento: async (id_empresa_sucursal: string, topMas: number, topMenos: number, dias: number) => {
+        const filas = await dbLocal.query<any>(`
+            SELECT s.id_articulo, SUM(s.cantidad)::float AS existencia, COALESCE(m.pz, 0)::float AS pz, COALESCE(m.movs, 0)::int AS movs
+            FROM stock_ubicacion_lote s
+            LEFT JOIN (
+                SELECT id_articulo, SUM(ABS(cantidad_movimiento)) AS pz, COUNT(*) AS movs
+                FROM kardex_movimientos_articulos
+                WHERE id_empresa = :emp AND tipo_movimiento::text IN ('VENTA', 'SALIDA')
+                  AND fecha >= NOW() - make_interval(days => CAST(:dias AS int))
+                GROUP BY id_articulo
+            ) m ON m.id_articulo = s.id_articulo
+            WHERE s.id_empresa_sucursal = :emp AND s.cantidad > 0
+            GROUP BY s.id_articulo, m.pz, m.movs
+        `, { replacements: { emp: id_empresa_sucursal, dias }, type: QueryTypes.SELECT }) as any[];
+
+        const mas = filas.filter(f => f.pz > 0).sort((a, b) => b.pz - a.pz || b.movs - a.movs).slice(0, topMas);
+        const idsMas = new Set(mas.map(f => f.id_articulo));
+        const menos = filas.filter(f => !idsMas.has(f.id_articulo)).sort((a, b) => a.pz - b.pz || b.existencia - a.existencia).slice(0, topMenos);
+        return { mas, menos };
+    },
+
+    // Artículos con existencia en `minLotes` lotes distintos o más
+    articulosMultilote: async (id_empresa_sucursal: string, minLotes: number) =>
+        dbLocal.query<any>(`
+            SELECT id_articulo, COUNT(DISTINCT id_lote)::int AS lotes, SUM(cantidad)::float AS existencia
+            FROM stock_ubicacion_lote
+            WHERE id_empresa_sucursal = :emp AND cantidad > 0 AND id_lote IS NOT NULL
+            GROUP BY id_articulo
+            HAVING COUNT(DISTINCT id_lote) >= :min
+            ORDER BY COUNT(DISTINCT id_lote) DESC, SUM(cantidad) DESC
+        `, { replacements: { emp: id_empresa_sucursal, min: minLotes }, type: QueryTypes.SELECT }) as Promise<any[]>,
 
     // ── Lista paginada ────────────────────────────────────────────────────────
     getLista: async (id_empresa_sucursal: string, params: {
@@ -442,6 +481,7 @@ export const InventarioRepository = {
         return dbLocal.transaction(async (tx) => {
             const inv = await Inventario.findByPk(id_inventario, { transaction: tx });
             if (!inv) throw new Error('Inventario no encontrado');
+            if (esSoloSeguimiento(inv)) throw new Error('Este inventario es solo de seguimiento: no se aplica al stock.');
             if (inv.status !== 'TERMINADO') throw new Error('El inventario debe estar en status TERMINADO para aplicar');
 
             const detalles = await Detalle_Inventario.findAll({
@@ -614,6 +654,7 @@ export const InventarioRepository = {
         return dbLocal.transaction(async (tx) => {
             const inv = await Inventario.findByPk(id_inventario, { transaction: tx });
             if (!inv) throw new Error('Inventario no encontrado');
+            if (esSoloSeguimiento(inv)) throw new Error('Este inventario es solo de seguimiento: no se aplica al stock.');
             if (!['TERMINADO', 'APLICADO'].includes(inv.status)) {
                 throw new Error('Solo se puede dar de baja con el inventario TERMINADO o APLICADO');
             }

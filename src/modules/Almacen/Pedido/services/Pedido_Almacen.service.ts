@@ -37,6 +37,7 @@ import Detalle_Pedido_Almacen_AsignacionModel from '../model/Detalle_Pedido_Alma
 import { Kardex_Movimiento_ArticuloRepository } from '../../Kardex/repositories/Kardex_Movimiento_Articulo.repository';
 import { etiquetaUbicacion } from '../../Existencias/services/Existencias.service';
 import { FacturacionService } from '../../../Facturas/services/Facturacion.service';
+import { compararUbicacionesSurtido } from '../helpers/ordenSurtido';
 
 
 // ── Helper: compara el precio de cada línea del pedido contra una lista de precios ──
@@ -799,37 +800,13 @@ export const Pedido_AlmacenService = {
           d.cant_pedida,
           { mesesMinCaducidad: mesesMinUrgente },
         );
-        return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? null };
+        // Si ningún lote cumple la caducidad del agente, se ordena por donde está el mejor lote que hay (se le consulta al agente)
+        return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? (plan as any).mejor_lote_fuera_de_regla?.ubicacion_obj ?? null };
       })
     );
 
-    // Ordenar por pasillo → anaquel → nivel → posición (mismo criterio que FEFO)
-    const PASILLO_ORDER: Record<string, number> = {
-      'A1': 1, 'A': 2, 'B': 3, 'C': 4, 'D': 5,
-      'E': 6, 'F': 7, 'G': 8, 'H': 9, 'H1': 10,
-    };
-
-    detallesConUbicacion.sort((a, b) => {
-      const ua = a.ubicacion;
-      const ub = b.ubicacion;
-      if (!ua && !ub) return 0;
-      if (!ua) return 1;
-      if (!ub) return -1;
-
-      const pa = PASILLO_ORDER[ua.pasillo] ?? 99;
-      const pb = PASILLO_ORDER[ub.pasillo] ?? 99;
-      if (pa !== pb) return pa - pb;
-
-      const aa = parseInt(ua.anaquel) || 0;
-      const ab = parseInt(ub.anaquel) || 0;
-      if (aa !== ab) return aa - ab;
-
-      const na = parseInt(ua.nivel) || 0;
-      const nb = parseInt(ub.nivel) || 0;
-      if (na !== nb) return na - nb;
-
-      return (parseInt(ua.posicion) || 0) - (parseInt(ub.posicion) || 0);
-    });
+    // Ordenar como se recorre el almacén: pasillos 1A, A, B, C, D, E, F, G, H, R; sin ubicación; tarimas (ver helpers/ordenSurtido)
+    detallesConUbicacion.sort((a, b) => compararUbicacionesSurtido(a.ubicacion, b.ubicacion));
 
     const detallesOrdenados = detallesConUbicacion.map((d, i) => ({
       id_detalle_pedido_almacen: d.id_detalle_pedido_almacen,
@@ -2272,16 +2249,24 @@ export const Pedido_AlmacenService = {
     const detalle = await Detalle_Pedido_Almacen.findByPk(id_detalle_pedido_almacen, { attributes: ['id_articulo'] });
     if (!detalle) throw { status: 404, message: 'Detalle no encontrado.' };
 
+    // Se ofrecen TODOS los lotes, también los que no cumplen la caducidad mínima del agente: si el agente aceptó
+    // recibir ese lote, el almacén debe poder asignárselo. Los que no cumplen se marcan con fuera_de_regla.
+    const mesesMin = await mesesMinCaducidadDelPedido(id_pedido_alm);
     const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(
       detalle.id_articulo,
       id_empresa,
       9999,
-      { mesesMinCaducidad: await mesesMinCaducidadDelPedido(id_pedido_alm) },
     );
+    const limite = new Date();
+    limite.setHours(0, 0, 0, 0);
+    limite.setMonth(limite.getMonth() + mesesMin);
 
     return plan.detalles
       .filter((d: any) => d.lote && Number(d.cantidad_disponible) > 0)
       .map((d: any) => ({
+        fuera_de_regla: mesesMin > 0 && !!d.lote.fecha_venci_lote_sucursal
+          && new Date(d.lote.fecha_venci_lote_sucursal).getTime() < limite.getTime(),
+        meses_min_caducidad: mesesMin,
         id_stock_ubicacion_lote: d.id_stock_ubicacion_lote,
         id_lote_sucursal: d.lote.id_lote_sucursal,
         id_ubicacion_sucursal: d.ubicacion?.id_ubicacion_sucursal ?? null,
@@ -2290,8 +2275,10 @@ export const Pedido_AlmacenService = {
         migracion: d.lote.migracion ?? false,
         existencia_lote: d.cantidad_disponible,
         ubicacion: d.ubicacion
-          ? `${d.ubicacion.pasillo_ub}-${d.ubicacion.anaquel_ub}-${d.ubicacion.nivel_ub}-${d.ubicacion.posicion_ub}`
-          : null,
+          ? (String(d.ubicacion.tarima ?? '').trim()
+              ? `Tarima ${String(d.ubicacion.tarima).trim()}`
+              : `${d.ubicacion.pasillo}-${d.ubicacion.anaquel}-${d.ubicacion.nivel}-${d.ubicacion.posicion}`)
+          : 'Sin ubicación',
       }));
   },
 
@@ -2345,22 +2332,12 @@ export const Pedido_AlmacenService = {
     const detallesConUbicacion = await Promise.all(
       detalles.map(async (d: any) => {
         const plan = await Stock_Ubicacion_LoteRepository.getLotesMinimosConUbicaciones(d.id_articulo, id_empresa, d.cant_pedida, { mesesMinCaducidad: mesesMinAsignar });
-        return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? null };
+        return { ...d, ubicacion: plan.detalles[0]?.ubicacion ?? (plan as any).mejor_lote_fuera_de_regla?.ubicacion_obj ?? null };
       })
     );
 
-    const PASILLO_ORDER: Record<string, number> = { 'A1': 1, 'A': 2, 'B': 3, 'C': 4, 'D': 5, 'E': 6, 'F': 7, 'G': 8, 'H': 9, 'H1': 10 };
-    detallesConUbicacion.sort((a: any, b: any) => {
-      const ua = a.ubicacion; const ub = b.ubicacion;
-      if (!ua && !ub) return 0; if (!ua) return 1; if (!ub) return -1;
-      const pa = PASILLO_ORDER[ua.pasillo] ?? 99; const pb = PASILLO_ORDER[ub.pasillo] ?? 99;
-      if (pa !== pb) return pa - pb;
-      const aa = parseInt(ua.anaquel) || 0; const ab = parseInt(ub.anaquel) || 0;
-      if (aa !== ab) return aa - ab;
-      const na = parseInt(ua.nivel) || 0; const nb = parseInt(ub.nivel) || 0;
-      if (na !== nb) return na - nb;
-      return (parseInt(ua.posicion) || 0) - (parseInt(ub.posicion) || 0);
-    });
+    // Mismo orden de recorrido que al asignar el pedido más urgente (ver helpers/ordenSurtido)
+    detallesConUbicacion.sort((a: any, b: any) => compararUbicacionesSurtido(a.ubicacion, b.ubicacion));
 
     const detallesOrdenados = detallesConUbicacion.map((d: any, i: number) => ({
       id_detalle_pedido_almacen: d.id_detalle_pedido_almacen,

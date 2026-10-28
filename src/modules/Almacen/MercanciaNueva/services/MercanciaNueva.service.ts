@@ -17,6 +17,9 @@ const textoCelda = (v: unknown) => {
 // Lo que se muestra de cada artículo en las tarjetas: existencia del almacén, negados vigentes, existencia de la sucursal en PolyDB,
 // lo que va en camino (traslados en PolyDB) y lo que ya está pedido en pedidos de la sucursal. `filas` trae id_artic, cod_int_artic,
 // des_artic y cod_barr_artic; lo demás (fecha, lote, folio…) solo existe cuando vienen de una entrada del Kardex.
+// Lista de precios de las farmacias en el sistema anterior (preciogpo.grpcdgrpn)
+const LISTA_PRECIO_FARMACIA = 4;
+
 async function enriquecerArticulos(id_empresa: string, filas: any[], EMPRESAS_GRUPO: string, NEGADOS_VIGENTES: string) {
     // Existencia actual de cada artículo (disponible = existencia menos apartada) para saber si ya se puede vender
     const ids = Array.from(new Set(filas.map(f => f.id_artic)));
@@ -71,6 +74,24 @@ async function enriquecerArticulos(id_empresa: string, filas: any[], EMPRESAS_GR
     } catch (e: any) {
         console.warn('[MercanciaNueva] No se pudo leer la existencia de PolyDB:', e?.message ?? e);
         sucursalPoly = false;
+    }
+
+    // Precio de la farmacia: lista 4 del sistema anterior (preciogpo). Solo activos y con precio (0 = sin precio); si hay varios
+    // renglones del mismo artículo en la lista, el más reciente.
+    const precioFarmacia = new Map<number, number>();
+    try {
+        const codsPrecio = Array.from(new Set(filas.map(f => Number(f.cod_int_artic)).filter(Number.isFinite)));
+        if (codsPrecio.length) {
+            const rowsPrecio = await dbPoly.query<{ artcdartn: number; grpprecin: number }>(
+                `SELECT artcdartn, grpprecin
+                 FROM public.preciogpo
+                 WHERE grpcdgrpn = :lista AND TRIM(grpstatuc) = 'A' AND artcdartn IN (:codsPrecio)
+                 ORDER BY grpfechad ASC`,   // el más reciente queda al final y es el que se conserva
+                { type: QueryTypes.SELECT, replacements: { lista: LISTA_PRECIO_FARMACIA, codsPrecio } });
+            for (const r of rowsPrecio) precioFarmacia.set(Number(r.artcdartn), Number(r.grpprecin) || 0);
+        }
+    } catch (e: any) {
+        console.warn('[MercanciaNueva] No se pudo leer el precio de la farmacia (preciogpo):', e?.message ?? e);
     }
 
     // EN PROCESO: pedidos de la sucursal del usuario (su cliente en el ERP) con ese artículo que todavía no se facturan
@@ -176,6 +197,8 @@ async function enriquecerArticulos(id_empresa: string, filas: any[], EMPRESAS_GR
             // Existencia de la sucursal en PolyDB (null = la sucursal no está en el sistema anterior)
             existencia_sucursal: existenciaSucursal,
             nombre_sucursal: nombreSucursal,
+            // Precio de la farmacia (lista 4 de PolyDB); null si el artículo no tiene precio en esa lista
+            precio_farmacia: (precioFarmacia.get(Number(f.cod_int_artic)) ?? 0) > 0 ? precioFarmacia.get(Number(f.cod_int_artic)) : null,
             // Pedidos de la sucursal con este artículo que siguen en el almacén (sin facturar)
             en_proceso_pz: procesoPorArt.get(f.id_artic)?.pz ?? 0,
             en_proceso_pedidos: procesoPorArt.get(f.id_artic)?.pedidos ?? 0,

@@ -5,7 +5,12 @@ import {
 import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 import Detalle_Inventario from './Detalle_Inventario';
 
-export type TipoInventario = 'GENERAL' | 'PASILLO' | 'TARIMA' | 'UBICACION' | 'ARTICULO' | 'SIN_UBICACION';
+export type TipoInventario = 'GENERAL' | 'PASILLO' | 'TARIMA' | 'UBICACION' | 'ARTICULO' | 'SIN_UBICACION' | 'ROTACION' | 'MULTILOTE';
+// Estos tipos se crean con la opción "se aplicarán cambios": si se activa, se aplican al stock como cualquier inventario;
+// si no, son solo de seguimiento (se cuentan para ver cómo van, pero no se pueden aplicar). Queda guardado en el filtro.
+export const TIPOS_CON_OPCION_APLICAR: TipoInventario[] = ['ROTACION', 'MULTILOTE'];
+export const esSoloSeguimiento = (inv: { tipo_inventario: TipoInventario; filtro?: any }): boolean =>
+    TIPOS_CON_OPCION_APLICAR.includes(inv.tipo_inventario) && (inv.filtro as any)?.aplicar_cambios !== true;
 export type StatusInventario = 'BORRADOR' | 'EN_CONTEO' | 'TERMINADO' | 'APLICADO' | 'CANCELADO';
 
 @Table({ tableName: 'inventario', timestamps: true })

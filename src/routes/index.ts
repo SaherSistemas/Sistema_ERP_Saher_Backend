@@ -98,6 +98,7 @@ import Venta_PagoRouter from './Venta/Venta_PagoRouter';
 import Lista_Precio from '../modules/Comercial/Precios/routes/Lista_PrecioRouter';
 import DetalleLista_Precio from '../modules/Comercial/Precios/routes/Detalle_Lista_PrecioRouter';
 import listaPreciosDescargaRouter from '../modules/Comercial/Precios/routes/ListaPreciosDescargaRouter';
+import buscarDocumentoRouter from '../modules/Comercial/BuscarDocumento/routes/BuscarDocumentoRouter';
 
 //Oferta
 import OfertasRouter from './Ofertas/OfertasRouter';
@@ -252,6 +253,7 @@ router.use('/ventapago', Venta_PagoRouter);
 router.use('/lista_Precio', Lista_Precio);
 router.use('/detalle_lista_precio', DetalleLista_Precio);
 router.use('/comercial/lista-precios', listaPreciosDescargaRouter);
+router.use('/comercial/buscar-documento', buscarDocumentoRouter);
 
 //Ofertas
 router.use('/oferta', OfertasRouter);

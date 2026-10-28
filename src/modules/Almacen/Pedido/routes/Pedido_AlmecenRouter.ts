@@ -13,6 +13,9 @@ router.put('/cambiar-cotizacion', Pedido_AlmacenController.cambiarACotizacion)
 router.put('/cambiar-captura', Pedido_AlmacenController.cambiarACaptura)
 router.post('/verificar-credito', Pedido_AlmacenController.verificarCredito)
 router.post('/calcular-necesarios', Pedido_AlmacenController.calcularNecesarios)
+router.get('/sucursales-reabasto', Pedido_AlmacenController.sucursalesReabasto)
+router.post('/calcular-reabasto', Pedido_AlmacenController.calcularReabasto)
+router.post('/crear-reabasto', Pedido_AlmacenController.crearReabasto)
 router.post('/asignar_pedido_surtidor', Pedido_AlmacenController.asignarPedidoSurtidor)
 
 router.get('/:id_pedido_alm/detalle_asignado', Pedido_AlmacenController.getDetallesAsignado);

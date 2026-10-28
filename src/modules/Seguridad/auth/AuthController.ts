@@ -60,9 +60,14 @@ export class AuthController {
             //   console.log(req.body)
             const preloginUser = await AuthService.preloginEmpresas(req.body);
             res.status(200).json(preloginUser)
-        } catch (error) {
+        } catch (error: any) {
+            // Usuario o contraseña incorrectos: 401 con un mensaje claro (no es un error del servidor)
+            if (error?.status === 401) {
+                res.status(401).json({ mensaje: error.message });
+                return;
+            }
             console.log(error)
-            res.status(500).json({ error: 'Token no validssso' })
+            res.status(500).json({ mensaje: 'No se pudo iniciar sesión. Intenta de nuevo.', error: 'No se pudo iniciar sesión.' })
         }
 
     }

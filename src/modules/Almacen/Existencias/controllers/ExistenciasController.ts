@@ -186,6 +186,7 @@ export const ExistenciasController = {
                 id_lote_destino: b.id_lote_destino || null,
                 numero_lote: b.numero_lote,
                 fecha_vencimiento: b.fecha_vencimiento,
+                cantidad: b.cantidad === undefined || b.cantidad === null || b.cantidad === '' ? undefined : Number(b.cantidad),
             })
             res.status(200).json({ ok: true, data: r })
         } catch (e: any) {

@@ -10,6 +10,9 @@ import jwt from "jsonwebtoken"
 import { Usuario_SucursalRepository } from "../repositories/Usuario_Sucursal.repository"
 import Rol from "../model/Rol"
 
+// Usuario o contraseña mal: el mismo mensaje en los dos casos para no revelar si el usuario existe
+const credencialesIncorrectas = () => Object.assign(new Error('Usuario o contraseña incorrectos.'), { status: 401 });
+
 export const AuthService = {
     createEmpleado: async (data: ICreateUsuario) => {
         const empleado = await EmpleadoRepository.getByIdFlexible(String(data.id_referencia_persona))
@@ -42,10 +45,10 @@ export const AuthService = {
         }
 
         const usuario = await UsuarioRepository.usuarioPorUser(usernameNormalizado);
-        if (!usuario) throw new Error('Usuario no encontrado');
+        if (!usuario) throw credencialesIncorrectas();
 
         const passwordCorrecta = await checkPassword(password_user, usuario.password_user);
-        if (!passwordCorrecta) throw new Error('Contraseña incorrecta.')
+        if (!passwordCorrecta) throw credencialesIncorrectas();
 
         const empresasPermitidas = await Usuario_SucursalRepository.getEmpresasPermitidasUsuario(usuario.id_user)
         return empresasPermitidas;
@@ -66,10 +69,10 @@ export const AuthService = {
         }
 
         const usuario = await UsuarioRepository.usuarioPorUser(usernameNormalizado);
-        if (!usuario) throw new Error('Usuario no encontrado');
+        if (!usuario) throw credencialesIncorrectas();
 
         const passwordCorrecta = await checkPassword(password_user, usuario.password_user);
-        if (!passwordCorrecta) throw new Error('Contraseña incorrecta.')
+        if (!passwordCorrecta) throw credencialesIncorrectas();
 
         let nombre_completo: string | undefined;
         try {

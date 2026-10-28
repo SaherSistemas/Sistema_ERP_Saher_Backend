@@ -508,12 +508,14 @@ export const ExistenciasService = {
         }
     },
 
-    // Cambia el lote de TODA la existencia de una fila (ubicación + lote): pasa a otro lote existente o a uno
-    // nuevo (número + caducidad), en la misma ubicación. Si ya hay una fila de ese lote ahí, se suman.
+    // Cambia el lote de la existencia de una fila (ubicación + lote): pasa a otro lote existente o a uno nuevo (número +
+    // caducidad), en la misma ubicación. Si ya hay una fila de ese lote ahí, se suman. Sin `cantidad` pasa TODA la fila; con
+    // `cantidad` pasa solo esas piezas y el resto se queda en el lote actual.
     // Sirve para corregir un lote mal capturado. El total del artículo no cambia, por eso no genera kardex.
     cambiarLote: async (d: {
         id_empresa: string; id_stock_ubicacion_lote: string
         id_lote_destino?: string | null; numero_lote?: string | null; fecha_vencimiento?: string | null
+        cantidad?: number | null
     }) => {
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED })
         try {
@@ -527,7 +529,15 @@ export const ExistenciasService = {
             const apartada = Number(origen.cantidad_apartada) || 0
             const idLoteOrigen = origen.id_lote   // se guarda aquí: más abajo la fila se actualiza al lote nuevo
             if (cantidad <= 0) throw new Error('Esta fila no tiene existencia que cambiar de lote.')
-            // Si tiene piezas apartadas por pedidos, el apartado se va con las piezas al lote nuevo (y los pedidos pasan a ese lote)
+            // Piezas que pasan al lote nuevo (todas si no se indica cantidad)
+            const piezas = d.cantidad === undefined || d.cantidad === null ? cantidad : Number(d.cantidad)
+            if (!Number.isInteger(piezas) || piezas <= 0 || piezas > cantidad) {
+                throw new Error(`La cantidad a pasar debe ser un entero de 1 a ${cantidad}.`)
+            }
+            const parcial = piezas < cantidad
+            // Si pasa toda la fila, el apartado se va con las piezas al lote nuevo (y los pedidos pasan a ese lote). Si pasa una
+            // parte, se van primero las piezas libres: del apartado solo viaja lo que ya no cabría en el lote de origen.
+            const apartadaViaja = parcial ? Math.max(0, apartada - (cantidad - piezas)) : apartada
 
             const loteOrigen = await Lote_Articulo_Sucursal.findOne({
                 where: { id_lote_sucursal: origen.id_lote }, transaction: t, lock: t.LOCK.UPDATE,
@@ -573,19 +583,39 @@ export const ExistenciasService = {
                 },
                 transaction: t, lock: t.LOCK.UPDATE,
             })
-            if (existente) {
-                await existente.update({
-                    cantidad: (Number(existente.cantidad) || 0) + cantidad,
-                    cantidad_apartada: (Number(existente.cantidad_apartada) || 0) + apartada,
-                }, { transaction: t })
-                await origen.destroy({ transaction: t })
+            if (!parcial) {
+                if (existente) {
+                    await existente.update({
+                        cantidad: (Number(existente.cantidad) || 0) + cantidad,
+                        cantidad_apartada: (Number(existente.cantidad_apartada) || 0) + apartada,
+                    }, { transaction: t })
+                    await origen.destroy({ transaction: t })
+                } else {
+                    await origen.update({ id_lote: loteDestino.id_lote_sucursal }, { transaction: t })
+                }
             } else {
-                await origen.update({ id_lote: loteDestino.id_lote_sucursal }, { transaction: t })
+                // Solo una parte: el origen conserva el resto y el lote destino recibe las piezas que pasan
+                await origen.update({ cantidad: cantidad - piezas, cantidad_apartada: apartada - apartadaViaja }, { transaction: t })
+                if (existente) {
+                    await existente.update({
+                        cantidad: (Number(existente.cantidad) || 0) + piezas,
+                        cantidad_apartada: (Number(existente.cantidad_apartada) || 0) + apartadaViaja,
+                    }, { transaction: t })
+                } else {
+                    await Stock_Ubicacion_Lote.create({
+                        id_empresa_sucursal: d.id_empresa,
+                        id_articulo: origen.id_articulo,
+                        id_lote: loteDestino.id_lote_sucursal,
+                        id_ubicacion_sucursal: (origen.id_ubicacion_sucursal ?? null) as any,
+                        cantidad: piezas,
+                        cantidad_apartada: apartadaViaja,
+                    } as any, { transaction: t })
+                }
             }
 
             // Los pedidos (sin facturar) que apartaban de este lote pasan al lote nuevo, por la cantidad apartada que se movió.
             // Si una línea es más grande que lo que falta por pasar, se parte: una parte queda en el lote anterior y otra va al nuevo.
-            if (apartada > 0) {
+            if (apartadaViaja > 0) {
                 const lineas = await dbLocal.query<any>(`
                     SELECT dpal.id_detalle_pedido_almacen_lote AS id
                     FROM detalle_pedido_almacen_lote dpal
@@ -594,7 +624,7 @@ export const ExistenciasService = {
                     WHERE dpal.id_lote_sucursal = :lote AND ${PEDIDO_ACTIVO_SQL}
                     ORDER BY pa."createdAt" ASC, dpal.id_detalle_pedido_almacen_lote ASC`,
                     { replacements: { lote: idLoteOrigen }, type: QueryTypes.SELECT, transaction: t })
-                let porPasar = apartada
+                let porPasar = apartadaViaja
                 for (const l of lineas) {
                     if (porPasar <= 0) break
                     const linea = await Detalle_Pedido_Almacen_Lote.findByPk(l.id, { transaction: t, lock: t.LOCK.UPDATE })
@@ -620,16 +650,16 @@ export const ExistenciasService = {
             }
 
             await loteOrigen.update(
-                { cantidad_entrada_lote: Math.max(0, Number(loteOrigen.cantidad_entrada_lote) - cantidad) },
+                { cantidad_entrada_lote: Math.max(0, Number(loteOrigen.cantidad_entrada_lote) - piezas) },
                 { transaction: t },
             )
             await loteDestino.update(
-                { cantidad_entrada_lote: (Number(loteDestino.cantidad_entrada_lote) || 0) + cantidad },
+                { cantidad_entrada_lote: (Number(loteDestino.cantidad_entrada_lote) || 0) + piezas },
                 { transaction: t },
             )
 
             await t.commit()
-            return { ok: true, piezas: cantidad, apartadas: apartada, lote: String(loteDestino.numero_lote_sucursal).trim() }
+            return { ok: true, piezas, apartadas: apartadaViaja, lote: String(loteDestino.numero_lote_sucursal).trim() }
         } catch (err) {
             await t.rollback()
             throw err

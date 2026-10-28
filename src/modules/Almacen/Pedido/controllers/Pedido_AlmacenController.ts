@@ -10,6 +10,7 @@ import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/A
 import Autorizacion_Credito from '../../../Facturas/model/Autorizacion_Credito.model';
 import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.repository';
 import { CalculoNecesariosService } from '../services/CalculoNecesarios.service';
+import { ReabastoSucursalService } from '../services/ReabastoSucursal.service';
 
 export class Pedido_AlmacenController {
   /*CHECARRR */
@@ -114,7 +115,58 @@ export class Pedido_AlmacenController {
     }
   };
 
-  // POST /almacen/pedido/calcular-necesarios  body: { ids_pedidos: string[], dia_envio?: 1|3|5, seguridad_pct?: number }
+  // GET /almacen/pedido/sucursales-reabasto — sucursales para las que se puede calcular un reabasto
+  static sucursalesReabasto = async (_req: AuthedRequest, res: Response) => {
+    try {
+      res.json(await CalculoNecesariosService.sucursales());
+    } catch (error: any) {
+      console.error('[sucursalesReabasto]', error);
+      res.status(500).json({ message: error?.message ?? 'No se pudieron cargar las sucursales.' });
+    }
+  };
+
+  // POST /almacen/pedido/calcular-reabasto  body: { ids_clientes: string[], dia_envio?: 1|3|5, nivel_servicio?: number }
+  // Lo que cada sucursal debería pedir, sin partir de ningún pedido (solo calcula)
+  static calcularReabasto = async (req: AuthedRequest, res: Response) => {
+    try {
+      const id_empresa = String(req.user?.id_empresa || '').trim();
+      if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+      const b = req.body ?? {};
+      const r = await CalculoNecesariosService.reabasto(id_empresa, {
+        ids_clientes: Array.isArray(b.ids_clientes) ? b.ids_clientes : [],
+        dia_envio: b.dia_envio === undefined || b.dia_envio === null || b.dia_envio === '' ? undefined : Number(b.dia_envio),
+        nivel_servicio: b.nivel_servicio === undefined || b.nivel_servicio === null || b.nivel_servicio === '' ? undefined : Number(b.nivel_servicio),
+      });
+      res.status(200).json(r);
+    } catch (error: any) {
+      if (error?.status) { res.status(error.status).json({ message: error.message }); return; }
+      console.error('[calcularReabasto]', error);
+      res.status(500).json({ message: error?.message ?? 'No se pudo calcular el reabasto.' });
+    }
+  };
+
+  // POST /almacen/pedido/crear-reabasto  body: { id_cliente_alm: string, dia_envio?: 1|3|5, nivel_servicio?: number }
+  // Crea un pedido nuevo EN CAPTURA con lo que la sucursal debería pedir según el reabasto (no parte de ningún pedido)
+  static crearReabasto = async (req: AuthedRequest, res: Response) => {
+    try {
+      const id_empresa = String(req.user?.id_empresa || '').trim();
+      if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+      const b = req.body ?? {};
+      if (!b.id_cliente_alm) { res.status(400).json({ message: 'id_cliente_alm requerido.' }); return; }
+      const r = await ReabastoSucursalService.crear(id_empresa, {
+        id_cliente_alm: String(b.id_cliente_alm),
+        dia_envio: b.dia_envio === undefined || b.dia_envio === null || b.dia_envio === '' ? undefined : Number(b.dia_envio),
+        nivel_servicio: b.nivel_servicio === undefined || b.nivel_servicio === null || b.nivel_servicio === '' ? undefined : Number(b.nivel_servicio),
+      });
+      res.status(201).json(r);
+    } catch (error: any) {
+      if (error?.status) { res.status(error.status).json({ message: error.message, mensaje: error.message }); return; }
+      console.error('[crearReabasto]', error);
+      res.status(500).json({ message: error?.message ?? 'No se pudo crear el pedido de reabasto.' });
+    }
+  };
+
+  // POST /almacen/pedido/calcular-necesarios  body: { ids_pedidos: string[], dia_envio?: 1|3|5, nivel_servicio?: number }
   // Calcula cuánto necesita cada sucursal por artículo (solo calcula: no modifica pedidos ni existencias)
   static calcularNecesarios = async (req: AuthedRequest, res: Response) => {
     try {
@@ -124,7 +176,7 @@ export class Pedido_AlmacenController {
       const r = await CalculoNecesariosService.calcular(id_empresa, {
         ids_pedidos: Array.isArray(b.ids_pedidos) ? b.ids_pedidos : [],
         dia_envio: b.dia_envio === undefined || b.dia_envio === null || b.dia_envio === '' ? undefined : Number(b.dia_envio),
-        seguridad_pct: b.seguridad_pct === undefined || b.seguridad_pct === null || b.seguridad_pct === '' ? undefined : Number(b.seguridad_pct),
+        nivel_servicio: b.nivel_servicio === undefined || b.nivel_servicio === null || b.nivel_servicio === '' ? undefined : Number(b.nivel_servicio),
       });
       res.status(200).json(r);
     } catch (error: any) {

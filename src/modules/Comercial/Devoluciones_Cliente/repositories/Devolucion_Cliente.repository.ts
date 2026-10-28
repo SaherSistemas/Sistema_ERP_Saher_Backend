@@ -243,15 +243,44 @@ export const DevolucionClienteRepository = {
             lotesPorLinea.set(k, lista);
         }
 
+        // Código de barras de cada artículo y tasa de IVA que tuvo en la factura. Los renglones de una devolución guardan el precio
+        // SIN IVA; en una factura anterior (sin detalle) el monto capturado ya trae el IVA.
+        const idsArtic = Array.from(new Set(devoluciones.flatMap(d => (d.detalles ?? []).map(x => x.id_articulo).filter(Boolean) as string[])));
+        const barras = idsArtic.length ? await dbLocal.query<any>(
+            `SELECT id_artic, cod_barr_artic FROM articulo WHERE id_artic IN (:ids)`,
+            { replacements: { ids: idsArtic }, type: QueryTypes.SELECT }) : [];
+        const barrasPor = new Map<string, string>(barras.map((b: any) => [String(b.id_artic), String(b.cod_barr_artic ?? '').trim()]));
+        const tasas = idsFactura.length ? await dbLocal.query<any>(
+            `SELECT id_factura, id_articulo, MAX(tasa_iva) AS tasa FROM detalle_factura WHERE id_factura IN (:ids) GROUP BY id_factura, id_articulo`,
+            { replacements: { ids: idsFactura }, type: QueryTypes.SELECT }) : [];
+        const facturasConDetalle = new Set<string>(tasas.map((t: any) => String(t.id_factura)));
+        const tasaPor = new Map<string, number>(tasas.map((t: any) => [`${t.id_factura}|${t.id_articulo}`, Number(t.tasa) || 0]));
+        const r2 = (n: number) => Math.round(n * 100) / 100;
+
         return devoluciones.map(d => {
             const plano = d.toJSON() as any;
+            const conDetalle = facturasConDetalle.has(String(d.id_factura));
+            const detalles = (plano.detalles ?? []).map((x: any) => {
+                const tasa = conDetalle && x.id_articulo ? (tasaPor.get(`${d.id_factura}|${x.id_articulo}`) ?? 0) : 0;
+                const subtotal = Number(x.subtotal_devolucion) || 0;
+                const iva = r2(subtotal * tasa);
+                return {
+                    ...x,
+                    lotes_factura: x.id_articulo ? (lotesPorLinea.get(`${d.id_factura}|${x.id_articulo}`) ?? []) : [],
+                    cod_barr_artic: x.id_articulo ? (barrasPor.get(String(x.id_articulo)) ?? null) : null,
+                    tasa_iva: tasa,
+                    importe_iva: iva,
+                    total_linea: r2(subtotal + iva),
+                    iva_incluido: !conDetalle,
+                };
+            });
+            const subtotal = r2(detalles.reduce((s: number, x: any) => s + (Number(x.subtotal_devolucion) || 0), 0));
+            const iva = r2(detalles.reduce((s: number, x: any) => s + x.importe_iva, 0));
             return {
                 ...plano,
                 inventario_virtual: porDev.get(String(d.id_devolucion_cliente)) ?? [],
-                detalles: (plano.detalles ?? []).map((x: any) => ({
-                    ...x,
-                    lotes_factura: x.id_articulo ? (lotesPorLinea.get(`${d.id_factura}|${x.id_articulo}`) ?? []) : [],
-                })),
+                detalles,
+                totales: { subtotal, iva, total: r2(subtotal + iva), iva_incluido: !conDetalle },
             };
         }) as any;
     },
@@ -357,6 +386,13 @@ export const DevolucionClienteRepository = {
             solo_total: esFacturaVieja ? monto_devolucion : undefined,
         });
 
+        // Lo que de verdad se le devuelve al cliente, CON IVA: lo mismo que el CFDI de egreso. En facturas con detalle, los renglones
+        // de la devolución guardan el precio SIN IVA (como la factura), así que sumarlos deja fuera el IVA y la cuenta por cobrar
+        // (o la nota de crédito) quedaba corta contra el egreso. En facturas viejas el monto capturado ya trae IVA.
+        const monto_con_iva = esFacturaVieja
+            ? monto_devolucion
+            : Math.round(Number(egreso.total) * 100) / 100;
+
         // ── 5. Efectos financieros + stock (dentro de 1 transacción) ─────
         const facturaIncludes = (dev as any).factura as (Facturas & { id_pedido_alm?: string }) | undefined;
         const id_forma_pago = facturaIncludes?.id_forma_pago ?? '17';
@@ -376,8 +412,8 @@ export const DevolucionClienteRepository = {
                 // Si la devolución es mayor al saldo vivo de la factura, solo se descuenta el saldo y lo que sobra
                 // queda como nota de crédito a favor del cliente (para otra factura), igual que una NC normal.
                 const saldo_actual = Math.max(0, Number(cxc.saldo_pendiente));
-                const monto_aplicado = Math.round(Math.min(saldo_actual, monto_devolucion) * 100) / 100;
-                const sobrante = Math.round((monto_devolucion - monto_aplicado) * 100) / 100;
+                const monto_aplicado = Math.round(Math.min(saldo_actual, monto_con_iva) * 100) / 100;
+                const sobrante = Math.round((monto_con_iva - monto_aplicado) * 100) / 100;
                 const nuevo_saldo = Math.max(0, saldo_actual - monto_aplicado);
                 const nuevo_total = Math.max(0, Number(cxc.monto_total) - monto_aplicado);
                 const nuevo_pagado = Number(cxc.monto_pagado);
@@ -434,8 +470,8 @@ export const DevolucionClienteRepository = {
                     id_nota_credito: uuidv4(),
                     id_cliente_alm,
                     id_devolucion_cliente: dev.id_devolucion_cliente,
-                    monto_original: monto_devolucion,
-                    saldo_disponible: monto_devolucion,
+                    monto_original: monto_con_iva,
+                    saldo_disponible: monto_con_iva,
                     estatus: 'DISPONIBLE',
                     concepto,
                     uuid_cfdi_egreso: null,
@@ -524,7 +560,7 @@ export const DevolucionClienteRepository = {
             }, { transaction: t });
 
             await t.commit();
-            return { dev, resultado_aprobacion, monto_devolucion, egreso, recibio_mercancia, es_factura_vieja: esFacturaVieja, inventario_virtual, entradas_manuales };
+            return { dev, resultado_aprobacion, monto_devolucion: monto_con_iva, egreso, recibio_mercancia, es_factura_vieja: esFacturaVieja, inventario_virtual, entradas_manuales };
 
         } catch (err) {
             await t.rollback();
