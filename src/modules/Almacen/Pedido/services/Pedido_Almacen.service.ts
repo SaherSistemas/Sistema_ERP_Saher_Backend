@@ -721,7 +721,7 @@ export const Pedido_AlmacenService = {
       }
 
       if (reqs.negacion && reqs.negacion.cantidad_negada > 0) {
-        await Detalle_Pedido_NegadoRepository.create(
+        await Detalle_Pedido_NegadoRepository.reemplazarDeSurtido(
           {
             id_detalle_pedido_almacen: id_detalle_pedido,
             cantidad_negada: reqs.negacion.cantidad_negada,
@@ -2208,7 +2208,7 @@ export const Pedido_AlmacenService = {
           }, t);
         }
         if (detalle.negacion && detalle.negacion.cantidad_negada > 0) {
-          await Detalle_Pedido_NegadoRepository.create({
+          await Detalle_Pedido_NegadoRepository.reemplazarDeSurtido({
             id_detalle_pedido_almacen: detalle.id_detalle_pedido_almacen,
             cantidad_negada: detalle.negacion.cantidad_negada,
             motivo: detalle.negacion.motivo,

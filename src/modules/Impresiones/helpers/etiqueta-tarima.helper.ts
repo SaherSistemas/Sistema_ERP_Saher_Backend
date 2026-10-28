@@ -20,6 +20,7 @@ export interface DatosEtiquetaTarima {
     lote:     { numero_lote_sucursal: string; fecha_venci_lote_sucursal?: string | null };
     lineas:   LineaEtiquetaTarima[];
     usuario?: string;
+    ubicacion_anaquel?: string | null;
 }
 
 function fmtFecha(iso?: string | null): string {
@@ -37,10 +38,6 @@ function fmtCaducidad(valor?: string | null): string {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(valor));
     if (m) return `${m[3]}/${m[2]}/${m[1].slice(2)}`;
     return fmtFecha(String(valor));
-}
-
-function hoy(): string {
-    return fmtFecha(new Date().toISOString());
 }
 
 export async function generarPdfEtiquetasTarima(datos: DatosEtiquetaTarima): Promise<string> {
@@ -113,7 +110,7 @@ export async function generarPdfEtiquetasTarima(datos: DatosEtiquetaTarima): Pro
             // ── INFO a la derecha ──────────────────────────────────────────
             const rows: [string, string][] = [
                 ['Lote:',      datos.lote.numero_lote_sucursal ?? '—'],
-                ['Fec Ent:',   hoy()],
+                ['Anaquel:',   datos.ubicacion_anaquel || '—'],
                 ['Caduca:',    fmtCaducidad(datos.lote.fecha_venci_lote_sucursal)],
                 ['Ubi Bod:',   et.nombre_tarima],
                 ['Pzas/caja:', et.pzas_por_caja.toFixed(0)],

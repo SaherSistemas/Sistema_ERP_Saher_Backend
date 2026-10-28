@@ -9,6 +9,7 @@ import { RemisionService } from "../../Finanzas/Remisiones/services/Remision.ser
 import { guardarRemisionPdf } from "../../Finanzas/Remisiones/helpers/remision-storage.helper";
 import { generarPdfEtiquetasTarima, DatosEtiquetaTarima } from "../helpers/etiqueta-tarima.helper";
 import { generarPdfBulto } from "../helpers/bulto-label.helper";
+import { generarPdfPedido } from "../helpers/pedido-label.helper";
 import { dbLocal } from "../../../config/db";
 import { QueryTypes } from "sequelize";
 
@@ -25,13 +26,17 @@ export function toAgentPath(localPath: string): string {
     return localPath;
 }
 
+// Mientras no haya impresora de tickets para la estación PEDIDOS, la hoja del pedido sale como etiqueta PDF en la
+// impresora de bultos. Poner en false para volver al ticket ESC/POS en la estación PEDIDOS.
+const PEDIDO_ALMACEN_EN_IMPRESORA_BULTOS = true;
+
 export const TrabajoImpresionService = {
     /**CHEQUEO */
     createTrabajoImpresion: async (id_pedido_alm: string, tipo_documento: string, estacion: string, id_empresa: string, extraBody?: Record<string, any>) => {
         let data: ICreateTrabajoImpresion;
 
         const estacionEfectiva =
-            tipo_documento === 'BULTO' ? 'ETIQUETAS_BULTO' :
+            tipo_documento === 'BULTO' || (tipo_documento === 'PEDIDO_ALMACEN' && PEDIDO_ALMACEN_EN_IMPRESORA_BULTOS) ? 'ETIQUETAS_BULTO' :
                 tipo_documento === 'ETIQUETA_TARIMA' ? 'ETIQUETAS_TARIMA' :
                     estacion;
 
@@ -54,22 +59,36 @@ export const TrabajoImpresionService = {
 
             const nombreSurtidor = surtidor?.nombre ?? 'Sin asignar';
 
-            data = {
-                cod_interno_pedido: pedido.cod_int_pedido_alm,
-                tipo_documento,
-                id_impresora,
-                payload: {
-                    tipo: "escpos",
-                    comandos: [
-                        { type: "qr", value: pedido.cod_int_pedido_alm, size: 15, error: "L" },
-                        { type: "feed", value: 1 },
-                        { type: "align", value: "center" },
-                        { type: "text", value: `COD PEDIDO: ${pedido.cod_int_pedido_alm}` },
-                        { type: "text", value: `SURTIDOR: ${nombreSurtidor}` },
-                        { type: "cut" }
-                    ]
-                }
-            };
+            if (PEDIDO_ALMACEN_EN_IMPRESORA_BULTOS) {
+                const rutaPdf = await generarPdfPedido({ cod_int_pedido_alm: pedido.cod_int_pedido_alm, surtidor: nombreSurtidor });
+                data = {
+                    cod_interno_pedido: pedido.cod_int_pedido_alm,
+                    tipo_documento,
+                    id_impresora,
+                    max_intentos: 1,
+                    payload: {
+                        tipo: 'pdf',
+                        ruta_archivo: toAgentPath(rutaPdf),
+                    },
+                };
+            } else {
+                data = {
+                    cod_interno_pedido: pedido.cod_int_pedido_alm,
+                    tipo_documento,
+                    id_impresora,
+                    payload: {
+                        tipo: "escpos",
+                        comandos: [
+                            { type: "qr", value: pedido.cod_int_pedido_alm, size: 15, error: "L" },
+                            { type: "feed", value: 1 },
+                            { type: "align", value: "center" },
+                            { type: "text", value: `COD PEDIDO: ${pedido.cod_int_pedido_alm}` },
+                            { type: "text", value: `SURTIDOR: ${nombreSurtidor}` },
+                            { type: "cut" }
+                        ]
+                    }
+                };
+            }
         }
         if (tipo_documento === 'BULTO') {
             const info = await Bulto_PedidoRepository.getInfoPedidoParaBulto(id_pedido_alm);
@@ -163,7 +182,26 @@ export const TrabajoImpresionService = {
                 ? lineasRaw
                 : Object.values(lineasRaw);
 
-            const datos: DatosEtiquetaTarima = { art, lote: lote ?? {}, lineas, usuario };
+            // Ubicación del artículo en anaquel: su ubicación por defecto (estantería antes que tarima)
+            let ubicacion_anaquel: string | null = null;
+            if (art.id_artic) {
+                const [ub] = await dbLocal.query<any>(`
+                    SELECT u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub, u.tarima_ub, u.tipo_ubicacion::text AS tipo_ubicacion
+                    FROM articulo_ubicacion_default aud
+                    JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = aud.id_ubicacion_default
+                    WHERE aud.id_articulo = :id_artic AND aud.id_empresa_sucursal = :id_empresa
+                    ORDER BY (u.tipo_ubicacion::text = 'TARIMA')
+                    LIMIT 1`,
+                    { replacements: { id_artic: art.id_artic, id_empresa }, type: QueryTypes.SELECT });
+                if (ub) {
+                    ubicacion_anaquel = ub.tipo_ubicacion === 'TARIMA'
+                        ? `Tarima ${String(ub.tarima_ub ?? '').trim()}`
+                        : [ub.pasillo_ub, ub.anaquel_ub, ub.nivel_ub, ub.posicion_ub]
+                            .map((p: any) => String(p ?? '').trim()).filter(Boolean).join('-') || null;
+                }
+            }
+
+            const datos: DatosEtiquetaTarima = { art, lote: lote ?? {}, lineas, usuario, ubicacion_anaquel };
             const rutaPdf = await generarPdfEtiquetasTarima(datos);
 
             data = {

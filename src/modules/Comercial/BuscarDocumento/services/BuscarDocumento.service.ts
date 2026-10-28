@@ -107,7 +107,8 @@ export const BuscarDocumentoService = {
                 cant_pedida: num(i.cant_pedida),
                 precio_venta: num(i.precio_venta),
                 surtida: num(i.surtida),
-                negada: num(i.negada),
+                // Nunca más de lo que falta por surtir (por si quedaron negaciones duplicadas)
+                negada: Math.min(num(i.negada), Math.max(0, num(i.cant_pedida) - num(i.surtida))),
             })),
         };
     },

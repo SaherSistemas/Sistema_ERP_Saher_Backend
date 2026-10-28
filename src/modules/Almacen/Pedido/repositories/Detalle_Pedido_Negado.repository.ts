@@ -27,6 +27,24 @@ export const Detalle_Pedido_NegadoRepository = {
         );
     },
 
+    // Negación capturada al surtir/finalizar: reemplaza la que ya hubiera quedado de un surtido anterior del mismo
+    // renglón (si el surtido se finaliza de nuevo no se acumulan). No toca las de compras ni las del chequeo.
+    reemplazarDeSurtido: async (data: ICreateDetallePedidoNegado, transaction?: Transaction) => {
+        await Detalle_Pedido_Negado.destroy({
+            where: {
+                id_detalle_pedido_almacen: data.id_detalle_pedido_almacen,
+                recuperado: false,
+                motivo: { [Op.ne]: 'DIFERENCIA_CHEQUEO' },
+                [Op.or]: [
+                    { comentario: null },
+                    { comentario: { [Op.notLike]: 'Artículo enviado a compras%' } },
+                ],
+            },
+            transaction,
+        });
+        return await Detalle_Pedido_NegadoRepository.create(data, transaction);
+    },
+
     // Marca como recuperados todos los registros del agente para un artículo dado
     marcarRecuperadoPorArticulo: async (id_artic: string) => {
         const detalles = await Detalle_Pedido_Almacen.findAll({
