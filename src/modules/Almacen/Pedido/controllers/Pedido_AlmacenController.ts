@@ -507,6 +507,31 @@ export class Pedido_AlmacenController {
     }
   };
 
+  // PATCH /almacen/pedido/:id_pedido_alm/cambiar-cliente  { id_cliente_alm, cambiar_agente }
+  // Un administrador cambia el cliente del pedido, antes de facturar.
+  static cambiarCliente = async (req: AuthedRequest, res: Response) => {
+    try {
+      const prioridad = (req.user as any)?.prioridad;
+      if (prioridad == null || Number(prioridad) > 2) {
+        res.status(403).json({ message: 'Solo un administrador puede cambiar el cliente de un pedido.' });
+        return;
+      }
+      const { id_pedido_alm } = req.params;
+      const { id_cliente_alm, cambiar_agente } = req.body ?? {};
+      if (!id_cliente_alm) {
+        res.status(400).json({ message: 'Indica el cliente.' });
+        return;
+      }
+      const resultado = await Pedido_AlmacenService.cambiarClientePedido(
+        id_pedido_alm, String(id_cliente_alm), !!cambiar_agente, req.user?.username ?? 'desconocido',
+      );
+      res.status(200).json(resultado);
+    } catch (error: any) {
+      console.error(error);
+      res.status(error?.status ?? 500).json({ message: error?.message ?? 'Error al cambiar el cliente.' });
+    }
+  };
+
   // PATCH /almacen/pedido/:id_pedido_alm/detalle/:id_detalle/precio  { precio_venta }
   // Un administrador cambia el precio de UN artículo del pedido, antes de facturar.
   static cambiarPrecioDetalle = async (req: AuthedRequest, res: Response) => {

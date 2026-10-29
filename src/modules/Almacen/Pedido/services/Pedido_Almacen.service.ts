@@ -778,7 +778,31 @@ export const Pedido_AlmacenService = {
         { mesesMinCaducidad: await mesesMinCaducidadDelPedido(id_pedido_alm) },
       );
 
-    return { asignacion, planSurtidoFefo };
+    // Encabezado para el surtidor: código del pedido, cliente y agente
+    const [pedido_info] = await dbLocal.query<any>(`
+      SELECT pa.cod_int_pedido_alm,
+             ca.razon_social_cliente_alm,
+             ca.nom_corto_cliente_alm,
+             CONCAT(e_ag.nombre_empleado, ' ', e_ag.ap_pat_empleado) AS agente
+        FROM pedido_almacen pa
+        LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+        LEFT JOIN agente_de_venta av ON av.id_agente = pa.id_agente_pedido_alm
+        LEFT JOIN empleado e_ag ON e_ag.id_empleado = av.id_empleado
+       WHERE pa.id_pedido_alm = :id`,
+      { replacements: { id: asignacion.detalle.id_pedido_almacen ?? id_pedido_alm }, type: QueryTypes.SELECT });
+
+    return {
+      asignacion,
+      planSurtidoFefo,
+      pedido_info: pedido_info
+        ? {
+          cod_int_pedido_alm: pedido_info.cod_int_pedido_alm,
+          razon_social: String(pedido_info.razon_social_cliente_alm ?? '').trim(),
+          nombre_comercial: String(pedido_info.nom_corto_cliente_alm ?? '').trim(),
+          agente: String(pedido_info.agente ?? '').trim(),
+        }
+        : null,
+    };
   },
 
   asignarPedidoSurtidor: async (id_usuario: string, id_empresa: string) => {
@@ -1335,6 +1359,58 @@ export const Pedido_AlmacenService = {
       ofertas_omitidas: r.lineas.filter(l => l.estado === 'OFERTA').map(l => l.des_artic),
       total_anterior: r.totales.anterior,
       total_nuevo: r.totales.nuevo,
+    };
+  },
+
+  // Cambia el cliente de un pedido (solo antes de facturar). No toca artículos, precios, lotes ni surtido: la factura, la
+  // remisión y la CxC se crean después con el cliente nuevo. Con cambiar_agente, el pedido pasa al agente del cliente nuevo.
+  cambiarClientePedido: async (id_pedido_alm: string, id_cliente_alm: string, cambiar_agente: boolean, usuario: string) => {
+    const pedido = await Pedido_Almacen.findByPk(id_pedido_alm, {
+      attributes: ['id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'fecha_facturado_pedido_alm', 'id_cliente_pedido_alm', 'id_agente_pedido_alm'],
+    }) as any;
+    if (!pedido) throw { status: 404, message: 'Pedido no encontrado.' };
+    if (pedido.fecha_facturado_pedido_alm || !['EC', 'CO', 'CA', 'SU', 'CH', 'EM'].includes(pedido.status_pedido_alm)) {
+      throw { status: 409, message: 'El cliente solo se puede cambiar antes de facturar el pedido.' };
+    }
+    if (pedido.id_cliente_pedido_alm === id_cliente_alm) throw { status: 400, message: 'El pedido ya es de ese cliente.' };
+
+    const [cliente] = await dbLocal.query<any>(`
+      SELECT id_cliente_alm, nom_corto_cliente_alm, razon_social_cliente_alm, rfc_cliente_alm,
+             id_lista_precio_cliente_alm, id_agente_cliente_alm, id_interno_cliente_alm, activo_cliente_alm
+        FROM cliente_almacen WHERE id_cliente_alm = :id`,
+      { replacements: { id: id_cliente_alm }, type: QueryTypes.SELECT });
+    if (!cliente) throw { status: 404, message: 'Cliente no encontrado.' };
+    if (cliente.activo_cliente_alm === false) throw { status: 409, message: 'Ese cliente está desactivado.' };
+
+    const cambios: any = { id_cliente_pedido_alm: id_cliente_alm };
+    if (cambiar_agente && cliente.id_agente_cliente_alm) cambios.id_agente_pedido_alm = cliente.id_agente_cliente_alm;
+    await Pedido_Almacen.update(cambios, { where: { id_pedido_alm } });
+
+    const [agente] = await dbLocal.query<any>(`
+      SELECT av.cod_identi_agente, e.nombre_empleado, e.ap_pat_empleado
+        FROM agente_de_venta av LEFT JOIN empleado e ON e.id_empleado = av.id_empleado
+       WHERE av.id_agente = :id`,
+      { replacements: { id: cambios.id_agente_pedido_alm ?? pedido.id_agente_pedido_alm }, type: QueryTypes.SELECT });
+
+    console.log(`[Pedido ${pedido.cod_int_pedido_alm}] ${usuario} cambió el cliente ${pedido.id_cliente_pedido_alm} → ${id_cliente_alm}`
+      + `${cambios.id_agente_pedido_alm ? ' (y el agente)' : ''}`);
+
+    return {
+      cliente: {
+        id_cliente_alm: cliente.id_cliente_alm,
+        id_interno_cliente_alm: cliente.id_interno_cliente_alm,
+        razon_social_cliente_alm: cliente.razon_social_cliente_alm,
+        nom_corto_cliente_alm: cliente.nom_corto_cliente_alm,
+        rfc_cliente_alm: cliente.rfc_cliente_alm,
+        id_lista_precio_cliente_alm: cliente.id_lista_precio_cliente_alm,
+      },
+      agente: agente
+        ? {
+          cod_identi_agente: agente.cod_identi_agente,
+          empleado: { nombre_empleado: agente.nombre_empleado, ap_pat_empleado: agente.ap_pat_empleado },
+        }
+        : null,
+      agente_cambiado: !!cambios.id_agente_pedido_alm,
     };
   },
 
