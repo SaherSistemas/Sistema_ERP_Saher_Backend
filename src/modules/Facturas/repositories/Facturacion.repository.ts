@@ -4,7 +4,7 @@ import Facturas from '../model/Facturas.model';
 import Detalle_Factura from '../model/Detalle_Factura.model';
 import Cliente_Almacen from '../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
-import { resolverGrupoPagoP, detectarPublicoGeneral } from '../helpers/factura.helper';
+import { resolverGrupoPagoP, detectarPublicoGeneral, esClienteAbarrotes } from '../helpers/factura.helper';
 import {
     DatosFacturacionCabecera,
     ConceptoFacturacion,
@@ -130,8 +130,17 @@ export const FacturacionRepository = {
                 ? await FacturacionRepository.getDescripcionFormaPago('01')
                 : null;
 
+            // Egresos / complementos: de qué factura (y remisión) vienen
+            const origenes = await FacturacionRepository.getOrigenesDeFacturas(
+                rows.map(r => r.id_factura_origen).filter(Boolean) as string[],
+            );
+
             rows.forEach(r => {
                 const c: any = (r as any).cliente;
+                const o = r.id_factura_origen ? origenes.get(r.id_factura_origen) : undefined;
+                r.setDataValue('es_abarrotes' as any, esClienteAbarrotes(c?.nom_corto_cliente_alm) as any);
+                r.setDataValue('folio_factura_origen' as any, (o?.folio_factura ?? null) as any);
+                r.setDataValue('folios_remision_origen' as any, (o?.folios_remision ?? null) as any);
                 r.setDataValue('tiene_remision' as any, conRemision.has(r.id_factura) as any);
                 r.setDataValue('es_publico_general' as any, detectarPublicoGeneral(c?.rfc_cliente_alm, c?.nom_corto_cliente_alm) as any);
                 r.setDataValue('forma_pago_recibo' as any, formaPagoPorFactura.get(r.id_factura) ?? (r.origen_factura === 'VAL' ? formaPagoVales : null));
@@ -140,6 +149,21 @@ export const FacturacionRepository = {
         }
 
         return { total: count, paginas: Math.ceil(count / limit), page, facturas: rows };
+    },
+
+    // Folio de la factura de origen y folios de sus remisiones (para identificar de dónde viene un egreso)
+    getOrigenesDeFacturas: async (ids: string[]): Promise<Map<string, { folio_factura: string; folios_remision: string | null }>> => {
+        const mapa = new Map<string, { folio_factura: string; folios_remision: string | null }>();
+        if (!ids.length) return mapa;
+        const filas = await dbLocal.query<{ id_factura: string; folio_factura: string; folios_remision: string | null }>(`
+            SELECT f.id_factura, f.folio_factura,
+                   (SELECT STRING_AGG(r.folio_remision::text, ', ' ORDER BY r.folio_remision)
+                      FROM remision r WHERE r.id_factura = f.id_factura) AS folios_remision
+            FROM facturas f
+            WHERE f.id_factura IN (:ids)
+        `, { replacements: { ids: Array.from(new Set(ids)) }, type: QueryTypes.SELECT });
+        filas.forEach(r => mapa.set(r.id_factura, { folio_factura: r.folio_factura, folios_remision: r.folios_remision }));
+        return mapa;
     },
 
     getCabecera: async (id_pedido_alm: string, id_empresa: string): Promise<DatosFacturacionCabecera> => {
@@ -573,6 +597,12 @@ export const FacturacionRepository = {
         // que sí tienen detalle_factura.
         f.detalle_facturas = f.detalles ?? [];
         delete f.detalles;
+
+        if (f.id_factura_origen && f.tipo_cfdi !== 'P') {
+            const o = (await FacturacionRepository.getOrigenesDeFacturas([f.id_factura_origen])).get(f.id_factura_origen);
+            f.folio_factura_origen = o?.folio_factura ?? null;
+            f.folios_remision_origen = o?.folios_remision ?? null;
+        }
 
         const [formaPago] = await dbLocal.query<{ descripcion_forma_de_pago: string }>(`
             SELECT cfp.descripcion_forma_de_pago

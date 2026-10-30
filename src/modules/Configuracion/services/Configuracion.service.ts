@@ -14,6 +14,12 @@ const DEFAULTS: Record<string, { valor: string; tipo: 'boolean' | 'number' | 'st
         categoria: 'surtido',
         descripcion: 'Permitir que cualquier usuario de la misma empresa (no solo el rol Surtidor) tome un pedido para surtir',
     },
+    surtido_prioridad_agentes: {
+        valor: 'false',
+        tipo: 'boolean',
+        categoria: 'surtido',
+        descripcion: 'Surtir primero los pedidos de agentes (como antes), aunque haya otros vencidos. Apagada: lo vencido se surte primero',
+    },
 };
 
 export class ConfiguracionService {

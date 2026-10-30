@@ -30,6 +30,61 @@ export const MOTIVOS_DEVOLUCION_PROVEEDOR = [
     'Otro',
 ] as const;
 
+interface ILoteDeFactura { numero_lote: string; caducidad: string | null; cantidad: number }
+
+// Lotes que trae la factura del proveedor por artículo (lote_factura_compra_proveedor), de menor a mayor caducidad.
+async function lotesDeFactura(id_factura: string, t?: Transaction): Promise<Map<string, ILoteDeFactura[]>> {
+    const filas = await dbLocal.query<any>(`
+        SELECT COALESCE(d.id_artic, dcs.idarticulo_detcompsol) AS id_articulo,
+               lf.numero_lote, lf.fecha_caducidad AS caducidad, lf.cantidad_lote AS cantidad
+        FROM detalle_factura_compra_proveedor d
+        LEFT JOIN detalle_compra_solicitado dcs ON dcs.id_detcompsol = d.id_detcompsol
+        JOIN lote_factura_compra_proveedor lf ON lf.id_det_factura_proveedor = d.id_factura_proveedor_detalle
+        WHERE d.id_factura_compra_proveedor = :f
+        ORDER BY lf.fecha_caducidad ASC NULLS LAST, lf.numero_lote`,
+        { replacements: { f: id_factura }, type: QueryTypes.SELECT, transaction: t });
+    const mapa = new Map<string, ILoteDeFactura[]>();
+    for (const x of filas) {
+        const k = String(x.id_articulo);
+        if (!mapa.has(k)) mapa.set(k, []);
+        mapa.get(k)!.push({ numero_lote: String(x.numero_lote ?? '').trim(), caducidad: x.caducidad ?? null, cantidad: Number(x.cantidad) || 0 });
+    }
+    return mapa;
+}
+
+// Un faltante no sabe de qué lote era: se reparte en los lotes de la factura (el de menor caducidad primero, hasta
+// su cantidad). Con un solo lote sale exacto; sin lotes en la factura queda "S/L".
+function repartirEnLotes(cantidad: number, lotes: ILoteDeFactura[] | undefined): { numero_lote: string; caducidad: string | null; cantidad: number }[] {
+    const utiles = (lotes ?? []).filter(l => l.numero_lote);
+    if (!utiles.length) return [{ numero_lote: 'S/L', caducidad: null, cantidad }];
+    const salida: { numero_lote: string; caducidad: string | null; cantidad: number }[] = [];
+    let resta = cantidad;
+    utiles.forEach((l, i) => {
+        if (resta <= 0) return;
+        const esUltimo = i === utiles.length - 1;
+        const toma = esUltimo ? resta : Math.min(resta, l.cantidad > 0 ? l.cantidad : resta);
+        salida.push({ numero_lote: l.numero_lote, caducidad: l.caducidad, cantidad: toma });
+        resta -= toma;
+    });
+    return salida;
+}
+
+// Devoluciones por faltante hechas antes de que se guardara el lote (quedaron "S/L"): al mostrarlas o imprimirlas se completan
+// con los lotes de la factura. Lo guardado en la base no se modifica.
+async function completarLotesFaltantes(id_factura: string, renglones: any[]): Promise<any[]> {
+    const sinLote = (r: any) => String(r.numero_lote ?? '').trim() === 'S/L' && r.id_articulo;
+    if (!renglones.some(sinLote)) return renglones;
+    const lotesFactura = await lotesDeFactura(id_factura);
+    const completos: any[] = [];
+    for (const r of renglones) {
+        if (!sinLote(r)) { completos.push(r); continue; }
+        for (const l of repartirEnLotes(Number(r.cantidad), lotesFactura.get(String(r.id_articulo)))) {
+            completos.push({ ...r, numero_lote: l.numero_lote, fecha_caducidad: l.caducidad, cantidad: l.cantidad });
+        }
+    }
+    return completos;
+}
+
 export interface ILineaElegible {
     id_detalle: string;
     id_articulo: string;
@@ -374,19 +429,21 @@ export const DevolucionProveedorService = {
                 subtotal, iva, total: r2(subtotal + iva),
                 id_empleado: data.id_empleado ?? null, usuario: data.usuario ?? null,
             } as any, { transaction: t });
-            await Devolucion_Proveedor_Detalle.bulkCreate(faltantes.map((x: any) => ({
-                id_devolucion_detalle: uuidv4(),
-                id_devolucion_proveedor: id_devolucion,
-                id_factura_proveedor_detalle: detPorArt.get(String(x.id_articulo)) ?? '00000000-0000-0000-0000-000000000000',
-                id_articulo: x.id_articulo,
-                id_lote_sucursal: null,
-                descripcion_articulo: String(x.des_artic ?? '').trim(),
-                numero_lote: 'S/L',
-                fecha_caducidad: null,
-                cantidad: Number(x.cantidad),
-                precio_unitario: Number(x.precio),
-                iva_unitario: Number(x.iva),
-            })) as any, { transaction: t });
+            const lotesFactura = await lotesDeFactura(data.id_factura_proveedor, t);
+            await Devolucion_Proveedor_Detalle.bulkCreate(faltantes.flatMap((x: any) =>
+                repartirEnLotes(Number(x.cantidad), lotesFactura.get(String(x.id_articulo))).map(l => ({
+                    id_devolucion_detalle: uuidv4(),
+                    id_devolucion_proveedor: id_devolucion,
+                    id_factura_proveedor_detalle: detPorArt.get(String(x.id_articulo)) ?? '00000000-0000-0000-0000-000000000000',
+                    id_articulo: x.id_articulo,
+                    id_lote_sucursal: null,
+                    descripcion_articulo: String(x.des_artic ?? '').trim(),
+                    numero_lote: l.numero_lote,
+                    fecha_caducidad: l.caducidad ? new Date(l.caducidad) : null,
+                    cantidad: l.cantidad,
+                    precio_unitario: Number(x.precio),
+                    iva_unitario: Number(x.iva),
+                }))) as any, { transaction: t });
             await t.commit();
         } catch (err) {
             await t.rollback();
@@ -394,6 +451,64 @@ export const DevolucionProveedorService = {
         }
         const impresion = await imprimirDocumento(id_devolucion, folio_devolucion, data.id_empresa);
         return { id_devolucion_proveedor: id_devolucion, folio_devolucion, impresion };
+    },
+
+    // Listado general de devoluciones al proveedor (pantalla Devoluciones → Devoluciones Proveedor)
+    listar: async (opts: { fecha_inicio?: string; fecha_fin?: string; q?: string; motivo?: string; page?: number; limit?: number }) => {
+        const page = Math.max(1, Math.floor(opts.page ?? 1));
+        const limit = Math.min(200, Math.max(5, Math.floor(opts.limit ?? 50)));
+        const rep: Record<string, any> = { limit, offset: (page - 1) * limit };
+        const where: string[] = [];
+        if (opts.fecha_inicio) { where.push(`d."createdAt"::date >= :fi`); rep.fi = opts.fecha_inicio; }
+        if (opts.fecha_fin) { where.push(`d."createdAt"::date <= :ff`); rep.ff = opts.fecha_fin; }
+        if (opts.motivo) { where.push('d.motivo = :motivo'); rep.motivo = opts.motivo; }
+        if (opts.q?.trim()) {
+            where.push('(d.folio_devolucion ILIKE :q OR f.folio_factura_proveedor ILIKE :q OR p.nomcort_prove ILIKE :q OR p.razsoc_prove ILIKE :q)');
+            rep.q = `%${opts.q.trim()}%`;
+        }
+        const desde = `
+            FROM devolucion_proveedor d
+            JOIN factura_compra_proveedor f ON f.id_factura_proveedor = d.id_factura_proveedor
+            LEFT JOIN compra_proveedor cp ON cp.id_comp = f.id_compra_prove_factura
+            LEFT JOIN proveedor p ON p.id_prove = cp.idprove_comp
+            ${where.length ? 'WHERE ' + where.join(' AND ') : ''}`;
+        const [tot] = await dbLocal.query<any>(`SELECT COUNT(*)::int AS n, COALESCE(SUM(d.total), 0) AS monto ${desde}`, { replacements: rep, type: QueryTypes.SELECT });
+        const filas = await dbLocal.query<any>(`
+            SELECT d.id_devolucion_proveedor, d.folio_devolucion, d.motivo, d.observaciones, d.subtotal, d.iva, d.total,
+                   d."createdAt" AS fecha, d.usuario,
+                   f.folio_factura_proveedor AS folio_factura, COALESCE(p.nomcort_prove, p.razsoc_prove) AS proveedor,
+                   (SELECT COALESCE(SUM(x.cantidad), 0) FROM devolucion_proveedor_detalle x WHERE x.id_devolucion_proveedor = d.id_devolucion_proveedor) AS piezas,
+                   (SELECT COUNT(*) FROM devolucion_proveedor_detalle x WHERE x.id_devolucion_proveedor = d.id_devolucion_proveedor) AS renglones
+            ${desde}
+            ORDER BY d."createdAt" DESC
+            LIMIT :limit OFFSET :offset`, { replacements: rep, type: QueryTypes.SELECT });
+        const motivos = await dbLocal.query<{ motivo: string }>('SELECT DISTINCT motivo FROM devolucion_proveedor ORDER BY motivo', { type: QueryTypes.SELECT });
+        return { total: tot?.n ?? 0, monto: Number(tot?.monto) || 0, page, paginas: Math.max(1, Math.ceil((tot?.n ?? 0) / limit)), motivos: motivos.map(m => m.motivo), filas };
+    },
+
+    // Renglones de una devolución (artículo, lote, caducidad, cantidad, costo)
+    detalle: async (id_devolucion: string) => {
+        const [cab] = await dbLocal.query<any>(`
+            SELECT d.id_devolucion_proveedor, d.id_factura_proveedor, d.folio_devolucion, d.motivo, d.observaciones, d.subtotal, d.iva, d.total, d."createdAt" AS fecha, d.usuario,
+                   f.folio_factura_proveedor AS folio_factura, COALESCE(p.razsoc_prove, p.nomcort_prove) AS proveedor
+            FROM devolucion_proveedor d
+            JOIN factura_compra_proveedor f ON f.id_factura_proveedor = d.id_factura_proveedor
+            LEFT JOIN compra_proveedor cp ON cp.id_comp = f.id_compra_prove_factura
+            LEFT JOIN proveedor p ON p.id_prove = cp.idprove_comp
+            WHERE d.id_devolucion_proveedor = :id`, { replacements: { id: id_devolucion }, type: QueryTypes.SELECT });
+        if (!cab) throw errorNegocio('Devolución no encontrada.', 404);
+        const renglones = await dbLocal.query<any>(`
+            SELECT x.id_articulo, x.descripcion_articulo, a.cod_barr_artic, x.numero_lote, x.fecha_caducidad, x.cantidad, x.precio_unitario, x.iva_unitario
+            FROM devolucion_proveedor_detalle x LEFT JOIN articulo a ON a.id_artic = x.id_articulo
+            WHERE x.id_devolucion_proveedor = :id ORDER BY x.descripcion_articulo`, { replacements: { id: id_devolucion }, type: QueryTypes.SELECT });
+        return { ...cab, renglones: await completarLotesFaltantes(cab.id_factura_proveedor, renglones) };
+    },
+
+    // Manda de nuevo el documento a la impresora de devoluciones
+    reimprimir: async (id_devolucion: string, id_empresa: string) => {
+        const [d] = await dbLocal.query<any>('SELECT folio_devolucion FROM devolucion_proveedor WHERE id_devolucion_proveedor = :id', { replacements: { id: id_devolucion }, type: QueryTypes.SELECT });
+        if (!d) throw errorNegocio('Devolución no encontrada.', 404);
+        return await imprimirDocumento(id_devolucion, d.folio_devolucion, id_empresa);
     },
 
     historialPorFactura: async (id_factura: string) => {
@@ -407,6 +522,7 @@ export const DevolucionProveedorService = {
     pdf: async (id_devolucion: string): Promise<Buffer> => {
         const [cab] = await dbLocal.query<any>(`
             SELECT d.folio_devolucion, d.motivo, d.observaciones, d.subtotal, d.iva, d.total, d."createdAt" AS fecha, d.usuario,
+                   d.id_factura_proveedor,
                    f.folio_factura_proveedor AS folio_factura, p.nomcort_prove AS proveedor, p.razsoc_prove AS razon_social, p.rfc_prove AS rfc
             FROM devolucion_proveedor d
             JOIN factura_compra_proveedor f ON f.id_factura_proveedor = d.id_factura_proveedor
@@ -415,11 +531,12 @@ export const DevolucionProveedorService = {
             WHERE d.id_devolucion_proveedor = :id`,
             { replacements: { id: id_devolucion }, type: QueryTypes.SELECT });
         if (!cab) throw errorNegocio('Devolución no encontrada.', 404);
-        const renglones = await dbLocal.query<any>(`
-            SELECT x.descripcion_articulo, a.cod_barr_artic, x.numero_lote, x.fecha_caducidad, x.cantidad, x.precio_unitario, x.iva_unitario
+        const renglonesGuardados = await dbLocal.query<any>(`
+            SELECT x.id_articulo, x.descripcion_articulo, a.cod_barr_artic, x.numero_lote, x.fecha_caducidad, x.cantidad, x.precio_unitario, x.iva_unitario
             FROM devolucion_proveedor_detalle x LEFT JOIN articulo a ON a.id_artic = x.id_articulo
             WHERE x.id_devolucion_proveedor = :id ORDER BY x.descripcion_articulo`,
             { replacements: { id: id_devolucion }, type: QueryTypes.SELECT });
+        const renglones = await completarLotesFaltantes(cab.id_factura_proveedor, renglonesGuardados);
         return generarPdfDevolucionProveedor({
             folio_devolucion: cab.folio_devolucion,
             fecha: cab.fecha,

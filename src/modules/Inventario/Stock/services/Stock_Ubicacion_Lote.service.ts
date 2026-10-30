@@ -9,6 +9,7 @@ import { Ubicacion_SucursalRepository } from "../../../Almacen/Ubicaciones/repos
 import { Detalle_Compra_SolicitadoRepository } from "../../../Compras/Ordenes-Compra/repositories/Detalle_Compra_Solicitado.repository";
 import Stock_Ubicacion_Lote from "../model/Stock_Ubicacion_Lote";
 import Movimiento_Articulo from "../../../Almacen/Movimientos/model/Movimiento_Articulo";
+import { registrarTrasladoInterno } from "../../../Almacen/Kardex/helpers/trasladoInterno";
 
 
 export const Stock_Ubicacion_LoteService = {
@@ -157,6 +158,7 @@ export const Stock_Ubicacion_LoteService = {
         id_stock_ubicacion_lote: string;
         cantidad: number;
         id_ubicacion_destino: string;
+        id_empleado?: string | null;
     }) => {
         const { id_empresa_sucursal, id_stock_ubicacion_lote, cantidad, id_ubicacion_destino } = dto;
 
@@ -238,6 +240,13 @@ export const Stock_Ubicacion_LoteService = {
                     cantidad_apartada: apartadaQueViaja,
                 }, tx);
             }
+
+            // Queda en "Movimientos de artículos" (quién, cuándo, de dónde a dónde)
+            await registrarTrasladoInterno(tx, {
+                id_empresa: id_empresa_sucursal, id_articulo: origen.id_articulo, id_lote: origen.id_lote,
+                id_origen_ubicacion: origen.id_ubicacion_sucursal ?? null, id_destino_ubicacion: id_ubicacion_destino,
+                cantidad, id_empleado: dto.id_empleado ?? null, accion: 'Mover',
+            });
 
             return { ok: true, movido: cantidad, apartadas_movidas: apartadaQueViaja };
         });

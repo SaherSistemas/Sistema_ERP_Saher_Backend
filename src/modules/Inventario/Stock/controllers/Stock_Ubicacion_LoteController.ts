@@ -89,6 +89,7 @@ export const Stock_Ubicacion_LoteController = {
                 id_stock_ubicacion_lote,
                 cantidad: Number(cantidad),
                 id_ubicacion_destino,
+                id_empleado: req.user?.id_referencia_persona ?? null,
             });
             res.json(result);
         } catch (error: any) {

@@ -9,6 +9,7 @@ import { Movimiento_ArticuloRepository } from '../../Movimientos/repositories/Mo
 import { Movimiento_ArticuloService } from '../../Movimientos/services/Movimiento_Articulo.service'
 import Liberacion_Apartada from '../model/Liberacion_Apartada.model'
 import Detalle_Pedido_Almacen_Lote from '../../Pedido/model/Detalle_Pedido_Almacen_Lote'
+import { registrarTrasladoInterno } from '../../Kardex/helpers/trasladoInterno'
 
 // Pedidos que de verdad sostienen piezas apartadas: surtidos/chequeados/empacados y aún sin facturar.
 // (Empaque deja en EM a pedidos ya facturados y "Vale entregado" es EN, por eso se usa la fecha de facturado.)
@@ -669,7 +670,7 @@ export const ExistenciasService = {
     // Mueve piezas de una ubicación a otra (mismo lote). El total no cambia, por eso no genera kardex.
     mover: async (d: {
         id_empresa: string; id_stock_ubicacion_lote: string
-        id_ubicacion_destino: string | null; cantidad: number
+        id_ubicacion_destino: string | null; cantidad: number; id_empleado?: string | null
     }) => {
         const cantidad = Number(d.cantidad)
         if (!Number.isInteger(cantidad) || cantidad <= 0) throw new Error('La cantidad debe ser un entero mayor a 0.')
@@ -733,6 +734,13 @@ export const ExistenciasService = {
                     cantidad_apartada: apartadaQueViaja,
                 }, { transaction: t })
             }
+
+            // Queda en "Movimientos de artículos" (quién, cuándo, de dónde a dónde)
+            await registrarTrasladoInterno(t, {
+                id_empresa: d.id_empresa, id_articulo: origen.id_articulo, id_lote: origen.id_lote,
+                id_origen_ubicacion: origen.id_ubicacion_sucursal ?? null, id_destino_ubicacion: destinoId,
+                cantidad, id_empleado: d.id_empleado ?? null, accion: 'Mover',
+            })
 
             await t.commit()
             return { ok: true, movidas: cantidad, apartadas_movidas: apartadaQueViaja }

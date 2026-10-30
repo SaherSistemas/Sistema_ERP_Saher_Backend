@@ -2,6 +2,7 @@ import { IPresupuesto_AgenteCreate, IPresupuesto_Agente_Movimiento } from '../in
 import { PresupuestoAgenteRepository } from '../repositories/Presupuesto_Agente.respository';
 import { AgenteRepository } from '../repositories/Agente.repository';
 import { Comision_Regla_AgenteRepository } from '../repositories/Comision_Regla_Agente.repository';
+import Presupuesto_Agente from '../model/Presupuesto_Agente';
 
 export const PresupuestoAgenteService = {
 
@@ -173,6 +174,26 @@ export const PresupuestoAgenteService = {
   // ==========================================
   getDetalleVendido: async (id_agente: string, mes: number, anio: number) =>
     PresupuestoAgenteRepository.getDetalleVendido(id_agente, mes, anio),
+
+  // ==========================================
+  // Ritmo de venta: vendido día por día de un mes (con la meta del presupuesto de ese mes)
+  // ==========================================
+  getRitmoDiario: async (id_agente: string, mes: number, anio: number) => {
+    const presupuesto = await Presupuesto_Agente.findOne({ where: { id_agente, mes, anio } });
+    const { dias, ajustes_fuera_mes } = await PresupuestoAgenteRepository.getVendidoPorDia(
+      id_agente, mes, anio, presupuesto?.id_presupuesto_agente ?? null,
+    );
+    return { mes, anio, monto_asignado: Number(presupuesto?.monto_asignado ?? 0), dias, ajustes_fuera_mes };
+  },
+
+  // Lo mismo para el agente logueado, sobre su presupuesto activo
+  getMiRitmoDiario: async (id_empleado: string) => {
+    const agente = await AgenteRepository.getByIdEmpleado(id_empleado);
+    if (!agente) throw { status: 404, message: 'No se encontró un agente de venta asociado a este usuario.' };
+    const presupuesto = await PresupuestoAgenteRepository.getActivo(agente.id_agente);
+    if (!presupuesto) return { sin_presupuesto: true };
+    return await PresupuestoAgenteService.getRitmoDiario(agente.id_agente, presupuesto.mes, presupuesto.anio);
+  },
 
   // ==========================================
   // MI HISTÓRICO — para el agente logueado

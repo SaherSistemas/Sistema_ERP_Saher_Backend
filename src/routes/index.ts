@@ -43,6 +43,7 @@ import cat_uso_CFDIRouter from '../modules/Catalogos/routes/Cat_Uso_CFDIRouter';
 import cat_metodo_pagoRouter from '../modules/Catalogos/routes/Cat_Metodo_De_PagoRouter';
 
 import catalogosRouter from '../modules/Catalogos/routes/CatalagosRouter';
+import catalogosAdminRouter from '../modules/Catalogos/CatalogosAdmin/routes/CatalogosAdminRouter';
 
 import tipoIVARouter from '../modules/Catalogos/Articulos/routes/Tipo_IVARouter';
 
@@ -171,6 +172,7 @@ router.use('/cat_usoCFDI', cat_uso_CFDIRouter);
 router.use('/cat_metodo_de_pago', cat_metodo_pagoRouter);
 
 router.use('/catalogos', catalogosRouter);
+router.use('/catalogos-admin', catalogosAdminRouter);
 //Usuario
 router.use('/empleado', empleadoRouter);
 router.use('/rol', rolRouter);

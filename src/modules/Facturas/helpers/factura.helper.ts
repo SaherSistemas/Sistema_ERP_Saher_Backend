@@ -22,6 +22,11 @@ export function detectarPublicoGeneral(rfc: string | null | undefined, nomCorto:
     return false;
 }
 
+// Clientes tipo abarrotes (mostrador): su facturación no se reintenta/refolia desde Facturas Emitidas
+export function esClienteAbarrotes(nomCorto: string | null | undefined): boolean {
+    return (nomCorto ?? '').toLowerCase().includes('abarrot');
+}
+
 export function buildDescripcionConcepto(c: ConceptoFacturacion, separador: string = ' | '): string {
     let desc = c.descripcion.trim();
     if (c.lotes?.length) {

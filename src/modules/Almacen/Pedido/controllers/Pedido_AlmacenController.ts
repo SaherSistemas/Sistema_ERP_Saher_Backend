@@ -260,9 +260,9 @@ export class Pedido_AlmacenController {
     try {
       const resultado = await Pedido_AlmacenService.asignarPedidoSurtidor(req.user.id_referencia_persona, req.user.id_empresa);
       res.status(200).json(resultado);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
-      res.status(500).json({ mensaje: 'Error al obtener pedidos.' });
+      res.status(error?.status ?? 500).json({ mensaje: error?.message ?? 'Error al obtener pedidos.' });
     }
   };
   static getDetallesAsignado = async (req: AuthedRequest, res: Response) => {
@@ -738,6 +738,31 @@ export class Pedido_AlmacenController {
     } catch (error: any) {
       console.log(error);
       res.status(500).json({ mensaje: error.message || 'Error al obtener pedidos.' });
+    }
+  };
+
+  // GET /pedido/articulos-buscar?q= — PROVISIONAL: artículos que coinciden (para elegir uno)
+  static buscarArticulosParaPedidos = async (req: Request, res: Response) => {
+    try {
+      res.json(await Pedido_AlmacenRepository.buscarArticulosParaPedidos(String(req.query.q ?? '')));
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ mensaje: error.message || 'Error al buscar artículos.' });
+    }
+  };
+
+  // GET /pedido/pedidos-de-articulo?id_articulo=&fecha_inicio=&fecha_fin=&status=&solo_salidos= — PROVISIONAL
+  static getPedidosDeArticulo = async (req: Request, res: Response) => {
+    try {
+      const { id_articulo, fecha_inicio, fecha_fin, status } = req.query as Record<string, string>;
+      if (!id_articulo) { res.status(400).json({ mensaje: 'id_articulo requerido' }); return; }
+      res.json(await Pedido_AlmacenRepository.getPedidosDeArticulo({
+        id_articulo, fecha_inicio: fecha_inicio || undefined, fecha_fin: fecha_fin || undefined,
+        status: status || undefined, solo_salidos: req.query.solo_salidos === 'true',
+      }));
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ mensaje: error.message || 'Error al obtener los pedidos del artículo.' });
     }
   };
 

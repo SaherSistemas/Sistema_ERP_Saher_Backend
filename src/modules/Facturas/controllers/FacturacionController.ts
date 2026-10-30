@@ -115,6 +115,21 @@ export class FacturacionController {
         }
     };
 
+    // POST /api/facturas/:id_factura/pdf-egreso-detallado
+    // PDF de la nota de crédito con un renglón por artículo devuelto (solo para imprimir; no cambia el CFDI)
+    static generarPdfEgresoDetallado = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_factura } = req.params;
+            const { buffer, nombre } = await FacturacionService.generarPdfEgresoDetallado(id_factura);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="${nombre}"`);
+            res.send(buffer);
+        } catch (error: any) {
+            console.error('[generarPdfEgresoDetallado]', error);
+            res.status(400).json({ message: error?.message ?? 'No se pudo generar el PDF con renglones.' });
+        }
+    };
+
     // GET /api/facturas/autorizaciones-credito?fecha_inicio=&fecha_fin=
     // Pedidos facturados por encima del límite de crédito con autorización de un administrador
     static getAutorizacionesCredito = async (req: AuthedRequest, res: Response) => {

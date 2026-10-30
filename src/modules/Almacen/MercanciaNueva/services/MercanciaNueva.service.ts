@@ -183,6 +183,8 @@ async function enriquecerArticulos(id_empresa: string, filas: any[], EMPRESAS_GR
             fecha: f.fecha,
             cod_int_artic: f.cod_int_artic,
             des_artic: String(f.des_artic ?? '').trim(),
+            // Descripción genérica (sustancia / nombre genérico) del artículo; vacía si no la tiene
+            des_generica: String(f.des_gener_artic ?? '').trim(),
             cod_barr_artic: String(f.cod_barr_artic ?? '').trim(),
             lote: String(f.lote ?? '').trim(),
             caducidad: f.caducidad ?? null,
@@ -266,7 +268,7 @@ export const MercanciaNuevaService = {
         )`;
         const NEGADOS = `n.recuperado = false AND n.fecha + INTERVAL '7 days' >= NOW()`;
         const filas = await dbLocal.query<any>(`
-            SELECT a.id_artic, a.cod_int_artic, a.des_artic, a.cod_barr_artic
+            SELECT a.id_artic, a.cod_int_artic, a.des_artic, a.des_gener_artic, a.cod_barr_artic
             FROM articulo a
             WHERE a.status_artic = true
               AND (a.des_artic ILIKE :like OR a.cod_barr_artic ILIKE :like OR a.cod_int_artic::text ILIKE :like)
@@ -305,7 +307,7 @@ export const MercanciaNuevaService = {
 
         const filas = await dbLocal.query<any>(`
             SELECT MAX(k.fecha) FILTER (WHERE k.tipo_movimiento = 'ENTRADA') AS fecha,
-                   a.id_artic, a.cod_int_artic, a.des_artic, a.cod_barr_artic,
+                   a.id_artic, a.cod_int_artic, a.des_artic, a.des_gener_artic, a.cod_barr_artic,
                    COALESCE(lt.lotes, l.numero_lote_sucursal)             AS lote,
                    COALESCE(lt.caducidad, l.fecha_venci_lote_sucursal)    AS caducidad,
                    -- Entradas menos las correcciones de recepción (lote cambiado o quitado): lo que se corrigió no cuenta como llegado
@@ -330,7 +332,7 @@ export const MercanciaNuevaService = {
               AND (k.tipo_movimiento = 'ENTRADA' OR (k.tipo_movimiento = 'SALIDA' AND k.notas ILIKE 'Corrección de recepción%'))
               AND k.fecha >= NOW() - (:dias * INTERVAL '1 day')
               ${filtro}
-            GROUP BY a.id_artic, a.cod_int_artic, a.des_artic, a.cod_barr_artic,
+            GROUP BY a.id_artic, a.cod_int_artic, a.des_artic, a.des_gener_artic, a.cod_barr_artic,
                      lt.lotes, lt.caducidad, l.numero_lote_sucursal, l.fecha_venci_lote_sucursal,
                      f.folio_factura_proveedor, p.nomcort_prove, f.id_factura_proveedor
             HAVING SUM(CASE WHEN k.tipo_movimiento = 'ENTRADA' THEN k.cantidad_movimiento ELSE -k.cantidad_movimiento END) > 0

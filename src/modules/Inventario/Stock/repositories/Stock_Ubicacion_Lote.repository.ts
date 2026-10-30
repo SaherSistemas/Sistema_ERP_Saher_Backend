@@ -450,7 +450,8 @@ export const Stock_Ubicacion_LoteRepository = {
             if (!l) return null;
             // Dónde está ese lote (la ubicación con más piezas disponibles) para que el surtidor pueda ir a verlo
             const [u] = await dbLocal.query<any>(
-                `SELECT s.id_ubicacion_sucursal, u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub, u.tarima_ub
+                `SELECT s.id_stock_ubicacion_lote, s.id_ubicacion_sucursal, u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub, u.tarima_ub,
+                        (s.cantidad - COALESCE(s.cantidad_apartada, 0)) AS disponible_fila
                  FROM stock_ubicacion_lote s
                  LEFT JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = s.id_ubicacion_sucursal
                  WHERE s.id_lote = :id_lote AND s.id_empresa_sucursal = :id_empresa_sucursal
@@ -466,7 +467,13 @@ export const Stock_Ubicacion_LoteRepository = {
             const ubicacionObj = u?.id_ubicacion_sucursal
                 ? { id_ubicacion_sucursal: u.id_ubicacion_sucursal, pasillo: u.pasillo_ub, anaquel: u.anaquel_ub, nivel: u.nivel_ub, posicion: u.posicion_ub, tarima: u.tarima_ub ?? null }
                 : null;
-            return { lote: l.lote, fecha_venci: l.fecha_venci, disponible: Number(l.disponible), ubicacion, ubicacion_obj: ubicacionObj };
+            // Si el agente acepta esta caducidad, el surtidor toma de la fila de stock de esa ubicación (id_stock_ubicacion_lote)
+            // hasta lo que haya disponible ahí (disponible_fila)
+            return {
+                id_lote: l.id_lote, lote: l.lote, fecha_venci: l.fecha_venci, disponible: Number(l.disponible), ubicacion, ubicacion_obj: ubicacionObj,
+                id_stock_ubicacion_lote: u?.id_stock_ubicacion_lote ?? null,
+                disponible_fila: Number(u?.disponible_fila ?? 0),
+            };
         };
         const rowsBase = await Stock_Ubicacion_Lote.findAll({
             where: {

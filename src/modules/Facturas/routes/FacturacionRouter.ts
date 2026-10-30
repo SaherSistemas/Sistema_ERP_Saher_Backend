@@ -64,6 +64,9 @@ router.post('/:id_factura/traslado-pdf', authMiddleware, FacturacionController.g
 // POST /api/facturas/:id_factura/pdf-sat
 router.post('/:id_factura/pdf-sat', authMiddleware, FacturacionController.generarPdfDetalleSAT);
 
+// POST /api/facturas/:id_factura/pdf-egreso-detallado  (egreso con un renglón por artículo devuelto, solo imprimir)
+router.post('/:id_factura/pdf-egreso-detallado', authMiddleware, FacturacionController.generarPdfEgresoDetallado);
+
 // Descarga el PDF de un traslado (tipo T, estatus GEN)
 // GET /api/facturas/traslado-pdf/:id_factura
 router.get('/traslado-pdf/:id_factura', authMiddleware, FacturacionController.descargarTrasladoPdf);

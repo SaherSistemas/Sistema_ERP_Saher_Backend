@@ -11,6 +11,35 @@ export interface CantidadPorLote {
 }
 
 /**
+ * Impide facturar / hacer traslado de un pedido con artículos chequeados que NO tienen lote asignado: el documento los
+ * incluye (se arma con lo chequeado), pero el descuento de existencia y la salida del Kardex se calculan por lote, así que
+ * esas piezas saldrían sin descontarse. Hay que asignarles lote (en el chequeo o en el pedido) antes de continuar.
+ */
+export async function exigirLotesAsignados(id_pedido_alm: string, t: Transaction): Promise<void> {
+    const rows = await dbLocal.query<{ des_artic: string; chequeado: string; con_lote: string }>(`
+        SELECT a.des_artic,
+               COALESCE((SELECT SUM(c.cant_chequeada) FROM detalle_pedido_almacen_chequeo c
+                         WHERE c.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen AND c.estado <> 'CANCELADO'), 0) AS chequeado,
+               COALESCE((SELECT SUM(l.cantidad) FROM detalle_pedido_almacen_lote l
+                         WHERE l.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen), 0) AS con_lote
+        FROM detalle_pedido_almacen dpa
+        JOIN articulo a ON a.id_artic = dpa.id_articulo
+        WHERE dpa.id_pedido_almacen = :id_pedido_alm
+    `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT, transaction: t });
+
+    const sinLote = rows
+        .map(r => ({ nombre: String(r.des_artic ?? '').trim(), faltan: (Number(r.chequeado) || 0) - (Number(r.con_lote) || 0) }))
+        .filter(r => r.faltan > 0);
+    if (sinLote.length === 0) return;
+
+    const lista = sinLote.slice(0, 8).map(r => `${r.nombre} (${r.faltan} pz)`).join(', ');
+    throw new Error(
+        `No se puede generar el documento: ${sinLote.length} artículo(s) se chequearon sin lote asignado y no descontarían `
+        + `existencia ni Kardex: ${lista}${sinLote.length > 8 ? '…' : ''}. Asígnales lote (en el chequeo o con "Asignar lote" en el pedido) y vuelve a intentar.`,
+    );
+}
+
+/**
  * Cantidades por lote que corresponden a la salida de un pedido.
  *
  * La factura se arma con lo CHEQUEADO (detalle_pedido_almacen_chequeo.cant_chequeada), pero el stock y el

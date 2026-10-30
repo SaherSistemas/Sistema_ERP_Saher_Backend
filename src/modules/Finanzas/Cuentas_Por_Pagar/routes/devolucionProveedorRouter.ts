@@ -8,6 +8,9 @@ router.use(authMiddleware);
 router.get('/factura/:id_factura/historial', DevolucionProveedorController.historial);
 router.get('/factura/:id_factura', DevolucionProveedorController.elegibles);
 router.post('/', DevolucionProveedorController.crear);
+router.get('/', DevolucionProveedorController.listar);
 router.get('/:id/pdf', DevolucionProveedorController.pdf);
+router.post('/:id/imprimir', DevolucionProveedorController.reimprimir);
+router.get('/:id', DevolucionProveedorController.detalle);
 
 export default router;

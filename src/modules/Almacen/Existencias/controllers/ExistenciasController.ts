@@ -206,6 +206,7 @@ export const ExistenciasController = {
                 id_stock_ubicacion_lote: b.id_stock_ubicacion_lote,
                 id_ubicacion_destino: b.id_ubicacion_destino || null,
                 cantidad: Number(b.cantidad),
+                id_empleado: (req.user as any)?.id_referencia_persona ?? null,
             })
             res.status(200).json({ ok: true, data: r })
         } catch (e: any) {

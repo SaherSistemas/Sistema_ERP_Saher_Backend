@@ -222,6 +222,75 @@ export const PresupuestoAgenteRepository = {
   },
 
   // ================================================================
+  // VENDIDO POR DÍA — lo mismo que getVendidoReal (facturas de venta directa + remisiones, sin canceladas) pero
+  // desglosado por día del mes, más los ajustes manuales con fecha dentro del mes. Devuelve todos los días del mes;
+  // los ajustes con fecha fuera del mes (si los hay) se reportan aparte para que el total siga cuadrando.
+  // ================================================================
+  getVendidoPorDia: async (id_agente: string, mes: number, anio: number, id_presupuesto_agente?: string | null) => {
+    const diasMes = new Date(anio, mes, 0).getDate();
+    const replacements = { id_agente, mes, anio };
+
+    const facturas = await dbLocal.query<{ dia: number; total: string; docs: string }>(
+      `SELECT EXTRACT(DAY FROM f.fecha_emision)::int AS dia, SUM(f.total_factura) AS total, COUNT(*) AS docs
+       FROM facturas f
+       JOIN pedido_almacen p ON p.id_pedido_alm = f.id_pedido_alm
+       WHERE p.id_agente_pedido_alm = :id_agente
+         AND f.tipo_cfdi      = 'I'
+         AND f.estatus_factura != 'CAN'
+         AND EXTRACT(YEAR  FROM f.fecha_emision) = :anio
+         AND EXTRACT(MONTH FROM f.fecha_emision) = :mes
+         AND NOT EXISTS (SELECT 1 FROM remision r WHERE r.id_pedido_alm = f.id_pedido_alm)
+       GROUP BY 1`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    const remisiones = await dbLocal.query<{ dia: number; total: string; docs: string }>(
+      `SELECT EXTRACT(DAY FROM r.fecha_remision)::int AS dia, SUM(r.total_remision) AS total, COUNT(*) AS docs
+       FROM remision r
+       WHERE r.id_agente = :id_agente
+         AND r.estatus_remision != 'CAN'
+         AND EXTRACT(YEAR  FROM r.fecha_remision) = :anio
+         AND EXTRACT(MONTH FROM r.fecha_remision) = :mes
+       GROUP BY 1`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    let ajustes: { dia: number | null; total: string }[] = [];
+    if (id_presupuesto_agente) {
+      ajustes = await dbLocal.query<{ dia: number | null; total: string }>(
+        `SELECT CASE WHEN EXTRACT(YEAR FROM m.fecha) = :anio AND EXTRACT(MONTH FROM m.fecha) = :mes
+                     THEN EXTRACT(DAY FROM m.fecha)::int END AS dia,
+                SUM(m.monto) AS total
+         FROM presupuesto_agente_mov m
+         WHERE m.id_presupuesto_agente = :id_presupuesto_agente
+         GROUP BY 1`,
+        { replacements: { ...replacements, id_presupuesto_agente }, type: QueryTypes.SELECT }
+      );
+    }
+
+    const dias = Array.from({ length: diasMes }, (_, i) => ({
+      dia: i + 1,
+      fecha: `${anio}-${String(mes).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`,
+      facturas: 0,
+      remisiones: 0,
+      ajustes: 0,
+      documentos: 0,
+    }));
+    for (const f of facturas) { const d = dias[f.dia - 1]; if (d) { d.facturas = Number(f.total); d.documentos += Number(f.docs); } }
+    for (const r of remisiones) { const d = dias[r.dia - 1]; if (d) { d.remisiones = Number(r.total); d.documentos += Number(r.docs); } }
+    let ajustes_fuera_mes = 0;
+    for (const a of ajustes) {
+      if (a.dia == null) ajustes_fuera_mes += Number(a.total);
+      else if (dias[a.dia - 1]) dias[a.dia - 1].ajustes = Number(a.total);
+    }
+
+    return {
+      dias: dias.map(d => ({ ...d, vendido: +(d.facturas + d.remisiones + d.ajustes).toFixed(2) })),
+      ajustes_fuera_mes,
+    };
+  },
+
+  // ================================================================
   // RESUMEN COMPLETO de un presupuesto:
   //   monto_asignado, monto_vendido (facturas reales),
   //   monto_ajustes (movimientos manuales), monto_total, porcentaje

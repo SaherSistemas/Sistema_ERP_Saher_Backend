@@ -41,6 +41,29 @@ export class DevolucionProveedorController {
         } catch (err) { responder(res, err, 'No se pudo consultar el historial.'); }
     };
 
+    // GET /api/finanzas/cxp/devolucion-proveedor?fecha_inicio=&fecha_fin=&q=&motivo=&page=
+    static listar = async (req: AuthedRequest, res: Response) => {
+        try {
+            const q = req.query as Record<string, string>;
+            res.status(200).json(await DevolucionProveedorService.listar({
+                fecha_inicio: q.fecha_inicio || undefined, fecha_fin: q.fecha_fin || undefined,
+                q: q.q, motivo: q.motivo || undefined, page: Number(q.page) || 1, limit: Number(q.limit) || 50,
+            }));
+        } catch (err) { responder(res, err, 'No se pudieron consultar las devoluciones.'); }
+    };
+
+    // GET /api/finanzas/cxp/devolucion-proveedor/:id
+    static detalle = async (req: AuthedRequest, res: Response) => {
+        try { res.status(200).json(await DevolucionProveedorService.detalle(req.params.id)); }
+        catch (err) { responder(res, err, 'No se pudo consultar la devolución.'); }
+    };
+
+    // POST /api/finanzas/cxp/devolucion-proveedor/:id/imprimir
+    static reimprimir = async (req: AuthedRequest, res: Response) => {
+        try { res.status(200).json(await DevolucionProveedorService.reimprimir(req.params.id, String(req.user?.id_empresa ?? ''))); }
+        catch (err) { responder(res, err, 'No se pudo mandar a imprimir.'); }
+    };
+
     // GET /api/finanzas/cxp/devolucion-proveedor/:id/pdf
     static pdf = async (req: AuthedRequest, res: Response) => {
         try {

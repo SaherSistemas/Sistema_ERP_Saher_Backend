@@ -7,6 +7,7 @@ const router = Router();
 // ── Mi resumen (agente logueado — JWT) — debe ir ANTES que /:id_presupuesto_agente
 router.get('/mi-resumen',   authMiddleware, PresupuestoAgenteController.getMiResumen);
 router.get('/mi-historico', authMiddleware, PresupuestoAgenteController.getMiHistorico);
+router.get('/mi-ritmo-diario', authMiddleware, PresupuestoAgenteController.getMiRitmoDiario);
 
 // ── Tablero general (debe ir ANTES que /:id_presupuesto_agente)
 router.get('/tablero', PresupuestoAgenteController.getTablero);
@@ -19,6 +20,7 @@ router.get('/', PresupuestoAgenteController.getAll);
 router.get('/activo/:id_agente', PresupuestoAgenteController.getActivo);
 router.get('/historico/:id_agente', PresupuestoAgenteController.getHistorico);
 router.get('/detalle-vendido/:id_agente', PresupuestoAgenteController.getDetalleVendido);
+router.get('/ritmo-diario/:id_agente', PresupuestoAgenteController.getRitmoDiario);
 router.post('/cerrar/:id_agente', PresupuestoAgenteController.cerrarMes);
 
 // ── Por presupuesto

@@ -35,6 +35,7 @@ import Detalle_Pedido_Almacen_ChequeoModel from '../model/Detalle_Pedido_Almacen
 import Detalle_Pedido_Almacen_LoteModel from '../model/Detalle_Pedido_Almacen_Lote';
 import Detalle_Pedido_Almacen_AsignacionModel from '../model/Detalle_Pedido_Almacen_Asignacion';
 import { Kardex_Movimiento_ArticuloRepository } from '../../Kardex/repositories/Kardex_Movimiento_Articulo.repository';
+import { registrarTrasladoInterno } from '../../Kardex/helpers/trasladoInterno';
 import { etiquetaUbicacion } from '../../Existencias/services/Existencias.service';
 import { FacturacionService } from '../../../Facturas/services/Facturacion.service';
 import { compararUbicacionesSurtido } from '../helpers/ordenSurtido';
@@ -563,6 +564,9 @@ async function ajustarLotesApartadosDetalle(
   }
 }
 
+// Asignaciones de "Tomar Pedido" en curso por usuario (evita asignar dos veces con un doble clic)
+const asignacionesEnCurso = new Map<string, Promise<any>>();
+
 export const Pedido_AlmacenService = {
   /**CHEQUEO */
 
@@ -718,6 +722,26 @@ export const Pedido_AlmacenService = {
 
       if (Array.isArray(reqs.lotes) && reqs.lotes.length > 0) {
         await Detalle_Pedido_Almacen_LoteRepository.create(reqsConIdDetalle, t);
+
+        // Queda en "Movimientos de artículos": de qué ubicación se tomó cada lote para este pedido y quién lo surtió
+        const [ctxMov] = await dbLocal.query<any>(`
+          SELECT d.id_articulo, d.id_pedido_almacen, p.cod_int_pedido_alm
+          FROM detalle_pedido_almacen d JOIN pedido_almacen p ON p.id_pedido_alm = d.id_pedido_almacen
+          WHERE d.id_detalle_pedido_almacen = :id`,
+          { replacements: { id: id_detalle_pedido }, type: QueryTypes.SELECT, transaction: t });
+        for (const l of reqs.lotes as any[]) {
+          if (!l?.id_stock_ubicacion_lote || !(Number(l.cantidad) > 0) || !ctxMov) continue;
+          const [stock] = await dbLocal.query<any>(
+            `SELECT id_empresa_sucursal FROM stock_ubicacion_lote WHERE id_stock_ubicacion_lote = :id`,
+            { replacements: { id: l.id_stock_ubicacion_lote }, type: QueryTypes.SELECT, transaction: t });
+          if (!stock?.id_empresa_sucursal) continue;
+          await registrarTrasladoInterno(t, {
+            id_empresa: stock.id_empresa_sucursal, id_articulo: ctxMov.id_articulo, id_lote: l.id_lote_sucursal ?? null,
+            id_origen_ubicacion: l.id_ubicacion_sucursal ?? null, id_destino_ubicacion: null,
+            cantidad: Number(l.cantidad), id_empleado: (actualizado as any).id_usuario ?? null,
+            id_pedido: ctxMov.id_pedido_almacen, accion: 'Surtido', via: 'app', destino_texto: `Pedido ${String(ctxMov.cod_int_pedido_alm).trim()}`,
+          });
+        }
       }
 
       if (reqs.negacion && reqs.negacion.cantidad_negada > 0) {
@@ -730,6 +754,26 @@ export const Pedido_AlmacenService = {
           },
           t
         );
+      } else {
+        // Lo pedido que no quedó cubierto por lotes (sin existencia, o existencia fuera de la caducidad del agente) se niega
+        // solo: si no, el renglón se daba por surtido sin lote ni negación, y más adelante podía chequearse y facturarse
+        // sin descontar existencia ni kardex.
+        const lotesSurtidos = (Array.isArray(reqs.lotes) ? reqs.lotes : []).reduce((s: number, l: any) => s + (Number(l?.cantidad) || 0), 0);
+        const [det] = await dbLocal.query<any>(
+          `SELECT cant_pedida FROM detalle_pedido_almacen WHERE id_detalle_pedido_almacen = :id`,
+          { replacements: { id: id_detalle_pedido }, type: QueryTypes.SELECT, transaction: t });
+        const faltante = (Number(det?.cant_pedida) || 0) - lotesSurtidos;
+        if (faltante > 0) {
+          await Detalle_Pedido_NegadoRepository.reemplazarDeSurtido(
+            {
+              id_detalle_pedido_almacen: id_detalle_pedido,
+              cantidad_negada: faltante,
+              motivo: 'SIN_EXISTENCIA',
+              comentario: 'Negado automáticamente: sin existencia (o sin lote que cumpla) al surtir',
+            },
+            t
+          );
+        }
       }
 
       await t.commit();
@@ -805,7 +849,21 @@ export const Pedido_AlmacenService = {
     };
   },
 
-  asignarPedidoSurtidor: async (id_usuario: string, id_empresa: string) => {
+  // Un doble clic (o dos peticiones seguidas del mismo usuario) no debe asignar dos veces: la segunda espera y recibe el
+  // mismo resultado que la primera.
+  asignarPedidoSurtidor: async (id_usuario: string, id_empresa: string): Promise<any> => {
+    const enCurso = asignacionesEnCurso.get(id_usuario);
+    if (enCurso) return enCurso;
+    const trabajo = Pedido_AlmacenService.asignarPedidoSurtidorUnico(id_usuario, id_empresa);
+    asignacionesEnCurso.set(id_usuario, trabajo);
+    try { return await trabajo; } finally { asignacionesEnCurso.delete(id_usuario); }
+  },
+
+  asignarPedidoSurtidorUnico: async (id_usuario: string, id_empresa: string): Promise<any> => {
+    // Si el usuario ya tiene un pedido asignado, se le regresa ese (no se le da otro)
+    const previo = await Detalle_Pedido_Almacen_AsignacionRepository.algunPedidoAsignado(id_usuario);
+    if (previo) return { mensaje: 'Ya tienes un pedido asignado.', id_pedido_alm: previo };
+
     const pedidoMasUrgente = await Pedido_AlmacenRepository.getPedidoMasUrgentePorSurtir();
     if (!pedidoMasUrgente) {
       return { mensaje: 'No hay pedidos por surtir en este momento.' };
@@ -840,9 +898,22 @@ export const Pedido_AlmacenService = {
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
-    await Pedido_AlmacenRepository.iniciarSurtido(pedidoMasUrgente, t);
-    await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(id_usuario, detallesOrdenados, t);
-    await t.commit();
+    try {
+      // Candado: si otro surtidor lo tomó mientras se calculaba el orden, no se vuelve a asignar
+      const candado = await Pedido_Almacen.findByPk(pedidoMasUrgente, {
+        attributes: ['id_pedido_alm', 'inicio_surtido'], transaction: t, lock: t.LOCK.UPDATE,
+      });
+      if (!candado || candado.inicio_surtido) {
+        await t.rollback();
+        throw { status: 409, message: 'Ese pedido ya lo tomó otro surtidor. Vuelve a intentarlo.' };
+      }
+      await Pedido_AlmacenRepository.iniciarSurtido(pedidoMasUrgente, t);
+      await Detalle_Pedido_Almacen_AsignacionRepository.asignarDetallesPedidoASurtidor(id_usuario, detallesOrdenados, t);
+      await t.commit();
+    } catch (err: any) {
+      if (err?.status !== 409) await t.rollback().catch(() => undefined);
+      throw err;
+    }
 
     return { mensaje: 'Pedido asignado al surtidor.', id_pedido_alm: pedidoMasUrgente };
   },
@@ -1651,7 +1722,44 @@ export const Pedido_AlmacenService = {
       });
       if (chequeos.length > 0) {
         const delLote = chequeos.find(c => c.id_detalle_pedido_almacen_lote === lineaLote.id_detalle_pedido_almacen_lote);
-        if (delLote) {
+        // Fila de chequeo "sin lote" (el renglón se chequeó antes de tener lote): sus piezas, y lo que ya se chequeó de
+        // ellas, pasan a la fila de este lote. Así el objetivo del chequeo no se duplica y la factura/traslado ya lleva lote.
+        const sinLote = chequeos.find(c => !c.id_detalle_pedido_almacen_lote && c.estado !== 'CANCELADO' && (Number(c.cant_surtida_lote) || 0) > 0);
+        if (sinLote) {
+          const mover = Math.min(cant, Number(sinLote.cant_surtida_lote) || 0);
+          const chequeadas = Math.min(Number(sinLote.cant_chequeada) || 0, mover);
+          if (delLote) {
+            const surtidaNueva = (Number(delLote.cant_surtida_lote) || 0) + mover;
+            const chequeadaNueva = (Number(delLote.cant_chequeada) || 0) + chequeadas;
+            await delLote.update(
+              { cant_surtida_lote: surtidaNueva, cant_chequeada: chequeadaNueva, ...(delLote.estado === 'TERMINADO' && chequeadaNueva < surtidaNueva ? { estado: 'ASIGNADO', fin: null } : {}) },
+              { transaction: t },
+            );
+          } else {
+            const completa = chequeadas >= mover;
+            await Detalle_Pedido_Almacen_ChequeoModel.create({
+              id_detalle_pedido_almacen,
+              id_detalle_pedido_almacen_lote: lineaLote.id_detalle_pedido_almacen_lote,
+              cant_surtida_lote: mover,
+              cant_chequeada: chequeadas,
+              id_empleado: sinLote.id_empleado,
+              estado: completa ? 'TERMINADO' : (chequeadas > 0 ? 'EN_PROCESO' : 'ASIGNADO'),
+              fecha_asignado: sinLote.fecha_asignado ?? new Date(),
+              inicio: chequeadas > 0 ? (sinLote.inicio ?? new Date()) : null,
+              fin: completa ? (sinLote.fin ?? new Date()) : null,
+              nota: sinLote.nota ?? null,
+            } as any, { transaction: t });
+          }
+          const restoSurtida = (Number(sinLote.cant_surtida_lote) || 0) - mover;
+          if (restoSurtida <= 0) {
+            await sinLote.update({ estado: 'CANCELADO', cant_surtida_lote: 0, cant_chequeada: 0 }, { transaction: t });
+          } else {
+            await sinLote.update(
+              { cant_surtida_lote: restoSurtida, cant_chequeada: Math.max(0, (Number(sinLote.cant_chequeada) || 0) - chequeadas) },
+              { transaction: t },
+            );
+          }
+        } else if (delLote) {
           await delLote.update(
             { cant_surtida_lote: (Number(delLote.cant_surtida_lote) || 0) + cant, ...(delLote.estado === 'TERMINADO' ? { estado: 'ASIGNADO', fin: null } : {}) },
             { transaction: t },
@@ -2290,6 +2398,31 @@ export const Pedido_AlmacenService = {
             motivo: detalle.negacion.motivo,
             comentario: detalle.negacion.comentario ?? null,
           }, t);
+        }
+
+        // Queda en "Movimientos de artículos": de qué ubicación se tomó cada lote para este pedido (igual que el surtido con app)
+        if (lotesValidos.length > 0) {
+          const [ctxMov] = await dbLocal.query<any>(`
+            SELECT d.id_articulo, p.cod_int_pedido_alm
+            FROM detalle_pedido_almacen d JOIN pedido_almacen p ON p.id_pedido_alm = d.id_pedido_almacen
+            WHERE d.id_detalle_pedido_almacen = :id`,
+            { replacements: { id: detalle.id_detalle_pedido_almacen }, type: QueryTypes.SELECT, transaction: t });
+          const [asg] = await dbLocal.query<any>(
+            `SELECT id_usuario FROM detalle_pedido_almacen_asignacion WHERE id_detalle_pedido_almacen = :id LIMIT 1`,
+            { replacements: { id: detalle.id_detalle_pedido_almacen }, type: QueryTypes.SELECT, transaction: t });
+          for (const l of lotesValidos) {
+            if (!ctxMov) break;
+            const [lote] = await dbLocal.query<any>(
+              `SELECT id_empre FROM lote_articulo_sucursal WHERE id_lote_sucursal = :id`,
+              { replacements: { id: l.id_lote_sucursal }, type: QueryTypes.SELECT, transaction: t });
+            if (!lote?.id_empre) continue;
+            await registrarTrasladoInterno(t, {
+              id_empresa: lote.id_empre, id_articulo: ctxMov.id_articulo, id_lote: l.id_lote_sucursal,
+              id_origen_ubicacion: l.id_ubicacion_sucursal ?? null, id_destino_ubicacion: null,
+              cantidad: Number(l.cantidad), id_empleado: asg?.id_usuario ?? null,
+              id_pedido: id_pedido_alm, accion: 'Surtido', via: 'hoja', destino_texto: `Pedido ${String(ctxMov.cod_int_pedido_alm).trim()}`,
+            });
+          }
         }
       }
 

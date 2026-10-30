@@ -141,6 +141,34 @@ export const PresupuestoAgenteController = {
     }
   },
 
+  // ── Ritmo de venta día por día ───────────────────────────────
+  // GET /presupuesto_agente/mi-ritmo-diario   (agente logueado — JWT)
+  getMiRitmoDiario: async (req: AuthedRequest, res: Response) => {
+    try {
+      const data = await PresupuestoAgenteService.getMiRitmoDiario(req.user!.id_referencia_persona);
+      res.status(200).json(data);
+    } catch (error: any) {
+      console.error('Error al obtener mi ritmo diario:', error);
+      res.status(error.status || 500).json({ message: error.message || 'Error interno del servidor' });
+    }
+  },
+
+  // GET /presupuesto_agente/ritmo-diario/:id_agente?mes=5&anio=2026
+  getRitmoDiario: async (req: Request, res: Response) => {
+    try {
+      const { id_agente } = req.params;
+      const { mes, anio } = req.query as { mes?: string; anio?: string };
+      if (!mes || !anio) {
+        res.status(400).json({ message: 'mes y anio son requeridos' });
+        return;
+      }
+      res.status(200).json(await PresupuestoAgenteService.getRitmoDiario(id_agente, Number(mes), Number(anio)));
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ message: 'Error al obtener el ritmo diario' });
+    }
+  },
+
   // ── Detalle (facturas + remisiones) del vendido de un agente ─
   // GET /presupuesto_agente/detalle-vendido/:id_agente?mes=5&anio=2026
   getDetalleVendido: async (req: Request, res: Response) => {

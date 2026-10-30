@@ -13,6 +13,8 @@ export interface LineaEtiquetaTarima {
     nombre:     string;
     cantidad:   number;
     cajasCount: number;
+    /** Piezas de cada caja cuando no son todas iguales (si viene, manda sobre cantidad / cajasCount) */
+    cajas?:     number[];
 }
 
 export interface DatosEtiquetaTarima {
@@ -54,18 +56,20 @@ export async function generarPdfEtiquetasTarima(datos: DatosEtiquetaTarima): Pro
     }> = [];
 
     for (const linea of datos.lineas) {
-        const cajas       = Math.max(1, linea.cajasCount);
-        const pzasPorCaja = linea.cantidad / cajas;
-        for (let caja = 1; caja <= cajas; caja++) {
+        // Cada caja con sus piezas: las que se indicaron una por una, o todas iguales (cantidad / cajas)
+        const tamanos = Array.isArray(linea.cajas) && linea.cajas.length > 0
+            ? linea.cajas.map(n => Number(n) || 0)
+            : Array(Math.max(1, linea.cajasCount)).fill(linea.cantidad / Math.max(1, linea.cajasCount));
+        tamanos.forEach((pzasPorCaja, idx) => {
             for (let i = 0; i < 3; i++) {
                 etiquetas.push({
                     nombre_tarima: linea.nombre,
                     pzas_por_caja: pzasPorCaja,
-                    num_caja:      caja,
-                    total_cajas:   cajas,
+                    num_caja:      idx + 1,
+                    total_cajas:   tamanos.length,
                 });
             }
-        }
+        });
     }
 
     // QR solo contiene el código de barras

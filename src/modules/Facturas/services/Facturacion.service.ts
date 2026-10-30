@@ -26,6 +26,7 @@ import {
 import {
     RFC_PUBLICO_GENERAL,
     detectarPublicoGeneral,
+    esClienteAbarrotes,
     buildDescripcionConcepto,
     calcularTotales,
     particionarConceptos,
@@ -44,6 +45,7 @@ import Trabajo_Impresion from '../../Impresiones/model/Trabajo_Impresion';
 import Impresora from '../../Impresiones/model/Impresora';
 import FacturaPagoCFDI from '../model/Factura_Pago_CFDI.model';
 import { Stock_Ubicacion_LoteRepository } from '../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository';
+import { exigirLotesAsignados } from '../../Almacen/Pedido/helpers/cantidadesFacturables';
 import Pedido_Almacen from '../../Almacen/Pedido/model/Pedido_Almacen';
 import Stock_Ubicacion_Lote from '../../Inventario/Stock/model/Stock_Ubicacion_Lote';
 import Kardex_Movimientos_Articulos from '../../Almacen/Kardex/model/Kardex_Movimientos_Articulos';
@@ -331,6 +333,7 @@ export const FacturacionService = {
                 esPublicoGeneral,
             }, t);
 
+            await exigirLotesAsignados(cab.id_pedido_alm, t);
             await Stock_Ubicacion_LoteRepository.descontarStockPorPedido(cab.id_pedido_alm, t);
             await Kardex_Movimiento_ArticuloRepository.registrarSalidaPorFactura({
                 id_pedido_alm: cab.id_pedido_alm,
@@ -491,6 +494,7 @@ export const FacturacionService = {
                 }
             }
 
+            await exigirLotesAsignados(cab.id_pedido_alm, t);
             await Stock_Ubicacion_LoteRepository.descontarStockPorPedido(cab.id_pedido_alm, t);
             await Kardex_Movimiento_ArticuloRepository.registrarSalidaPorFactura({
                 id_pedido_alm: cab.id_pedido_alm,
@@ -1076,6 +1080,7 @@ export const FacturacionService = {
             }, t);
             id_factura = factura.id_factura;
 
+            await exigirLotesAsignados(cab.id_pedido_alm, t);
             await Stock_Ubicacion_LoteRepository.descontarStockPorPedido(cab.id_pedido_alm, t);
             await Kardex_Movimiento_ArticuloRepository.registrarSalidaPorFactura({
                 id_pedido_alm: cab.id_pedido_alm,
@@ -1937,6 +1942,13 @@ export const FacturacionService = {
         if (!factura) throw new Error('Factura no encontrada');
         if (factura.estatus_factura === 'CAN') throw new Error('La factura está cancelada');
 
+        const clienteFactura = factura.id_cliente_alm
+            ? await Cliente_Almacen.findByPk(factura.id_cliente_alm, { attributes: ['nom_corto_cliente_alm'] })
+            : null;
+        if (esClienteAbarrotes(clienteFactura?.nom_corto_cliente_alm)) {
+            throw new Error('Las facturas de clientes de abarrotes no se pueden reintentar ni refoliar.');
+        }
+
         if (forzarNuevoFolio) {
             if (factura.estatus_factura === 'TIM') throw new Error('La factura ya está timbrada, no se le puede cambiar el folio');
             const nuevoFolio = await FacturacionRepository.getSiguienteFolio();
@@ -2374,6 +2386,71 @@ export const FacturacionService = {
         }
 
         return { buffer: fs.readFileSync(pdfPath), nombre: `${cfdi.serie}${cfdi.folio}_SAT.pdf` };
+    },
+
+    // ── PDF de una nota de crédito (egreso) con un renglón por artículo devuelto ──
+    // El CFDI timbrado lleva un concepto genérico ("Por Devolucion de Mercancia"). Este PDF es solo para
+    // imprimir/enviar: toma el XML timbrado (encabezado, totales, sellos y QR quedan idénticos) y sustituye
+    // los conceptos por los renglones devueltos que quedaron registrados en detalle_factura.
+    generarPdfEgresoDetallado: async (id_factura: string): Promise<{ buffer: Buffer; nombre: string }> => {
+        const factura = await Facturas.findByPk(id_factura);
+        if (!factura) throw new Error('Factura no encontrada.');
+        if (factura.tipo_cfdi !== 'E') throw new Error('Solo aplica a facturas de egreso (devoluciones).');
+        if (!factura.xml_url || !fs.existsSync(factura.xml_url)) {
+            throw new Error('Este egreso aún no tiene su XML timbrado; no se puede generar el PDF con renglones.');
+        }
+
+        const filas = await dbLocal.query<{
+            descripcion: string; cantidad: string; precio: string; importe: string; tasa_iva: string; importe_iva: string;
+            cve_sat: string | null; sat_medida: string | null; desc_medida: string | null; cod: string | null;
+        }>(`
+            SELECT
+                df.descripcion_articulo AS descripcion,
+                df.cantidad_facturada   AS cantidad,
+                df.precio_artic         AS precio,
+                df.subtotal             AS importe,
+                df.tasa_iva,
+                df.importe_iva,
+                a.satclave_artic        AS cve_sat,
+                um.sat_medida,
+                um.descrip_medida       AS desc_medida,
+                COALESCE(NULLIF(a.cod_barr_artic, ''), a.cod_int_artic::text) AS cod
+            FROM detalle_factura df
+            LEFT JOIN articulo     a  ON a.id_artic   = df.id_articulo
+            LEFT JOIN unidadmedida um ON um.id_medida = a.unidmedi_artic
+            WHERE df.id_factura = :id_factura
+            ORDER BY df.descripcion_articulo
+        `, { replacements: { id_factura }, type: QueryTypes.SELECT });
+        if (!filas.length) throw new Error('Este egreso no tiene renglones de artículos registrados.');
+
+        const cfdi = parseCfdiXml(fs.readFileSync(factura.xml_url, 'utf-8'));
+        const base = cfdi.conceptos[0];
+        cfdi.conceptos = filas.map(f => {
+            const descripcion = f.descripcion ?? '';
+            return {
+                claveProdServ: f.cve_sat ?? base?.claveProdServ ?? '84111506',
+                noIdentificacion: f.cod ?? '001',
+                cantidad: Number(f.cantidad) || 0,
+                claveUnidad: f.sat_medida ?? base?.claveUnidad ?? 'ACT',
+                unidad: f.desc_medida ?? base?.unidad ?? '',
+                descripcion,
+                descripcionLimpia: descripcion,
+                lotesRaw: '',
+                lote: '',
+                fechaCad: '',
+                pzas: '',
+                valorUnitario: Number(f.precio) || 0,
+                importe: Number(f.importe) || 0,
+                ivaBase: Number(f.importe) || 0,
+                ivaImporte: Number(f.importe_iva) || 0,
+                tasaIva: Number(f.tasa_iva) || 0,
+            };
+        });
+
+        const pdfPath = require('path').join(RUTA_PDFS, `${cfdi.serie}${cfdi.folio}_${cfdi.uuid}_DEV.pdf`);
+        await generarPdfDesdeCfdi(cfdi, pdfPath, process.env.LOGO_EMPRESA_PATH ?? undefined, undefined, 'detalle_sat');
+
+        return { buffer: fs.readFileSync(pdfPath), nombre: `${cfdi.serie}${cfdi.folio}_DEV.pdf` };
     },
 };
 

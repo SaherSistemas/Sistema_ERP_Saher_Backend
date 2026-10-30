@@ -184,6 +184,13 @@ export const TrabajoImpresionService = {
 
             // Ubicación del artículo en anaquel: su ubicación por defecto (estantería antes que tarima)
             let ubicacion_anaquel: string | null = null;
+            // La web manda solo nombre y código de barras: si no viene el id del artículo, se busca por código de barras
+            if (!art.id_artic && String(art.cod_barr_artic ?? '').trim()) {
+                const [a] = await dbLocal.query<any>(
+                    `SELECT id_artic FROM articulo WHERE TRIM(cod_barr_artic) = :cod LIMIT 1`,
+                    { replacements: { cod: String(art.cod_barr_artic).trim() }, type: QueryTypes.SELECT });
+                if (a) art.id_artic = a.id_artic;
+            }
             if (art.id_artic) {
                 const [ub] = await dbLocal.query<any>(`
                     SELECT u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub, u.tarima_ub, u.tipo_ubicacion::text AS tipo_ubicacion

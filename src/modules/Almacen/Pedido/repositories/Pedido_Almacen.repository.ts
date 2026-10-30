@@ -21,7 +21,23 @@ import Pedido_Almacen_Empaque from '../../Empaque/model/Pedido_Almacen_Empaque';
 import { Bulto_Pedido } from '../../Empaque/model/Bulto_Pedido';
 import { Entrega_Pedido } from '../../Empaque/model/Entrega_Pedido';
 import { Entrega_Pedido_Detalle } from '../../Empaque/model/Entrega_Pedido_Detalle';
+import { ConfiguracionService } from '../../../Configuracion/services/Configuracion.service';
 
+// Orden de los pedidos por surtir (la lista y el pedido que asigna "Tomar Pedido").
+// Con la regla "surtido_prioridad_agentes" activa: primero los de agente (AGE), como era antes, y luego por fecha.
+// Apagada: primero lo vencido (entrega máxima ya pasada) y dentro de cada grupo los de agente primero, luego por fecha.
+async function ordenPorSurtir(): Promise<any[]> {
+  const regla = await ConfiguracionService.getByClave('surtido_prioridad_agentes').catch(() => ({ valor: 'false' }));
+  const agentesPrimero = String(regla.valor).toLowerCase() === 'true';
+  return [
+    ...(agentesPrimero
+      ? []
+      : [[literal(`CASE WHEN "Pedido_Almacen"."fecha_max_entrega_alm" < NOW() THEN 0 ELSE 1 END`), 'ASC']]),
+    [literal(`CASE WHEN "Pedido_Almacen"."tipo_pedido_alm" = 'AGE' THEN 0 ELSE 1 END`), 'ASC'],
+    ['fecha_max_entrega_alm', 'ASC'],
+    ['cod_int_pedido_alm', 'ASC'],
+  ];
+}
 
 export const Pedido_AlmacenRepository = {
   /*EMPACADO */
@@ -186,13 +202,11 @@ export const Pedido_AlmacenRepository = {
   },
   getPedidoMasUrgentePorSurtir: async () => {
     const row = await Pedido_Almacen.findOne({
-      where: { status_pedido_alm: 'CA' },
+      // Solo pedidos que nadie ha empezado a surtir (igual que la lista de pendientes): si no, una segunda petición
+      // volvía a elegir el mismo pedido y lo asignaba otra vez
+      where: { status_pedido_alm: 'CA', inicio_surtido: null },
       attributes: ['id_pedido_alm'],
-      order: [
-        [literal(`CASE WHEN "Pedido_Almacen"."tipo_pedido_alm" = 'AGE' THEN 0 ELSE 1 END`), 'ASC'],
-        ['fecha_max_entrega_alm', 'ASC'],
-        ['cod_int_pedido_alm', 'ASC'],
-      ],
+      order: await ordenPorSurtir(),
       raw: true
     });
 
@@ -218,16 +232,7 @@ export const Pedido_AlmacenRepository = {
           ]
         }
       ],
-      order: [
-        // 1) Prioridad: AGE primero
-        [literal(`CASE WHEN "Pedido_Almacen"."tipo_pedido_alm" = 'AGE' THEN 0 ELSE 1 END`), 'ASC'],
-
-        // 2) Dentro de cada grupo, por fecha máxima
-        ['fecha_max_entrega_alm', 'ASC'],
-
-        // 3) Desempate opcional (por si hay mismas fechas)
-        ['cod_int_pedido_alm', 'ASC'],
-      ],
+      order: await ordenPorSurtir(),
 
     });
   },
@@ -385,7 +390,76 @@ export const Pedido_AlmacenRepository = {
     return true;
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // PROVISIONAL — buscar un artículo (código de barras, código interno o nombre) para ver en qué pedidos salió
+  buscarArticulosParaPedidos: async (q: string) => {
+    const t = (q ?? '').trim();
+    if (t.length < 2) return [];
+    return await dbLocal.query<any>(`
+      SELECT id_artic, cod_int_artic, TRIM(cod_barr_artic) AS cod_barr_artic, des_artic
+      FROM articulo
+      WHERE TRIM(cod_barr_artic) = :t OR cod_int_artic::text = :t OR des_artic ILIKE :q
+      ORDER BY des_artic ASC
+      LIMIT 20`,
+      { replacements: { t, q: `%${t.replace(/\s+/g, '%')}%` }, type: QueryTypes.SELECT });
+  },
+
+  // PROVISIONAL — pedidos en los que va un artículo, con lo pedido, surtido (lotes), chequeado y la salida del kardex
+  getPedidosDeArticulo: async (params: {
+    id_articulo: string; fecha_inicio?: string; fecha_fin?: string; status?: string; solo_salidos?: boolean;
+  }) => {
+    const filtros: string[] = ['d.id_articulo = :id_articulo'];
+    const replacements: any = { id_articulo: params.id_articulo };
+    if (params.fecha_inicio && params.fecha_fin) {
+      filtros.push('p."createdAt" BETWEEN :ini AND :fin');
+      replacements.ini = new Date(`${params.fecha_inicio}T00:00:00.000`);
+      replacements.fin = new Date(`${params.fecha_fin}T23:59:59.999`);
+    }
+    if (params.status) { filtros.push('p.status_pedido_alm = :status'); replacements.status = params.status; }
+    if (params.solo_salidos) filtros.push('(COALESCE(c.chequeada, 0) > 0 OR COALESCE(k.salida, 0) > 0)');
+
+    const filas = await dbLocal.query<any>(`
+      SELECT p.id_pedido_alm, p.cod_int_pedido_alm, p.status_pedido_alm, p."createdAt" AS fecha,
+             p.fecha_facturado_pedido_alm AS fecha_facturado,
+             COALESCE(ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm) AS cliente,
+             d.cant_pedida,
+             COALESCE(l.surtida, 0)   AS surtidas,
+             COALESCE(c.chequeada, 0) AS chequeadas,
+             COALESCE(k.salida, 0)    AS kardex,
+             l.lotes
+      FROM detalle_pedido_almacen d
+      JOIN pedido_almacen p ON p.id_pedido_alm = d.id_pedido_almacen
+      LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = p.id_cliente_pedido_alm
+      LEFT JOIN LATERAL (
+        SELECT SUM(x.cantidad) AS surtida,
+               STRING_AGG(TRIM(las.numero_lote_sucursal) || ' ×' || x.cantidad, ', ') AS lotes
+        FROM detalle_pedido_almacen_lote x
+        LEFT JOIN lote_articulo_sucursal las ON las.id_lote_sucursal = x.id_lote_sucursal
+        WHERE x.id_detalle_pedido_almacen = d.id_detalle_pedido_almacen) l ON true
+      LEFT JOIN LATERAL (SELECT SUM(x.cant_chequeada) AS chequeada FROM detalle_pedido_almacen_chequeo x
+                         WHERE x.id_detalle_pedido_almacen = d.id_detalle_pedido_almacen AND x.estado <> 'CANCELADO') c ON true
+      LEFT JOIN LATERAL (SELECT SUM(kx.cantidad_movimiento) AS salida FROM kardex_movimientos_articulos kx
+                         WHERE kx.id_pedido = d.id_pedido_almacen AND kx.id_articulo = d.id_articulo
+                           AND kx.tipo_movimiento = 'VENTA') k ON true
+      WHERE ${filtros.join(' AND ')}
+      ORDER BY p."createdAt" DESC
+      LIMIT 500`,
+      { replacements, type: QueryTypes.SELECT });
+
+    return filas.map(f => ({
+      id_pedido_alm: f.id_pedido_alm,
+      cod_int_pedido_alm: f.cod_int_pedido_alm,
+      status: f.status_pedido_alm,
+      fecha: f.fecha,
+      fecha_facturado: f.fecha_facturado ?? null,
+      cliente: String(f.cliente ?? '').trim(),
+      pedidas: Number(f.cant_pedida) || 0,
+      surtidas: Number(f.surtidas) || 0,
+      chequeadas: Number(f.chequeadas) || 0,
+      kardex: Number(f.kardex) || 0,
+      lotes: f.lotes ?? '',
+    }));
+  },
+
   // GESTIÓN — lista con rango de fechas, status y búsqueda
   // ══════════════════════════════════════════════════════════════════════════
   getListaGestion: async (params: {

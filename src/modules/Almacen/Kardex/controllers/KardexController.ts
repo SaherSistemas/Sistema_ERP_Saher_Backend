@@ -58,6 +58,19 @@ export const KardexController = {
         }
     },
 
+    obtenerMovimientosInternos: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa = String(req.user?.id_empresa || '').trim();
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+            const fecha_inicio = String(req.query.fecha_inicio || '').trim() || undefined;
+            const fecha_fin = String(req.query.fecha_fin || '').trim() || undefined;
+            res.status(200).json(await KardexService.getMovimientosInternos(id_empresa, req.params.id_articulo, fecha_inicio, fecha_fin));
+        } catch (e: any) {
+            console.error('[KardexController.obtenerMovimientosInternos]', e);
+            res.status(400).json({ message: e.message ?? 'Error al consultar los movimientos.' });
+        }
+    },
+
     obtenerMovimientos: async (req: AuthedRequest, res: Response) => {
         try {
             const id_empresa = String(req.user?.id_empresa || req.query.id_empresa || '').trim();
