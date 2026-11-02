@@ -16,6 +16,9 @@ router.get('/agente/:id_empleado', Cliente_AlmacenController.getAllByUsuarioAgen
 // GET saldos por cliente (antes de /:id_cliente_alm para que no lo capture como param)
 router.get('/saldos', Cliente_AlmacenController.getSaldos);
 
+// GET siguiente código interno (máximo + 1) — antes de /:id_cliente_alm; si no, ese param lo captura
+router.get('/ultimoID', Cliente_AlmacenController.ultimoID);
+
 // GET por ID flexible (UUID o ID interno) — va al final para no capturar las rutas estáticas
 router.get('/:id_cliente_alm', Cliente_AlmacenController.getByIDFlexible);
 
@@ -34,7 +37,6 @@ router.patch('/:id_cliente_alm/limite-credito', authMiddleware, Cliente_AlmacenC
 // PATCH activar / desactivar
 router.patch('/estatus/:id_cliente_alm', Cliente_AlmacenController.toggleEstatus);
 
-router.get('/ultimoID', Cliente_AlmacenController.ultimoID);
 // DELETE baja lógica o física
 //router.delete('/:id_cliente_alm', Cliente_AlmacenController.delete);
 

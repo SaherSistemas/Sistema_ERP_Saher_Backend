@@ -105,6 +105,18 @@ class Pedido_Almacen extends Model {
   @BelongsTo(() => Empleado)
   declare empleado_vale: Empleado;
 
+  // Vale que el empleado paga al momento: no cuenta para el límite de la quincena ni para su deuda,
+  // y al entregarse pasa directo a Pendiente de Facturar (PF). La columna se crea sola al arrancar (server.ts).
+  @Default(false)
+  @AllowNull(false)
+  @Column(DataType.BOOLEAN)
+  declare vale_pagado: boolean;
+
+  // Comentario libre que se escribe al crear el vale (ej. cómo/por qué se pagó, a quién se entrega)
+  @AllowNull(true)
+  @Column(DataType.TEXT)
+  declare comentario_vale: string | null;
+
   @AllowNull(true)
   @ForeignKey(() => Cat_Paqueteria)
   @Column(DataType.UUID)

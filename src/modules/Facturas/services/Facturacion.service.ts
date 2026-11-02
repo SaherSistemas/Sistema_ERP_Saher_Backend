@@ -223,6 +223,31 @@ const numeroPedidoPoly = (cod?: string | null): number | null => {
     return m ? Number(m[1]) : null;
 };
 
+// Cuando un pedido pasa del límite por factura se parte en varias facturas (una por "bucket"). Al volver a armar el
+// .txt de UNA de ellas hay que usar solo SUS renglones (los de su detalle_factura), no todos los del pedido: si no,
+// cada factura sale con el total completo del pedido. Una factura sin partir lleva todos los conceptos, así que
+// ahí no cambia nada. Los renglones se emparejan por artículo + precio; el chequeo sigue dando cantidades y lotes.
+async function conceptosDeLaFactura(id_factura: string, conceptosPedido: ConceptoFacturacion[]): Promise<ConceptoFacturacion[]> {
+    const renglones = await Detalle_Factura.findAll({
+        where: { id_factura },
+        attributes: ['id_articulo', 'precio_artic'],
+        raw: true,
+    }) as any[];
+    if (!renglones.length) return conceptosPedido; // factura sin detalle guardado (antigua): se comporta como antes
+
+    const usados = new Set<number>();
+    const propios: ConceptoFacturacion[] = [];
+    for (const r of renglones) {
+        const precio = Number(r.precio_artic);
+        let idx = conceptosPedido.findIndex((c, i) => !usados.has(i) && c.id_articulo === r.id_articulo
+            && Math.abs(Number(c.precio_unitario) - precio) < 0.005);
+        if (idx < 0) idx = conceptosPedido.findIndex((c, i) => !usados.has(i) && c.id_articulo === r.id_articulo);
+        if (idx >= 0) { usados.add(idx); propios.push(conceptosPedido[idx]); }
+    }
+    if (!propios.length) throw new Error('No se encontraron los conceptos de esta factura entre los artículos chequeados del pedido.');
+    return propios;
+}
+
 export const FacturacionService = {
 
     // ── Genera .txt de Ingreso (timbrado manual con facturador externo) ───────
@@ -372,10 +397,14 @@ export const FacturacionService = {
 
         let autorizador: { usuario: string; id_user: string | null } | null = null;
         if (forzar_credito) {
-            if (!usuario_admin || !password_admin) {
-                throw new Error('Se requieren credenciales de administrador para omitir el límite de crédito.');
+            if (dto.autorizador) {
+                autorizador = dto.autorizador;
+            } else {
+                if (!usuario_admin || !password_admin) {
+                    throw new Error('Se requieren credenciales de administrador para omitir el límite de crédito.');
+                }
+                autorizador = await verificarAdmin(usuario_admin, password_admin);
             }
-            autorizador = await verificarAdmin(usuario_admin, password_admin);
         }
 
         const [cab, conceptos] = await Promise.all([
@@ -1968,13 +1997,16 @@ export const FacturacionService = {
 
             if (!factura.id_pedido_alm) throw new Error('La factura no tiene pedido asociado');
 
-            const [cab, conceptos] = await Promise.all([
+            const [cab, conceptosPedido] = await Promise.all([
                 FacturacionRepository.getCabecera(factura.id_pedido_alm, id_empresa),
                 FacturacionRepository.getConceptos(factura.id_pedido_alm),
             ]);
-            if (!conceptos.length) throw new Error('La factura no tiene conceptos registrados');
+            if (!conceptosPedido.length) throw new Error('La factura no tiene conceptos registrados');
 
             const esPublicoGeneral = detectarPublicoGeneral(cab.rfc_cliente, cab.nom_empre_receptor);
+            // Factura partida (varias del mismo pedido): este .txt lleva solo los renglones de ESTA factura.
+            // Público General no se parte (una sola remisión), así que conserva todos los conceptos del pedido.
+            const conceptos = esPublicoGeneral ? conceptosPedido : await conceptosDeLaFactura(id_factura, conceptosPedido);
             const folio = Number(factura.folio_factura);
 
             const emisor: EmisorTxt = {

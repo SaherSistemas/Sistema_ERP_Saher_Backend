@@ -57,6 +57,7 @@ import parametos_CompraRouter from '../modules/Compras/Ordenes-Compra/routes/par
 import comprasRouter from '../modules/Compras/Ordenes-Compra/routes/ComprasGeneralRouter';
 import comprasProveedorRouter from '../modules/Compras/Ordenes-Compra/routes/ComprasProveedorRouter';
 import comprasVencidasRouter from '../modules/Compras/Ordenes-Compra/routes/ComprasVencidasRouter';
+import comprasNegadosRouter from '../modules/Compras/Ordenes-Compra/routes/ComprasNegadosRouter';
 import detalle_CompraRouter from '../modules/Compras/Ordenes-Compra/routes/detalle_CompraRouter';
 import compraDirectaRouter from '../modules/Compras/CompraDirecta/route/CompraDirecta.route';
 
@@ -135,6 +136,7 @@ import uploadsRouter from '../modules/Uploads/routes/UploadsRouter';
 import almacenRouter from '../modules/Almacen/router'
 import facturacionRouter from '../modules/Facturas/routes/FacturacionRouter'
 import valesRouter from '../modules/Vales/routes/Vale.router'
+import autorizacionesRouter from '../modules/Facturas/routes/AutorizacionesRouter'
 
 import comercialRouter from '../modules/Comercial/router'
 import devolucionClienteRouter from '../modules/Comercial/Devoluciones_Cliente/routes/Devolucion_Cliente.router'
@@ -207,6 +209,7 @@ router.use('/parametros_compra', parametos_CompraRouter);
 router.use('/compras', comprasRouter);
 router.use('/compras_proveedor', comprasProveedorRouter);
 router.use('/compras_vencidas', comprasVencidasRouter);
+router.use('/compras_negados', comprasNegadosRouter);
 router.use('/compras/detalle_compra', detalle_CompraRouter);
 router.use('/compras/directa', compraDirectaRouter);
 
@@ -287,6 +290,7 @@ router.use('/almacen', almacenRouter)
 router.use('/inventario', inventarioRouter)
 router.use('/facturas', facturacionRouter)
 router.use('/vales', valesRouter)
+router.use('/autorizaciones', autorizacionesRouter)
 
 router.use('/comercial', comercialRouter)
 router.use('/devolucion_cliente', devolucionClienteRouter)

@@ -41,6 +41,9 @@ import { FacturacionService } from '../../../Facturas/services/Facturacion.servi
 import { compararUbicacionesSurtido } from '../helpers/ordenSurtido';
 
 
+// Diferencia mínima (en pesos, por pieza) para que un aumento de precio requiera autorización de un administrador
+const UMBRAL_CAMBIO_PRECIO = 2;
+
 // ── Helper: compara el precio de cada línea del pedido contra una lista de precios ──
 // Solo lee. Estados: CAMBIA (precio distinto), IGUAL, OFERTA (conserva su precio promocional)
 // y SIN_PRECIO (el artículo no tiene precio en esa lista; queda como estaba).
@@ -1342,7 +1345,7 @@ export const Pedido_AlmacenService = {
 
     const detalles = await Detalle_Pedido_Almacen.findAll({
       where: { id_pedido_almacen: id_pedido_alm },
-      attributes: ['id_detalle_pedido_almacen', 'precio_venta', 'id_articulo', 'cant_pedida'],
+      attributes: ['id_detalle_pedido_almacen', 'precio_venta', 'id_articulo', 'cant_pedida', 'es_oferta'],
       include: [{
         model: Articulo,
         as: 'articulo',
@@ -1372,12 +1375,16 @@ export const Pedido_AlmacenService = {
       const plain = det.toJSON ? det.toJSON() : det;
       const idArticulo = plain.articulo?.id_artic ?? plain.id_articulo;
       if (!idArticulo) continue;
+      // Una oferta conserva su precio promocional: no es un "cambio de precio" por autorizar
+      if (plain.es_oferta) continue;
 
       const pActual = mapaPrecios.get(idArticulo);
       if (pActual === undefined) continue;
 
       const pVenta = Number(plain.precio_venta);
-      if (pVenta < pActual) {
+      // Solo cuenta si el precio subió MÁS de $2 por pieza (aunque sea en un solo renglón). Diferencias de
+      // $2 o menos se facturan con el precio capturado, sin pedir autorización.
+      if (+(pActual - pVenta).toFixed(2) > UMBRAL_CAMBIO_PRECIO) {
         resultado.push({
           id_detalle_pedido_almacen: plain.id_detalle_pedido_almacen,
           des_artic: plain.articulo?.des_artic ?? '',
@@ -2858,9 +2865,12 @@ export const Pedido_AlmacenService = {
         cod_pedido: pedido.cod_int_pedido_alm,
         t,
       });
-      await pedido.update({ status_pedido_alm: 'EN' }, { transaction: t });
+      // Vale pagado por el empleado: ya no hay nada que descontarle en nómina, así que al entregarse
+      // pasa directo a Pendiente de Facturar (PF) en vez de quedar como entregado con deuda.
+      const statusFinal = (pedido as any).vale_pagado ? 'PF' : 'EN';
+      await pedido.update({ status_pedido_alm: statusFinal }, { transaction: t });
       await t.commit();
-      return { ok: true };
+      return { ok: true, status: statusFinal };
     } catch (err) {
       await t.rollback();
       throw err;

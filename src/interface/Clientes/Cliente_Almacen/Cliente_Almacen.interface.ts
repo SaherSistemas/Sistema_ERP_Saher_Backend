@@ -23,6 +23,8 @@ export interface IClienteAlmacen {
 }
 
 export interface ICreateClienteAlmacen {
+  /** Opcional: si viene, se usa ese código (si está libre); si no, el máximo + 1 */
+  id_interno_cliente_alm?: number | string | null;
   razon_social_cliente_alm: string;
   nom_corto_cliente_alm: string;
   nombre_cliente_alm: string;

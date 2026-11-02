@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { QueryTypes } from 'sequelize';
 import { dbLocal } from '../../../config/db';
 import type { AuthedRequest } from '../../../middleware/auth';
+import { CodigoInternoError } from '../../../repository/Clientes/Cliente_Almacen/Cliente_Almacen.repository';
 import { Cliente_AlmacenService } from '../../../services/Clientes/Cliente_Almacen/cliente_Almacen.service';
 
 export class Cliente_AlmacenController {
@@ -73,6 +74,11 @@ export class Cliente_AlmacenController {
       const nuevo = await Cliente_AlmacenService.create(data);
       res.status(201).json(nuevo);
     } catch (error) {
+      // Código interno inválido u ocupado: se le dice a la persona el motivo
+      if (error instanceof CodigoInternoError) {
+        res.status(error.status).json({ mensaje: error.message });
+        return;
+      }
       res.status(500).json({ mensaje: 'Error al crear cliente.' });
     }
   };

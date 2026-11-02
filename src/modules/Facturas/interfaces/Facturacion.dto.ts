@@ -6,6 +6,9 @@ export interface IGenerarFacturaDTO {
     forzar_credito?:  boolean; // true = omitir validación de límite de crédito (requiere admin)
     usuario_admin?:   string;
     password_admin?:  string;
+    // Administrador que ya autorizó por una solicitud remota (web). Solo lo pone el controlador, después
+    // de validar la solicitud: no viene del body. Sustituye a usuario_admin/password_admin.
+    autorizador?:     { usuario: string; id_user: string | null };
 }
 
 export interface IDetalleEgresoDTO {

@@ -8,6 +8,13 @@ import Empleado from '../../../modules/RRHH/model/Empleado';
 import { dbLocal } from '../../../config/db';
 import { QueryTypes } from 'sequelize';
 
+// id_interno_cliente_alm es SMALLINT en la base
+const CODIGO_INTERNO_MAX = 32767;
+
+export class CodigoInternoError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
 export const Cliente_AlmacenRepository = {
   // PAGINADO
   getAllPaginado: async (limit: number, offset: number) => {
@@ -132,23 +139,53 @@ export const Cliente_AlmacenRepository = {
     return ultimo_id_interno ? ultimo_id_interno.id_interno_cliente_alm : 0;
   },
   // CREATE
+  // Código interno: si lo capturan se usa ese (siempre que no esté ocupado); si no, el máximo + 1.
   create: async (data: ICreateClienteAlmacen) => {
-    const newUUID = uuidv4();
-    const siguienteIdInterno = await Cliente_AlmacenRepository.ultimoIdInterno();
-    const sig = siguienteIdInterno + 1;
-    return await Cliente_Almacen.create({
-      id_cliente_alm: newUUID,
-      id_interno_cliente_alm: sig,
-      ...data
-    });
+    const { id_interno_cliente_alm: capturado, ...resto } = data as ICreateClienteAlmacen & { id_interno_cliente_alm?: number | string | null };
+
+    let codigo: number;
+    const hayCodigo = capturado !== undefined && capturado !== null && String(capturado).trim() !== '';
+    if (hayCodigo) {
+      codigo = Number(capturado);
+      if (!Number.isInteger(codigo) || codigo < 1 || codigo > CODIGO_INTERNO_MAX) {
+        throw new CodigoInternoError(400, `El código interno debe ser un número entero entre 1 y ${CODIGO_INTERNO_MAX}.`);
+      }
+      const ocupado = await Cliente_Almacen.findOne({
+        where: { id_interno_cliente_alm: codigo },
+        attributes: ['nom_corto_cliente_alm', 'razon_social_cliente_alm'],
+      });
+      if (ocupado) {
+        throw new CodigoInternoError(409, `El código interno ${codigo} ya está ocupado por ${ocupado.nom_corto_cliente_alm || ocupado.razon_social_cliente_alm}.`);
+      }
+    } else {
+      codigo = (await Cliente_AlmacenRepository.ultimoIdInterno()) + 1;
+      if (codigo > CODIGO_INTERNO_MAX) {
+        throw new CodigoInternoError(409, `Ya no hay códigos internos disponibles (máximo ${CODIGO_INTERNO_MAX}). Captura uno libre a mano.`);
+      }
+    }
+
+    try {
+      return await Cliente_Almacen.create({
+        ...resto,
+        id_cliente_alm: uuidv4(),
+        id_interno_cliente_alm: codigo,
+      });
+    } catch (err: any) {
+      // Alguien más tomó el mismo código justo en este momento (restricción única en la base)
+      if (err?.name === 'SequelizeUniqueConstraintError') {
+        throw new CodigoInternoError(409, `El código interno ${codigo} ya está ocupado. ${hayCodigo ? 'Captura otro.' : 'Intenta de nuevo.'}`);
+      }
+      throw err;
+    }
   },
 
-  // UPDATE
+  // UPDATE (el código interno no se cambia desde aquí)
   update: async (id_cliente_alm: string, data: Partial<ICreateClienteAlmacen>) => {
     const cliente = await Cliente_Almacen.findByPk(id_cliente_alm);
     if (!cliente) return null;
 
-    await cliente.update(data);
+    const { id_interno_cliente_alm: _ignorado, ...resto } = data as Partial<ICreateClienteAlmacen> & { id_interno_cliente_alm?: unknown };
+    await cliente.update(resto);
     return cliente;
   }
 };

@@ -51,6 +51,8 @@ const totalValeSql = (alias: string) =>
       END)`;
 // Cuentan para el límite de la quincena todos los vales que llegaron a existir, estén cobrados o no
 const STATUS_NO_CUENTAN = `('EC', 'CO', 'NE', 'CN')`;
+// Vale pagado por el empleado al momento: no cuenta para el límite de la quincena ni para su deuda
+const NO_PAGADO = (alias: string) => `COALESCE(${alias}.vale_pagado, false) = false`;
 const fmtFechaCorta = (iso: string) => { const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
 
 export const ValeService = {
@@ -74,13 +76,14 @@ export const ValeService = {
             FROM pedido_almacen pa
             WHERE pa.id_pedido_alm IN (:ids)
               AND pa.origen_pedido = 'VALE'
+              AND ${NO_PAGADO('pa')}
               AND pa.status_pedido_alm IN ('CH', 'EN')
             GROUP BY pa.id_empleado_vale
         `, { type: QueryTypes.SELECT, replacements: { ids: ids_pedidos } });
 
         const [updated] = await Pedido_Almacen.update(
             { status_pedido_alm: 'PF' },
-            { where: { id_pedido_alm: { [Op.in]: ids_pedidos }, origen_pedido: 'VALE', status_pedido_alm: { [Op.in]: ['CH', 'EN'] } } }
+            { where: { id_pedido_alm: { [Op.in]: ids_pedidos }, origen_pedido: 'VALE', vale_pagado: false, status_pedido_alm: { [Op.in]: ['CH', 'EN'] } } }
         );
 
         // Descontar saldo de cada empleado involucrado
@@ -125,12 +128,17 @@ export const ValeService = {
         id_empleado: string;
         id_agente: string;
         id_empresa: string;
+        // true = el empleado lo paga al momento: no usa su crédito de quincena ni queda en su deuda
+        pagado?: boolean;
+        // Comentario opcional que queda guardado en el vale
+        comentario?: string;
         articulos: {
             id_articulo: string;
             cantidad: number;
             precio_unitario: number;
         }[];
     }, opts?: { id_empresa_stock?: string }) => {
+        const pagado = dto.pagado === true;
         const empleado = await Empleado.findByPk(dto.id_empleado);
         if (!empleado) throw new Error('Empleado no encontrado');
 
@@ -171,6 +179,8 @@ export const ValeService = {
 
         // Crédito de la QUINCENA actual: lo ya consumido en vales hechos del 1 al 15 (o del 16 al fin de mes),
         // estén cobrados o no. Al empezar otra quincena el límite se vuelve a tener completo.
+        // Un vale pagado no usa ese crédito, así que no se valida (ni cuenta lo ya consumido).
+        if (!pagado) {
         const [q] = await dbLocal.query<{ consumido: string; ini: string; fin: string; fecha_descuento: string }>(`
             SELECT COALESCE(SUM(${totalValeSql('pa')}), 0)              AS consumido,
                    ${iniQuincenaSql(HOY_SQL)}::text                     AS ini,
@@ -179,6 +189,7 @@ export const ValeService = {
             FROM pedido_almacen pa
             WHERE pa.id_empleado_vale = :id_empleado
               AND pa.origen_pedido = 'VALE'
+              AND ${NO_PAGADO('pa')}
               AND pa.status_pedido_alm NOT IN ${STATUS_NO_CUENTAN}
               AND ${fechaValeSql('pa')} BETWEEN ${iniQuincenaSql(HOY_SQL)} AND ${finQuincenaSql(HOY_SQL)}
         `, { type: QueryTypes.SELECT, replacements: { id_empleado: dto.id_empleado } });
@@ -189,8 +200,9 @@ export const ValeService = {
         if (totalVale > disponible) {
             throw new Error(
                 `El vale ($${totalVale.toFixed(2)}) supera el crédito disponible de esta quincena ($${Math.max(0, disponible).toFixed(2)}). ` +
-                `Límite por quincena: $${limite.toFixed(2)} · ya consumido del ${fmtFechaCorta(q.ini)} al ${fmtFechaCorta(q.fin)}: $${consumido.toFixed(2)}.`
+                `Límite por quincena: ${limite.toFixed(2)} · ya consumido del ${fmtFechaCorta(q.ini)} al ${fmtFechaCorta(q.fin)}: ${consumido.toFixed(2)}.`
             );
+        }
         }
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
@@ -217,6 +229,8 @@ export const ValeService = {
                 id_agente_pedido_alm: dto.id_agente,
                 origen_pedido: 'VALE',
                 id_empleado_vale: dto.id_empleado,
+                vale_pagado: pagado,
+                comentario_vale: String(dto.comentario ?? '').trim().slice(0, 500) || null,
             }, { transaction: t });
             await Pedido_AlmacenRepository.registrarCaptura(pedido.id_pedido_alm, t);
 
@@ -274,6 +288,7 @@ export const ValeService = {
             nombre_empleado: string;
             ap_pat_empleado: string;
             createdAt: string;
+            comentario_vale: string | null;
             subtotal_vale: string;
             iva_vale: string;
             total_vale: string;
@@ -285,6 +300,7 @@ export const ValeService = {
                 e.nombre_empleado,
                 e.ap_pat_empleado,
                 pa."createdAt",
+                pa.comentario_vale,
                 COALESCE(SUM(ROUND(dpac.cant_chequeada * dpa.precio_venta, 2)), 0) AS subtotal_vale,
                 COALESCE(SUM(ROUND(dpac.cant_chequeada * dpa.precio_venta * COALESCE(CAST(ti.porcentaje_iva AS NUMERIC), 0), 2)), 0) AS iva_vale,
                 -- Total a descontar al empleado = subtotal + IVA (lo mismo que lleva la factura)
@@ -303,7 +319,7 @@ export const ValeService = {
               AND pa.status_pedido_alm = 'PF'
               AND pa."createdAt"::date BETWEEN :fecha_inicio AND :fecha_fin
             GROUP BY pa.id_pedido_alm, pa.cod_int_pedido_alm, pa.status_pedido_alm,
-                     e.nombre_empleado, e.ap_pat_empleado, pa."createdAt"
+                     e.nombre_empleado, e.ap_pat_empleado, pa."createdAt", pa.comentario_vale
             ORDER BY pa."createdAt" ASC
         `, { type: QueryTypes.SELECT, replacements: { fecha_inicio, fecha_fin, id_empresa } });
 
@@ -346,6 +362,7 @@ export const ValeService = {
                 (SELECT COALESCE(SUM(${totalValeSql('q')}), 0)
                    FROM pedido_almacen q
                   WHERE q.id_empleado_vale = e.id_empleado AND q.origen_pedido = 'VALE'
+                    AND ${NO_PAGADO('q')}
                     AND q.status_pedido_alm NOT IN ${STATUS_NO_CUENTAN}
                     AND ${fechaValeSql('q')} BETWEEN ${iniQuincenaSql(HOY_SQL)} AND ${finQuincenaSql(HOY_SQL)}
                 ) AS consumido_quincena,
@@ -355,6 +372,7 @@ export const ValeService = {
             FROM empleado e
             LEFT JOIN pedido_almacen pa ON pa.id_empleado_vale = e.id_empleado
                 AND pa.origen_pedido = 'VALE'
+                AND ${NO_PAGADO('pa')}
                 AND pa.status_pedido_alm IN ('CA', 'SU', 'CH', 'EM', 'EN')
                 ${fecha_inicio ? `AND ${fechaValeSql('pa')} >= :fecha_inicio` : ''}
                 ${fecha_fin    ? `AND ${fechaValeSql('pa')} <= :fecha_fin`    : ''}
@@ -376,6 +394,7 @@ export const ValeService = {
             cod_int_pedido_alm: string;
             status_pedido_alm:  string;
             createdAt:          string;
+            comentario_vale:    string | null;
             total:              string;
             id_detalle:         string;
             descripcion:        string;
@@ -389,6 +408,7 @@ export const ValeService = {
                 pa.cod_int_pedido_alm,
                 pa.status_pedido_alm,
                 pa."createdAt",
+                pa.comentario_vale,
                 ${totalValeSql('pa')} AS total,
                 dpa.id_detalle_pedido_almacen AS id_detalle,
                 a.des_artic                   AS descripcion,
@@ -405,6 +425,7 @@ export const ValeService = {
             LEFT JOIN tipo_iva ti            ON ti.id_iva = a.tipo_de_iva
             WHERE pa.id_empleado_vale = :id_empleado
               AND pa.origen_pedido    = 'VALE'
+              AND ${NO_PAGADO('pa')}
               -- Cancelados y negados no son vales activos: no se cobran, no deben salir con importe
               AND pa.status_pedido_alm NOT IN ('FA', 'CN', 'NE')
               ${fecha_inicio ? `AND ${fechaValeSql('pa')} >= :fecha_inicio` : ''}
@@ -416,6 +437,7 @@ export const ValeService = {
         const map = new Map<string, {
             id_pedido_alm: string; cod_int_pedido_alm: string;
             status_pedido_alm: string; createdAt: string; total: string; fecha_descuento: string;
+            comentario_vale: string | null;
             articulos: { descripcion: string; cant_pedida: number; precio_venta: number; tasa_iva: number }[];
         }>();
         for (const r of rows) {
@@ -427,6 +449,7 @@ export const ValeService = {
                     createdAt:          r.createdAt,
                     total:              r.total,
                     fecha_descuento:    r.fecha_descuento,
+                    comentario_vale:    r.comentario_vale,
                     articulos: [],
                 });
             }

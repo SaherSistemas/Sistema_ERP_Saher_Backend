@@ -542,7 +542,7 @@ export const Pedido_AlmacenRepository = {
       where,
       attributes: [
         'id_pedido_alm', 'cod_int_pedido_alm', 'status_pedido_alm', 'tipo_pedido_alm',
-        'origen_pedido', 'createdAt', 'inicio_surtido', 'fecha_max_entrega_alm', 'fecha_entrega_al_cliente',
+        'origen_pedido', 'vale_pagado', 'comentario_vale', 'createdAt', 'inicio_surtido', 'fecha_max_entrega_alm', 'fecha_entrega_al_cliente',
         'fecha_facturado_pedido_alm',
         // Cuándo pasó a Capturado (null en pedidos anteriores a este campo: ahí se usa createdAt)
         ['fecha_capturado_alm', 'fecha_capturado'],
