@@ -5,7 +5,6 @@ import Cuenta_Por_Cobrar from '../model/Cuenta_Por_Cobrar.model';
 import Cliente_Almacen from '../../../../models/Clientes/Cliente_Almacen/Cliente_Almacen';
 import Remision from '../../Remisiones/model/Remision.model';
 import Facturas from '../../../Facturas/model/Facturas.model';
-import Autorizacion_Credito from '../../../Facturas/model/Autorizacion_Credito.model';
 
 interface ICreateCxC {
     id_cliente_alm: string;
@@ -14,15 +13,6 @@ interface ICreateCxC {
     dias_credito: number;
     id_factura?: string;     // flujo normal
     id_remision?: string;    // flujo Público General
-    forzar_credito?: boolean; // true = saltar validación de límite
-    // Quién autorizó saltar el límite (para la bitácora de créditos autorizados)
-    autorizacion?: {
-        usuario_autoriza: string;
-        id_usuario_autoriza: string | null;
-        id_empleado_solicita: string | null;
-        id_pedido_alm: string;
-        id_factura: string | null;
-    };
 }
 
 export const CxCRepository = {
@@ -182,45 +172,11 @@ export const CxCRepository = {
             throw new Error('Se requiere id_factura o id_remision para crear una CxC');
         }
 
-        // ── Validación de límite de crédito ──────────────────────────────────
-        // Aplica siempre — todos los clientes tienen límite y días de crédito.
-        // La deuda es con el cliente real sin importar si la factura es PG o directa.
+        // El límite de crédito ya se validó antes de surtir el pedido: si llegó a facturarse es porque
+        // el crédito le alcanza, así que aquí no se vuelve a validar ni se pide autorización.
         const cliente = await Cliente_Almacen.findByPk(data.id_cliente_alm, { transaction: t });
         if (!cliente) throw new Error('Cliente no encontrado');
 
-        const limite = Number(cliente.limite_credito_cliente_alm ?? 0);
-
-        // limite = 0 → sin restricción (clientes internos o sin límite configurado)
-        // Si se rebasa el límite: sin autorización se rechaza; con autorización se deja pasar
-        // y se anota en la bitácora (quién, cuándo, cuánto se excedió).
-        let excedido: { adeudo_actual: number; adeudo_nuevo: number } | null = null;
-        if (limite > 0) {
-            const resultado = await Cuenta_Por_Cobrar.findOne({
-                attributes: [[fn('COALESCE', fn('SUM', col('saldo_pendiente')), 0), 'total_adeudo']],
-                where: {
-                    id_cliente_alm: data.id_cliente_alm,
-                    estatus_cxc: { [Op.in]: ['PEN', 'PAR', 'VEN'] },
-                },
-                raw: true,
-                transaction: t,
-            }) as any;
-
-            const adeudo_actual = Number(resultado?.total_adeudo ?? 0);
-            const adeudo_nuevo  = adeudo_actual + data.monto_total;
-
-            if (adeudo_nuevo > limite) {
-                if (!data.forzar_credito) {
-                    throw new Error(
-                        `Límite de crédito excedido. ` +
-                        `Límite: $${limite.toFixed(2)} | ` +
-                        `Adeudo actual: $${adeudo_actual.toFixed(2)} | ` +
-                        `Nueva factura: $${data.monto_total.toFixed(2)} | ` +
-                        `Total resultante: $${adeudo_nuevo.toFixed(2)}`
-                    );
-                }
-                excedido = { adeudo_actual, adeudo_nuevo };
-            }
-        }
         // ── Crear CxC ────────────────────────────────────────────────────────
         const cxc = await Cuenta_Por_Cobrar.create({
             id_cxc:            uuidv4(),
@@ -234,24 +190,6 @@ export const CxCRepository = {
             dias_credito:      data.dias_credito,
             estatus_cxc:       'PEN',
         }, { transaction: t });
-
-        // ── Bitácora de créditos autorizados (misma transacción que la factura) ──
-        if (excedido && data.autorizacion) {
-            await Autorizacion_Credito.create({
-                id_autorizacion_credito: uuidv4(),
-                id_pedido_alm:        data.autorizacion.id_pedido_alm,
-                id_factura:           data.autorizacion.id_factura,
-                id_cxc:               cxc.id_cxc,
-                id_cliente_alm:       data.id_cliente_alm,
-                usuario_autoriza:     data.autorizacion.usuario_autoriza,
-                id_usuario_autoriza:  data.autorizacion.id_usuario_autoriza,
-                id_empleado_solicita: data.autorizacion.id_empleado_solicita,
-                limite_credito:       limite,
-                adeudo_previo:        excedido.adeudo_actual,
-                monto_documento:      data.monto_total,
-                excedente:            +(excedido.adeudo_nuevo - limite).toFixed(2),
-            }, { transaction: t });
-        }
 
         return cxc;
     },

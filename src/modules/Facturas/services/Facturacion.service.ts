@@ -393,19 +393,7 @@ export const FacturacionService = {
     // ── Timbrar Ingreso — genera .txt y registra en BD ────────────────────────
     timbrarIngreso: async (dto: IGenerarFacturaDTO) => {
 
-        const { id_pedido_alm, id_empresa, id_cliente_real, id_empleado, forzar_credito, usuario_admin, password_admin } = dto;
-
-        let autorizador: { usuario: string; id_user: string | null } | null = null;
-        if (forzar_credito) {
-            if (dto.autorizador) {
-                autorizador = dto.autorizador;
-            } else {
-                if (!usuario_admin || !password_admin) {
-                    throw new Error('Se requieren credenciales de administrador para omitir el límite de crédito.');
-                }
-                autorizador = await verificarAdmin(usuario_admin, password_admin);
-            }
-        }
+        const { id_pedido_alm, id_empresa, id_cliente_real, id_empleado } = dto;
 
         const [cab, conceptos] = await Promise.all([
             FacturacionRepository.getCabecera(id_pedido_alm, id_empresa),
@@ -463,14 +451,6 @@ export const FacturacionService = {
                     conceptos,
                     dias_credito,
                     esPublicoGeneral,
-                    forzar_credito,
-                    autorizacion: autorizador ? {
-                        usuario_autoriza:     autorizador.usuario,
-                        id_usuario_autoriza:  autorizador.id_user,
-                        id_empleado_solicita: id_empleado || null,
-                        id_pedido_alm:        cab.id_pedido_alm,
-                        id_factura:           null,
-                    } : undefined,
                 }, t);
                 registros.push({ id_factura: null, folio: null, totales, id_remision, conceptosParte: conceptos });
             } else {
@@ -509,14 +489,6 @@ export const FacturacionService = {
                         conceptos: conceptosParte,
                         dias_credito,
                         esPublicoGeneral,
-                        forzar_credito,
-                        autorizacion: autorizador ? {
-                            usuario_autoriza:     autorizador.usuario,
-                            id_usuario_autoriza:  autorizador.id_user,
-                            id_empleado_solicita: id_empleado || null,
-                            id_pedido_alm:        cab.id_pedido_alm,
-                            id_factura:           factura.id_factura,
-                        } : undefined,
                     }, t);
 
                     registros.push({ id_factura: factura.id_factura, folio, totales, id_remision, conceptosParte });

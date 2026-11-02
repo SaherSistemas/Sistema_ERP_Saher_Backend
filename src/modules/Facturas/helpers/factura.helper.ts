@@ -254,16 +254,8 @@ export async function crearCxCyRemision(params: {
     conceptos:        ConceptoFacturacion[];
     dias_credito:     number;
     esPublicoGeneral: boolean;
-    forzar_credito?:  boolean;
-    autorizacion?: {
-        usuario_autoriza:     string;
-        id_usuario_autoriza:  string | null;
-        id_empleado_solicita: string | null;
-        id_pedido_alm:        string;
-        id_factura:           string | null;
-    };
 }, t: Transaction): Promise<string | null> {
-    const { factura_id, cab, totales, conceptos, dias_credito, esPublicoGeneral, forzar_credito, autorizacion } = params;
+    const { factura_id, cab, totales, conceptos, dias_credito, esPublicoGeneral } = params;
 
     const fecha_vencimiento = new Date();
     fecha_vencimiento.setDate(fecha_vencimiento.getDate() + dias_credito);
@@ -308,8 +300,6 @@ export async function crearCxCyRemision(params: {
         monto_total:       totales.total,
         fecha_vencimiento,
         dias_credito,
-        forzar_credito,
-        autorizacion,
     }, t);
 
     return id_remision;

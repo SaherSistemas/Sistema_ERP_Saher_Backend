@@ -2,7 +2,6 @@ import fs from 'fs';
 import type { Request, Response } from 'express';
 import type { AuthedRequest } from '../../../middleware/auth';
 import { FacturacionService } from '../services/Facturacion.service';
-import { AutorizacionesService, AutorizacionError } from '../services/Autorizaciones.service';
 import { FacturacionRepository } from '../repositories/Facturacion.repository';
 import Facturas from '../model/Facturas.model';
 import { dbLocal } from '../../../config/db';
@@ -219,37 +218,15 @@ export class FacturacionController {
     static timbrarIngreso = async (req: AuthedRequest, res: Response) => {
         try {
             const { id_pedido_alm } = req.params;
-            const { id_cliente_real, forzar_credito, usuario_admin, password_admin, id_autorizacion } = req.body ?? {};
+            const { id_cliente_real } = req.body ?? {};
             const id_empresa = req.user?.id_empresa;
             const id_empleado = req.user?.id_referencia_persona ?? '';
             console.log('[timbrarIngreso] id_pedido_alm:', id_pedido_alm, '| id_empresa del token:', id_empresa);
-
-            // Crédito autorizado de forma remota (web): se valida la solicitud y el que autorizó queda en la bitácora
-            const autorizador = id_autorizacion
-                ? await AutorizacionesService.consumirCredito(String(id_autorizacion), id_pedido_alm)
-                : undefined;
-
-            const resultado = await FacturacionService.timbrarIngreso({
-                id_pedido_alm, id_empresa, id_cliente_real, id_empleado,
-                forzar_credito: autorizador ? true : forzar_credito,
-                usuario_admin, password_admin, autorizador,
-            });
-
-            // Cierra las solicitudes de autorización para que desaparezcan de la web
-            try {
-                if (id_autorizacion) await AutorizacionesService.marcarUsada(String(id_autorizacion));
-                else if (forzar_credito && usuario_admin) {
-                    await AutorizacionesService.cerrarPendientesDelPedido(id_pedido_alm, 'CREDITO', String(usuario_admin));
-                }
-            } catch (e) {
-                console.error('[timbrarIngreso] No se pudo cerrar la solicitud de autorización:', e);
-            }
-
+            const resultado = await FacturacionService.timbrarIngreso({ id_pedido_alm, id_empresa, id_cliente_real, id_empleado });
             res.status(201).json(resultado);
         } catch (error: any) {
             console.error(error);
-            const status = error instanceof AutorizacionError ? error.status : 500;
-            res.status(status).json({ message: error?.message ?? 'Error desconocido' });
+            res.status(500).json({ message: error?.message ?? 'Error desconocido' });
         }
     };
 
