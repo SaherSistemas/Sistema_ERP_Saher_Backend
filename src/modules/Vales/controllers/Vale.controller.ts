@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { ValeService } from '../services/Vale.service';
+import { ValeService, ValeError } from '../services/Vale.service';
+import { esAdminToken } from '../../Facturas/helpers/autorizacion.helper';
 
 export class ValeController {
 
@@ -129,6 +130,32 @@ export class ValeController {
         } catch (error: any) {
             console.error(error);
             res.status(500).json({ mensaje: error?.message ?? 'Error al calcular el total del vale.' });
+        }
+    };
+
+    // POST /vales/:id_pedido_alm/cancelar  { motivo, id_detalle? }  → cancela el vale completo o solo un artículo (solo administrador)
+    static cancelar = async (req: Request, res: Response) => {
+        try {
+            const user = (req as any).user;
+            if (!esAdminToken(user)) {
+                res.status(403).json({ mensaje: 'Solo un administrador puede cancelar un vale.' });
+                return;
+            }
+            const { motivo, id_detalle } = req.body ?? {};
+            const r = await ValeService.cancelar({
+                id_pedido_alm: req.params.id_pedido_alm,
+                id_detalle: id_detalle || null,
+                motivo,
+                id_empresa: user?.id_empresa,
+                id_empleado: user?.id_referencia_persona ?? null,
+                id_usuario: user?.id_user ?? null,
+                nombre: user?.nombre_completo || user?.username || null,
+            });
+            res.json(r);
+        } catch (err: any) {
+            if (err instanceof ValeError) { res.status(err.status).json({ mensaje: err.message }); return; }
+            console.error(err);
+            res.status(500).json({ mensaje: err?.message ?? 'No se pudo cancelar el vale.' });
         }
     };
 }

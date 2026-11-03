@@ -7,6 +7,25 @@ import { Detalle_Pedido_AlmacenRepository } from '../../Almacen/Pedido/repositor
 import Cat_Status_Pedido_Almacen from '../../Almacen/Pedido/model/Cat_Status_Pedido_Almacen';
 import { FacturacionRepository } from '../../Facturas/repositories/Facturacion.repository';
 import { FacturacionService } from '../../Facturas/services/Facturacion.service';
+import { v4 as uuidv4 } from 'uuid';
+import Detalle_Pedido_Almacen from '../../Almacen/Pedido/model/Detalle_Pedido_Almacen';
+import Detalle_Pedido_Almacen_ChequeoModel from '../../Almacen/Pedido/model/Detalle_Pedido_Almacen_Chequeo';
+import Detalle_Pedido_Almacen_LoteModel from '../../Almacen/Pedido/model/Detalle_Pedido_Almacen_Lote';
+import Detalle_Pedido_Almacen_AsignacionModel from '../../Almacen/Pedido/model/Detalle_Pedido_Almacen_Asignacion';
+import Detalle_Pedido_Negado from '../../Almacen/Pedido/model/Detalle_Pedido_Negado';
+import Stock_Ubicacion_Lote from '../../Inventario/Stock/model/Stock_Ubicacion_Lote';
+import Kardex_Movimientos_Articulos from '../../Almacen/Kardex/model/Kardex_Movimientos_Articulos';
+import { cantidadesPorLoteDelPedido } from '../../Almacen/Pedido/helpers/cantidadesFacturables';
+import { liberarApartadoDeLotesDetalle } from '../../Almacen/Pedido/services/Pedido_Almacen.service';
+import Vale_Cancelacion from '../model/Vale_Cancelacion.model';
+
+export class ValeError extends Error {
+    constructor(public status: number, message: string) { super(message); }
+}
+
+// Un vale se puede cancelar mientras no se haya cobrado ni facturado: de Capturado a Entregado.
+// En PF (ya pasó a cobro/facturación) o FA (ya facturado) la cancelación sería una devolución, no esto.
+const STATUS_CANCELABLES = ['CA', 'SU', 'CH', 'EM', 'EN'];
 
 // ── Quincenas de nómina ──────────────────────────────────────────────────────
 // El crédito de vales es POR QUINCENA: del 1 al 15 y del 16 al fin de mes (si el límite es 500, son 500 en cada
@@ -438,7 +457,7 @@ export const ValeService = {
             id_pedido_alm: string; cod_int_pedido_alm: string;
             status_pedido_alm: string; createdAt: string; total: string; fecha_descuento: string;
             comentario_vale: string | null;
-            articulos: { descripcion: string; cant_pedida: number; precio_venta: number; tasa_iva: number }[];
+            articulos: { id_detalle: string; descripcion: string; cant_pedida: number; precio_venta: number; tasa_iva: number }[];
         }>();
         for (const r of rows) {
             if (!map.has(r.id_pedido_alm)) {
@@ -454,6 +473,7 @@ export const ValeService = {
                 });
             }
             map.get(r.id_pedido_alm)!.articulos.push({
+                id_detalle:   r.id_detalle,
                 descripcion:  r.descripcion,
                 cant_pedida:  r.cant_pedida,
                 precio_venta: r.precio_venta,
@@ -461,6 +481,140 @@ export const ValeService = {
             });
         }
         return [...map.values()];
+    },
+
+    // ── Cancelar un vale completo o un solo artículo ─────────────────────────
+    // La deuda del empleado se calcula de los renglones y del status del vale, así que al cancelar se ajusta sola:
+    //   · vale completo → queda en CN (cancelado): ya no cuenta para la deuda ni para el límite de la quincena.
+    //   · un artículo   → se elimina el renglón: baja el total del vale.
+    // Existencia: si el vale ya se entregó (EN) la mercancía salió del stock → se regresa "sin ubicar" y queda una entrada en el
+    // Kardex (igual que una devolución). Si todavía no se entregaba, solo estaba apartada → se libera el apartado.
+    cancelar: async (p: {
+        id_pedido_alm: string;
+        id_detalle?: string | null;      // si viene, se cancela solo ese artículo
+        motivo: string;
+        id_empresa: string;              // almacén de quien cancela (respaldo si el lote no trae empresa)
+        id_empleado?: string | null;     // quien cancela (Kardex)
+        id_usuario?: string | null;
+        nombre?: string | null;
+    }) => {
+        const motivo = String(p.motivo ?? '').trim().slice(0, 500);
+        if (motivo.length < 3) throw new ValeError(400, 'Escribe el motivo de la cancelación.');
+
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        try {
+            const pedido = await Pedido_Almacen.findByPk(p.id_pedido_alm, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!pedido) throw new ValeError(404, 'Vale no encontrado.');
+            if (pedido.origen_pedido !== 'VALE') throw new ValeError(400, 'Solo se pueden cancelar vales.');
+            const statusAnterior = pedido.status_pedido_alm;
+            if (!STATUS_CANCELABLES.includes(statusAnterior)) {
+                const razon = statusAnterior === 'CN' ? 'ya está cancelado'
+                    : statusAnterior === 'PF' || statusAnterior === 'FA' ? 'ya pasó a cobro/facturación'
+                    : `no se puede cancelar en status ${statusAnterior}`;
+                throw new ValeError(409, `El vale ${String(pedido.cod_int_pedido_alm).trim()} ${razon}.`);
+            }
+
+            const lineas = await dbLocal.query<{ id_detalle: string; id_articulo: string; descripcion: string; cant_pedida: string }>(`
+                SELECT dpa.id_detalle_pedido_almacen AS id_detalle, dpa.id_articulo, a.des_artic AS descripcion, dpa.cant_pedida
+                FROM detalle_pedido_almacen dpa JOIN articulo a ON a.id_artic = dpa.id_articulo
+                WHERE dpa.id_pedido_almacen = :id ORDER BY a.des_artic`,
+                { type: QueryTypes.SELECT, replacements: { id: p.id_pedido_alm }, transaction: t });
+            if (!lineas.length) throw new ValeError(409, 'El vale no tiene artículos.');
+
+            let objetivo = lineas;
+            let alcance: 'VALE' | 'RENGLON' = 'VALE';
+            if (p.id_detalle) {
+                const una = lineas.find(l => l.id_detalle === p.id_detalle);
+                if (!una) throw new ValeError(404, 'Ese artículo no está en el vale.');
+                // Si es el único artículo, cancelar el artículo es cancelar el vale
+                if (lineas.length > 1) { objetivo = [una]; alcance = 'RENGLON'; }
+            }
+
+            const totalDe = async () => {
+                const [r] = await dbLocal.query<{ total: string }>(
+                    `SELECT ${totalValeSql('pa')} AS total FROM pedido_almacen pa WHERE pa.id_pedido_alm = :id`,
+                    { type: QueryTypes.SELECT, replacements: { id: p.id_pedido_alm }, transaction: t });
+                return parseFloat(r?.total ?? '0') || 0;
+            };
+            const totalAntes = await totalDe();
+
+            // ── Existencia ──
+            let piezas = 0;
+            let stock: 'EXISTENCIA' | 'APARTADO' | 'NINGUNO' = 'NINGUNO';
+            if (statusAnterior === 'EN') {
+                const now = new Date();
+                const filtro = alcance === 'RENGLON' ? objetivo[0].id_detalle : undefined;
+                for (const l of (await cantidadesPorLoteDelPedido(p.id_pedido_alm, t, filtro)).filter(x => x.facturar > 0)) {
+                    const [lote] = await dbLocal.query<{ id_empre: string | null }>(
+                        `SELECT id_empre FROM lote_articulo_sucursal WHERE id_lote_sucursal = :id`,
+                        { type: QueryTypes.SELECT, replacements: { id: l.id_lote_sucursal }, transaction: t });
+                    const id_empresa = lote?.id_empre || p.id_empresa;
+                    const [fila] = await Stock_Ubicacion_Lote.findOrCreate({
+                        where: { id_lote: l.id_lote_sucursal, id_articulo: l.id_articulo, id_empresa_sucursal: id_empresa, id_ubicacion_sucursal: null },
+                        defaults: {
+                            id_stock_ubicacion_lote: uuidv4(), id_lote: l.id_lote_sucursal, id_articulo: l.id_articulo,
+                            id_empresa_sucursal: id_empresa, id_ubicacion_sucursal: null, cantidad: 0, cantidad_apartada: 0,
+                        } as any,
+                        transaction: t,
+                    });
+                    await fila.update({ cantidad: (Number(fila.cantidad) || 0) + l.facturar }, { transaction: t });
+                    await Kardex_Movimientos_Articulos.create({
+                        id_kardex_movimientos: uuidv4(), id_empresa, fecha: now, id_articulo: l.id_articulo, id_lote: l.id_lote_sucursal,
+                        tipo_movimiento: 'ENTRADA', categoria: 'Entrada_Salida', id_origen_ubicacion: null, id_destino_ubicacion: null,
+                        cantidad_movimiento: l.facturar, documento_ref: p.id_pedido_alm, id_pedido: p.id_pedido_alm,
+                        id_empleado: p.id_empleado ?? null,
+                        notas: `Devolución recibida · Sin ubicar · Cancelación de vale ${String(pedido.cod_int_pedido_alm).trim()}`,
+                    } as any, { transaction: t });
+                    piezas += l.facturar;
+                }
+                stock = piezas > 0 ? 'EXISTENCIA' : 'NINGUNO';
+            } else {
+                for (const l of objetivo) piezas += await liberarApartadoDeLotesDetalle(l.id_detalle, t);
+                stock = piezas > 0 ? 'APARTADO' : 'NINGUNO';
+            }
+
+            // ── Renglón(es) y status ──
+            const ids = objetivo.map(l => l.id_detalle);
+            const borrarTrabajo = async () => {
+                await Detalle_Pedido_Almacen_ChequeoModel.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } }, transaction: t });
+                await Detalle_Pedido_Almacen_AsignacionModel.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } }, transaction: t });
+                await Detalle_Pedido_Almacen_LoteModel.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } }, transaction: t });
+            };
+            if (alcance === 'RENGLON') {
+                await borrarTrabajo();
+                await Detalle_Pedido_Negado.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } }, transaction: t });
+                await Detalle_Pedido_Almacen.destroy({ where: { id_detalle_pedido_almacen: { [Op.in]: ids } }, transaction: t });
+            } else {
+                // Un vale ya entregado conserva sus renglones de lote/chequeo como constancia de lo que salió
+                if (statusAnterior !== 'EN') await borrarTrabajo();
+                await pedido.update({ status_pedido_alm: 'CN' }, { transaction: t });
+            }
+
+            const monto = alcance === 'VALE' ? totalAntes : Math.max(0, +(totalAntes - await totalDe()).toFixed(2));
+
+            for (const l of objetivo) {
+                await Vale_Cancelacion.create({
+                    id_pedido_alm: p.id_pedido_alm, cod_vale: String(pedido.cod_int_pedido_alm).trim(), id_empleado_vale: pedido.id_empleado_vale,
+                    alcance, status_anterior: statusAnterior,
+                    id_articulo: l.id_articulo, descripcion_articulo: String(l.descripcion ?? '').trim().slice(0, 250),
+                    cantidad: Number(l.cant_pedida) || 0,
+                    // Con varios renglones el importe va completo en el primero (la suma de la bitácora = lo que se quitó)
+                    monto: l === objetivo[0] ? monto : 0,
+                    stock, piezas_regresadas: l === objetivo[0] ? piezas : 0,
+                    motivo, id_usuario: p.id_usuario ?? null, cancelado_por: (p.nombre ?? '').slice(0, 150) || null,
+                } as any, { transaction: t });
+            }
+
+            await t.commit();
+            return {
+                ok: true, alcance, cod_vale: String(pedido.cod_int_pedido_alm).trim(), status_anterior: statusAnterior,
+                nuevo_status: alcance === 'VALE' ? 'CN' : statusAnterior,
+                monto: +monto.toFixed(2), stock, piezas_regresadas: piezas,
+            };
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
     },
 
     // ── Actualizar límite de crédito de un empleado ──────────────────────────

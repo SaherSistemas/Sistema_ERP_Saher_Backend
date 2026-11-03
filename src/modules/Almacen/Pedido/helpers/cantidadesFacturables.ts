@@ -47,8 +47,9 @@ export async function exigirLotesAsignados(id_pedido_alm: string, t: Transaction
  * saliera en la factura. Aquí se iguala: si el artículo tiene filas de chequeo, solo se descuenta lo
  * chequeado (primero lo ligado a cada lote y el resto en orden); si no tiene chequeo (ej. los vales, que
  * se entregan sin chequeo) se conserva lo surtido, como antes.
+ * Con id_detalle solo se calcula ese renglón del pedido.
  */
-export async function cantidadesPorLoteDelPedido(id_pedido_alm: string, t: Transaction): Promise<CantidadPorLote[]> {
+export async function cantidadesPorLoteDelPedido(id_pedido_alm: string, t: Transaction, id_detalle?: string): Promise<CantidadPorLote[]> {
     const rows = await dbLocal.query<{
         id_detalle: string;
         id_articulo: string;
@@ -79,8 +80,9 @@ export async function cantidadesPorLoteDelPedido(id_pedido_alm: string, t: Trans
         JOIN detalle_pedido_almacen_lote dpal
             ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
         WHERE dpa.id_pedido_almacen = :id_pedido_alm
+          ${id_detalle ? 'AND dpa.id_detalle_pedido_almacen = :id_detalle' : ''}
         ORDER BY dpa.id_detalle_pedido_almacen, dpal.id_detalle_pedido_almacen_lote
-    `, { replacements: { id_pedido_alm }, type: QueryTypes.SELECT, transaction: t });
+    `, { replacements: { id_pedido_alm, ...(id_detalle ? { id_detalle } : {}) }, type: QueryTypes.SELECT, transaction: t });
 
     const porDetalle = new Map<string, typeof rows>();
     for (const r of rows) {

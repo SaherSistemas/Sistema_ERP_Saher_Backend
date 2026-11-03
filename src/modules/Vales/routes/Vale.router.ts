@@ -31,6 +31,9 @@ router.patch('/empleado/:id_empleado/limite', ValeController.actualizarLimiteCre
 // PATCH  /vales/empleado/:id_empleado/descontar → descontar de nomina (reduce saldo_vale_actual)
 router.patch('/empleado/:id_empleado/descontar', ValeController.descontarSaldo);
 
+// POST   /vales/:id_pedido_alm/cancelar → cancela el vale completo o un artículo (admin)
+router.post('/:id_pedido_alm/cancelar', authMiddleware, ValeController.cancelar);
+
 // POST   /vales/consolidar               → generar CFDI consolidado
 router.post('/consolidar', ValeController.consolidarVales);
 

@@ -443,7 +443,7 @@ async function _previewPedidoPoly(pdicdpdin: string) {
 
 // Libera el stock apartado por los renglones de lote de UN detalle del pedido (se usa antes de reemplazar o borrar
 // esos renglones). Primero la fila de stock con la que se apartó; si ya no existe, otra fila del mismo lote.
-async function liberarApartadoDeLotesDetalle(id_detalle_pedido_almacen: string, t: Transaction): Promise<number> {
+export async function liberarApartadoDeLotesDetalle(id_detalle_pedido_almacen: string, t: Transaction): Promise<number> {
   const renglones = await Detalle_Pedido_Almacen_LoteModel.findAll({
     where: { id_detalle_pedido_almacen },
     transaction: t,
@@ -1338,8 +1338,10 @@ export const Pedido_AlmacenService = {
     if (!pedido) throw new Error('Pedido no encontrado');
 
     const cliente = await ClienteAlmacen.findByPk(pedido.id_cliente_pedido_alm, {
-      attributes: ['id_lista_precio_cliente_alm'],
+      attributes: ['id_lista_precio_cliente_alm', 'id_empresa_sys_anterior'],
     }) as any;
+    // Las empresas propias (traspasos entre nuestras sucursales) no llevan cambio de precio por autorizar
+    if (cliente?.id_empresa_sys_anterior != null) return [];
     const idLista = cliente?.id_lista_precio_cliente_alm;
     if (!idLista) return [];
 
