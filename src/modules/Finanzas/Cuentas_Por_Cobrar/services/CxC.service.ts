@@ -81,6 +81,7 @@ async function _capturarReciboEnTx(data: ICapturarPagoCliente, prefijo: string, 
 
     // Un recibo es de UN solo cliente (o de varias cuentas con el mismo RFC). Si el folio lo escribió el agente
     // y ya existe con pagos de otro cliente, se rechaza: antes se juntaban en el mismo recibo clientes distintos.
+    // Los pagos CANCELADOS no cuentan: un folio cancelado queda libre para volver a usarse.
     if (data.numero_recibo_custom?.trim()) {
         const existentes = await dbLocal.query<any>(`
             SELECT DISTINCT cxc.id_cliente_alm, ca.rfc_cliente_alm AS rfc,
@@ -89,6 +90,7 @@ async function _capturarReciboEnTx(data: ICapturarPagoCliente, prefijo: string, 
             JOIN cuenta_por_cobrar cxc ON cxc.id_cxc = p.id_cxc
             JOIN cliente_almacen ca ON ca.id_cliente_alm = cxc.id_cliente_alm
             WHERE p.numero_recibo = :n
+              AND p.estatus_pago <> 'CAN'
         `, { replacements: { n: numero_recibo }, type: QueryTypes.SELECT, transaction: t }) as any[];
 
         if (existentes.length) {
@@ -1114,6 +1116,7 @@ export const CxCService = {
                 JOIN cuenta_por_cobrar cxc ON cxc.id_cxc = p.id_cxc
                 JOIN cliente_almacen ca ON ca.id_cliente_alm = cxc.id_cliente_alm
                 WHERE p.numero_recibo = :n
+                  AND p.estatus_pago <> 'CAN'
             `, { replacements: { n: numeroNuevo }, type: QueryTypes.SELECT }) as any[];
             const miClave = claveReciboCliente(miCliente?.rfc, miCliente?.id_cliente_alm);
             const ajenos = ya.filter(r => claveReciboCliente(r.rfc, r.id_cliente_alm) !== miClave);

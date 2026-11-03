@@ -106,7 +106,7 @@ class Pedido_Almacen extends Model {
   declare empleado_vale: Empleado;
 
   // Vale que el empleado paga al momento: no cuenta para el límite de la quincena ni para su deuda,
-  // y al entregarse pasa directo a Pendiente de Facturar (PF). La columna se crea sola al arrancar (server.ts).
+  // y al entregarse pasa directo a Pendiente de Facturar (PF). Requiere: migrations/007_columnas_pendientes_vales_inventario_proveedor.sql (sync() no agrega columnas).
   @Default(false)
   @AllowNull(false)
   @Column(DataType.BOOLEAN)
