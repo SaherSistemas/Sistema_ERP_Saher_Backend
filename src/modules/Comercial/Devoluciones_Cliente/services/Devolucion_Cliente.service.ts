@@ -72,7 +72,7 @@ export const DevolucionClienteService = {
     misDevoluciones: async (id_empleado: string) => {
         const agente = await AgenteRepository.getByIdEmpleado(id_empleado);
         if (!agente) throw { status: 404, message: 'No se encontró un agente asociado a este usuario.' };
-        return await DevolucionClienteRepository.getByAgente(agente.id_agente);
+        return await DevolucionClienteRepository.getByAgenteParaTicket(agente.id_agente);
     },
 
     // ── Detalle de una devolución ───────────────────────────────────────

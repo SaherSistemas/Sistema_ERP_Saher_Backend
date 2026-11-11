@@ -83,6 +83,49 @@ export const DevolucionClienteRepository = {
         });
     },
 
+    // ── Mis devoluciones con lo necesario para imprimir/reimprimir el ticket ──
+    //    Agrega a cada devolución el nombre del cliente y a cada renglón la tasa de IVA que tuvo en la factura
+    //    (la devolución solo guarda el subtotal), para poder mostrar subtotal + IVA + total igual que al crearla.
+    getByAgenteParaTicket: async (id_agente: string) => {
+        const lista = await DevolucionClienteRepository.getByAgente(id_agente);
+        if (lista.length === 0) return [];
+
+        const idsFactura = Array.from(new Set(lista.map((d: any) => d.id_factura).filter(Boolean)));
+        const clientes = idsFactura.length
+            ? await dbLocal.query<any>(`
+                SELECT f.id_factura, c.razon_social_cliente_alm AS cliente
+                FROM facturas f
+                LEFT JOIN cliente_almacen c ON c.id_cliente_alm = f.id_cliente_alm
+                WHERE f.id_factura IN (:ids)
+            `, { replacements: { ids: idsFactura }, type: QueryTypes.SELECT })
+            : [];
+        const tasas = idsFactura.length
+            ? await Detalle_Factura.findAll({
+                where: { id_factura: idsFactura },
+                attributes: ['id_factura', 'id_articulo', 'tasa_iva'],
+                raw: true,
+            }) as any[]
+            : [];
+
+        const clientePorFactura = new Map<string, string>(clientes.map((c: any) => [c.id_factura, c.cliente]));
+        const tasaPorRenglon = new Map<string, number>(
+            tasas.map((t: any) => [`${t.id_factura}|${t.id_articulo}`, Number(t.tasa_iva ?? 0)])
+        );
+
+        return lista.map((d: any) => {
+            const json = d.toJSON();
+            const detalles = json.detalles ?? json.Devolucion_Cliente_Detalles ?? [];
+            const conTasa = detalles.map((x: any) => ({
+                ...x,
+                tasa_iva: tasaPorRenglon.get(`${json.id_factura}|${x.id_articulo}`) ?? 0,
+            }));
+            if (json.detalles) json.detalles = conTasa;
+            if (json.Devolucion_Cliente_Detalles) json.Devolucion_Cliente_Detalles = conTasa;
+            json.cliente_nombre = clientePorFactura.get(json.id_factura) ?? null;
+            return json;
+        });
+    },
+
     // ── Una devolución específica con todos sus detalles ──
     getById: async (id_devolucion_cliente: string) => {
         return await Devolucion_Cliente.findByPk(id_devolucion_cliente, {
@@ -877,17 +920,23 @@ export const DevolucionClienteRepository = {
 
     // ── Buscar facturas del agente por folio (para el buscador) ──
     buscarFacturasAgente: async (id_agente: string, busqueda: string) => {
-        const { Op } = await import('sequelize');
+        const { Op, literal } = await import('sequelize');
+        // Facturas de sus pedidos Y de los clientes que tiene asignados hoy: si le pasaron un cliente (reasignación de cartera),
+        // puede hacerle devoluciones de facturas anteriores aunque esos pedidos los haya vendido el agente anterior.
+        if (!/^[0-9a-f-]{36}$/i.test(id_agente)) return [];
         return await Facturas.findAll({
             where: {
                 tipo_cfdi: 'I',
                 estatus_factura: { [Op.ne]: 'CAN' },
                 folio_factura: { [Op.iLike]: `%${busqueda}%` },
+                [Op.or]: [
+                    { '$pedido.id_agente_pedido_alm$': id_agente },
+                    { id_cliente_alm: { [Op.in]: literal(`(SELECT id_cliente_alm FROM cliente_almacen WHERE id_agente_cliente_alm = '${id_agente}')`) } },
+                ],
             },
             include: [{
                 model: Pedido_Almacen,
-                where: { id_agente_pedido_alm: id_agente },
-                required: true,
+                required: false,
                 attributes: ['cod_int_pedido_alm'],
             }],
             attributes: ['id_factura', 'folio_factura', 'fecha_emision', 'total_factura'],

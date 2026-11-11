@@ -33,4 +33,22 @@ export class AjusteFacturaController {
             res.status(status).json({ message: err.message });
         }
     };
+
+    // POST /api/finanzas/cxp/ajuste-factura/quitar-nc   { id_nc, comentario }
+    static quitarNc = async (req: AuthedRequest, res: Response) => {
+        try {
+            const { id_nc, comentario } = req.body ?? {};
+            const r = await AjusteFacturaService.quitarNotaCredito({
+                id_nc,
+                comentario,
+                id_empleado: req.user?.id_referencia_persona ?? null,
+                usuario: (req.user as any)?.username ?? null,
+            });
+            res.status(200).json(r);
+        } catch (err: any) {
+            const status = /obligatorio|Falta|Solo se puede/i.test(err.message) ? 400
+                : /no encontrada/i.test(err.message) ? 404 : 500;
+            res.status(status).json({ message: err.message });
+        }
+    };
 }

@@ -215,7 +215,7 @@ export const ProductividadComprasService = {
               LEFT JOIN factura_compra_proveedor f ON f.id_factura_proveedor = n.id_factura_proveedor
               LEFT JOIN compra_proveedor cp ON cp.id_comp = f.id_compra_prove_factura
               LEFT JOIN proveedor p ON p.id_prove = cp.idprove_comp
-             WHERE n.fecha_emision::date BETWEEN :desde AND :hasta
+             WHERE n.fecha_emision::date BETWEEN :desde AND :hasta AND n.estado_nc <> 'X'
              ORDER BY n.fecha_emision DESC
              LIMIT ${TOPE_FACTURAS_PERIODO}
         `, { desde, hasta });
@@ -572,7 +572,7 @@ export const ProductividadComprasService = {
             seguro('notas', consulta(`
                 SELECT COUNT(*) AS notas, COALESCE(SUM(total_nc), 0) AS monto
                 FROM notas_credito_proveedor
-                WHERE fecha_emision::date BETWEEN :desde AND :hasta
+                WHERE fecha_emision::date BETWEEN :desde AND :hasta AND estado_nc <> 'X'
             `, rep), []),
 
             // CICLO COMPLETO de recepción: factura registrada → mercancía acomodada

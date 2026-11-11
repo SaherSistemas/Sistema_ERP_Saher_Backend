@@ -37,7 +37,7 @@ export const BuscarDocumentoService = {
             LEFT JOIN cuenta_por_cobrar cxc ON cxc.id_factura = f.id_factura
             WHERE (pa.cod_int_pedido_alm ILIKE :q OR f.folio_factura ILIKE :q
                    OR ca.razon_social_cliente_alm ILIKE :q OR ca.nom_corto_cliente_alm ILIKE :q)
-              ${id_agente ? 'AND pa.id_agente_pedido_alm = :ag' : ''}
+              ${id_agente ? 'AND (pa.id_agente_pedido_alm = :ag OR ca.id_agente_cliente_alm = :ag)' : ''}
             ORDER BY pa."createdAt" DESC
             LIMIT 40`,
             { replacements: { q: `%${q}%`, ag: id_agente }, type: QueryTypes.SELECT });
@@ -78,11 +78,13 @@ export const BuscarDocumentoService = {
     detalle: async (id_persona: string | null | undefined, id_pedido_alm: string) => {
         const id_agente = await BuscarDocumentoService.idAgenteDe(id_persona);
         const [pedido] = await dbLocal.query<any>(`
-            SELECT pa.id_pedido_alm, pa.status_pedido_alm, pa.id_agente_pedido_alm
-            FROM pedido_almacen pa WHERE pa.id_pedido_alm = :id`,
+            SELECT pa.id_pedido_alm, pa.status_pedido_alm, pa.id_agente_pedido_alm, ca.id_agente_cliente_alm
+            FROM pedido_almacen pa
+            LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+            WHERE pa.id_pedido_alm = :id`,
             { replacements: { id: id_pedido_alm }, type: QueryTypes.SELECT });
         if (!pedido) throw error(404, 'Pedido no encontrado.');
-        if (id_agente && pedido.id_agente_pedido_alm !== id_agente) throw error(403, 'Este pedido no es de tus clientes.');
+        if (id_agente && pedido.id_agente_pedido_alm !== id_agente && pedido.id_agente_cliente_alm !== id_agente) throw error(403, 'Este pedido no es de tus clientes.');
 
         const items = await dbLocal.query<any>(`
             SELECT a.cod_int_artic, a.cod_barr_artic, a.des_artic, dpa.cant_pedida, dpa.precio_venta,
@@ -117,13 +119,14 @@ export const BuscarDocumentoService = {
     facturaDelAgente: async (id_persona: string | null | undefined, id_factura: string) => {
         const id_agente = await BuscarDocumentoService.idAgenteDe(id_persona);
         const [f] = await dbLocal.query<any>(`
-            SELECT f.id_factura, pa.id_agente_pedido_alm
+            SELECT f.id_factura, pa.id_agente_pedido_alm, ca.id_agente_cliente_alm
             FROM facturas f
             LEFT JOIN pedido_almacen pa ON pa.id_pedido_alm = f.id_pedido_alm
+            LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = COALESCE(pa.id_cliente_pedido_alm, f.id_cliente_alm)
             WHERE f.id_factura = :id`,
             { replacements: { id: id_factura }, type: QueryTypes.SELECT });
         if (!f) throw error(404, 'Factura no encontrada.');
-        if (id_agente && f.id_agente_pedido_alm !== id_agente) throw error(403, 'Esta factura no es de tus clientes.');
+        if (id_agente && f.id_agente_pedido_alm !== id_agente && f.id_agente_cliente_alm !== id_agente) throw error(403, 'Esta factura no es de tus clientes.');
         const factura = await Facturas.findByPk(id_factura);
         if (!factura) throw error(404, 'Factura no encontrada.');
         return factura;

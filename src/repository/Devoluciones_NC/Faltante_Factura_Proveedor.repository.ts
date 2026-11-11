@@ -61,6 +61,20 @@ export const Faltante_Factura_ProveedorRepository = {
     },
 
     /**
+     * Faltantes de una factura a los que YA se les dio entrada al inventario (estado 'R').
+     */
+    getRecibidosByFactura: async (
+        id_factura_proveedor: string,
+        options?: { transaction?: Transaction }
+    ) => {
+        return await Faltante_Factura_Proveedor.findAll({
+            where: { id_factura_proveedor, estado: 'R' },
+            include: [{ model: Articulo, attributes: ['id_artic', 'cod_barr_artic'] }],
+            transaction: options?.transaction,
+        });
+    },
+
+    /**
      * Marca como 'R' (Recibido) los faltantes cuyo artículo
      * fue ingresado al inventario desde dar_entrada_inventario.
      */
@@ -89,6 +103,23 @@ export const Faltante_Factura_ProveedorRepository = {
             { estado: 'C' },
             {
                 where: { id_factura_proveedor, estado: 'P' },
+                transaction: options?.transaction,
+            }
+        );
+    },
+
+    /**
+     * Marca como 'C' (Condonado) los faltantes pendientes de UNA nota de crédito
+     * (cuando se anula la nota: la mercancía ya no se espera ni se devuelve).
+     */
+    marcarCondonadosByNc: async (
+        id_nc: string,
+        options?: { transaction?: Transaction }
+    ) => {
+        return await Faltante_Factura_Proveedor.update(
+            { estado: 'C' },
+            {
+                where: { id_nc, estado: 'P' },
                 transaction: options?.transaction,
             }
         );

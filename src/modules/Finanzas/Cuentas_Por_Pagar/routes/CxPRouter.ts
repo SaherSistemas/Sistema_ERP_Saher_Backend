@@ -30,6 +30,7 @@ router.get('/proveedor/:id_proveedor',     CxPController.getByProveedor);
 router.get('/comprobante/:id_pago_cxp',    CxPController.getComprobante);
 router.get('/ajuste-factura/:id_factura',  AjusteFacturaController.listar);
 router.post('/ajuste-factura',             AjusteFacturaController.crear);
+router.post('/ajuste-factura/quitar-nc',   AjusteFacturaController.quitarNc);
 router.get('/:id_cxp',                     CxPController.getById);
 
 router.post('/',                           CxPController.create);

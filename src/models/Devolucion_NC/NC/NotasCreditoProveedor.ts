@@ -8,7 +8,7 @@ import Faltante_Factura_Proveedor from '../Faltante/Faltante_Factura_Proveedor';
     timestamps: true,
 })
 class NotasCreditoProveedor extends Model {
-    // 'P' = pendiente, 'A' = aplicada (NC formal SAT recibida), 'C' = cerrada (mercancía recibida vía dar entrada)
+    // 'P' = pendiente, 'A' = aplicada (NC formal SAT recibida), 'C' = cerrada (mercancía recibida vía dar entrada), 'X' = anulada (se quitó: queda en $0 y su ajuste lleva el comentario)
     @PrimaryKey
     @Column({
         type: DataType.UUID,

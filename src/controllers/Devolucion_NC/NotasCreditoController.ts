@@ -34,6 +34,15 @@ export class NotasCreditoController {
         }
     };
 
+    static getIngresadosByFactura = async (req: Request, res: Response) => {
+        try {
+            const productos = await NotasCreditoProveedorService.getIngresadosByFactura(req.params.facturaId);
+            res.status(200).json(productos);
+        } catch (error) {
+            res.status(500).json({ message: "Error al obtener los artículos ya ingresados de la factura", error });
+        }
+    };
+
     static darEntradaInventario = async (req: AuthedRequest, res: Response) => {
         try {
 

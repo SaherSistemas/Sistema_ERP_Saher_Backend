@@ -100,6 +100,20 @@ export const Articulo_Ubicacion_DefaultController = {
             res.status(400).json({ message: error?.message || "Error" });
         }
     },
+    // GET /articulo/:id_articulo/ubicacion-default/lotes-en-existencia → lotes que ya hay en tarimas y anaqueles
+    getLotesEnExistencia: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa_sucursal = String(req.query.id_empresa_sucursal || req.user?.id_empresa || "");
+            const { id_articulo } = req.params;
+            if (!id_empresa_sucursal) { res.status(400).json({ message: "id_empresa_sucursal requerido" }); return; }
+            if (!id_articulo) { res.status(400).json({ message: "id_articulo requerido" }); return; }
+
+            res.status(200).json(await Articulo_Ubicacion_DefaultServices.getLotesEnExistencia(id_empresa_sucursal, id_articulo));
+        } catch (error: any) {
+            console.error(error);
+            res.status(500).json({ message: error?.message || "Error" });
+        }
+    },
     getByIDArticuloConExistencia: async (req: AuthedRequest, res: Response) => {
         try {
             const id_empresa_sucursal = String(req.query.id_empresa_sucursal || req.user?.id_empresa || "");

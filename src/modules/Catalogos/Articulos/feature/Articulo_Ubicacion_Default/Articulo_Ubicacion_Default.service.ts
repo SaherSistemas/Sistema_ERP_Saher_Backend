@@ -1,3 +1,4 @@
+import { QueryTypes } from "sequelize";
 import { dbLocal } from "../../../../../config/db";
 import { Stock_Ubicacion_LoteRepository } from "../../../../Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository";
 import { Articulo_Ubicacion_DefaultRepository } from "./Articulo_Ubicacion_Default.repository";
@@ -83,6 +84,23 @@ export const Articulo_Ubicacion_DefaultServices = {
                 id_ubicacion_default: id_ubicacion_sucursal,
             }, t);
         });
+    },
+    // Lotes que YA hay en existencia de un artículo, por ubicación (tarimas y anaqueles). No incluye lo que está sin ubicar
+    // (eso es lo pendiente por acomodar). Sirve para que, al acomodar, se vea dónde está ya cada lote.
+    getLotesEnExistencia: async (id_empresa_sucursal: string, id_articulo: string) => {
+        return await dbLocal.query<any>(`
+            SELECT s.id_ubicacion_sucursal, u.tipo_ubicacion, u.tarima_ub, u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub,
+                   s.id_lote, l.numero_lote_sucursal AS numero_lote, l.fecha_venci_lote_sucursal AS fecha_vencimiento,
+                   SUM(s.cantidad)::float AS cantidad
+            FROM stock_ubicacion_lote s
+            JOIN ubicacion_sucursal u ON u.id_ubicacion_sucursal = s.id_ubicacion_sucursal
+            LEFT JOIN lote_articulo_sucursal l ON l.id_lote_sucursal = s.id_lote
+            WHERE s.id_empresa_sucursal = :emp AND s.id_articulo = :art
+              AND s.id_ubicacion_sucursal IS NOT NULL AND s.cantidad > 0
+            GROUP BY s.id_ubicacion_sucursal, u.tipo_ubicacion, u.tarima_ub, u.pasillo_ub, u.anaquel_ub, u.nivel_ub, u.posicion_ub,
+                     s.id_lote, l.numero_lote_sucursal, l.fecha_venci_lote_sucursal
+            ORDER BY u.tipo_ubicacion, l.fecha_venci_lote_sucursal ASC NULLS LAST, l.numero_lote_sucursal
+        `, { replacements: { emp: id_empresa_sucursal, art: id_articulo }, type: QueryTypes.SELECT });
     },
     getByIDArticuloConExistencia: async (id_empresa_sucursal: string, id_articulo: string) => {
         const rows = await Articulo_Ubicacion_DefaultRepository.getByIDArticulo(id_empresa_sucursal, id_articulo);

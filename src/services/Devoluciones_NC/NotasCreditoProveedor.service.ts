@@ -10,8 +10,10 @@ import { LotesArticuloSucursalRepository } from "../../modules/Inventario/Lotes/
 import { Stock_Ubicacion_LoteRepository } from "../../modules/Inventario/Stock/repositories/Stock_Ubicacion_Lote.repository";
 import { Factura_Compra_ProveedorRepository } from "../../modules/Finanzas/Cuentas_Por_Pagar/repositories/Factura_Compra_Proveedor.repository";
 import Factura_Compra_Proveedor from "../../modules/Finanzas/Cuentas_Por_Pagar/model/Factura_Compra_Proveedor";
+import NotasCreditoProveedor from "../../models/Devolucion_NC/NC/NotasCreditoProveedor";
 import Cuenta_Por_Pagar from "../../modules/Finanzas/Cuentas_Por_Pagar/model/Cuenta_Por_Pagar.model";
 import { dbLocal } from "../../config/db";
+import { cuadraConTolerancia } from "../../modules/Finanzas/Cuentas_Por_Pagar/helpers/toleranciaFactura";
 import Kardex_Movimientos_Articulos from "../../modules/Almacen/Kardex/model/Kardex_Movimientos_Articulos";
 
 export const NotasCreditoProveedorService = {
@@ -80,10 +82,8 @@ export const NotasCreditoProveedorService = {
 
             const totalConNotas = totalRecibido + totalNotas;
 
-            const normalizar = (num: number) => Math.round(num * 100);
-
-            // La NC cuadra esta factura → cerrar solo esta factura y sus faltantes
-            if (normalizar(totalFactura) === normalizar(totalConNotas)) {
+            // La NC cuadra esta factura (con un margen de $2 por redondeos) → cerrar solo esta factura y sus faltantes
+            if (cuadraConTolerancia(totalFactura, totalConNotas)) {
                 // 1) Cerrar solo esta factura
                 await Factura_Compra_ProveedorRepository.updateEstadoFactura(
                     data.id_factura_proveedor,
@@ -189,6 +189,16 @@ export const NotasCreditoProveedorService = {
             cantidad: Number(f.cantidad_faltante),
             costo_unitario: Number(f.precio_unitario),
             iva_unitario: Number(f.iva_unitario),
+        }));
+    },
+
+    // Artículos de la factura a los que ya se les dio entrada (para marcarlos como ingresados en la pantalla)
+    getIngresadosByFactura: async (facturaId: string) => {
+        const filas = await Faltante_Factura_ProveedorRepository.getRecibidosByFactura(facturaId);
+        return filas.map((f: any) => ({
+            id_articulo: f.articulo?.id_artic ?? f.id_articulo,
+            cod_barr_artic: f.articulo?.cod_barr_artic ?? null,
+            cantidad: Number(f.cantidad_faltante),
         }));
     },
 
@@ -312,6 +322,24 @@ export const NotasCreditoProveedorService = {
 
             // Crear Cuenta_Por_Pagar por el monto de los artículos recibidos
             const montoTotal = +(subtotalEntrada + ivaEntrada).toFixed(2);
+
+            // Lo que entra ya no se le va a reclamar al proveedor: la nota de crédito pendiente baja por ese mismo importe
+            // (si no, "recibido + nota de crédito" se pasa del total de la factura y aparece un exceso).
+            if (montoTotal > 0) {
+                const ncsPendientes = await NotasCreditoProveedor.findAll({
+                    where: { id_factura_proveedor: data.id_factura_proveedor, estado_nc: 'P' },
+                    order: [['createdAt', 'ASC']],
+                    transaction: t,
+                });
+                let porDescontar = montoTotal;
+                for (const nc of ncsPendientes) {
+                    if (porDescontar <= 0) break;
+                    const actual = Number(nc.total_nc);
+                    const quitar = Math.min(actual, porDescontar);
+                    await nc.update({ total_nc: +(actual - quitar).toFixed(2) }, { transaction: t });
+                    porDescontar = +(porDescontar - quitar).toFixed(2);
+                }
+            }
             if (montoTotal > 0) {
                 const fechaVencimiento = new Date();
                 fechaVencimiento.setDate(fechaVencimiento.getDate() + 30);
