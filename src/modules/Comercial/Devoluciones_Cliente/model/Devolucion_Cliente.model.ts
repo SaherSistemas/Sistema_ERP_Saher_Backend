@@ -7,6 +7,7 @@ import Facturas from '../../../Facturas/model/Facturas.model';
 import Agente_De_Venta from '../../Agente_Venta/model/Agente_De_Venta';
 import Devolucion_Cliente_Detalle from './Devolucion_Cliente_Detalle.model';
 import Cuenta_Por_Cobrar from '../../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
+import Remision from '../../../Finanzas/Remisiones/model/Remision.model';
 // id_factura_egreso → la factura tipo-E (CFDI egreso) que se genera al aprobar
 
 @Table({ tableName: 'devolucion_cliente', timestamps: true })
@@ -17,9 +18,17 @@ export class Devolucion_Cliente extends Model {
     @Column(DataType.UUID)
     declare id_devolucion_cliente: string;
 
+    // Factura contra la que se devuelve. Vacía cuando la devolución es de una REMISIÓN sin CFDI (id_remision).
+    // Se declara como string porque el flujo de facturas la da por hecha; las devoluciones de remisión la traen en null.
     @ForeignKey(() => Facturas)
-    @Column({ type: DataType.UUID, allowNull: false })
+    @Column({ type: DataType.UUID, allowNull: true })
     declare id_factura: string;
+
+    // Remisión sin CFDI contra la que se devuelve (no se timbra nada: se genera una nota de crédito interna).
+    @ForeignKey(() => Remision)
+    @AllowNull(true)
+    @Column(DataType.UUID)
+    declare id_remision: string | null;
 
     @ForeignKey(() => Agente_De_Venta)
     @Column({ type: DataType.UUID, allowNull: false })
@@ -84,6 +93,9 @@ export class Devolucion_Cliente extends Model {
     // ── Relaciones ────────────────────────────────────────────────────────
     @BelongsTo(() => Facturas)
     declare factura: Facturas;
+
+    @BelongsTo(() => Remision)
+    declare remision: Remision;
 
     @BelongsTo(() => Agente_De_Venta)
     declare agente: Agente_De_Venta;

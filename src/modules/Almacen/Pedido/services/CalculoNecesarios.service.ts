@@ -29,6 +29,9 @@ const STATUS_COMPROMETIDOS = ['CA', 'SU', 'CH', 'EM'];   // otros pedidos de la 
 const ESTADO_PEDIDO: Record<string, string> = { CA: 'capturado', SU: 'surtiendo', CH: 'por checar', EM: 'empacado' };
 const STATUS_CALCULABLES = ['EC', 'CO', 'CA'];           // pedidos antes de surtirse
 const MAX_FALTANTES = 300;
+const DIAS_SOBREEXISTENCIA = 60;          // una sucursal "se pasa" cuando lo que tiene ya cubre más de estos días de venta
+const MIN_PZ_SOBRANTE = 2;                // no se listan sobrantes de 1 pieza
+const MAX_SOBREEXISTENCIA = 500;          // renglones máximos por sucursal en la respuesta
 
 const num = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -54,8 +57,12 @@ export interface FilaNecesario {
     disponible_almacen: number;
 }
 
-// Días que tiene que cubrir un envío: desde el día en que se cuenta el stock hasta el día anterior a la SIGUIENTE llegada
-// (viernes → llega el sábado y la siguiente llegada es el martes: cubre viernes, sábado, domingo y lunes)
+// Días que cubre un envío: desde el día SIGUIENTE a la llegada hasta el día de la SIGUIENTE llegada (inclusive).
+//   envío lunes     → llega el martes    → cubre miércoles y jueves
+//   envío miércoles → llega el jueves    → cubre viernes y sábado
+//   envío viernes   → llega el sábado    → cubre domingo, lunes y martes
+// Los días de la semana que cubre empiezan DESFASE_COBERTURA días después del día del envío (llegada + 1).
+const DESFASE_COBERTURA = 2;
 export function diasQueCubre(diaEnvio: number): number[] {
     const llegada = (diaEnvio + 1) % 7;
     let siguiente = llegada;
@@ -63,8 +70,8 @@ export function diasQueCubre(diaEnvio: number): number[] {
         const d = (llegada + k) % 7;
         if (DIAS_LLEGADA.includes(d)) { siguiente = d; break; }
     }
-    const cuantos = ((siguiente - diaEnvio + 7) % 7) || 7;
-    return Array.from({ length: cuantos }, (_, i) => (diaEnvio + i) % 7);
+    const cuantos = ((siguiente - llegada + 7) % 7) || 7;
+    return Array.from({ length: cuantos }, (_, i) => (llegada + 1 + i) % 7);
 }
 
 // Próximo día de envío a partir de hoy (hoy cuenta)
@@ -102,7 +109,8 @@ interface Sucursal {
 
 async function cargarSucursal(empPoly: number, codsExtra: number[], fechaEnvio: string, nDias: number): Promise<Sucursal> {
     const [ventas, rem, nombre] = await Promise.all([
-        // Semana w (1 = la más reciente) = los mismos nDias días que cubre el envío, w semanas antes de la fecha del envío
+        // Semana w (1 = la más reciente) = los mismos nDias días que cubre el envío (miércoles y jueves en un envío del lunes),
+        // w semanas antes de la fecha del envío
         dbPoly.query<any>(`
             SELECT m.artcdartn::int AS art, ((CAST(:envio AS date) - m.kdxfechad::date - 1) / 7 + 1)::int AS w,
                    GREATEST(COALESCE(SUM(m.kdxcantin), 0), 0)::float AS pz
@@ -110,9 +118,14 @@ async function cargarSucursal(empPoly: number, codsExtra: number[], fechaEnvio: 
             WHERE m.empcdempn = :emp AND TRIM(UPPER(m.tmocdtpoc)) = 'SVM'
               AND m.kdxfechad::date >= CAST(:envio AS date) - :ventana::int
               AND m.kdxfechad::date < LEAST(CAST(:envio AS date), CURRENT_DATE)
-              AND (((CAST(:envio AS date) - m.kdxfechad::date - 1) % 7) + 1) > (7 - :ndias::int)
+              AND (((CAST(:envio AS date) - m.kdxfechad::date - 1) % 7) + 1) BETWEEN :kmin AND :kmax
             GROUP BY 1, 2
-        `, { replacements: { emp: empPoly, envio: fechaEnvio, ventana: VENTANA_DIAS, ndias: nDias }, type: QueryTypes.SELECT }) as Promise<any[]>,
+        `, {
+            // k = 7 es el mismo día de la semana que el envío, 6 el siguiente, etc. Los días que cubre empiezan DESFASE_COBERTURA días
+            // después del envío (llegada + 1) y duran nDias
+            replacements: { emp: empPoly, envio: fechaEnvio, ventana: VENTANA_DIAS, kmin: 7 - (DESFASE_COBERTURA + nDias - 1), kmax: 7 - DESFASE_COBERTURA },
+            type: QueryTypes.SELECT,
+        }) as Promise<any[]>,
         dbPoly.query<any>(`
             SELECT d.artcdartn::int AS art, TRIM(h.rmenufacc) AS folio, COALESCE(SUM(d.rmecanfan), 0)::float AS pz
             FROM public.rme0010 h
@@ -217,6 +230,30 @@ async function cargarDisponibles(id_empresa: string, idsArt: string[]): Promise<
     return dispPorId;
 }
 
+// Artículos que el almacén ALGUNA VEZ ha manejado (tienen o tuvieron existencia o algún movimiento en el Kardex en las empresas
+// del grupo). Los que las sucursales venden pero el almacén nunca ha tenido (dulcería, abarrotes…) no se pueden resurtir desde
+// aquí, así que por defecto se ocultan de las sugerencias.
+async function cargarManejadosAlmacen(id_empresa: string, idsArt: string[]): Promise<Set<string>> {
+    const manejados = new Set<string>();
+    for (let i = 0; i < idsArt.length; i += 1000) {
+        const filas = await dbLocal.query<any>(`
+            WITH grupo AS (
+                SELECT e.id_empre FROM empresa_sucursal e
+                WHERE e.idgrup_empre = (SELECT idgrup_empre FROM empresa_sucursal WHERE id_empre = :emp) OR e.id_empre = :emp
+            )
+            SELECT DISTINCT t.id_articulo FROM (
+                SELECT s.id_articulo FROM stock_ubicacion_lote s
+                WHERE s.id_empresa_sucursal IN (SELECT id_empre FROM grupo) AND s.id_articulo IN (:ids)
+                UNION
+                SELECT k.id_articulo FROM kardex_movimientos_articulos k
+                WHERE k.id_empresa IN (SELECT id_empre FROM grupo) AND k.id_articulo IN (:ids)
+            ) t
+        `, { replacements: { emp: id_empresa, ids: idsArt.slice(i, i + 1000) }, type: QueryTypes.SELECT }) as any[];
+        for (const f of filas) manejados.add(String(f.id_articulo));
+    }
+    return manejados;
+}
+
 interface ContextoFila {
     suc: Sucursal;
     infoArt: InfoArt;
@@ -266,7 +303,7 @@ function filaNecesario(cod: number, c: ContextoFila): FilaNecesario {
 
 export const CalculoNecesariosService = {
 
-    calcular: async (id_empresa: string, opts: { ids_pedidos: string[]; dia_envio?: number; nivel_servicio?: number }) => {
+    calcular: async (id_empresa: string, opts: { ids_pedidos: string[]; dia_envio?: number; nivel_servicio?: number; incluir_no_manejados?: boolean }) => {
         const ids = Array.from(new Set((opts.ids_pedidos ?? []).map(String))).slice(0, 60);
         if (!ids.length) throw { status: 400, message: 'No hay pedidos para calcular.' };
 
@@ -346,10 +383,15 @@ export const CalculoNecesariosService = {
             const lineas = Array.from(codsPedido).map(filaDe)
                 .sort((a, b) => a.des_artic.localeCompare(b.des_artic, 'es'));
             // Lo que no viene en el pedido pero se vende y la sucursal se quedaría corta
-            const faltantes = Array.from(candidatos).filter(c => !codsPedido.has(c)).map(filaDe)
-                .filter(f => f.sugerido > 0 && f.id_articulo)
+            const faltantesTodos = Array.from(candidatos).filter(c => !codsPedido.has(c)).map(filaDe)
+                .filter(f => f.sugerido > 0 && f.id_articulo);
+            // Se ocultan los que el almacén nunca ha manejado (no se pueden surtir desde aquí), salvo que se pidan
+            const manejados = opts.incluir_no_manejados ? null : await cargarManejadosAlmacen(id_empresa, faltantesTodos.map(f => f.id_articulo as string));
+            const faltantes = faltantesTodos
+                .filter(f => !manejados || manejados.has(f.id_articulo as string))
                 .sort((a, b) => b.sugerido - a.sugerido)
                 .slice(0, MAX_FALTANTES);
+            const faltantes_ocultos = faltantesTodos.length - (manejados ? faltantesTodos.filter(f => manejados.has(f.id_articulo as string)).length : faltantesTodos.length);
 
             resultado.push({
                 ...base,
@@ -367,6 +409,7 @@ export const CalculoNecesariosService = {
                     renglones_de_sobra: lineas.filter(l => l.en_pedido > l.sugerido).length,
                     faltantes: faltantes.length,
                     pz_faltantes: faltantes.reduce((s, f) => s + f.sugerido, 0),
+                    faltantes_ocultos,
                 },
             });
         }
@@ -400,7 +443,7 @@ export const CalculoNecesariosService = {
 
     // Lo que cada sucursal debería pedir, SIN partir de ningún pedido que hayan hecho: todo artículo que la sucursal vende con
     // regularidad, necesario menos (existencia + en camino + lo que ya está en cualquiera de sus pedidos sin facturar).
-    reabasto: async (id_empresa: string, opts: { ids_clientes: string[]; dia_envio?: number; nivel_servicio?: number }) => {
+    reabasto: async (id_empresa: string, opts: { ids_clientes: string[]; dia_envio?: number; nivel_servicio?: number; incluir_no_manejados?: boolean }) => {
         const ids = Array.from(new Set((opts.ids_clientes ?? []).map(String))).slice(0, 40);
         if (!ids.length) throw { status: 400, message: 'Elige al menos una sucursal.' };
 
@@ -429,9 +472,30 @@ export const CalculoNecesariosService = {
             const dispPorId = await cargarDisponibles(id_empresa, candidatos.map(cod => infoArt.get(cod)?.id).filter(Boolean) as string[]);
             const ctx: ContextoFila = { suc, infoArt, otrosPorCod, dispPorId, nivel, enPedido: new Map() };
 
-            const lineas = candidatos.map(cod => filaNecesario(cod, ctx))
-                .filter(f => f.sugerido > 0 && f.id_articulo)
+            const todas = candidatos.map(cod => filaNecesario(cod, ctx))
+                .filter(f => f.sugerido > 0 && f.id_articulo);
+            // Se ocultan los que el almacén nunca ha manejado (dulcería, abarrotes…): no se pueden surtir desde aquí, salvo que se pidan
+            const manejados = opts.incluir_no_manejados ? null : await cargarManejadosAlmacen(id_empresa, todas.map(f => f.id_articulo as string));
+            const lineas = todas
+                .filter(f => !manejados || manejados.has(f.id_articulo as string))
                 .sort((a, b) => a.des_artic.localeCompare(b.des_artic, 'es'));
+            const ocultos_no_manejados = todas.length - lineas.length;
+
+            // YA CUBIERTO CON PEDIDOS: artículos donde un pedido capturado (CA, SU, CH o EM, sin facturar) ya resuelve lo que hace falta,
+            // por eso no salen arriba. Se ve cuánto faltaba (necesario − existencia − en camino) contra lo que trae el pedido:
+            // diferencia 0 = cuadra; positiva = el pedido trae de más (también entran artículos del pedido que la sucursal casi no vende).
+            const codsCubiertos = new Set<number>(candidatos);
+            otrosPorCod.forEach((_v, cod) => codsCubiertos.add(cod));
+            await completarInfoArticulos(infoArt, Array.from(codsCubiertos).filter(c => !infoArt.has(c)));
+            const cubiertos = Array.from(codsCubiertos)
+                .filter(cod => (otrosPorCod.get(cod)?.pz ?? 0) > 0)
+                .map(cod => filaNecesario(cod, ctx))
+                .filter(f => f.sugerido === 0)
+                .map(f => {
+                    const faltaba = Math.max(0, f.necesario - f.existencia - f.en_rem);
+                    return { ...f, faltaba, diferencia: f.otros_pedidos - faltaba };
+                })
+                .sort((a, b) => b.diferencia - a.diferencia || a.des_artic.localeCompare(b.des_artic, 'es'));
 
             sucursales.push({
                 id_cliente_alm: c.id_cliente_alm as string,
@@ -439,11 +503,16 @@ export const CalculoNecesariosService = {
                 emp_poly: suc.empPoly,
                 rem_folios: Array.from(new Set(Array.from(suc.rem.values()).flatMap(r => r.detalle.map(d => d.folio)).filter(Boolean))).sort().join(', '),
                 lineas,
+                cubiertos,
                 resumen: {
+                    cubiertos: cubiertos.length,
+                    cubiertos_de_mas: cubiertos.filter(f => f.diferencia > 0).length,
+                    pz_de_mas: cubiertos.reduce((t, f) => t + Math.max(0, f.diferencia), 0),
                     renglones: lineas.length,
                     pz_sugeridas: lineas.reduce((t, l) => t + l.sugerido, 0),
                     pz_solicitadas: lineas.reduce((t, l) => t + l.nuevo_solicitado, 0),
                     renglones_sin_almacen: lineas.filter(l => l.nuevo_solicitado < l.sugerido).length,
+                    ocultos_no_manejados,
                 },
             });
         }
@@ -457,5 +526,124 @@ export const CalculoNecesariosService = {
             historia_semanas: HISTORIA_SEMANAS,
             sucursales,
         };
+    },
+
+    // Lo que cada sucursal tiene DE MÁS: artículos con existencia en PolyDB que ya cubren más de `dias_limite` días de venta
+    // (al ritmo de las últimas HISTORIA_SEMANAS semanas, todos los días) o que no se han vendido en todo ese tiempo.
+    // Sobrante = existencia − lo que se vendería en `dias_limite` días. Solo calcula.
+    sobreexistencia: async (id_empresa: string, opts: { ids_clientes: string[]; dias_limite?: number; incluir_no_manejados?: boolean }) => {
+        const ids = Array.from(new Set((opts.ids_clientes ?? []).map(String))).slice(0, 40);
+        if (!ids.length) throw { status: 400, message: 'Elige al menos una sucursal.' };
+        const diasLimite = Math.min(365, Math.max(7, Math.round(Number.isFinite(opts.dias_limite) ? (opts.dias_limite as number) : DIAS_SOBREEXISTENCIA)));
+
+        const clientes = await dbLocal.query<any>(`
+            SELECT id_cliente_alm, nom_corto_cliente_alm, razon_social_cliente_alm, id_empresa_sys_anterior AS emp_poly
+            FROM cliente_almacen
+            WHERE id_cliente_alm IN (:ids) AND id_empresa_sys_anterior IS NOT NULL
+        `, { replacements: { ids }, type: QueryTypes.SELECT }) as any[];
+
+        const sucursales: any[] = [];
+        for (const c of clientes) {
+            const empPoly = Number(c.emp_poly);
+            const [existencias, ventas, rem, otrosPorCod, nombre] = await Promise.all([
+                dbPoly.query<any>(`
+                    SELECT artcdartn::int AS art, COALESCE(almexistn, 0)::float AS existencia,
+                           COALESCE(almminpzn, 0)::float AS minimo, COALESCE(almmaxpzn, 0)::float AS maximo
+                    FROM public.almacenes1
+                    WHERE empcdempn = :emp AND almcdalmn = 1 AND COALESCE(almexistn, 0) > 0
+                `, { replacements: { emp: empPoly }, type: QueryTypes.SELECT }) as Promise<any[]>,
+                dbPoly.query<any>(`
+                    SELECT m.artcdartn::int AS art, GREATEST(COALESCE(SUM(m.kdxcantin), 0), 0)::float AS pz
+                    FROM public.kardex m
+                    WHERE m.empcdempn = :emp AND TRIM(UPPER(m.tmocdtpoc)) = 'SVM'
+                      AND m.kdxfechad::date >= CURRENT_DATE - :ventana::int
+                    GROUP BY 1
+                `, { replacements: { emp: empPoly, ventana: VENTANA_DIAS }, type: QueryTypes.SELECT }) as Promise<any[]>,
+                dbPoly.query<any>(`
+                    SELECT d.artcdartn::int AS art, COALESCE(SUM(d.rmecanfan), 0)::float AS pz
+                    FROM public.rme0010 h
+                    JOIN public.rme00101 d ON d.empcdempn = h.empcdempn AND d.rmenufacc = h.rmenufacc
+                    WHERE h.empcdempn = :emp AND h.rmenufacc LIKE 'TRA-%' AND TRIM(h.rmestatuc) IN (:status)
+                      AND h.rmefecfad >= CURRENT_DATE - :dias::int
+                    GROUP BY 1
+                `, { replacements: { emp: empPoly, status: STATUS_REM_PENDIENTE, dias: DIAS_REM }, type: QueryTypes.SELECT }) as Promise<any[]>,
+                cargarOtrosPedidos(empPoly, null),
+                dbLocal.query<any>(
+                    `SELECT nom_empre FROM empresa_sucursal WHERE TRIM(id_empresa_sys_anterior::text) = CAST(:emp AS text) LIMIT 1`,
+                    { replacements: { emp: empPoly }, type: QueryTypes.SELECT }) as Promise<any[]>,
+            ]);
+            const vendidoPor = new Map<number, number>(ventas.map(v => [Number(v.art), num(v.pz)]));
+            const remPor = new Map<number, number>(rem.map(r => [Number(r.art), num(r.pz)]));
+
+            type Cand = { cod: number; existencia: number; minimo: number; maximo: number; vendido: number; pzDia: number; dias: number | null; sobrante: number; tipo: 'SIN_VENTA' | 'EXCESO' };
+            const candidatos: Cand[] = [];
+            let existencia_total = 0;
+            for (const e of existencias) {
+                const cod = Number(e.art);
+                const existencia = num(e.existencia);
+                existencia_total += existencia;
+                const vendido = vendidoPor.get(cod) ?? 0;
+                const pzDia = vendido / VENTANA_DIAS;
+                const objetivo = Math.ceil(pzDia * diasLimite);          // lo que sí se vendería en el plazo
+                const sobrante = Math.floor(existencia - objetivo);
+                if (sobrante < MIN_PZ_SOBRANTE) continue;
+                candidatos.push({
+                    cod, existencia, minimo: num(e.minimo), maximo: num(e.maximo), vendido, pzDia,
+                    dias: pzDia > 0 ? Math.round(existencia / pzDia) : null,
+                    sobrante, tipo: vendido > 0 ? 'EXCESO' : 'SIN_VENTA',
+                });
+            }
+            // Datos del catálogo de todos los candidatos (sirven para saber cuáles maneja el almacén y para mostrar el nombre)
+            const info: InfoArt = new Map();
+            await completarInfoArticulos(info, candidatos.map(x => x.cod));
+            // Se ocultan los que el almacén nunca ha manejado (dulcería, abarrotes…), salvo que se pidan
+            const idsCat = candidatos.map(x => info.get(x.cod)?.id).filter(Boolean) as string[];
+            const manejados = opts.incluir_no_manejados ? null : await cargarManejadosAlmacen(id_empresa, idsCat);
+            const todos = candidatos.length;
+            if (manejados) {
+                for (let i = candidatos.length - 1; i >= 0; i--) {
+                    const idArt = info.get(candidatos[i].cod)?.id;
+                    if (!idArt || !manejados.has(idArt)) candidatos.splice(i, 1);
+                }
+            }
+            const ocultos_no_manejados = todos - candidatos.length;
+            // Primero lo que más piezas sobran
+            candidatos.sort((a, b) => b.sobrante - a.sobrante);
+            const visibles = candidatos.slice(0, MAX_SOBREEXISTENCIA);
+
+            const lineas = visibles.map(x => ({
+                cod_int_artic: x.cod,
+                des_artic: info.get(x.cod)?.des ?? `Artículo ${x.cod}`,
+                cod_barr_artic: info.get(x.cod)?.barras ?? '',
+                existencia: x.existencia,
+                minimo: x.minimo,
+                maximo: x.maximo,
+                venta_semana: Math.round(x.pzDia * 7 * 10) / 10,
+                dias_cobertura: x.dias,
+                sobrante: x.sobrante,
+                en_rem: remPor.get(x.cod) ?? 0,
+                otros_pedidos: otrosPorCod.get(x.cod)?.pz ?? 0,
+                otros_pedidos_detalle: otrosPorCod.get(x.cod)?.detalle ?? [],
+                tipo: x.tipo,
+            }));
+            sucursales.push({
+                id_cliente_alm: c.id_cliente_alm as string,
+                sucursal: String(c.nom_corto_cliente_alm ?? '').trim() || String(c.razon_social_cliente_alm ?? '').trim() || String(nombre?.[0]?.nom_empre ?? '').trim() || '—',
+                emp_poly: empPoly,
+                lineas,
+                resumen: {
+                    articulos: candidatos.length,
+                    mostrados: lineas.length,
+                    pz_sobrantes: candidatos.reduce((t, x) => t + x.sobrante, 0),
+                    sin_venta: candidatos.filter(x => x.tipo === 'SIN_VENTA').length,
+                    pz_sin_venta: candidatos.filter(x => x.tipo === 'SIN_VENTA').reduce((t, x) => t + x.sobrante, 0),
+                    con_exceso: candidatos.filter(x => x.tipo === 'EXCESO').length,
+                    existencia_total: Math.round(existencia_total),
+                    ocultos_no_manejados,
+                },
+            });
+        }
+        sucursales.sort((a, b) => a.sucursal.localeCompare(b.sucursal, 'es'));
+        return { dias_limite: diasLimite, historia_semanas: HISTORIA_SEMANAS, sucursales };
     },
 };

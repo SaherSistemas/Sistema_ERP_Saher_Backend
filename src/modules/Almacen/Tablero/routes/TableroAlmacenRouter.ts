@@ -6,6 +6,7 @@ const router = Router();
 router.get('/', TableroAlmacenController.getResumen);
 router.get('/procesos', TableroAlmacenController.getProcesos);
 router.get('/compras', TableroAlmacenController.getCompras);
+router.get('/compras/analisis', TableroAlmacenController.getComprasAnalisis);
 router.get('/compras/pendientes', TableroAlmacenController.getComprasPendientes);
 router.get('/compras/facturas', TableroAlmacenController.getComprasFacturas);
 router.get('/compras/lista', TableroAlmacenController.getComprasLista);

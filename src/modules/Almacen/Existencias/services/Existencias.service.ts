@@ -563,6 +563,8 @@ export const ExistenciasService = {
                 if (!loteDestino) {
                     if (!d.fecha_vencimiento) throw new Error('Captura la fecha de caducidad del lote nuevo.')
                     loteDestino = await Lote_Articulo_Sucursal.create({
+                        // El modelo del lote no genera su propio id: sin esto la base rechaza el insert (id_lote_sucursal nulo)
+                        id_lote_sucursal: uuidv4(),
                         id_artic: origen.id_articulo,
                         id_empre: d.id_empresa,
                         numero_lote_sucursal: numero,

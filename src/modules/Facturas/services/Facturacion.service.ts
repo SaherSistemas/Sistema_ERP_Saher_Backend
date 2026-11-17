@@ -2546,8 +2546,31 @@ export async function generarFacturaAbonoPublicoGeneral(opts: {
         // Cada renglón real se reduce a la proporción de este abono — se conserva el
         // artículo/lote de origen en detalle_factura; el .txt (abajo) sí se consolida
         // por tasa de IVA, que es el formato que pide Público General.
+        // Lo que ya se devolvió de esta remisión (devoluciones aprobadas) no se factura: se descuenta de los conceptos,
+        // para que la venta neta que se prorratea coincida con lo que el cliente de verdad debe pagar.
+        const devueltos = await dbLocal.query<any>(`
+            SELECT d.id_articulo, SUM(d.cantidad_devolucion)::float AS cantidad
+            FROM devolucion_cliente_detalle d
+            JOIN devolucion_cliente dc ON dc.id_devolucion_cliente = d.id_devolucion_cliente
+            JOIN remision r ON r.id_remision = dc.id_remision
+            WHERE r.folio_remision = :folio AND dc.estatus = 'APROBADA' AND d.id_articulo IS NOT NULL
+            GROUP BY d.id_articulo
+        `, { replacements: { folio: folio_remision }, type: QueryTypes.SELECT });
+        const porDevolver = new Map<string, number>(devueltos.map((x: any) => [String(x.id_articulo), Number(x.cantidad) || 0]));
+        const conceptosNetos = conceptos
+            .map(c => {
+                const pendiente = porDevolver.get(String(c.id_articulo)) ?? 0;
+                if (pendiente <= 0 || !(c.cantidad > 0)) return c;
+                const quitar = Math.min(pendiente, c.cantidad);
+                porDevolver.set(String(c.id_articulo), pendiente - quitar);
+                const factor = (c.cantidad - quitar) / c.cantidad;
+                return { ...c, cantidad: +(c.cantidad - quitar).toFixed(4), subtotal_linea: +(c.subtotal_linea * factor).toFixed(2) };
+            })
+            .filter(c => c.cantidad > 0);
+        if (!conceptosNetos.length) return { ok: false, error: 'Toda la mercancía de la remisión fue devuelta: no hay nada que facturar.' };
+
         const proporcion = monto_total_venta > 0 ? monto_pago / monto_total_venta : 1;
-        const conceptosProrateados = conceptos.map(c => ({
+        const conceptosProrateados = conceptosNetos.map(c => ({
             ...c,
             cantidad: +(c.cantidad * proporcion).toFixed(4),
             subtotal_linea: +(c.subtotal_linea * proporcion).toFixed(2),

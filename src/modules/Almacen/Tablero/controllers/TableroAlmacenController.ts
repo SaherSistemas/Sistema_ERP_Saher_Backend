@@ -5,6 +5,7 @@ import { ProductividadAlmacenService } from '../services/ProductividadAlmacen.se
 import { ProductividadComprasService, TIPOS_PENDIENTE_COMPRAS, TIPOS_FACTURAS_PERIODO, type TipoFacturasPeriodo, TIPOS_LISTA_PERIODO, type TipoListaPeriodo, type TipoPendienteCompras } from '../services/ProductividadCompras.service';
 import { ValorInventarioService, type OrdenValor } from '../services/ValorInventario.service';
 import { DiasInventarioService } from '../services/DiasInventario.service';
+import { AnalisisComprasService } from '../services/AnalisisCompras.service';
 import { NegadosVigentesService } from '../services/NegadosVigentes.service';
 import { CaducidadesService, type RangoCaducidad } from '../services/Caducidades.service';
 import { SinExistenciaService } from '../services/SinExistencia.service';
@@ -28,6 +29,20 @@ function leerRango(req: AuthedRequest, res: Response): { desde: string; hasta: s
 }
 
 export const TableroAlmacenController = {
+    // GET /almacen/tablero/compras/analisis?desde=&hasta= — ¿son buenas las compras del periodo? (qué se vende, qué sobra, qué falta)
+    getComprasAnalisis: async (req: AuthedRequest, res: Response) => {
+        try {
+            const id_empresa = String(req.user?.id_empresa || '').trim();
+            if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+            const rango = leerRango(req, res);
+            if (!rango) return;
+            res.status(200).json(await AnalisisComprasService.analizar(id_empresa, rango.desde, rango.hasta));
+        } catch (e: any) {
+            console.error('[TableroAlmacen.getComprasAnalisis]', e);
+            res.status(500).json({ message: e?.message ?? 'Error al analizar las compras.' });
+        }
+    },
+
     // GET /almacen/tablero/compras/lista?tipo=ordenes|notas&desde=&hasta= — órdenes o notas de crédito del periodo
     getComprasLista: async (req: AuthedRequest, res: Response) => {
         try {

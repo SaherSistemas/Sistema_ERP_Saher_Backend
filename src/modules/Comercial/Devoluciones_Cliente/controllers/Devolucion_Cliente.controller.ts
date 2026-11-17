@@ -199,7 +199,17 @@ export const DevolucionClienteController = {
         }
     },
 
-    // GET /devolucion_cliente/buscar-facturas?q=A-1001
+    // GET /devolucion_cliente/remision/:id_remision  — productos de una remisión sin CFDI para llenar el form
+    getRemisionParaDevolucion: async (req: AuthedRequest, res: Response) => {
+        try {
+            const data = await DevolucionClienteService.getRemisionParaDevolucion(req.params.id_remision);
+            res.status(200).json(data);
+        } catch (error: any) {
+            res.status(error.status || 500).json({ message: error.message || 'Error interno del servidor' });
+        }
+    },
+
+    // GET /devolucion_cliente/buscar-facturas?q=A-1001  (también encuentra remisiones sin CFDI: q=581 ó REM-581)
     buscarFacturas: async (req: AuthedRequest, res: Response) => {
         try {
             const id_empleado = req.user!.id_referencia_persona;
@@ -248,10 +258,12 @@ export const DevolucionClienteController = {
                     ? ' Mercancía NO recibida — quedó en el inventario virtual del agente.'
                     : '';
             const cfdi = resultado.egreso ? ` Folio CFDI-E: ${resultado.egreso.folio}.` : '';
+            // Remisión sin CFDI: nota de crédito interna, no se timbra nada
+            const sinTimbrar = resultado.es_remision ? ' (nota de crédito interna, sin timbrar)' : '';
             const msg =
                 resultado.resultado_aprobacion === 'DESCUENTO_CXC'
-                    ? `Devolución aprobada.${cfdi} Se descontaron ${fmt(resultado.monto_devolucion)} de la CxC.${stockMsg}`
-                    : `Devolución aprobada.${cfdi} Nota de Crédito de ${fmt(resultado.monto_devolucion)} generada.${stockMsg}`;
+                    ? `Devolución aprobada.${cfdi} Se descontaron ${fmt(resultado.monto_devolucion)} de la CxC${sinTimbrar}.${stockMsg}`
+                    : `Devolución aprobada.${cfdi} Nota de Crédito de ${fmt(resultado.monto_devolucion)} generada${sinTimbrar}.${stockMsg}`;
 
             res.status(200).json({
                 message:              msg,
@@ -262,6 +274,7 @@ export const DevolucionClienteController = {
                 recibio_mercancia,
                 inventario_virtual:   resultado.inventario_virtual,
                 es_factura_vieja:     resultado.es_factura_vieja,
+                es_remision:          resultado.es_remision,
             });
         } catch (error: any) {
             console.error('Error al aprobar devolución:', error);

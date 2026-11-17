@@ -12,6 +12,7 @@ import Pedido_Almacen from '../../../Almacen/Pedido/model/Pedido_Almacen';
 import Cuenta_Por_Cobrar from '../../../Finanzas/Cuentas_Por_Cobrar/model/Cuenta_Por_Cobrar.model';
 import Nota_Credito_Cliente from '../../Notas_Credito_Cliente/model/Nota_Credito_Cliente.model';
 import Remision from '../../../Finanzas/Remisiones/model/Remision.model';
+import Detalle_Remision from '../../../Finanzas/Remisiones/model/Detalle_Remision.model';
 import Pago_CxC from '../../../Finanzas/Cuentas_Por_Cobrar/model/Pago_CxC.model';
 import Stock_Ubicacion_Lote from '../../../Inventario/Stock/model/Stock_Ubicacion_Lote';
 import Kardex_Movimientos_Articulos from '../../../Almacen/Kardex/model/Kardex_Movimientos_Articulos';
@@ -41,7 +42,8 @@ export const DevolucionClienteRepository = {
 
             await Devolucion_Cliente.create({
                 id_devolucion_cliente,
-                id_factura: data.id_factura,
+                id_factura: data.id_factura ?? null,
+                id_remision: data.id_remision ?? null,
                 id_agente: data.id_agente,
                 motivo: data.motivo,
                 motivo_otros: data.motivo_otros ?? null,
@@ -77,6 +79,7 @@ export const DevolucionClienteRepository = {
             where: { id_agente },
             include: [
                 { model: Facturas, attributes: ['folio_factura', 'fecha_emision', 'total_factura'] },
+                { model: Remision, attributes: ['folio_remision', 'fecha_remision', 'total_remision'] },
                 { model: Devolucion_Cliente_Detalle },
             ],
             order: [['createdAt', 'DESC']],
@@ -112,16 +115,42 @@ export const DevolucionClienteRepository = {
             tasas.map((t: any) => [`${t.id_factura}|${t.id_articulo}`, Number(t.tasa_iva ?? 0)])
         );
 
+        // Devoluciones de REMISIONES (sin factura): cliente y tasa de IVA salen de la remisión
+        const idsRemision = Array.from(new Set(lista.map((d: any) => d.id_remision).filter(Boolean)));
+        const clientesRem = idsRemision.length
+            ? await dbLocal.query<any>(`
+                SELECT r.id_remision, c.razon_social_cliente_alm AS cliente
+                FROM remision r
+                LEFT JOIN cliente_almacen c ON c.id_cliente_alm = r.id_cliente_alm
+                WHERE r.id_remision IN (:ids)
+            `, { replacements: { ids: idsRemision }, type: QueryTypes.SELECT })
+            : [];
+        const tasasRem = idsRemision.length
+            ? await Detalle_Remision.findAll({
+                where: { id_remision: idsRemision },
+                attributes: ['id_remision', 'id_articulo', 'tasa_iva'],
+                raw: true,
+            }) as any[]
+            : [];
+        const clientePorRemision = new Map<string, string>(clientesRem.map((c: any) => [c.id_remision, c.cliente]));
+        const tasaPorRenglonRem = new Map<string, number>(
+            tasasRem.map((t: any) => [`${t.id_remision}|${t.id_articulo}`, Number(t.tasa_iva ?? 0)])
+        );
+
         return lista.map((d: any) => {
             const json = d.toJSON();
             const detalles = json.detalles ?? json.Devolucion_Cliente_Detalles ?? [];
             const conTasa = detalles.map((x: any) => ({
                 ...x,
-                tasa_iva: tasaPorRenglon.get(`${json.id_factura}|${x.id_articulo}`) ?? 0,
+                tasa_iva: json.id_remision
+                    ? (tasaPorRenglonRem.get(`${json.id_remision}|${x.id_articulo}`) ?? 0)
+                    : (tasaPorRenglon.get(`${json.id_factura}|${x.id_articulo}`) ?? 0),
             }));
             if (json.detalles) json.detalles = conTasa;
             if (json.Devolucion_Cliente_Detalles) json.Devolucion_Cliente_Detalles = conTasa;
-            json.cliente_nombre = clientePorFactura.get(json.id_factura) ?? null;
+            json.cliente_nombre = json.id_remision
+                ? (clientePorRemision.get(json.id_remision) ?? null)
+                : (clientePorFactura.get(json.id_factura) ?? null);
             return json;
         });
     },
@@ -131,6 +160,7 @@ export const DevolucionClienteRepository = {
         return await Devolucion_Cliente.findByPk(id_devolucion_cliente, {
             include: [
                 { model: Facturas, attributes: ['folio_factura', 'fecha_emision', 'total_factura'] },
+                { model: Remision, attributes: ['folio_remision', 'fecha_remision', 'total_remision'] },
                 {
                     model: Agente_De_Venta,
                     include: [{ model: Empleado, attributes: ['nombre_empleado', 'ap_pat_empleado', 'ap_mat_empleado'] }],
@@ -222,6 +252,7 @@ export const DevolucionClienteRepository = {
             where,
             include: [
                 { model: Facturas, attributes: ['folio_factura', 'fecha_emision', 'total_factura'] },
+                { model: Remision, attributes: ['folio_remision', 'fecha_remision', 'total_remision'] },
                 {
                     model: Agente_De_Venta,
                     include: [{ model: Empleado, attributes: ['nombre_empleado', 'ap_pat_empleado', 'ap_mat_empleado'] }],
@@ -263,7 +294,8 @@ export const DevolucionClienteRepository = {
 
         // Lote y caducidad con los que salió cada artículo en la factura (los del pedido surtido; si la línea trae un
         // lote de factura capturado a mano —lotes migrados— se usa ese)
-        const idsFactura = Array.from(new Set(devoluciones.map(d => String(d.id_factura)).filter(Boolean)));
+        // (las devoluciones de REMISIÓN no tienen id_factura: no deben entrar aquí como la cadena "null")
+        const idsFactura = Array.from(new Set(devoluciones.filter(d => d.id_factura).map(d => String(d.id_factura))));
         const lotesFactura = idsFactura.length ? await dbLocal.query<any>(`
             SELECT f.id_factura, dpa.id_articulo,
                    COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal) AS lote,
@@ -300,16 +332,51 @@ export const DevolucionClienteRepository = {
         const tasaPor = new Map<string, number>(tasas.map((t: any) => [`${t.id_factura}|${t.id_articulo}`, Number(t.tasa) || 0]));
         const r2 = (n: number) => Math.round(n * 100) / 100;
 
+        // Tasa de IVA de las remisiones (devoluciones de remisión sin CFDI)
+        const idsRemision = Array.from(new Set(devoluciones.filter(d => d.id_remision).map(d => String(d.id_remision))));
+        const tasasRem = idsRemision.length ? await dbLocal.query<any>(
+            `SELECT id_remision, id_articulo, MAX(tasa_iva) AS tasa FROM detalle_remision WHERE id_remision IN (:ids) GROUP BY id_remision, id_articulo`,
+            { replacements: { ids: idsRemision }, type: QueryTypes.SELECT }) : [];
+        const tasaPorRem = new Map<string, number>(tasasRem.map((t: any) => [`${t.id_remision}|${t.id_articulo}`, Number(t.tasa) || 0]));
+
+        // Lote y caducidad con los que salió cada artículo de la remisión (los del pedido surtido), igual que en las facturas
+        const lotesRem = idsRemision.length ? await dbLocal.query<any>(`
+            SELECT r.id_remision, dpa.id_articulo,
+                   COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal) AS lote,
+                   COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal) AS caducidad,
+                   SUM(dpal.cantidad) AS cantidad
+            FROM remision r
+            JOIN detalle_pedido_almacen dpa ON dpa.id_pedido_almacen = r.id_pedido_alm
+            JOIN detalle_pedido_almacen_lote dpal ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+            LEFT JOIN lote_articulo_sucursal las ON las.id_lote_sucursal = dpal.id_lote_sucursal
+            WHERE r.id_remision IN (:ids) AND dpal.cantidad > 0
+            GROUP BY r.id_remision, dpa.id_articulo, COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal),
+                     COALESCE(dpal.lote_factura_fecha, las.fecha_venci_lote_sucursal)
+            ORDER BY caducidad ASC`,
+            { replacements: { ids: idsRemision }, type: QueryTypes.SELECT }) : [];
+        const lotesPorLineaRem = new Map<string, { numero_lote: string; caducidad: string | null; cantidad: number }[]>();
+        for (const l of lotesRem) {
+            const k = `${l.id_remision}|${l.id_articulo}`;
+            const lista = lotesPorLineaRem.get(k) ?? [];
+            lista.push({ numero_lote: String(l.lote ?? '').trim(), caducidad: l.caducidad ?? null, cantidad: Number(l.cantidad) || 0 });
+            lotesPorLineaRem.set(k, lista);
+        }
+
         return devoluciones.map(d => {
             const plano = d.toJSON() as any;
-            const conDetalle = facturasConDetalle.has(String(d.id_factura));
+            const esRemision = !!d.id_remision;
+            const conDetalle = esRemision ? true : facturasConDetalle.has(String(d.id_factura));
             const detalles = (plano.detalles ?? []).map((x: any) => {
-                const tasa = conDetalle && x.id_articulo ? (tasaPor.get(`${d.id_factura}|${x.id_articulo}`) ?? 0) : 0;
+                const tasa = conDetalle && x.id_articulo
+                    ? (esRemision ? (tasaPorRem.get(`${d.id_remision}|${x.id_articulo}`) ?? 0) : (tasaPor.get(`${d.id_factura}|${x.id_articulo}`) ?? 0))
+                    : 0;
                 const subtotal = Number(x.subtotal_devolucion) || 0;
                 const iva = r2(subtotal * tasa);
                 return {
                     ...x,
-                    lotes_factura: x.id_articulo ? (lotesPorLinea.get(`${d.id_factura}|${x.id_articulo}`) ?? []) : [],
+                    lotes_factura: x.id_articulo
+                        ? ((esRemision ? lotesPorLineaRem.get(`${d.id_remision}|${x.id_articulo}`) : lotesPorLinea.get(`${d.id_factura}|${x.id_articulo}`)) ?? [])
+                        : [],
                     cod_barr_artic: x.id_articulo ? (barrasPor.get(String(x.id_articulo)) ?? null) : null,
                     tasa_iva: tasa,
                     importe_iva: iva,
@@ -360,6 +427,20 @@ export const DevolucionClienteRepository = {
 
         if (dev.estatus !== 'PENDIENTE') {
             throw Object.assign(new Error('La devolución ya fue procesada.'), { status: 400 });
+        }
+
+        // Si se registró contra una factura que nació de una remisión sin CFDI (Público General), es la misma venta:
+        // se resuelve por la remisión (nota de crédito interna), no se timbra un egreso.
+        if (!dev.id_remision && dev.id_factura) {
+            const rem = await DevolucionClienteRepository.remisionSinCfdiDeFactura(dev.id_factura);
+            if (rem) {
+                await dev.update({ id_remision: rem.id_remision, id_factura: null as any });
+            }
+        }
+
+        // Devolución de una REMISIÓN sin CFDI: no se timbra nada, se resuelve con nota de crédito interna
+        if (dev.id_remision) {
+            return await aprobarDevolucionRemision(dev, id_empleado_aprueba, recibio_mercancia, id_empresa);
         }
 
         // ── 2. Calcular monto ─────────────────────────────────────────────
@@ -603,7 +684,7 @@ export const DevolucionClienteRepository = {
             }, { transaction: t });
 
             await t.commit();
-            return { dev, resultado_aprobacion, monto_devolucion: monto_con_iva, egreso, recibio_mercancia, es_factura_vieja: esFacturaVieja, inventario_virtual, entradas_manuales };
+            return { dev, resultado_aprobacion, monto_devolucion: monto_con_iva, egreso, recibio_mercancia, es_factura_vieja: esFacturaVieja, es_remision: false, inventario_virtual, entradas_manuales };
 
         } catch (err) {
             await t.rollback();
@@ -653,6 +734,122 @@ export const DevolucionClienteRepository = {
         return mapa;
     },
 
+    // ═══════════════ REMISIONES (sin CFDI) ═══════════════════════════════════════════════════════
+
+    // ── Cantidades ya devueltas por artículo en una REMISIÓN (PENDIENTE o APROBADA; las rechazadas no cuentan) ──
+    getCantidadesYaDevueltasRemision: async (id_remision: string): Promise<Record<string, number>> => {
+        const filas = await dbLocal.query<any>(`
+            SELECT d.id_articulo, SUM(d.cantidad_devolucion)::float AS cantidad
+            FROM devolucion_cliente_detalle d
+            JOIN devolucion_cliente dc ON dc.id_devolucion_cliente = d.id_devolucion_cliente
+            WHERE dc.id_remision = :id AND dc.estatus IN ('PENDIENTE', 'APROBADA') AND d.id_articulo IS NOT NULL
+            GROUP BY d.id_articulo
+        `, { replacements: { id: id_remision }, type: QueryTypes.SELECT });
+        const mapa: Record<string, number> = {};
+        for (const f of filas) mapa[String(f.id_articulo)] = Number(f.cantidad) || 0;
+        return mapa;
+    },
+
+    // ── Remisión con sus artículos (para llenar el formulario de devolución), con la misma forma que la factura ──
+    getRemisionConDetalles: async (id_remision: string) => {
+        const rem = await Remision.findByPk(id_remision, {
+            attributes: ['id_remision', 'folio_remision', 'fecha_remision', 'total_remision', 'estatus_remision', 'id_cliente_alm', 'id_pedido_alm', 'id_factura'],
+        });
+        if (!rem) return null;
+
+        const detalles = await Detalle_Remision.findAll({ where: { id_remision }, raw: true }) as any[];
+
+        // Lotes originales del pedido por artículo (para saber a qué lote regresa la mercancía)
+        const lotesMap: Record<string, { num_lote: string; fecha_caducidad: string | null }[]> = {};
+        if (rem.id_pedido_alm) {
+            const rows = await dbLocal.query<any>(`
+                SELECT dpa.id_articulo,
+                       COALESCE(dpal.lote_factura_numero, las.numero_lote_sucursal) AS num_lote,
+                       COALESCE(dpal.lote_factura_fecha,  las.fecha_venci_lote_sucursal) AS fecha_caducidad
+                FROM detalle_pedido_almacen dpa
+                JOIN detalle_pedido_almacen_lote dpal ON dpal.id_detalle_pedido_almacen = dpa.id_detalle_pedido_almacen
+                LEFT JOIN lote_articulo_sucursal las ON las.id_lote_sucursal = dpal.id_lote_sucursal
+                WHERE dpa.id_pedido_almacen = :id
+                ORDER BY dpa.id_articulo, dpal.cantidad DESC
+            `, { replacements: { id: rem.id_pedido_alm }, type: QueryTypes.SELECT });
+            for (const r of rows) {
+                if (!lotesMap[r.id_articulo]) lotesMap[r.id_articulo] = [];
+                if (r.num_lote && !lotesMap[r.id_articulo].some(l => l.num_lote === r.num_lote)) {
+                    lotesMap[r.id_articulo].push({ num_lote: r.num_lote, fecha_caducidad: r.fecha_caducidad });
+                }
+            }
+        }
+
+        return {
+            tipo: 'REMISION' as const,
+            id_remision: rem.id_remision,
+            folio_remision: rem.folio_remision,
+            folio_factura: `REM-${rem.folio_remision}`,        // el formulario muestra este texto como "folio"
+            fecha_emision: rem.fecha_remision,
+            total_factura: Number(rem.total_remision),
+            estatus_remision: rem.estatus_remision,
+            id_cliente_alm: rem.id_cliente_alm,
+            id_pedido_alm: rem.id_pedido_alm,
+            id_factura: rem.id_factura,                         // lleno = viene de una factura de Público General
+            detalles: detalles.map(d => ({
+                id_articulo: d.id_articulo,
+                descripcion_articulo: d.descripcion_articulo,
+                cantidad_facturada: Number(d.cantidad),
+                precio_artic: Number(d.precio_unitario),
+                tasa_iva: Number(d.tasa_iva ?? 0),
+                lotes: lotesMap[d.id_articulo] ?? [],
+            })),
+        };
+    },
+
+    // ── Buscador del agente: facturas Y remisiones sin CFDI, por folio ──
+    //    Un agente ve los documentos de sus pedidos y de los clientes que tiene asignados hoy.
+    //    Una remisión que viene de una factura de Público General (id_factura lleno) se devuelve por esa factura.
+    buscarDocumentosAgente: async (id_agente: string, busqueda: string) => {
+        const facturas = await DevolucionClienteRepository.buscarFacturasAgente(id_agente, busqueda);
+        const items: any[] = facturas.map((f: any) => ({ ...(typeof f.toJSON === 'function' ? f.toJSON() : f), tipo: 'FACTURA' }));
+
+        // Una remisión se encuentra por su folio ("581", "REM-581", "rem 581") o por el folio de la factura que nació de ella
+        // al cobrar (esas facturas no se ofrecen aparte: son la misma venta y se devuelven por la remisión).
+        const m = busqueda.trim().match(/^(?:rem(?:isi[oó]n)?)?\s*-?\s*(\d{1,9})$/i);
+        if (/^[0-9a-f-]{36}$/i.test(id_agente)) {
+            const remisiones = await dbLocal.query<any>(`
+                SELECT r.id_remision, r.folio_remision, r.fecha_remision, r.total_remision, r.estatus_remision,
+                       c.razon_social_cliente_alm AS cliente,
+                       (SELECT x.saldo_pendiente FROM cuenta_por_cobrar x WHERE x.id_remision = r.id_remision
+                         ORDER BY x."createdAt" DESC LIMIT 1) AS saldo,
+                       (SELECT STRING_AGG(f.folio_factura, ', ' ORDER BY f.folio_factura) FROM facturas f
+                         WHERE f.id_pedido_alm = r.id_pedido_alm AND f.tipo_cfdi = 'I' AND f.estatus_factura <> 'CAN') AS facturas_origen
+                FROM remision r
+                JOIN cliente_almacen c ON c.id_cliente_alm = r.id_cliente_alm
+                WHERE r.id_factura IS NULL AND r.estatus_remision <> 'CAN'
+                  AND (r.id_agente = :ag OR c.id_agente_cliente_alm = :ag)
+                  AND (
+                        (CAST(:qr AS TEXT) IS NOT NULL AND CAST(r.folio_remision AS TEXT) LIKE CAST(:qr AS TEXT))
+                        OR EXISTS (SELECT 1 FROM facturas f
+                                   WHERE f.id_pedido_alm = r.id_pedido_alm AND f.tipo_cfdi = 'I'
+                                     AND f.estatus_factura <> 'CAN' AND f.folio_factura ILIKE :qf)
+                      )
+                ORDER BY r.fecha_remision DESC
+                LIMIT 20
+            `, { replacements: { ag: id_agente, qr: m ? `${m[1]}%` : null, qf: `%${busqueda}%` }, type: QueryTypes.SELECT });
+            for (const r of remisiones) {
+                items.push({
+                    tipo: 'REMISION',
+                    id_remision: r.id_remision,
+                    id_factura: null,
+                    folio_factura: `REM-${r.folio_remision}`,
+                    fecha_emision: r.fecha_remision,
+                    total_factura: Number(r.total_remision),
+                    saldo: r.saldo == null ? null : Number(r.saldo),
+                    facturas_origen: r.facturas_origen ?? null,
+                    cliente: r.cliente ?? null,
+                });
+            }
+        }
+        return items;
+    },
+
     // ── ADMIN: buscar facturas por folio o cliente (sin restringir al agente) ──
     //    n_detalles = 0 → factura vieja (migrada): solo se puede hacer nota de crédito por el total.
     buscarFacturasAdmin: async (busqueda: string) => {
@@ -670,6 +867,9 @@ export const DevolucionClienteRepository = {
             WHERE f.tipo_cfdi = 'I'
               AND f.estatus_factura <> 'CAN'
               AND (f.folio_factura ILIKE :q OR c.razon_social_cliente_alm ILIKE :q)
+              AND NOT EXISTS (
+                    SELECT 1 FROM remision r
+                    WHERE r.id_pedido_alm = f.id_pedido_alm AND r.id_factura IS NULL AND r.estatus_remision <> 'CAN')
             ORDER BY f.fecha_emision DESC
             LIMIT 25
         `, { replacements: { q: `%${busqueda}%` }, type: QueryTypes.SELECT });
@@ -918,31 +1118,42 @@ export const DevolucionClienteRepository = {
         return { recibidos, errores };
     },
 
+    // ── Facturas de una venta de Público General: la factura nace al cobrar cada abono, a partir de la REMISIÓN ──
+    //    Esas facturas son la misma venta que la remisión (sin CFDI): se devuelven por la remisión, con nota de crédito interna.
+    //    Devuelve la remisión sin CFDI de la que nació la factura, o null si es una factura normal.
+    remisionSinCfdiDeFactura: async (id_factura: string): Promise<{ id_remision: string; folio_remision: number } | null> => {
+        const filas = await dbLocal.query<any>(`
+            SELECT r.id_remision, r.folio_remision
+            FROM facturas f
+            JOIN remision r ON r.id_pedido_alm = f.id_pedido_alm AND r.id_factura IS NULL AND r.estatus_remision <> 'CAN'
+            WHERE f.id_factura = :id
+            ORDER BY r.folio_remision
+            LIMIT 1
+        `, { replacements: { id: id_factura }, type: QueryTypes.SELECT });
+        return filas[0] ?? null;
+    },
+
     // ── Buscar facturas del agente por folio (para el buscador) ──
+    //    Facturas de sus pedidos Y de los clientes que tiene asignados hoy: si le pasaron un cliente (reasignación de cartera),
+    //    puede hacerle devoluciones de facturas anteriores aunque esos pedidos los haya vendido el agente anterior.
+    //    NO incluye las facturas que nacieron de una remisión sin CFDI (Público General): esas se devuelven por la remisión.
     buscarFacturasAgente: async (id_agente: string, busqueda: string) => {
-        const { Op, literal } = await import('sequelize');
-        // Facturas de sus pedidos Y de los clientes que tiene asignados hoy: si le pasaron un cliente (reasignación de cartera),
-        // puede hacerle devoluciones de facturas anteriores aunque esos pedidos los haya vendido el agente anterior.
         if (!/^[0-9a-f-]{36}$/i.test(id_agente)) return [];
-        return await Facturas.findAll({
-            where: {
-                tipo_cfdi: 'I',
-                estatus_factura: { [Op.ne]: 'CAN' },
-                folio_factura: { [Op.iLike]: `%${busqueda}%` },
-                [Op.or]: [
-                    { '$pedido.id_agente_pedido_alm$': id_agente },
-                    { id_cliente_alm: { [Op.in]: literal(`(SELECT id_cliente_alm FROM cliente_almacen WHERE id_agente_cliente_alm = '${id_agente}')`) } },
-                ],
-            },
-            include: [{
-                model: Pedido_Almacen,
-                required: false,
-                attributes: ['cod_int_pedido_alm'],
-            }],
-            attributes: ['id_factura', 'folio_factura', 'fecha_emision', 'total_factura'],
-            limit: 20,
-            order: [['fecha_emision', 'DESC']],
-        });
+        return await dbLocal.query<any>(`
+            SELECT f.id_factura, f.folio_factura, f.fecha_emision, f.total_factura
+            FROM facturas f
+            LEFT JOIN pedido_almacen p ON p.id_pedido_alm = f.id_pedido_alm
+            WHERE f.tipo_cfdi = 'I'
+              AND f.estatus_factura <> 'CAN'
+              AND f.folio_factura ILIKE :q
+              AND (p.id_agente_pedido_alm = :ag
+                   OR f.id_cliente_alm IN (SELECT c.id_cliente_alm FROM cliente_almacen c WHERE c.id_agente_cliente_alm = :ag))
+              AND NOT EXISTS (
+                    SELECT 1 FROM remision r
+                    WHERE r.id_pedido_alm = f.id_pedido_alm AND r.id_factura IS NULL AND r.estatus_remision <> 'CAN')
+            ORDER BY f.fecha_emision DESC
+            LIMIT 20
+        `, { replacements: { q: `%${busqueda}%`, ag: id_agente }, type: QueryTypes.SELECT });
     },
 };
 
@@ -979,6 +1190,214 @@ async function lotesOriginalesDelPedido(id_pedido_alm: string, idsArticulos: str
     });
     for (const f of filas) if (!mapa.has(f.id_articulo)) mapa.set(f.id_articulo, f.id_lote_sucursal);
     return mapa;
+}
+
+// Forma de pago para registrar el descuento de una devolución de remisión: debe existir en el catálogo (el pago la
+// referencia con llave foránea). Se usa la del último pago de esa cuenta; si no hay, "99" (por definir), "17" o "01"; y
+// si el catálogo no tiene ninguna de esas, la primera que haya.
+async function formaDePagoValida(id_cxc: string, t: Transaction): Promise<string> {
+    const [ultimo] = await dbLocal.query<any>(`
+        SELECT p.id_forma_pago AS id
+        FROM pago_cxc p
+        JOIN cat_forma_de_pago f ON f.id_forma_de_pago = p.id_forma_pago
+        WHERE p.id_cxc = :id AND p.estatus_pago <> 'DEV'
+        ORDER BY p."createdAt" DESC
+        LIMIT 1
+    `, { replacements: { id: id_cxc }, type: QueryTypes.SELECT, transaction: t });
+    if (ultimo?.id) return String(ultimo.id);
+
+    const [preferida] = await dbLocal.query<any>(`
+        SELECT id_forma_de_pago AS id FROM cat_forma_de_pago
+        WHERE id_forma_de_pago IN ('99', '17', '01')
+        ORDER BY CASE id_forma_de_pago WHEN '99' THEN 1 WHEN '17' THEN 2 ELSE 3 END
+        LIMIT 1
+    `, { type: QueryTypes.SELECT, transaction: t });
+    if (preferida?.id) return String(preferida.id);
+
+    const [cualquiera] = await dbLocal.query<any>(
+        `SELECT id_forma_de_pago AS id FROM cat_forma_de_pago ORDER BY id_forma_de_pago LIMIT 1`,
+        { type: QueryTypes.SELECT, transaction: t });
+    if (!cualquiera?.id) throw Object.assign(new Error('El catálogo de formas de pago está vacío.'), { status: 500 });
+    return String(cualquiera.id);
+}
+
+// ── Aprobar la devolución de una REMISIÓN sin CFDI ──────────────────────────────────────────────────────────
+// Una remisión no tiene factura: la factura de cada abono se genera al cobrarlo. Por eso aquí NO se timbra nada
+// (no hay CFDI de egreso); se hace una nota de crédito INTERNA:
+//   · baja el saldo de la cuenta por cobrar de la remisión (hasta lo que el cliente todavía debe);
+//   · lo que exceda el saldo queda como nota de crédito a favor del cliente (saldo a favor, sin timbrar);
+//   · la remisión refleja la devolución en sus totales, y los abonos que falten se facturan sin lo devuelto;
+//   · la mercancía regresa al almacén (sin ubicar) o queda en el inventario virtual del agente, igual que con facturas.
+async function aprobarDevolucionRemision(
+    dev: Devolucion_Cliente,
+    id_empleado_aprueba: string,
+    recibio_mercancia: boolean,
+    id_empresa?: string,
+) {
+    const r2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+    const remision = await Remision.findByPk(dev.id_remision!);
+    if (!remision) throw Object.assign(new Error('La remisión de esta devolución ya no existe.'), { status: 404 });
+    if (remision.estatus_remision === 'CAN') {
+        throw Object.assign(new Error('La remisión está cancelada: no se puede aprobar la devolución.'), { status: 400 });
+    }
+    const folioRem = `REM-${remision.folio_remision}`;
+
+    // Importe CON IVA: cada renglón con la tasa de la remisión, redondeado por renglón (como la factura)
+    const tasasRem = await Detalle_Remision.findAll({
+        where: { id_remision: dev.id_remision! }, attributes: ['id_articulo', 'tasa_iva'], raw: true,
+    }) as any[];
+    const tasaPorArticulo = new Map<string, number>(tasasRem.map(t => [String(t.id_articulo), Number(t.tasa_iva ?? 0)]));
+    let subtotal = 0;
+    let iva = 0;
+    for (const d of dev.detalles) {
+        const sub = r2(Number(d.subtotal_devolucion));
+        subtotal += sub;
+        iva += r2(sub * (d.id_articulo ? (tasaPorArticulo.get(String(d.id_articulo)) ?? 0) : 0));
+    }
+    subtotal = r2(subtotal);
+    iva = r2(iva);
+    const monto_con_iva = r2(subtotal + iva);
+    if (monto_con_iva <= 0) throw Object.assign(new Error('El monto de la devolución debe ser mayor a 0.'), { status: 400 });
+
+    const cxc = await Cuenta_Por_Cobrar.findOne({
+        where: { id_remision: dev.id_remision! },
+        order: [['createdAt', 'DESC']],
+    });
+
+    const t = await dbLocal.transaction();
+    try {
+        let resultado_aprobacion: string;
+        let id_cxc_afectada: string | null = null;
+        let queda_liquidada = false;
+
+        if (cxc && cxc.estatus_cxc !== 'PAG') {
+            // Se descuenta lo que el cliente todavía debe; lo que sobre queda como saldo a favor
+            const saldo_actual = Math.max(0, Number(cxc.saldo_pendiente));
+            const monto_aplicado = r2(Math.min(saldo_actual, monto_con_iva));
+            const sobrante = r2(monto_con_iva - monto_aplicado);
+            const nuevo_saldo = Math.max(0, r2(saldo_actual - monto_aplicado));
+            const nuevo_total = Math.max(0, r2(Number(cxc.monto_total) - monto_aplicado));
+            const nuevo_estatus = nuevo_saldo <= 0 ? 'PAG' : Number(cxc.monto_pagado) > 0 ? 'PAR' : 'PEN';
+
+            // Pagos que el agente ya capturó pero el encargado aún no aplica ("en revisión"): si después de la devolución el
+            // saldo ya no alcanza para cubrirlos, no se podrían aplicar. Se pide resolverlos antes.
+            const enRevision = ((await Pago_CxC.sum('monto_pago', {
+                where: { id_cxc: cxc.id_cxc, estatus_pago: 'CAP' }, transaction: t,
+            })) as number) || 0;
+            if (enRevision > 0.009 && nuevo_saldo + 0.009 < enRevision) {
+                throw Object.assign(new Error(
+                    `El cliente tiene $${enRevision.toFixed(2)} en pagos por aplicar (en revisión) sobre ${folioRem}, y con esta devolución ` +
+                    `el saldo quedaría en $${nuevo_saldo.toFixed(2)}. Aplica o cancela ese pago antes de aprobar la devolución.`
+                ), { status: 409 });
+            }
+
+            await cxc.update({ monto_total: nuevo_total, saldo_pendiente: nuevo_saldo, estatus_cxc: nuevo_estatus }, { transaction: t });
+
+            if (monto_aplicado > 0) {
+                const id_forma_pago = await formaDePagoValida(cxc.id_cxc, t);
+                await Pago_CxC.create({
+                    id_pago_cxc: uuidv4(),
+                    id_cxc: cxc.id_cxc,
+                    id_metodo_pago: 'PUE',
+                    id_forma_pago,
+                    monto_pago: monto_aplicado,
+                    fecha_pago: new Date(),
+                    numero_recibo: `DEV-${dev.id_devolucion_cliente.slice(0, 8)}`,
+                    referencia_pago: `DEV-${folioRem}`,
+                    id_empleado_captura: id_empleado_aprueba,
+                    id_empleado_aplica: id_empleado_aprueba,
+                    fecha_aplicado: new Date(),
+                    notas: `Nota de crédito interna (sin timbrar) — devolución aprobada sobre ${folioRem}.`,
+                    estatus_pago: 'DEV',
+                }, { transaction: t });
+            }
+
+            if (sobrante > 0.009) {
+                await Nota_Credito_Cliente.create({
+                    id_nota_credito: uuidv4(),
+                    id_cliente_alm: remision.id_cliente_alm,
+                    id_devolucion_cliente: dev.id_devolucion_cliente,
+                    monto_original: sobrante,
+                    saldo_disponible: sobrante,
+                    estatus: 'DISPONIBLE',
+                    concepto: `Saldo a favor de devolución · ${folioRem} (excedió el saldo pendiente)`,
+                    uuid_cfdi_egreso: null,
+                }, { transaction: t });
+            }
+
+            resultado_aprobacion = 'DESCUENTO_CXC';
+            id_cxc_afectada = cxc.id_cxc;
+            queda_liquidada = nuevo_estatus === 'PAG';
+        } else {
+            // Ya estaba pagada (o no tiene cuenta por cobrar): todo queda como saldo a favor del cliente
+            await Nota_Credito_Cliente.create({
+                id_nota_credito: uuidv4(),
+                id_cliente_alm: remision.id_cliente_alm,
+                id_devolucion_cliente: dev.id_devolucion_cliente,
+                monto_original: monto_con_iva,
+                saldo_disponible: monto_con_iva,
+                estatus: 'DISPONIBLE',
+                concepto: `Devolución aprobada · ${folioRem}`,
+                uuid_cfdi_egreso: null,
+            }, { transaction: t });
+            resultado_aprobacion = 'NOTA_CREDITO';
+        }
+
+        // La remisión refleja lo devuelto (la venta neta baja) y deja constancia en sus notas
+        const nota = `Devolución DEV-${dev.id_devolucion_cliente.slice(0, 8)}: -$${monto_con_iva.toFixed(2)}`;
+        await remision.update({
+            subtotal_remision: Math.max(0, r2(Number(remision.subtotal_remision) - subtotal)),
+            iva_remision: Math.max(0, r2(Number(remision.iva_remision) - iva)),
+            total_remision: Math.max(0, r2(Number(remision.total_remision) - monto_con_iva)),
+            notas: [remision.notas, nota].filter(Boolean).join(' | '),
+            ...(queda_liquidada ? { estatus_remision: 'LIQ' } : {}),
+        }, { transaction: t });
+
+        // Mercancía: recibida → stock sin ubicar (+ Kardex) · no recibida → inventario virtual del agente
+        let inventario_virtual = false;
+        if (recibio_mercancia && remision.id_pedido_alm) {
+            await registrarEntradaMercancia({
+                detalles: dev.detalles,
+                id_pedido_alm: remision.id_pedido_alm,
+                id_devolucion_cliente: dev.id_devolucion_cliente,
+                id_empleado_aprueba,
+                folio_factura: folioRem,
+                id_empresa: id_empresa ?? '',
+                t,
+            });
+        } else if (!recibio_mercancia) {
+            inventario_virtual = (await registrarInventarioVirtual({
+                detalles: dev.detalles,
+                id_pedido_alm: remision.id_pedido_alm,
+                id_devolucion_cliente: dev.id_devolucion_cliente,
+                id_agente: dev.id_agente,
+                folio_factura: folioRem,
+                id_empresa: id_empresa ?? '',
+                t,
+            })) > 0;
+        }
+
+        await dev.update({
+            estatus: 'APROBADA',
+            resultado_aprobacion,
+            id_cxc_afectada,
+            uuid_cfdi_egreso: null,
+            id_factura_egreso: null,
+            recibio_mercancia,
+            fecha_recepcion_mercancia: recibio_mercancia ? new Date() : null,
+        }, { transaction: t });
+
+        await t.commit();
+        return {
+            dev, resultado_aprobacion, monto_devolucion: monto_con_iva,
+            egreso: null as { folio: number | string; ruta_txt?: string } | null,
+            recibio_mercancia, es_factura_vieja: false, es_remision: true, inventario_virtual, entradas_manuales: 0,
+        };
+    } catch (err) {
+        await t.rollback();
+        throw err;
+    }
 }
 
 // Mercancía devuelta que NO llegó al almacén: queda en el inventario virtual del agente.

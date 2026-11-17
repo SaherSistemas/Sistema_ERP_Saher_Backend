@@ -5,7 +5,7 @@ import { io } from '../../../../server_ws';
 import { AuthedRequest } from '../../../../middleware/auth';
 import Pedido_Almacen from '../model/Pedido_Almacen';
 import Detalle_Pedido_Almacen from '../model/Detalle_Pedido_Almacen';
-import { v4 as uuidv4 } from 'uuid';
+import { Detalle_Pedido_AlmacenRepository } from '../repositories/Detalle_Pedido_Almacen.repository';
 import { AgenteRepository } from '../../../Comercial/Agente_Venta/repositories/Agente.repository';
 import Autorizacion_Credito from '../../../Facturas/model/Autorizacion_Credito.model';
 import { Pedido_AlmacenRepository } from '../repositories/Pedido_Almacen.repository';
@@ -136,12 +136,33 @@ export class Pedido_AlmacenController {
         ids_clientes: Array.isArray(b.ids_clientes) ? b.ids_clientes : [],
         dia_envio: b.dia_envio === undefined || b.dia_envio === null || b.dia_envio === '' ? undefined : Number(b.dia_envio),
         nivel_servicio: b.nivel_servicio === undefined || b.nivel_servicio === null || b.nivel_servicio === '' ? undefined : Number(b.nivel_servicio),
+        incluir_no_manejados: b.incluir_no_manejados === true,
       });
       res.status(200).json(r);
     } catch (error: any) {
       if (error?.status) { res.status(error.status).json({ message: error.message }); return; }
       console.error('[calcularReabasto]', error);
       res.status(500).json({ message: error?.message ?? 'No se pudo calcular el reabasto.' });
+    }
+  };
+
+  // POST /almacen/pedido/calcular-sobreexistencia  body: { ids_clientes: string[], dias_limite?: number }
+  // Lo que cada sucursal tiene de más (existencia que cubre más de N días de venta, o sin ventas). Solo calcula.
+  static calcularSobreexistencia = async (req: AuthedRequest, res: Response) => {
+    try {
+      const id_empresa = String(req.user?.id_empresa || '').trim();
+      if (!id_empresa) { res.status(400).json({ message: 'No se pudo identificar la empresa del usuario.' }); return; }
+      const b = req.body ?? {};
+      const r = await CalculoNecesariosService.sobreexistencia(id_empresa, {
+        ids_clientes: Array.isArray(b.ids_clientes) ? b.ids_clientes : [],
+        dias_limite: b.dias_limite === undefined || b.dias_limite === null || b.dias_limite === '' ? undefined : Number(b.dias_limite),
+        incluir_no_manejados: b.incluir_no_manejados === true,
+      });
+      res.status(200).json(r);
+    } catch (error: any) {
+      if (error?.status) { res.status(error.status).json({ message: error.message }); return; }
+      console.error('[calcularSobreexistencia]', error);
+      res.status(500).json({ message: error?.message ?? 'No se pudo calcular la sobreexistencia.' });
     }
   };
 
@@ -177,6 +198,7 @@ export class Pedido_AlmacenController {
         ids_pedidos: Array.isArray(b.ids_pedidos) ? b.ids_pedidos : [],
         dia_envio: b.dia_envio === undefined || b.dia_envio === null || b.dia_envio === '' ? undefined : Number(b.dia_envio),
         nivel_servicio: b.nivel_servicio === undefined || b.nivel_servicio === null || b.nivel_servicio === '' ? undefined : Number(b.nivel_servicio),
+        incluir_no_manejados: b.incluir_no_manejados === true,
       });
       res.status(200).json(r);
     } catch (error: any) {
@@ -359,6 +381,21 @@ export class Pedido_AlmacenController {
   static cambiarACaptura = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id_pedido } = req.body;
+      // Solo se reactiva un pedido que está en cotización. Si ya lo autorizaron o está en almacén, una pantalla vieja del
+      // agente lo regresaba a "En captura" aunque ya estuviera en Capturado o más adelante.
+      const actual = await Pedido_Almacen.findByPk(id_pedido, { attributes: ['id_pedido_alm', 'status_pedido_alm'] });
+      if (!actual) {
+        res.status(404).json({ mensaje: 'Pedido no encontrado.' });
+        return;
+      }
+      if (actual.status_pedido_alm === 'EC') {
+        res.status(200).json({ mensaje: 'El pedido ya está en captura.' });
+        return;
+      }
+      if (actual.status_pedido_alm !== 'CO') {
+        res.status(409).json({ mensaje: 'Este pedido ya no está en cotización (ya fue autorizado o enviado a almacén). Actualiza la lista de pedidos.' });
+        return;
+      }
       // Verifica que no tenga ya otro pedido en EC
       const enCaptura = await Pedido_AlmacenService.pedidosEnCaptura(
         (await Pedido_AlmacenService.getClienteDelPedido(id_pedido)) ?? ''
@@ -564,7 +601,8 @@ export class Pedido_AlmacenController {
       res.status(200).json(finalizarPedido);
     } catch (error: any) {
       console.log(error);
-      res.status(500).json({ message: error?.message ?? 'Error al finalizar pedidos.' });
+      const status = error?.status ?? 500;
+      res.status(status).json({ message: error?.message ?? 'Error al finalizar pedidos.', mensaje: error?.message });
     }
   }
 
@@ -859,14 +897,14 @@ export class Pedido_AlmacenController {
       }
       const pedido = await Pedido_Almacen.findByPk(id, { attributes: ['id_pedido_alm', 'status_pedido_alm'] });
       if (!pedido) { res.status(404).json({ mensaje: 'Pedido no encontrado' }); return; }
-      const detalle = await Detalle_Pedido_Almacen.create({
-        id_detalle_pedido_almacen: uuidv4(),
+      // Un artículo es un solo renglón: si el pedido ya lo trae, se suman las piezas en vez de crear otro renglón igual
+      const detalle = await Detalle_Pedido_AlmacenRepository.addOrAccumulate({
         id_pedido_almacen: id,
         id_articulo,
-        cant_pedida: Number(cant_pedida),
-        precio_venta: Number(precio_venta ?? 0),
+        cantidad: Number(cant_pedida),
+        precio_unitario: Number(precio_venta ?? 0),
         es_oferta: false,
-      });
+      } as any);
       res.status(201).json(detalle);
     } catch (error: any) {
       res.status(500).json({ mensaje: error.message });

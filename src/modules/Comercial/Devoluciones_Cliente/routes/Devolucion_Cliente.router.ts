@@ -28,6 +28,9 @@ router.get('/mis-devoluciones', DevolucionClienteController.misDevoluciones);
 // Productos de una factura (step 2 del form)
 router.get('/factura/:id_factura', DevolucionClienteController.getFacturaParaDevolucion);
 
+// Productos de una remisión sin CFDI (step 2 del form cuando se devuelve contra una remisión)
+router.get('/remision/:id_remision', DevolucionClienteController.getRemisionParaDevolucion);
+
 // Detalle de una devolución
 router.get('/:id', DevolucionClienteController.getById);
 

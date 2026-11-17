@@ -15,6 +15,7 @@ router.post('/verificar-credito', Pedido_AlmacenController.verificarCredito)
 router.post('/calcular-necesarios', Pedido_AlmacenController.calcularNecesarios)
 router.get('/sucursales-reabasto', Pedido_AlmacenController.sucursalesReabasto)
 router.post('/calcular-reabasto', Pedido_AlmacenController.calcularReabasto)
+router.post('/calcular-sobreexistencia', Pedido_AlmacenController.calcularSobreexistencia)
 router.post('/crear-reabasto', Pedido_AlmacenController.crearReabasto)
 router.post('/asignar_pedido_surtidor', Pedido_AlmacenController.asignarPedidoSurtidor)
 

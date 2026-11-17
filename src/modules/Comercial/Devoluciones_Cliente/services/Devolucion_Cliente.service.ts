@@ -47,6 +47,19 @@ export const DevolucionClienteService = {
             throw { status: 400, message: 'Debes seleccionar al menos un producto para devolver.' };
         }
 
+        // Se devuelve contra una factura O contra una remisión sin CFDI
+        if (!body.id_factura && !body.id_remision) {
+            throw { status: 400, message: 'Selecciona la factura o la remisión de la que se devuelve.' };
+        }
+        if (body.id_factura && body.id_remision) {
+            throw { status: 400, message: 'Una devolución es de una factura o de una remisión, no de las dos.' };
+        }
+        // Una factura que nació de una remisión sin CFDI (Público General) es la misma venta: se devuelve por la remisión
+        if (body.id_factura) {
+            const rem = await DevolucionClienteRepository.remisionSinCfdiDeFactura(body.id_factura);
+            if (rem) body = { ...body, id_factura: undefined, id_remision: rem.id_remision };
+        }
+
         for (const d of body.detalles) {
             if (d.cantidad_devolucion <= 0) {
                 throw { status: 400, message: `La cantidad a devolver de "${d.descripcion_articulo}" debe ser mayor a 0.` };
@@ -126,7 +139,32 @@ export const DevolucionClienteService = {
         const agente = await AgenteRepository.getByIdEmpleado(id_empleado);
         if (!agente) throw { status: 404, message: 'No se encontró un agente asociado a este usuario.' };
         if (!busqueda || busqueda.trim().length < 1) return [];
-        return await DevolucionClienteRepository.buscarFacturasAgente(agente.id_agente, busqueda.trim());
+        // Facturas y remisiones sin CFDI (por folio)
+        return await DevolucionClienteRepository.buscarDocumentosAgente(agente.id_agente, busqueda.trim());
+    },
+
+    // ── Remisión sin CFDI con sus artículos DISPONIBLES para devolver (como la factura: lo vendido − lo ya devuelto) ──
+    getRemisionParaDevolucion: async (id_remision: string) => {
+        const rem = await DevolucionClienteRepository.getRemisionConDetalles(id_remision);
+        if (!rem) throw { status: 404, message: 'Remisión no encontrada.' };
+        if (rem.estatus_remision === 'CAN') throw { status: 400, message: 'La remisión está cancelada.' };
+        if (rem.id_factura) {
+            throw { status: 400, message: 'Esta remisión viene de una factura de Público General: haz la devolución contra esa factura.' };
+        }
+
+        const yaDevuelto = await DevolucionClienteRepository.getCantidadesYaDevueltasRemision(id_remision);
+        const detalles = rem.detalles
+            .map(d => {
+                const devuelto = d.id_articulo ? (yaDevuelto[d.id_articulo] ?? 0) : 0;
+                return {
+                    ...d,
+                    cantidad_ya_devuelta: devuelto,
+                    cantidad_facturada: Math.max(0, d.cantidad_facturada - devuelto),   // el formulario lo usa como máximo
+                };
+            })
+            .filter(d => d.cantidad_facturada > 0);   // ocultar artículos totalmente devueltos
+
+        return { ...rem, detalles };
     },
 
     // ── ADMIN: buscar facturas por folio o cliente ──────────────────────
@@ -219,6 +257,15 @@ export const DevolucionClienteService = {
         },
     ) => {
         if (!body.id_factura) throw { status: 400, message: 'Falta la factura.' };
+        // Factura que nació de una remisión sin CFDI: no se timbra egreso; esa devolución se hace contra la remisión
+        const remDeFactura = await DevolucionClienteRepository.remisionSinCfdiDeFactura(body.id_factura);
+        if (remDeFactura) {
+            throw {
+                status: 400,
+                message: `Esta factura nació de la remisión REM-${remDeFactura.folio_remision} (sin CFDI): la devolución se hace contra la remisión, ` +
+                    'con nota de crédito interna, desde "Nueva devolución" en la web de agentes.',
+            };
+        }
         if (!(MOTIVOS as readonly string[]).includes(body.motivo)) {
             throw { status: 400, message: 'Motivo de devolución no válido.' };
         }

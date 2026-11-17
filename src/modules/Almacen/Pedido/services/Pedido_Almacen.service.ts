@@ -1998,24 +1998,39 @@ export const Pedido_AlmacenService = {
   },
 
   finalizarCaptura: async (id_pedido: string) => {
+    // Solo se puede "procesar" un pedido que sigue en captura (EC) o en cotización autorizada (CO), o uno ya Capturado que
+    // almacén todavía no empieza a surtir. Si ya está en surtido, chequeo, etc., una pantalla vieja del agente lo regresaba
+    // a Capturado sin borrar el surtido y el pedido quedaba trabado.
+    const actual = await Pedido_Almacen.findByPk(id_pedido, { attributes: ['id_pedido_alm', 'status_pedido_alm', 'inicio_surtido'] });
+    if (!actual) throw { status: 404, message: 'Pedido no encontrado.' };
+    const st = String(actual.status_pedido_alm);
+    const yaEnAlmacen = !['EC', 'CO', 'CA'].includes(st) || (st === 'CA' && !!(actual as any).inicio_surtido);
+    if (yaEnAlmacen) {
+      const nombres: Record<string, string> = {
+        SU: 'Surtiendo', CH: 'Por checar', EM: 'Empacado', FA: 'Facturado', EN: 'Entregado', NE: 'Negado', CN: 'Cancelado', CA: 'Capturado (ya en surtido)',
+      };
+      throw {
+        status: 409,
+        message: `Este pedido ya fue enviado a almacén (estatus: ${nombres[st] ?? st}) y no se puede volver a procesar. Actualiza la lista de pedidos.`,
+      };
+    }
+
     const t = await dbLocal.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
-    // console.log("ENTRO A SERVICIO FINALIZAR CAPTURA");
+    try {
+      //CAMBIAR A CA= CAPTURADO
+      const capturado = await Pedido_AlmacenRepository.actualizarFinCapturado(id_pedido, t)
+      if (!capturado) throw new Error('No se pudo actualizar el pedido');
 
-    //CAMBIAR A CA= CAPTURADO 
-
-    const capturado = await Pedido_AlmacenRepository.actualizarFinCapturado(id_pedido, t)
-    if (!capturado) throw new Error('No se pudo actualizar el pedido');
-
-    //const repartirLotes = await Detalle_Pedido_Almacen_LoteRepository.create(id_pedido, t)
-
-    const pedidoFull = await Pedido_AlmacenRepository.getByID(id_pedido);
-    if (!pedidoFull) throw new Error("No se pudo recargar el pedido")
-    await t.commit();
-
-    // console.log("PEDIDO FINALIZADO Y CAPTURADO:", capturado)
-    return pedidoFull
+      const pedidoFull = await Pedido_AlmacenRepository.getByID(id_pedido);
+      if (!pedidoFull) throw new Error("No se pudo recargar el pedido")
+      await t.commit();
+      return pedidoFull
+    } catch (err) {
+      await t.rollback().catch(() => undefined);
+      throw err;
+    }
   },
 
   getListaGestion: async (params: { fecha_inicio?: string; fecha_fin?: string; status?: string; busqueda?: string; page?: number; limit?: number; excluir_finalizados?: boolean; id_agente?: string }) => {
