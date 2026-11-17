@@ -163,6 +163,31 @@ async function _capturarReciboEnTx(data: ICapturarPagoCliente, prefijo: string, 
 // _impuestosProporcionalesPago para no tocar las llamadas existentes).
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Helper privado — una factura sin timbrar (sin UUID SAT) no puede recibir pagos:
+//  sin UUID no hay a qué documento relacionar el complemento de pago, y el pago
+//  quedaría aplicado pero fuera del complemento. Devuelve los folios sin timbrar.
+//  Solo cuentas ligadas directo a una factura: las remisiones de Público General
+//  del flujo anterior traen su factura pre-creada y se timbran al liquidarse.
+// ─────────────────────────────────────────────────────────────────────────────
+async function _foliosFacturasSinTimbrar(pagos: { id_cxc: string }[]): Promise<string[]> {
+    const folios: string[] = [];
+    for (const pago of pagos) {
+        const cxc = await CxCRepository.getById(pago.id_cxc);
+        if (!cxc || cxc.estatus_cxc === 'PAG' || !cxc.id_factura) continue;
+        const f = await Facturas.findByPk(cxc.id_factura);
+        if (!f || String(f.uuid_sat ?? '').trim()) continue;
+        const folio = String(f.folio_factura ?? '').trim() || String(f.id_factura);
+        if (!folios.includes(folio)) folios.push(folio);
+    }
+    return folios;
+}
+
+const _mensajeSinTimbrar = (folios: string[]) =>
+    folios.length === 1
+        ? `La factura ${folios[0]} no está timbrada. Tímbrala primero para poder aplicar el pago.`
+        : `Las facturas ${folios.join(', ')} no están timbradas. Tímbralas primero para poder aplicar el pago.`;
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Helper privado — genera .txt de Complemento de Pago para un FacturaPagoCFDI
 // ─────────────────────────────────────────────────────────────────────────────
 async function _generarTxtUno(cfdi: FacturaPagoCFDI, id_empresa?: string): Promise<{
@@ -686,6 +711,10 @@ export const CxCService = {
         if (!cxc) throw new Error('CxC no encontrada');
         if (cxc.estatus_cxc === 'PAG') throw new Error('Esta CxC ya está pagada');
 
+        // Una factura sin timbrar no puede recibir pagos: primero se timbra
+        const sinTimbrar = await _foliosFacturasSinTimbrar([pago]);
+        if (sinTimbrar.length) throw new Error(_mensajeSinTimbrar(sinTimbrar));
+
         // Guardar saldo_anterior ANTES de aplicar
         const saldo_anterior = Number(cxc.saldo_pendiente);
 
@@ -820,6 +849,11 @@ export const CxCService = {
         const pendientes = pagosRecibo.filter((p: any) => p.estatus_pago === 'CAP');
         if (pendientes.length === 0)
             throw new Error('Todos los pagos de este recibo ya fueron aplicados o cancelados');
+
+        // Si alguna factura del recibo no está timbrada no se aplica NADA (ni las que sí lo están):
+        // el recibo se aplica completo o no se aplica, para que el complemento cubra todos sus documentos.
+        const sinTimbrar = await _foliosFacturasSinTimbrar(pendientes);
+        if (sinTimbrar.length) throw new Error(_mensajeSinTimbrar(sinTimbrar));
 
         const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
         const cfdisCreados: FacturaPagoCFDI[] = [];

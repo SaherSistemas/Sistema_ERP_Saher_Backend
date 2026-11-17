@@ -77,6 +77,10 @@ export function calcularTotales(conceptos: ConceptoFacturacion[]) {
 // ─────────────────────────────────────────────────────────────────────────────
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+// Importe del traslado de un documento relacionado: base (a 2 decimales) × tasa, redondeado a 2 decimales.
+// Siempre queda dentro del rango que valida el SAT: [trunc((base − 0.005) × tasa), ceil((base + 0.005) × tasa)].
+const importeDeBase = (base: number, tasa: number) => (tasa > 0 ? round2(base * tasa) : 0);
+
 export async function calcularImpuestosProporcionalesPago(
     id_factura: string,
     monto_pagado: number,
@@ -98,11 +102,14 @@ export async function calcularImpuestosProporcionalesPago(
     const proporcion = total_factura > 0 ? monto_pagado / total_factura : 1;
 
     if (grupos.length) {
-        return grupos.map(g => ({
-            tasa:    Number(g.tasa_iva),
-            base:    round2(Number(g.base)    * proporcion),
-            importe: round2(Number(g.importe) * proporcion),
-        }));
+        // El importe sale de la BASE ya redondeada × tasa, no de prorratear el IVA de la factura: el SAT (CRP20261)
+        // exige que ImporteDR caiga entre (BaseDR ± 0.005) × Tasa, y el IVA de la factura suma el IVA de cada renglón
+        // ya redondeado, que no coincide con base × tasa. Prorratearlo daba centavos fuera del rango.
+        return grupos.map(g => {
+            const tasa = Number(g.tasa_iva);
+            const base = round2(Number(g.base) * proporcion);
+            return { tasa, base, importe: importeDeBase(base, tasa) };
+        });
     }
 
     // Fallback para facturas de migración (sin detalle_factura)
@@ -111,11 +118,8 @@ export async function calcularImpuestosProporcionalesPago(
 
     const resultado: ImpuestoDocumentoPagoTxt[] = [];
     if (base16Total > 0) {
-        resultado.push({
-            tasa:    0.16,
-            base:    round2(base16Total * proporcion),
-            importe: round2(iva_factura * proporcion),
-        });
+        const base = round2(base16Total * proporcion);
+        resultado.push({ tasa: 0.16, base, importe: importeDeBase(base, 0.16) });
     }
     if (base0Total > 0) {
         resultado.push({ tasa: 0, base: round2(base0Total * proporcion), importe: 0 });

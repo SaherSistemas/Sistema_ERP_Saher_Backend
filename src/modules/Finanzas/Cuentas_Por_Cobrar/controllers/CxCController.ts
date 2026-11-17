@@ -175,7 +175,7 @@ export class CxCController {
             res.status(200).json(resultado);
         } catch (error: any) {
             console.error(error);
-            const status = /no encontrado|ya fue aplicado|cancelado/.test(error.message) ? 400 : 500;
+            const status = /no encontrado|ya fue aplicado|cancelado|no está timbrada|no están timbradas/.test(error.message) ? 400 : 500;
             res.status(status).json({ message: error.message ?? 'Error al aplicar el pago.' });
         }
     };
@@ -188,7 +188,7 @@ export class CxCController {
             res.status(200).json(resultado);
         } catch (error: any) {
             console.error(error);
-            const status = /no encontrado|ya fueron aplicados/.test(error.message) ? 400 : 500;
+            const status = /no encontrado|ya fueron aplicados|no está timbrada|no están timbradas/.test(error.message) ? 400 : 500;
             res.status(status).json({ message: error.message ?? 'Error al aplicar el recibo.' });
         }
     };
