@@ -2639,3 +2639,132 @@ export async function generarFacturaAbonoPublicoGeneral(opts: {
         return { ok: false, error: err.message };
     }
 }
+
+// ── Público General sobre una factura MIGRADA sin timbrar ────────────────────
+// Los clientes de mostrador (abarrotes / RFC genérico) con una factura del sistema viejo que nunca se timbró:
+// cada abono genera una Factura de Ingreso de Público General NUEVA (folio, UUID y .txt propios) por el monto
+// de ESE abono, igual que ya se hace con las remisiones. La factura migrada NO se timbra: queda como referencia
+// del saldo. No necesita pedido ni renglones: el .txt va resumido, un concepto por tasa de IVA, y la repartición
+// entre tasas sale de la propia factura (sus renglones si los tiene; si no, de su subtotal e IVA).
+export async function generarFacturaAbonoPublicoGeneralDeFactura(opts: {
+    id_factura_origen: string;
+    id_cliente_alm: string;
+    id_empresa?: string;
+    monto_pago: number;          // este abono
+    id_forma_pago: string;       // código SAT real del recibo (pago_cxc.id_forma_pago)
+}): Promise<{ ok: boolean; id_factura?: string; folio?: number; ruta_txt?: string; error?: string }> {
+    try {
+        const { id_factura_origen, id_cliente_alm, monto_pago, id_forma_pago } = opts;
+        const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+        if (!(monto_pago > 0)) return { ok: false, error: 'El monto del abono debe ser mayor a cero.' };
+
+        const origen = await Facturas.findByPk(id_factura_origen, { raw: true }) as any;
+        if (!origen) return { ok: false, error: 'No se encontró la factura origen del abono.' };
+
+        const id_empresa = opts.id_empresa ?? (await EmpresaSucursal.findOne({ raw: true }) as any)?.id_empre;
+        if (!id_empresa) return { ok: false, error: 'No se encontró la empresa emisora.' };
+        const emisor = await obtenerEmisor(id_empresa);
+        if (!emisor) return { ok: false, error: 'No se encontró la empresa emisora.' };
+        // Lugar de expedición: CP de la colonia de la empresa (igual que el resto de las facturas de ingreso)
+        const [cp] = await dbLocal.query<{ cp_colonia: string | null }>(
+            `SELECT co.cp_colonia FROM empresa_sucursal es JOIN colonia co ON co.id_colonia = es.id_colonia_empre WHERE es.id_empre = :id_empresa`,
+            { replacements: { id_empresa }, type: QueryTypes.SELECT });
+        emisor.lugar_expedicion = cp?.cp_colonia?.trim() || emisor.lugar_expedicion;
+
+        // ── Cómo se reparte la factura entre tasas de IVA (monto bruto = base + IVA de cada tasa) ──
+        const grupos = await Detalle_Factura.findAll({
+            where: { id_factura: id_factura_origen },
+            attributes: ['tasa_iva', [dbLocal.fn('SUM', dbLocal.col('subtotal')), 'base']],
+            group: ['tasa_iva'],
+            raw: true,
+        }) as unknown as { tasa_iva: string; base: string }[];
+
+        let porTasa: { tasa: number; bruto: number }[] = grupos
+            .map(g => ({ tasa: Number(g.tasa_iva), bruto: Number(g.base) * (1 + Number(g.tasa_iva)) }))
+            .filter(g => g.bruto > 0);
+        if (!porTasa.length) {
+            // Factura migrada sin renglones: se deriva de sus agregados (16 % + 0 %)
+            const subtotal = Number(origen.subtotal_factura) || 0;
+            const iva = Number(origen.iva_factura) || 0;
+            const base16 = iva > 0 ? iva / 0.16 : 0;
+            let base0 = Math.max(subtotal - base16, 0);
+            if (base0 < 0.05) base0 = 0;            // diferencia de redondeo, no es base exenta
+            if (base16 > 0) porTasa.push({ tasa: 0.16, bruto: base16 * 1.16 });
+            if (base0 > 0) porTasa.push({ tasa: 0, bruto: base0 });
+            if (!porTasa.length) porTasa = [{ tasa: 0, bruto: Number(origen.total_factura) || monto_pago }];
+        }
+        const brutoTotal = porTasa.reduce((s, g) => s + g.bruto, 0);
+
+        // ── Bases del abono: lo gravado sale de dividir su parte entre (1 + tasa); la tasa 0 % absorbe el centavo que sobre ──
+        const lineas = porTasa
+            .sort((a, b) => b.tasa - a.tasa)
+            .map(g => {
+                if (g.tasa <= 0) return { tasa: 0, base: 0 };
+                return { tasa: g.tasa, base: round2((monto_pago * g.bruto / brutoTotal) / (1 + g.tasa)) };
+            });
+        const gravadoTotal = () => lineas.reduce((s, l) => s + l.base + round2(l.base * l.tasa), 0);
+        const l0 = lineas.find(l => l.tasa === 0);
+        if (l0) {
+            l0.base = Math.max(round2(monto_pago - gravadoTotal()), 0);
+        } else {
+            const mayor = lineas.reduce((m, l) => (l.base > m.base ? l : m), lineas[0]);
+            const diff = round2(monto_pago - gravadoTotal());
+            if (Math.abs(diff) >= 0.01) mayor.base = round2(mayor.base + diff / (1 + mayor.tasa));
+        }
+        const conceptos = lineas.filter(l => l.base > 0);
+        if (!conceptos.length) return { ok: false, error: 'No hay importe que facturar en este abono.' };
+
+        const subtotal = round2(conceptos.reduce((s, c) => s + c.base, 0));
+        const iva = round2(conceptos.reduce((s, c) => s + round2(c.base * c.tasa), 0));
+        const total = round2(subtotal + iva);
+
+        const folio = await FacturacionRepository.getSiguienteFolio();
+        const t = await dbLocal.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+        let facturaCreada;
+        try {
+            facturaCreada = await FacturacionRepository.registrarFactura({
+                folio,
+                tipo_cfdi: 'I',
+                origen_factura: 'PED',
+                id_pedido_alm: origen.id_pedido_alm ?? undefined,
+                id_cliente_alm,
+                id_empresa_facturas: id_empresa,
+                id_metodo_pago: 'PUE',
+                id_forma_pago,
+                uso_cfdi: 'S01',
+                subtotal, iva, total,
+                conceptos: conceptos.map(c => ({
+                    id_articulo: null,
+                    descripcion: `PRODUCTOS O SERVICIOS GRAVADOS TASA ${Math.round(c.tasa * 100)}%`,
+                    cantidad: 1,
+                    precio_unitario: c.base,
+                    subtotal_linea: c.base,
+                    tasa_iva: c.tasa,
+                })),
+            }, t);
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            throw err;
+        }
+
+        const conceptosTxt: ConceptoTxt[] = conceptos.map(c => ({
+            cve_sat: '01010101', sat_medida: 'ACT', desc_medida: 'Actividad', cod_barras: '.',
+            cantidad: 1, descripcion: `PRODUCTOS O SERVICIOS GRAVADOS TASA ${Math.round(c.tasa * 100)}%`,
+            precio_unitario: c.base, descuento: 0, subtotal_linea: c.base,
+            tasa_iva: c.tasa, impuesto_sat: '002', tipo_factor: 'Tasa',
+        }));
+        const { ruta } = generarTxtIngresoPublicoGeneral({
+            emisor, folio,
+            forma_pago: id_forma_pago,
+            conceptos: conceptosTxt,
+            leyenda: `Factura Generada del abono a la factura ${origen.folio_factura}`,
+            nombreArchivo: `FactDig${emisor.serie_ingreso}${folio}-Ingresos.txt`,
+        });
+
+        return { ok: true, id_factura: facturaCreada.id_factura, folio, ruta_txt: ruta };
+    } catch (err: any) {
+        console.error('[generarFacturaAbonoPublicoGeneralDeFactura] Error:', err.message);
+        return { ok: false, error: err.message };
+    }
+}

@@ -525,7 +525,7 @@ export const FacturacionRepository = {
         uuid_relacionado?:      string;
         estatus_factura?:       'PEN' | 'GEN';
         conceptos: Array<{
-            id_articulo:     string;
+            id_articulo:     string | null;   // null en facturas consolidadas (Público General por abono)
             descripcion:     string;
             cantidad:        number;
             precio_unitario: number;
@@ -555,7 +555,7 @@ export const FacturacionRepository = {
         await Detalle_Factura.bulkCreate(
             dto.conceptos.map(c => ({
                 id_factura:           factura.id_factura,
-                id_articulo:          c.id_articulo,
+                id_articulo:          c.id_articulo as string,
                 descripcion_articulo: c.descripcion,
                 cantidad_facturada:   c.cantidad,
                 precio_artic:         c.precio_unitario,
