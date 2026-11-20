@@ -4,6 +4,8 @@ import Trabajo_Impresion from '../model/Trabajo_Impresion';
 import Impresora from '../model/Impresora';
 import { AuthedRequest } from '../../../middleware/auth';
 import { TrabajoImpresionService } from '../services/TrabajoImpresion.service';
+import fs from 'fs';
+import path from 'path';
 
 export class TrabajoImpresionController {
 
@@ -74,6 +76,41 @@ export class TrabajoImpresionController {
             res.json({ mensaje: 'Trabajo cancelado' });
         } catch (err) {
             res.status(500).json({ error: 'Error al cancelar trabajo' });
+        }
+    };
+
+    // GET /impresiones/trabajo/:id/documento → el PDF que se generó para ese trabajo (para verlo sin imprimirlo).
+    // La ruta sale del propio trabajo (la escribió el servidor al crearlo), nunca de lo que mande el navegador.
+    static documento = async (req: Request, res: Response) => {
+        try {
+            const trabajo = await Trabajo_Impresion.findByPk(req.params.id);
+            if (!trabajo) { res.status(404).json({ message: 'Trabajo no encontrado.' }); return; }
+            const p: any = trabajo.payload;
+            if (!p || p.tipo !== 'pdf' || !p.ruta_archivo) {
+                res.status(404).json({ message: 'Este trabajo no genera un archivo PDF (se manda directo a la impresora).' });
+                return;
+            }
+            const original = String(p.ruta_archivo);
+            let ruta = original;
+            // La ruta pudo guardarse como la ve el agente de impresión (carpeta de red): se regresa a la ruta local del servidor
+            const guardar = process.env.RUTA_PDFS_GUARDAR, agente = process.env.RUTA_PDFS_AGENTE;
+            if (guardar && agente && ruta.startsWith(agente)) ruta = guardar + ruta.slice(agente.length);
+            // Facturas: el PDF puede estar guardado como una dirección web
+            if (/^https?:\/\//i.test(ruta)) { res.status(200).json({ url: ruta }); return; }
+
+            // Se prueba la ruta local y, si no está ahí, la original (por si el servidor sí alcanza la carpeta de red)
+            const absoluta = [ruta, original].map(r => path.resolve(r)).find(r => fs.existsSync(r) && fs.statSync(r).isFile()) ?? path.resolve(ruta);
+            if (path.extname(absoluta).toLowerCase() !== '.pdf') { res.status(400).json({ message: 'El archivo del trabajo no es un PDF.' }); return; }
+            if (!fs.existsSync(absoluta) || !fs.statSync(absoluta).isFile()) {
+                res.status(404).json({ message: 'El archivo ya no está en el servidor (se pudo haber limpiado la carpeta de PDFs).' });
+                return;
+            }
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="${path.basename(absoluta)}"`);
+            fs.createReadStream(absoluta).pipe(res);
+        } catch (err: any) {
+            console.error('[documento trabajo impresion]', err?.message ?? err);
+            res.status(500).json({ message: 'No se pudo abrir el documento.' });
         }
     };
 

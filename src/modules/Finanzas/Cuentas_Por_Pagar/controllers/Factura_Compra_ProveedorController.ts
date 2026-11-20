@@ -208,6 +208,16 @@ export class Factura_Compra_ProveedorController {
         }
     };
 
+    /** DELETE /:id_factura_proveedor — elimina una factura que quedó guardada sin captura (estado E, sin artículos) */
+    static eliminarFacturaVacia = async (req: Request, res: Response) => {
+        try {
+            const r = await Factura_Compra_ProveedorService.eliminarFacturaVacia(req.params.id_factura_proveedor);
+            res.status(200).json({ ok: true, mensaje: 'Factura eliminada.', folio: r.folio });
+        } catch (error: any) {
+            res.status(error?.status ?? 500).json({ message: error?.message ?? 'No se pudo eliminar la factura.' });
+        }
+    };
+
     static getFacturaEnCaptura = async (req: Request, res: Response) => {
         try {
             const { id_comp } = req.params;

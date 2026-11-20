@@ -25,6 +25,7 @@ import Proveedor from '../../../Compras/Proveedores/model/Proveedor';
 import { NegadosVigentesService } from '../../../Almacen/Tablero/services/NegadosVigentes.service';
 import { DiasInventarioService } from '../../../Almacen/Tablero/services/DiasInventario.service';
 import { patronBusqueda } from '../../../../utils/busqueda';
+import { Parametros_CompraRepository } from '../../../Compras/Ordenes-Compra/repositories/Parametros_Compra.repository';
 
 
 export const ArticuloRepository = {
@@ -179,7 +180,7 @@ export const ArticuloRepository = {
 
     // diasInventario: la lista es SOLO la de agotados / críticos / bajos del Tablero de Almacén (ventana de ese número de días),
     // sin importar si algún proveedor la trae o tiene existencia (para eso está el documento de "sin proveedor disponible").
-    getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string, q: string = '', id_proveedor?: string, diasInventario?: number) => {
+    getAllPagProductosParaCompra: async (page: number, limit: number, id_empresasucursal: string, q: string = '', id_proveedor?: string, diasInventario?: number, soloVigiladas = false) => {
         const offset = (page - 1) * limit;
 
         const parametro = await Parametros_Compra.findOne({
@@ -259,8 +260,18 @@ export const ArticuloRepository = {
             )`),
         ];
 
+        // "Solo los que se venden en otras empresas": se queda con los artículos de la lista que tienen venta reciente
+        // en alguna de las empresas vigiladas (y del tipo elegido en el parámetro, si lo hay)
+        let whereFinal: any = whereArticulo;
+        if (soloVigiladas) {
+            const candidatos = await Articulo.findAll({ where: whereArticulo, attributes: ['id_artic'], raw: true }) as any[];
+            const { articulos: ventas } = await Parametros_CompraRepository.ventasEnEmpresasVigiladas(
+                id_empresasucursal, candidatos.map(c => c.id_artic));
+            whereFinal = { [Op.and]: [whereArticulo, { id_artic: { [Op.in]: Object.keys(ventas) } }] };
+        }
+
         const { count, rows } = await Articulo.findAndCountAll({
-            where: whereArticulo,
+            where: whereFinal,
             order: [['cod_int_artic', 'ASC']],
             offset,
             attributes: ['id_artic', 'cod_int_artic', 'cod_barr_artic', 'des_artic', 'des_gener_artic', 'colectivo_artic', 'prioridad_artic'],

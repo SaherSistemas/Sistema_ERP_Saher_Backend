@@ -41,5 +41,7 @@ router.patch('/detalles/:id_factura_proveedor_detalle/articulo', authMiddleware,
 
 router.patch('/finalizarChequeoFactura/:id_factura_proveedor', authMiddleware, Factura_Compra_ProveedorController.finalizarChequeoFacturaProveedor);
 router.patch('/:id_factura_proveedor', Factura_Compra_ProveedorController.actualizarEncabezado);
+// Elimina una factura que quedó guardada sin captura (estado E, sin artículos)
+router.delete('/:id_factura_proveedor', authMiddleware, Factura_Compra_ProveedorController.eliminarFacturaVacia);
 router.get('/:id_comp', Factura_Compra_ProveedorController.getByIDComp);
 export default router;

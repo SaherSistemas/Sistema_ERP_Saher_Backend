@@ -1,4 +1,4 @@
-import { Transaction } from "sequelize";
+import { QueryTypes, Transaction } from "sequelize";
 import { dbLocal } from "../../../../config/db";
 import { IActualizarEncabezadoFacturaDTO, ICreateFacturaCompraProveedor, IFactura_Compra_Proveedor, IGuardarCapturaCompletaControllerDTO } from "../interface/Factura_Compra_Proveedor.interfece";
 import { Detalle_Factura_Compra_ProveedorRepository } from "../repositories/Detalle_Factura_Compra_Proveedor.repository";
@@ -385,7 +385,35 @@ export const Factura_Compra_ProveedorService = {
             console.error('Error en guardarCapturaCompleta:', error);
             throw error;
         }
+    },
+
+    /**
+     * Elimina una factura que quedó GUARDADA SIN NADA: estado 'E' (se registró el encabezado para iniciar la captura y ahí se
+     * quedó) y sin artículos, lotes, cuenta por pagar, ajustes, devoluciones ni entradas de inventario. Cualquier otra factura
+     * se rechaza (esas se editan o se devuelven, no se borran).
+     */
+    eliminarFacturaVacia: async (id_factura_proveedor: string) => {
+        const [factura] = await dbLocal.query<any>(
+            `SELECT id_factura_proveedor, folio_factura_proveedor, estado_factura_proveedor
+             FROM factura_compra_proveedor WHERE id_factura_proveedor = :id`,
+            { replacements: { id: id_factura_proveedor }, type: QueryTypes.SELECT });
+        if (!factura) throw Object.assign(new Error('La factura no existe.'), { status: 404 });
+        if (factura.estado_factura_proveedor !== 'E') {
+            throw Object.assign(new Error('Solo se pueden eliminar facturas que quedaron guardadas sin captura. Esta ya tiene movimiento.'), { status: 400 });
+        }
+        const [uso] = await dbLocal.query<any>(`
+            SELECT
+              (SELECT count(*) FROM detalle_factura_compra_proveedor WHERE id_factura_compra_proveedor = :id)::int AS detalles,
+              (SELECT count(*) FROM cuenta_por_pagar WHERE id_factura_proveedor = :id)::int AS cxp,
+              (SELECT count(*) FROM ajuste_factura_proveedor WHERE id_factura_proveedor = :id)::int AS ajustes,
+              (SELECT count(*) FROM devolucion_proveedor WHERE id_factura_proveedor = :id)::int AS devoluciones
+        `, { replacements: { id: id_factura_proveedor }, type: QueryTypes.SELECT });
+        if (uso.detalles > 0) throw Object.assign(new Error('La factura ya tiene artículos capturados; no se puede eliminar.'), { status: 400 });
+        if (uso.cxp > 0 || uso.ajustes > 0 || uso.devoluciones > 0) {
+            throw Object.assign(new Error('La factura ya tiene cuentas por pagar, ajustes o devoluciones; no se puede eliminar.'), { status: 400 });
+        }
+        await dbLocal.query(`DELETE FROM factura_compra_proveedor WHERE id_factura_proveedor = :id AND estado_factura_proveedor = 'E'`,
+            { replacements: { id: id_factura_proveedor } });
+        return { folio: factura.folio_factura_proveedor };
     }
-
-
 }

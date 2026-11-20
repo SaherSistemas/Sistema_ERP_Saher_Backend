@@ -23,6 +23,8 @@ router.delete('/ubicacion-default/:id_articulo_ubicacion_default', authMiddlewar
 router.get('/:id_artic/panel-precios', authMiddleware, ArticuloController.getPanelPrecios);
 router.put('/:id_artic/precio', ArticuloController.upsertPrecio);
 router.patch('/:id_artic/colectivo', authMiddleware, ArticuloController.actualizarColectivo);
+router.get('/:id_artic/clasificacion', authMiddleware, ArticuloController.getClasificacion);
+router.patch('/:id_artic/clasificacion', authMiddleware, ArticuloController.actualizarClasificacion);
 router.post('/:id_artic/recalcular-precios', authMiddleware, ArticuloController.recalcularPrecios);
 router.get('/:id_articulo', ArticuloController.getByID);
 router.put('/:id_articulo', ArticuloController.actualizarByID);

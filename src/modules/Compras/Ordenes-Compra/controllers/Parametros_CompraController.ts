@@ -36,6 +36,19 @@ export class Parametros_CompraController {
     }
 
 
+    /** Artículos (ids en el body) que se venden en alguna de las empresas vigiladas de la empresa de la compra */
+    static ventasEnEmpresasVigiladas = async (req: Request, res: Response) => {
+        try {
+            const { id_empresa } = req.params;
+            const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.map(String).slice(0, 5000) : [];
+            const resultado = await Parametros_CompraService.ventasEnEmpresasVigiladas(id_empresa, ids)
+            res.status(200).json(resultado)
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: "No se pudieron consultar las ventas en las empresas vigiladas." });
+        }
+    }
+
     static crearParametro = async (req: Request<ICreateOrUpdateParametros_Compra>, res: Response) => {
         try {
             const data = req.body

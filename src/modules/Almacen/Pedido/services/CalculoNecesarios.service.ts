@@ -18,6 +18,44 @@ const NOMBRES_DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'vier
 // promedio más un porcentaje. Los artículos de venta ocasional usan un nivel menor porque asegurarlos cuesta mucho inventario parado.
 const HISTORIA_SEMANAS = 26;
 const VENTANA_DIAS = HISTORIA_SEMANAS * 7;
+// Ritmo de venta de una sucursal por artículo (reporte de sobrante):
+//  · solo cuentan los días en que el artículo tuvo existencia (agotado no se puede vender), y con un piso de días
+//    para que dos ventas sueltas no den un ritmo exagerado;
+//  · si lo reciente se dispara contra su propio historial anterior (un "pico": una compra grande, un cliente, una
+//    entrada nueva después de meses agotado), no se proyecta tal cual: se mezcla con ese historial según qué tanta
+//    historia reciente hay (credibilidad completa con CRED_DIAS días con existencia).
+const MIN_DIAS_DISPONIBLE = 14;
+const HISTORIA_LARGA_DIAS = 730;         // hasta dónde se mira el historial anterior
+const CRED_DIAS = 42;                    // días con existencia (6 semanas) para fiarse por completo de lo reciente
+const MIN_DIAS_BASE = 28;                // días con existencia anteriores mínimos para tener historial de referencia
+const FACTOR_PICO = 3;                   // lo reciente ≥ 3 veces su historial = pico
+const MIN_PZ_PICO = 10;                  // y al menos estas piezas vendidas en lo reciente
+
+// eventos: movimientos por día de los últimos HISTORIA_LARGA_DIAS (dia = número de día), ordenados por día;
+// delta = efecto neto en la existencia (entrada +, salida −). Separa lo reciente (últimos VENTANA_DIAS) de lo anterior.
+function disponibilidad(existenciaActual: number, eventos: { dia: number; delta: number; vendido: number }[], hoy: number) {
+    const inicio = hoy - HISTORIA_LARGA_DIAS;
+    const corte = hoy - VENTANA_DIAS - 1;                                                   // reciente = días > corte
+    let saldo = Math.max(0, existenciaActual - eventos.reduce((t, e) => t + e.delta, 0));  // saldo al empezar el historial
+    let cursor = inicio;
+    let dispRec = 0, dispAnt = 0, vendRec = 0, vendAnt = 0;
+    const tramo = (desde: number, hasta: number) => {                                       // días [desde, hasta] con existencia
+        if (hasta < desde) return;
+        const ant = Math.max(0, Math.min(hasta, corte) - desde + 1);
+        dispAnt += ant;
+        dispRec += (hasta - desde + 1) - ant;
+    };
+    for (const e of eventos) {
+        if (saldo > 0) tramo(cursor, e.dia - 1);
+        if (saldo > 0 || e.vendido > 0) { if (e.dia <= corte) dispAnt += 1; else dispRec += 1; }   // el día del movimiento
+        if (e.dia <= corte) vendAnt += e.vendido; else vendRec += e.vendido;
+        saldo += e.delta;
+        cursor = e.dia + 1;
+    }
+    if (saldo > 0) tramo(cursor, hoy);
+    return { dispRec, dispAnt, vendRec, vendAnt };
+}
+const numeroDeDia = (aaaammdd: string) => Math.floor(Date.UTC(+aaaammdd.slice(0, 4), +aaaammdd.slice(5, 7) - 1, +aaaammdd.slice(8, 10)) / 86_400_000);
 const NIVEL_SERVICIO_DEFECTO = 95;        // % de las semanas que debe cubrir el necesario en artículos de rotación
 const MENOS_NIVEL_OCASIONAL = 5;          // puntos menos para artículos que se venden en pocas semanas
 const FRACCION_ROTACION = 0.42;           // a partir de esta fracción de semanas con venta se considera de rotación
@@ -545,7 +583,7 @@ export const CalculoNecesariosService = {
         const sucursales: any[] = [];
         for (const c of clientes) {
             const empPoly = Number(c.emp_poly);
-            const [existencias, ventas, rem, otrosPorCod, nombre] = await Promise.all([
+            const [existencias, ventas, rem, otrosPorCod, nombre, movimientos, ultimasEntradas] = await Promise.all([
                 dbPoly.query<any>(`
                     SELECT artcdartn::int AS art, COALESCE(almexistn, 0)::float AS existencia,
                            COALESCE(almminpzn, 0)::float AS minimo, COALESCE(almmaxpzn, 0)::float AS maximo
@@ -571,11 +609,41 @@ export const CalculoNecesariosService = {
                 dbLocal.query<any>(
                     `SELECT nom_empre FROM empresa_sucursal WHERE TRIM(id_empresa_sys_anterior::text) = CAST(:emp AS text) LIMIT 1`,
                     { replacements: { emp: empPoly }, type: QueryTypes.SELECT }) as Promise<any[]>,
+                // Movimientos por día de la ventana (entrada +, salida −) para saber cuántos días hubo existencia
+                dbPoly.query<any>(`
+                    SELECT m.artcdartn::int AS art, to_char(m.kdxfechad::date, 'YYYY-MM-DD') AS dia,
+                           SUM(CASE WHEN COALESCE(NULLIF(TRIM(t.tmotpeosc), ''), LEFT(TRIM(m.tmocdtpoc), 1)) = 'E'
+                                    THEN m.kdxcantin ELSE -m.kdxcantin END)::float AS delta,
+                           SUM(CASE WHEN TRIM(UPPER(m.tmocdtpoc)) = 'SVM' THEN m.kdxcantin ELSE 0 END)::float AS vendido
+                    FROM public.kardex m
+                    LEFT JOIN public.tipomov t ON TRIM(t.tmocdtpoc) = TRIM(m.tmocdtpoc)
+                    WHERE m.empcdempn = :emp AND m.kdxfechad::date >= CURRENT_DATE - :historia::int
+                    GROUP BY 1, 2
+                    ORDER BY 1, 2
+                `, { replacements: { emp: empPoly, historia: HISTORIA_LARGA_DIAS }, type: QueryTypes.SELECT }) as Promise<any[]>,
+                // Última entrada por traslado (ETR) de cada artículo a la sucursal: fecha y piezas
+                dbPoly.query<any>(`
+                    SELECT DISTINCT ON (m.artcdartn) m.artcdartn::int AS art,
+                           to_char(m.kdxfechad::date, 'YYYY-MM-DD') AS dia, m.kdxcantin::float AS cantidad
+                    FROM public.kardex m
+                    WHERE m.empcdempn = :emp AND TRIM(UPPER(m.tmocdtpoc)) = 'ETR'
+                    ORDER BY m.artcdartn, m.kdxfechad DESC
+                `, { replacements: { emp: empPoly }, type: QueryTypes.SELECT }) as Promise<any[]>,
             ]);
+            const ultimaEntradaPor = new Map<number, { fecha: string; cantidad: number }>(
+                ultimasEntradas.map(u => [Number(u.art), { fecha: String(u.dia), cantidad: num(u.cantidad) }]));
+            const hoyN = (() => { const d = new Date(); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000); })();
+            const eventosPor = new Map<number, { dia: number; delta: number; vendido: number }[]>();
+            for (const m of movimientos) {
+                const art = Number(m.art);
+                const lista = eventosPor.get(art) ?? [];
+                lista.push({ dia: numeroDeDia(String(m.dia)), delta: num(m.delta), vendido: num(m.vendido) });
+                eventosPor.set(art, lista);
+            }
             const vendidoPor = new Map<number, number>(ventas.map(v => [Number(v.art), num(v.pz)]));
             const remPor = new Map<number, number>(rem.map(r => [Number(r.art), num(r.pz)]));
 
-            type Cand = { cod: number; existencia: number; minimo: number; maximo: number; vendido: number; pzDia: number; dias: number | null; sobrante: number; tipo: 'SIN_VENTA' | 'EXCESO' };
+            type Cand = { cod: number; existencia: number; minimo: number; maximo: number; vendido: number; diasDisp: number; pico: boolean; pzDiaReciente: number; pzDia: number; dias: number | null; sobrante: number; tipo: 'SIN_VENTA' | 'EXCESO' };
             const candidatos: Cand[] = [];
             let existencia_total = 0;
             for (const e of existencias) {
@@ -583,12 +651,29 @@ export const CalculoNecesariosService = {
                 const existencia = num(e.existencia);
                 existencia_total += existencia;
                 const vendido = vendidoPor.get(cod) ?? 0;
-                const pzDia = vendido / VENTANA_DIAS;
+                // Ritmo de venta sobre los días con existencia (si estuvo agotado casi toda la ventana, no se diluye en 26 semanas)
+                // y, si lo reciente es un pico contra su historial, sin proyectarlo tal cual
+                let diasDisp = VENTANA_DIAS;
+                let pzDia = 0;
+                let pzDiaReciente = 0;
+                let pico = false;
+                if (vendido > 0) {
+                    const d = disponibilidad(existencia, eventosPor.get(cod) ?? [], hoyN);
+                    diasDisp = Math.min(VENTANA_DIAS, Math.max(MIN_DIAS_DISPONIBLE, d.dispRec));
+                    pzDiaReciente = vendido / diasDisp;
+                    pzDia = pzDiaReciente;
+                    const credibilidad = Math.min(1, diasDisp / CRED_DIAS);
+                    if (d.dispAnt >= MIN_DIAS_BASE && credibilidad < 1) {
+                        const pzDiaBase = d.vendAnt / d.dispAnt;
+                        pzDia = credibilidad * pzDiaReciente + (1 - credibilidad) * pzDiaBase;
+                        pico = vendido >= MIN_PZ_PICO && pzDiaReciente >= FACTOR_PICO * Math.max(pzDiaBase, 0.01);
+                    }
+                }
                 const objetivo = Math.ceil(pzDia * diasLimite);          // lo que sí se vendería en el plazo
                 const sobrante = Math.floor(existencia - objetivo);
                 if (sobrante < MIN_PZ_SOBRANTE) continue;
                 candidatos.push({
-                    cod, existencia, minimo: num(e.minimo), maximo: num(e.maximo), vendido, pzDia,
+                    cod, existencia, minimo: num(e.minimo), maximo: num(e.maximo), vendido, diasDisp, pico, pzDiaReciente, pzDia,
                     dias: pzDia > 0 ? Math.round(existencia / pzDia) : null,
                     sobrante, tipo: vendido > 0 ? 'EXCESO' : 'SIN_VENTA',
                 });
@@ -619,6 +704,10 @@ export const CalculoNecesariosService = {
                 minimo: x.minimo,
                 maximo: x.maximo,
                 venta_semana: Math.round(x.pzDia * 7 * 10) / 10,
+                dias_con_existencia: x.diasDisp,
+                ultima_entrada_traslado: ultimaEntradaPor.get(x.cod) ?? null,
+                pico_ventas: x.pico,
+                venta_semana_reciente: Math.round(x.pzDiaReciente * 7 * 10) / 10,
                 dias_cobertura: x.dias,
                 sobrante: x.sobrante,
                 en_rem: remPor.get(x.cod) ?? 0,

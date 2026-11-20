@@ -6,7 +6,7 @@ import { Stock_Ubicacion_LoteRepository } from '../../../Inventario/Stock/reposi
 import { ArticuloService } from '../services/articulo.service';
 import Articulo from '../model/Articulo';
 import ListaPrecio from '../../../Comercial/Precios/model/Lista_Precio';
-import { dbPoly } from '../../../../config/db';
+import { dbLocal, dbPoly } from '../../../../config/db';
 import { upsertCostoAlmacenPoly, upsertPrecioGpoPoly, POLY_PRECIO_GRUPO_ACTIVO } from '../../../../utils/polyCostos';
 import { QueryTypes } from 'sequelize';
 import { LotesArticuloSucursalRepository } from '../../../Inventario/Lotes/repository/Lote_ArticuloSucursal.repository';
@@ -103,13 +103,17 @@ export class ArticuloController {
         ? Math.min(365, Math.max(7, Math.floor(Number(req.query.dias_inventario))))
         : undefined;
 
+      // Solo los artículos que se venden en las empresas vigiladas del parámetro de compra
+      const soloVigiladas = req.query.solo_vigiladas === '1';
+
       const TodosArticulosParaCompra = await ArticuloService.getAllPagProductosParaCompra(
         page,
         limit,
         id_empresasucursal,
         q,
         id_proveedor,
-        diasInventario
+        diasInventario,
+        soloVigiladas
       );
       // console.log(TodosArticulosParaCompra)
       res.status(200).json(TodosArticulosParaCompra);
@@ -208,6 +212,48 @@ export class ArticuloController {
     } catch (error) {
       console.error('[actualizarColectivo]', error);
       res.status(500).json({ message: 'Error al guardar el colectivo.' });
+    }
+  };
+
+  // GET /articulo/:id_artic/clasificacion  →  tipo de artículo y categoría actuales
+  static getClasificacion = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_artic } = req.params;
+      const [fila] = await dbLocal.query<any>(`
+        SELECT a.id_categoria, c.nom_categoria, t.id_tipo_art, t.nom_tipo_art
+        FROM articulo a
+        LEFT JOIN categoria_articulo c ON c.id_categoria = a.id_categoria
+        LEFT JOIN tipo_articulo t ON t.id_tipo_art = c.id_tipoproducto
+        WHERE a.id_artic = :id_artic
+      `, { replacements: { id_artic }, type: QueryTypes.SELECT });
+      if (!fila) { res.status(404).json({ message: 'Artículo no encontrado.' }); return; }
+      res.status(200).json(fila);
+    } catch (error) {
+      console.error('[getClasificacion]', error);
+      res.status(500).json({ message: 'Error al consultar el tipo y la categoría.' });
+    }
+  };
+
+  // PATCH /articulo/:id_artic/clasificacion  body: { id_categoria }  →  cambia la categoría (y con ella el tipo)
+  static actualizarClasificacion = async (req: AuthedRequest, res: Response) => {
+    try {
+      const { id_artic } = req.params;
+      const id_categoria = String(req.body?.id_categoria ?? '').trim();
+      if (!id_categoria) { res.status(400).json({ message: 'Elige la categoría.' }); return; }
+      const [cat] = await dbLocal.query<any>(`
+        SELECT c.id_categoria, c.nom_categoria, t.id_tipo_art, t.nom_tipo_art
+        FROM categoria_articulo c
+        LEFT JOIN tipo_articulo t ON t.id_tipo_art = c.id_tipoproducto
+        WHERE c.id_categoria = :id_categoria
+      `, { replacements: { id_categoria }, type: QueryTypes.SELECT });
+      if (!cat) { res.status(404).json({ message: 'La categoría no existe.' }); return; }
+      const articulo = await Articulo.findByPk(id_artic, { attributes: ['id_artic'] });
+      if (!articulo) { res.status(404).json({ message: 'Artículo no encontrado.' }); return; }
+      await articulo.update({ id_categoria });
+      res.status(200).json(cat);
+    } catch (error) {
+      console.error('[actualizarClasificacion]', error);
+      res.status(500).json({ message: 'Error al guardar la categoría.' });
     }
   };
 

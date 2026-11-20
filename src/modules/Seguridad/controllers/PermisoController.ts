@@ -47,6 +47,8 @@ export class PermisoController {
                 { modulo_permiso: 'finanzas', accion_permiso: 'cxp_generar_historicas' },
                 { modulo_permiso: 'finanzas', accion_permiso: 'cxp_saldo_historico_proveedor' },
                 { modulo_permiso: 'finanzas', accion_permiso: 'saldo_historico' },
+                { modulo_permiso: 'finanzas', accion_permiso: 'utilidad_agentes' },
+                { modulo_permiso: 'finanzas', accion_permiso: 'utilidad_sucursales' },
             ];
 
             const existentes = await PermisoService.getAll();

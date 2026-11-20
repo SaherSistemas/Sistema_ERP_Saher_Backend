@@ -4,6 +4,7 @@ import { TrabajoImpresionController } from '../controllers/TrabajoImpresionContr
 const router = Router();
 
 router.get('/stats', TrabajoImpresionController.stats);
+router.get('/:id/documento', TrabajoImpresionController.documento);
 router.post('/:id_pedido_alm/:tipo_documento', TrabajoImpresionController.create);
 router.post('/:id/reintentar', TrabajoImpresionController.reintentar);
 router.post('/:id/cancelar', TrabajoImpresionController.cancelar);

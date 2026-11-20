@@ -5,6 +5,8 @@ import {
 } from 'sequelize-typescript';
 import CategoriaExcluidaCompra from './CategoriaExcluidaCompra';
 import ArticuloExcluidoCompra from './ArticuloExcluidoCompra';
+import EmpresaVigiladaCompra from './EmpresaVigiladaCompra';
+import TipoVigiladoCompra from './TipoVigiladoCompra';
 import Empresa_Sucursal from '../../../../models/Empresa_Sucursal/Empresa_Sucursal';
 
 @Table({
@@ -39,6 +41,12 @@ class Parametros_Compra extends Model {
 
     @HasMany(() => ArticuloExcluidoCompra)
     declare articulos_excluidos?: ArticuloExcluidoCompra[];
+
+    @HasMany(() => EmpresaVigiladaCompra)
+    declare empresas_vigiladas?: EmpresaVigiladaCompra[];
+
+    @HasMany(() => TipoVigiladoCompra)
+    declare tipos_vigilados?: TipoVigiladoCompra[];
 }
 
 export default Parametros_Compra;

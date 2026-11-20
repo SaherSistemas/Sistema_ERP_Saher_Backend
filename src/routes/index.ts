@@ -61,6 +61,8 @@ import comprasNegadosRouter from '../modules/Compras/Ordenes-Compra/routes/Compr
 import detalle_CompraRouter from '../modules/Compras/Ordenes-Compra/routes/detalle_CompraRouter';
 import compraDirectaRouter from '../modules/Compras/CompraDirecta/route/CompraDirecta.route';
 
+import utilidadRouter from '../modules/Finanzas/Utilidad/routes/Utilidad.router';
+import utilidadSucursalesRouter from '../modules/Finanzas/Utilidad_Sucursales/routes/UtilidadSucursales.router';
 import factura_compra_ProveedorRouter from '../modules/Finanzas/Cuentas_Por_Pagar/routes/facturas_Compra_ProveedorRouter';
 
 import Margen_Ganancia_ListaRouter from '../modules/Comercial/Precios/routes/Margen_Ganancia_ListaRouter';
@@ -272,6 +274,8 @@ router.use('/presupuesto_empleado', Presupuesto_EmpleadoRouter);
 router.use('/asignacion_empleado_sucursal', Asignacion_Empleado_SucursalRouter);
 
 
+router.use('/finanzas/utilidad-sucursales', utilidadSucursalesRouter);   // utilidad por sucursal (PolyDB), gastos y utilidad neta
+router.use('/finanzas/utilidad', utilidadRouter);   // utilidad por agente, gastos y utilidad neta (antes que /finanzas)
 router.use('/finanzas', cxcRoutes);
 router.use('/finanzas/remisiones', remisionRouter);
 router.use('/finanzas/cxc', cxcClienteRouter);
