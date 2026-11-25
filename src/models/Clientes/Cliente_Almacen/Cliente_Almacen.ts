@@ -87,6 +87,11 @@ class Cliente_Almacen extends Model {
   @Column({ type: DataType.TEXT, allowNull: true })
   declare direccion_entrega_cliente_alm: string | null;
 
+  // Si es true, al timbrar una factura de este cliente NO se manda a imprimir sola (las reimpresiones manuales siguen disponibles)
+  @Default(false)
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
+  declare no_imprimir_factura: boolean;
+
   @Column({
     type: DataType.STRING(20)
   })

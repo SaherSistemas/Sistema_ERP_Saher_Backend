@@ -18,6 +18,21 @@ import Kardex_Movimientos_Articulos from '../../Almacen/Kardex/model/Kardex_Movi
 import { cantidadesPorLoteDelPedido } from '../../Almacen/Pedido/helpers/cantidadesFacturables';
 import { liberarApartadoDeLotesDetalle } from '../../Almacen/Pedido/services/Pedido_Almacen.service';
 import Vale_Cancelacion from '../model/Vale_Cancelacion.model';
+import Configuracion_Global from '../../Configuracion/model/Configuracion_Global.model';
+import Agente_de_Venta from '../../Comercial/Agente_Venta/model/Agente_De_Venta';
+
+// Los vales siempre se registran a UN agente fijo (el de la clave 'vales_id_agente' en configuracion_global),
+// nunca "el primero de la lista de agentes": esa lista no tiene orden y al dar de alta otro agente el vale se iba a él.
+const CLAVE_AGENTE_VALES = 'vales_id_agente';
+async function resolverAgenteVales(): Promise<string> {
+    const cfg = await Configuracion_Global.findOne({ where: { clave: CLAVE_AGENTE_VALES } });
+    const id = String(cfg?.valor ?? '').trim();
+    if (!id) throw new Error(`Falta configurar el agente de los vales (configuracion_global, clave '${CLAVE_AGENTE_VALES}').`);
+    const agente = await Agente_de_Venta.findByPk(id);
+    if (!agente) throw new Error('El agente configurado para los vales ya no existe. Revisa la configuración.');
+    if ((agente as any).estatus_agente === false) throw new Error('El agente configurado para los vales está dado de baja. Revisa la configuración.');
+    return id;
+}
 
 export class ValeError extends Error {
     constructor(public status: number, message: string) { super(message); }
@@ -145,7 +160,7 @@ export const ValeService = {
     // ── Crear vale ───────────────────────────────────────────────────────────
     crearVale: async (dto: {
         id_empleado: string;
-        id_agente: string;
+        id_agente?: string; // ya no se usa: el agente sale de la configuración (vales_id_agente)
         id_empresa: string;
         // true = el empleado lo paga al momento: no usa su crédito de quincena ni queda en su deuda
         pagado?: boolean;
@@ -160,6 +175,7 @@ export const ValeService = {
         const pagado = dto.pagado === true;
         const empleado = await Empleado.findByPk(dto.id_empleado);
         if (!empleado) throw new Error('Empleado no encontrado');
+        const id_agente_vales = await resolverAgenteVales();
 
         // Existencia: no se pueden pedir artículos que no hay (o más piezas de las que hay). Disponible = existencia
         // menos lo apartado por otros pedidos, en el almacén de la empresa.
@@ -245,7 +261,7 @@ export const ValeService = {
                 status_pedido_alm: 'CA',
                 tipo_pedido_alm: 'VAL',
                 id_cliente_pedido_alm: null,
-                id_agente_pedido_alm: dto.id_agente,
+                id_agente_pedido_alm: id_agente_vales,
                 origen_pedido: 'VALE',
                 id_empleado_vale: dto.id_empleado,
                 vale_pagado: pagado,

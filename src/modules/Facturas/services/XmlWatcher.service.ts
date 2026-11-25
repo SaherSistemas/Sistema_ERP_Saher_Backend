@@ -244,9 +244,11 @@ async function procesarXml(xmlPath: string) {
     // Se guarda aparte para decidir, más abajo, si esta factura necesita trabajo de impresión —
     // las de Público General (ingreso) no se imprimen automáticamente, no se usan en papel.
     let esPublicoGeneral = false;
+    let clienteNoImprime = false;
     if (factura.id_cliente_alm) {
         const cliente = await Cliente_Almacen.findByPk(factura.id_cliente_alm);
         if (cliente) {
+            clienteNoImprime = !!(cliente as any).no_imprimir_factura;
             extras.receptorDomicilio    = await getDomicilio(
                 (cliente as any).calle_cliente_alm,
                 (cliente as any).id_colonia_cliente_alm ?? null
@@ -290,6 +292,9 @@ async function procesarXml(xmlPath: string) {
     // General: esa no se necesita en papel, se timbra sola cuando se liquida la cuenta.
     if (esPublicoGeneral && factura.tipo_cfdi === 'I') {
         console.log(`[XmlWatcher] Factura ${factura.folio_factura} es de Público General — no se manda a imprimir.`);
+    } else if (clienteNoImprime) {
+        // El cliente tiene marcado "No imprimir facturas automáticamente": se timbra y se guarda, pero no se manda a la impresora.
+        console.log(`[XmlWatcher] Cliente de la factura ${factura.folio_factura} tiene marcado no imprimir — no se manda a imprimir.`);
     } else if (factura.id_empresa_facturas) {
         // Al timbrar se imprimen 2 copias: son 2 trabajos independientes (cada uno se reintenta por su cuenta).
         // Las reimpresiones manuales siguen siendo de una sola copia.
