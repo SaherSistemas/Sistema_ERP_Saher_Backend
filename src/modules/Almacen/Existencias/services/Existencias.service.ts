@@ -245,6 +245,49 @@ export const ExistenciasService = {
             ubicPorLote.set(u.id_lote, lista)
         }
 
+        // Los últimos pedidos que tomaron cada lote y quién los surtió: ayuda a rastrear de dónde quedó la apartada
+        // de más (el sistema no guarda de qué pedido vino, así que se muestran los 3 más recientes de ese lote).
+        const recientes = await dbLocal.query<any>(`
+            SELECT * FROM (
+                SELECT x.*, ROW_NUMBER() OVER (PARTITION BY x.id_lote ORDER BY x.fecha DESC) AS rn
+                FROM (
+                    SELECT dpal.id_lote_sucursal AS id_lote,
+                           pa.cod_int_pedido_alm, pa.status_pedido_alm,
+                           CASE WHEN pa.fecha_facturado_pedido_alm IS NOT NULL THEN 'Facturado' ELSE cs.descrip_almacen END AS status_desc,
+                           ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm,
+                           COALESCE(pa.fecha_facturado_pedido_alm, pa.fin_surtido, pa."createdAt") AS fecha,
+                           SUM(dpal.cantidad) AS cantidad,
+                           MAX((SELECT NULLIF(TRIM(CONCAT_WS(' ', e.nombre_empleado, e.ap_pat_empleado)), '')
+                                  FROM detalle_pedido_almacen_asignacion asg
+                                  JOIN empleado e ON e.id_empleado = asg.id_usuario
+                                 WHERE asg.id_detalle_pedido_almacen = dpal.id_detalle_pedido_almacen
+                                 ORDER BY asg.created_at ASC LIMIT 1)) AS surtidor
+                    FROM detalle_pedido_almacen_lote dpal
+                    JOIN detalle_pedido_almacen dpa ON dpa.id_detalle_pedido_almacen = dpal.id_detalle_pedido_almacen
+                    JOIN pedido_almacen pa ON pa.id_pedido_alm = dpa.id_pedido_almacen
+                    LEFT JOIN cat_status_pedido_almacen cs ON cs.id_status_pedido_almacen = pa.status_pedido_alm
+                    LEFT JOIN cliente_almacen ca ON ca.id_cliente_alm = pa.id_cliente_pedido_alm
+                    WHERE dpal.id_lote_sucursal IN (:ids)
+                    GROUP BY dpal.id_lote_sucursal, pa.id_pedido_alm, pa.cod_int_pedido_alm, pa.status_pedido_alm, cs.descrip_almacen,
+                             ca.nom_corto_cliente_alm, ca.razon_social_cliente_alm, pa.fecha_facturado_pedido_alm, pa.fin_surtido, pa."createdAt"
+                ) x
+            ) y WHERE y.rn <= 3 ORDER BY y.id_lote, y.rn`,
+            { replacements: { ids: lotes.map(l => l.id_lote) }, type: QueryTypes.SELECT })
+        const recientesPorLote = new Map<string, any[]>()
+        for (const r of recientes) {
+            const lista = recientesPorLote.get(r.id_lote) ?? []
+            lista.push({
+                cod_pedido: String(r.cod_int_pedido_alm ?? '').trim(),
+                status: r.status_pedido_alm as string,
+                status_desc: (r.status_desc ?? r.status_pedido_alm) as string,
+                cliente: String(r.nom_corto_cliente_alm ?? '').trim() || String(r.razon_social_cliente_alm ?? '').trim() || '—',
+                cantidad: Number(r.cantidad) || 0,
+                fecha: r.fecha,
+                surtidor: (r.surtidor as string | null) ?? null,
+            })
+            recientesPorLote.set(r.id_lote, lista)
+        }
+
         return lotes.map(l => ({
             id_lote: l.id_lote,
             id_articulo: l.id_articulo,
@@ -256,6 +299,7 @@ export const ExistenciasService = {
             respaldo_pedidos: Number(l.respaldo),
             sin_pedido: Number(l.sin_pedido),
             ubicaciones: ubicPorLote.get(l.id_lote) ?? [],
+            pedidos_recientes: recientesPorLote.get(l.id_lote) ?? [],
         }))
     },
 

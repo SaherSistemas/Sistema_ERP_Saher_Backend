@@ -10,6 +10,8 @@ import LoteArticuloSucursal from '../../Lotes/model/Lote_Articulo_Sucursal';
 import Ubicacion_Sucursal from '../../../Almacen/Ubicaciones/model/Ubicacion_Sucursal';
 import { Empresa_SucursalRepository } from '../../../../repository/Empresa_Sucursal/Empresa_Sucursal.repository';
 import { cantidadesPorLoteDelPedido } from '../../../Almacen/Pedido/helpers/cantidadesFacturables';
+import { repartirDescuento } from '../helpers/repartirDescuento';
+import { programarAlertaFaltante } from '../../../Almacen/Cuadre/services/CuadreExistencias.service';
 
 export const Stock_Ubicacion_LoteRepository = {
 
@@ -346,60 +348,43 @@ export const Stock_Ubicacion_LoteRepository = {
         const porLote = await cantidadesPorLoteDelPedido(id_pedido_alm, t);
 
         for (const { id_lote_sucursal, surtido, facturar } of porLote) {
-            let restante = facturar;
             const liberar = Math.max(0, surtido - facturar);
-            if (restante <= 0 && liberar <= 0) continue;
+            if (facturar <= 0 && liberar <= 0) continue;
 
             const filas = await Stock_Ubicacion_Lote.findAll({
                 where: { id_lote: id_lote_sucursal },
-                order: [['cantidad_apartada', 'DESC']],
                 transaction: t,
                 lock: t.LOCK.UPDATE,
             });
 
-            // 1) Primero de las filas con apartado: de ahí salió físicamente esta mercancía al surtir
-            for (const f of filas) {
-                if (restante <= 0) break;
-                const apartada = Number(f.cantidad_apartada) || 0;
-                const tomar = Math.min(apartada, restante);
-                if (tomar <= 0) continue;
-                const cant = Number(f.cantidad) || 0;
-                await f.update({
-                    cantidad: Math.max(0, cant - tomar),
-                    cantidad_apartada: Math.max(0, apartada - tomar),
-                }, { transaction: t });
-                restante -= tomar;
+            // El reparto vive en una función pura (repartirDescuento) para poder probarla: la existencia debe bajar
+            // EXACTAMENTE lo que se factura, sin importar cómo estén repartidas las filas ni su apartado.
+            const r = repartirDescuento(
+                filas.map(f => ({
+                    id: f.id_stock_ubicacion_lote,
+                    cantidad: Number(f.cantidad) || 0,
+                    apartada: Number(f.cantidad_apartada) || 0,
+                    sinUbicacion: !f.id_ubicacion_sucursal,
+                })),
+                facturar, liberar,
+            );
+            for (const c of r.cambios) {
+                const fila = filas.find(f => f.id_stock_ubicacion_lote === c.id);
+                if (fila) await fila.update({ cantidad: c.cantidad, cantidad_apartada: c.apartada }, { transaction: t });
             }
 
-            // 2) Si sobra (facturación directa u otro desfase sin apartado que lo respalde), de la
-            //    existencia libre que quede, empezando por la fila con más
-            //    Primero lo que está SIN UBICACIÓN: es la mercancía que regresó al cancelar una factura y se vuelve a
-            //    facturar. Antes se descontaba de la fila con más existencia (otra ubicación) y lo devuelto se quedaba
-            //    "sin ubicación" de más.
-            if (restante > 0) {
-                for (const f of [...filas].sort((a, b) =>
-                    (a.id_ubicacion_sucursal ? 1 : 0) - (b.id_ubicacion_sucursal ? 1 : 0)
-                    || (Number(b.cantidad) || 0) - (Number(a.cantidad) || 0))) {
-                    if (restante <= 0) break;
-                    const cant = Number(f.cantidad) || 0;
-                    const tomar = Math.min(cant, restante);
-                    if (tomar <= 0) continue;
-                    await f.update({ cantidad: Math.max(0, cant - tomar) }, { transaction: t });
-                    restante -= tomar;
-                }
+            if (liberar > 0) {
+                console.log(`[Facturación] Pedido ${id_pedido_alm}: ${liberar} pz surtidas del lote ${id_lote_sucursal} no se chequearon; no se descuentan y se libera su apartado.`);
             }
-
-            // 3) Lo surtido que no se chequeó/facturó: se libera el apartado sin tocar la existencia
-            let porLiberar = liberar;
-            if (porLiberar > 0) {
-                console.log(`[Facturación] Pedido ${id_pedido_alm}: ${porLiberar} pz surtidas del lote ${id_lote_sucursal} no se chequearon; no se descuentan y se libera su apartado.`);
-                for (const f of [...filas].sort((a, b) => (Number(b.cantidad_apartada) || 0) - (Number(a.cantidad_apartada) || 0))) {
-                    if (porLiberar <= 0) break;
-                    const apartada = Number(f.cantidad_apartada) || 0;
-                    const quitar = Math.min(apartada, porLiberar);
-                    if (quitar <= 0) continue;
-                    await f.update({ cantidad_apartada: apartada - quitar }, { transaction: t });
-                    porLiberar -= quitar;
+            // La existencia ya estaba por debajo de lo que se factura: no se puede bajar más (no hay negativos), pero queda aviso
+            if (r.faltante > 0) {
+                console.warn(`[Facturación] Pedido ${id_pedido_alm}: del lote ${id_lote_sucursal} se facturaron ${facturar} pz y solo había existencia para descontar ${r.descontadas}; faltan ${r.faltante} pz (el stock del sistema ya estaba por debajo de lo vendido).`);
+                // Queda como aviso en Almacén → Cuadre de existencias (se guarda cuando la factura termina bien)
+                if (filas.length > 0) {
+                    programarAlertaFaltante(t, {
+                        id_empresa_sucursal: filas[0].id_empresa_sucursal, id_pedido_alm, id_articulo: filas[0].id_articulo,
+                        id_lote: id_lote_sucursal, facturado: facturar, descontado: r.descontadas, faltante: r.faltante,
+                    });
                 }
             }
         }

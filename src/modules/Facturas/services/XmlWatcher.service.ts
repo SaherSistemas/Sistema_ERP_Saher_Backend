@@ -291,18 +291,28 @@ async function procesarXml(xmlPath: string) {
     if (esPublicoGeneral && factura.tipo_cfdi === 'I') {
         console.log(`[XmlWatcher] Factura ${factura.folio_factura} es de Público General — no se manda a imprimir.`);
     } else if (factura.id_empresa_facturas) {
+        // Al timbrar se imprimen 2 copias: son 2 trabajos independientes (cada uno se reintenta por su cuenta).
+        // Las reimpresiones manuales siguen siendo de una sola copia.
+        const COPIAS_AL_TIMBRAR = 2;
         try {
             const id_impresora = await ImpresoraRepository.getImpresora(factura.id_empresa_facturas, 'PRINCIPAL');
-            await TrabajoImpresionRepository.create({
-                cod_interno_pedido: factura.folio_factura ?? cfdi.folio,
-                tipo_documento: 'FACTURA',
-                id_impresora,
-                payload: {
-                    tipo: 'pdf',
-                    ruta_archivo: pdfPath,
-                },
-            });
-            console.log(`[XmlWatcher] Trabajo de impresión creado para ${factura.folio_factura}`);
+            for (let copia = 1; copia <= COPIAS_AL_TIMBRAR; copia++) {
+                try {
+                    await TrabajoImpresionRepository.create({
+                        cod_interno_pedido: factura.folio_factura ?? cfdi.folio,
+                        tipo_documento: 'FACTURA',
+                        referencia_codigo: copia > 1 ? `COPIA-${copia}` : null,
+                        id_impresora,
+                        payload: {
+                            tipo: 'pdf',
+                            ruta_archivo: pdfPath,
+                        },
+                    });
+                } catch (copiaErr: any) {
+                    console.warn(`[XmlWatcher] No se pudo crear la copia ${copia} de ${factura.folio_factura}: ${copiaErr.message}`);
+                }
+            }
+            console.log(`[XmlWatcher] Trabajos de impresión (${COPIAS_AL_TIMBRAR} copias) creados para ${factura.folio_factura}`);
         } catch (impErr: any) {
             console.warn(`[XmlWatcher] No se pudo crear trabajo de impresión: ${impErr.message}`);
         }

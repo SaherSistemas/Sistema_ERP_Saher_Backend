@@ -109,6 +109,12 @@ export interface ITicketUtilidad {
     clave: string; tipo: 'VENTA' | 'DEV'; id_empresa: number; sucursal: string; folio: number; ticket_origen: number | null;
     hora: string | null; usuario: string | null; estado: string | null; piezas: number;
     ventas: number; total_iva: number; costo: number; utilidad: number; margen: number | null; sin_costo: boolean;
+    // Solo en devoluciones: el ticket original que se devolvió (puede ser de otro día)
+    origen?: IOrigenDevolucion | null;
+}
+export interface IOrigenDevolucion {
+    clave: string; folio: number; fecha: string; hora: string | null; usuario: string | null;
+    ventas: number; total_iva: number; costo: number; utilidad: number; margen: number | null;
 }
 
 export const UtilidadSucursalesService = {
@@ -241,7 +247,7 @@ export const UtilidadSucursalesService = {
         if (!FECHA_RE.test(String(fecha ?? ''))) throw Object.assign(new Error('La fecha debe venir como AAAA-MM-DD.'), { status: 400 });
         const filtroT = idEmpresa ? 'AND h.empcdempn = :emp' : '';
         const rep = { fecha, excl: EXCLUIDAS, emp: idEmpresa };
-        const [ventas, devs, lista] = await Promise.all([
+        const [ventas, devs, origenes, lista] = await Promise.all([
             dbPoly.query<any>(`
                 SELECT h.empcdempn AS emp, h.cajcdcajn AS caja, h.tktcdtktn AS folio, TRIM(h.tkthortkc) AS hora, TRIM(h.tktusuarc) AS usuario, TRIM(h.tktstatuc) AS estatus,
                        SUM(d.tktcantin)::float AS piezas, SUM(d.tktimpton - d.tktimpivn)::float AS ventas, SUM(d.tktimpton)::float AS total_iva, SUM(d.tktultctn * d.tktcantin)::float AS costo,
@@ -260,8 +266,28 @@ export const UtilidadSucursalesService = {
                 WHERE h.detfecded = :fecha::date AND TRIM(h.detstatuc) = 'O' AND h.empcdempn NOT IN (:excl) ${filtroT}
                 GROUP BY 1, 2, 3, 4, 5
             `, { replacements: rep, type: QueryTypes.SELECT }),
+            // Ticket original de cada devolución del día (para mostrarlo junto a la devolución)
+            dbPoly.query<any>(`
+                SELECT h.empcdempn AS emp, h.detcddetn AS dev, t.cajcdcajn AS caja, t.tktcdtktn AS folio,
+                       to_char(t.tktfectkd, 'YYYY-MM-DD') AS fecha, TRIM(t.tkthortkc) AS hora, TRIM(t.tktusuarc) AS usuario,
+                       SUM(d.tktimpton - d.tktimpivn)::float AS ventas, SUM(d.tktimpton)::float AS total_iva, SUM(d.tktultctn * d.tktcantin)::float AS costo
+                FROM devtkt h
+                JOIN ticket t ON t.empcdempn = h.empcdempn AND t.cajcdcajn = h.cajcdcajn AND t.tktcdtktn = h.detcvtktn
+                JOIN ticket1 d ON d.empcdempn = t.empcdempn AND d.cajcdcajn = t.cajcdcajn AND d.tktcdtktn = t.tktcdtktn
+                WHERE h.detfecded = :fecha::date AND TRIM(h.detstatuc) = 'O' AND h.empcdempn NOT IN (:excl) ${filtroT}
+                GROUP BY 1, 2, 3, 4, 5, 6, 7
+            `, { replacements: rep, type: QueryTypes.SELECT }),
             sucursales(),
-        ]) as [any[], any[], Sucursal[]];
+        ]) as [any[], any[], any[], Sucursal[]];
+
+        const origenDe = new Map<string, IOrigenDevolucion>();
+        for (const o of origenes) {
+            const ve = num(o.ventas), co = num(o.costo);
+            origenDe.set(`${o.emp}|${o.dev}`, {
+                clave: `T-${o.emp}-${o.caja}-${o.folio}`, folio: num(o.folio), fecha: String(o.fecha), hora: o.hora ?? null, usuario: o.usuario ?? null,
+                ventas: round2(ve), total_iva: round2(num(o.total_iva)), costo: round2(co), utilidad: round2(ve - co), margen: margenDe(ve, ve - co),
+            });
+        }
 
         const nombre = new Map(lista.map(s => [s.id, s.nombre]));
         const filas: ITicketUtilidad[] = [];
@@ -279,6 +305,7 @@ export const UtilidadSucursalesService = {
                 clave: `D-${d.emp}-${d.folio}`, tipo: 'DEV', id_empresa: num(d.emp), sucursal: nombre.get(num(d.emp)) ?? `Empresa ${d.emp}`,
                 folio: num(d.folio), ticket_origen: num(d.ticket_origen), hora: d.hora ?? null, usuario: d.usuario ?? null, estado: 'Devolución',
                 piezas: -round2(num(d.piezas)), ventas: round2(ve), total_iva: -round2(num(d.total_iva)), costo: round2(co), utilidad: round2(ve - co), margen: margenDe(ve, ve - co), sin_costo: false,
+                origen: origenDe.get(`${d.emp}|${d.folio}`) ?? null,
             });
         }
         return filas.sort((a, b) => (a.hora ?? '').localeCompare(b.hora ?? ''));

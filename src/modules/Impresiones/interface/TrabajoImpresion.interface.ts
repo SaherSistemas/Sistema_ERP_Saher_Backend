@@ -17,6 +17,7 @@ export interface ICreateTrabajoImpresion {
     cod_interno_pedido: string;
     id_impresora: string;
     tipo_documento: string;
+    referencia_codigo?: string | null;
     payload: IPayload;
     max_intentos?: number;
 }

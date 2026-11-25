@@ -155,6 +155,8 @@ export class PermisoController {
                 { modulo_permiso: 'almacen', accion_permiso: 'existencias_ubicacion' },
                 // Almacén Administrador → Tablero de Almacén (existencia total y estado general, para encargados)
                 { modulo_permiso: 'almacen', accion_permiso: 'tablero_almacen' },
+                // Almacén Administrador → Cuadre de existencias (vigila que la existencia del sistema cuadre con sus movimientos)
+                { modulo_permiso: 'almacen', accion_permiso: 'cuadre_existencias' },
                 // Facturación → Créditos Autorizados (bitácora de límites de crédito autorizados)
                 { modulo_permiso: 'facturacion', accion_permiso: 'autorizaciones_credito' },
                 // Permiso visible en panel Web CRM para surtidores

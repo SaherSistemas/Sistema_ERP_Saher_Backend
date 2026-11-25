@@ -570,6 +570,32 @@ async function ajustarLotesApartadosDetalle(
 // Asignaciones de "Tomar Pedido" en curso por usuario (evita asignar dos veces con un doble clic)
 const asignacionesEnCurso = new Map<string, Promise<any>>();
 
+// Deja las filas de chequeo de un renglón EXACTAMENTE con lo que dicen sus líneas de lote: surtida = cantidad de la línea y
+// chequeada nunca mayor a la surtida. La pantalla de chequeo lee de estas filas, y varias acciones del pedido (asignar lote,
+// cambiar lote, cantidad) las movían "a sumas y restas": si una quedaba desfasada (ej. la línea bajó de 7 a 1 pero el chequeo
+// seguía en 7), la siguiente suma la dejaba inflada (7 + 6 = 13 surtidas de un renglón de 7). Con esto se corrige sola.
+async function sincronizarChequeoConLineas(id_detalle_pedido_almacen: string, t: Transaction) {
+  const [lineas, chequeos] = await Promise.all([
+    Detalle_Pedido_Almacen_LoteModel.findAll({ where: { id_detalle_pedido_almacen }, transaction: t }),
+    Detalle_Pedido_Almacen_ChequeoModel.findAll({ where: { id_detalle_pedido_almacen }, transaction: t, lock: t.LOCK.UPDATE }),
+  ]);
+  const cantidadDe = new Map(lineas.map(l => [l.id_detalle_pedido_almacen_lote, Number(l.cantidad) || 0]));
+  for (const c of chequeos) {
+    if (!c.id_detalle_pedido_almacen_lote || c.estado === 'CANCELADO') continue;   // las filas "sin lote" no dependen de una línea
+    const surtida = cantidadDe.get(c.id_detalle_pedido_almacen_lote);
+    if (surtida === undefined) continue;
+    const chequeada = Math.min(Number(c.cant_chequeada) || 0, surtida);
+    if (Number(c.cant_surtida_lote) === surtida && Number(c.cant_chequeada) === chequeada) continue;
+    const completa = surtida > 0 && chequeada >= surtida;
+    await c.update({
+      cant_surtida_lote: surtida,
+      cant_chequeada: chequeada,
+      estado: completa ? 'TERMINADO' : chequeada > 0 ? 'EN_PROCESO' : 'ASIGNADO',
+      fin: completa ? (c.fin ?? new Date()) : null,
+    }, { transaction: t });
+  }
+}
+
 export const Pedido_AlmacenService = {
   /**CHEQUEO */
 
@@ -1639,6 +1665,7 @@ export const Pedido_AlmacenService = {
         } as any, { transaction: t });
       }
 
+      await sincronizarChequeoConLineas(linea.id_detalle_pedido_almacen, t);
       await t.commit();
       return { cod_pedido: info.cod_int_pedido_alm, cantidad, lote_nuevo: String(lote.numero_lote_sucursal).trim() };
     } catch (err) {
@@ -1790,6 +1817,7 @@ export const Pedido_AlmacenService = {
         }
       }
 
+      await sincronizarChequeoConLineas(id_detalle_pedido_almacen, t);
       await t.commit();
       return { cod_pedido: info.cod_int_pedido_alm, cantidad: cant, lote: String(lote.numero_lote_sucursal).trim() };
     } catch (err) {
